@@ -183,6 +183,14 @@ export function showBindingToast(msg, isError = false) {
     `;
     toast.innerText = msg;
     toast.style.display = 'block';
+
+    // 【核心修复】：防止重复点击导致的定时器叠加，加入自动消失的 3 秒计时
+    if (window._slToastTimeout) {
+        clearTimeout(window._slToastTimeout);
+    }
+    window._slToastTimeout = setTimeout(() => {
+        toast.style.display = 'none';
+    }, 3000);
 }
 
 export function hideBindingToast() {
@@ -371,6 +379,50 @@ export function injectCSS() {
         .sl-drag-over { border-top: 3px solid #4CAF50 !important; background: rgba(76, 175, 80, 0.1) !important;}
         .sl-drag-over-list { background: rgba(76, 175, 80, 0.1) !important; border-radius: 8px; border: 2px dashed #4CAF50 !important; box-sizing: border-box;}
         .sl-drag-over-card { border-left: 3px solid #4CAF50 !important; }
+
+        /* ========================================================================= */
+        /* --- 右键菜单样式 (Context Menu) --- */
+        /* ========================================================================= */
+        .sl-context-menu {
+            position: fixed;
+            background: rgba(35, 35, 35, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            padding: 6px 0;
+            min-width: 180px;
+            z-index: 10005;
+            display: none;
+            font-family: sans-serif;
+            font-size: 13px;
+            color: #eee;
+        }
+        .sl-context-menu-title {
+            padding: 4px 15px;
+            font-size: 11px;
+            color: #aaa;
+            font-weight: bold;
+            background: rgba(0,0,0,0.2);
+            margin: 4px 0;
+            pointer-events: none;
+            letter-spacing: 1px;
+        }
+        .sl-context-menu-item {
+            padding: 8px 15px;
+            cursor: pointer;
+            transition: background 0.1s;
+            display: flex;
+            align-items: center;
+        }
+        .sl-context-menu-item:hover { background: #2196F3; color: #fff; }
+        .sl-context-menu-item.sl-danger { color: #ff6b6b; }
+        .sl-context-menu-item.sl-danger:hover { background: #f44336; color: #fff; }
+        .sl-context-menu-divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.1);
+            margin: 4px 0;
+        }
     `;
     document.head.appendChild(style);
 }

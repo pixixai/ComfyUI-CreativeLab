@@ -6,7 +6,7 @@
 import { state, saveAndRender } from "../ui_state.js";
 import { buildCustomSelect, getCustomNodeMenuHTML, getMultiNodeMenuHTML, getMultiWidgetMenuHTML, getWidgetDef } from "../ui_utils.js";
 import { app } from "../../../../scripts/app.js";
-import { attachBatchSyncEvents } from "./action_batch_sync.js";
+import { execSyncParams } from "./action_batch_sync.js";
 
 export function renderDynamicToolbar(toolbarHandleContainer) {
     const separator = toolbarHandleContainer.querySelector('#sl-module-toolbar-separator');
@@ -105,40 +105,31 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
                 `;
             }
 
+            // 【UI 优化】：同步参数按钮使用原生 24x24 画布重绘，确保 stroke-width=1.5 视觉完全一致，并带有圆角
             html += `
-                <div style="display:flex; align-items:center; margin-left: 2px;">
-                    <button id="tb-reset-module" style="background:transparent; border:none; color:#aaa; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; transition:color 0.2s, transform 0.2s; width: 30px; height: 30px;" title="重置模块参数到新建状态" onmouseover="this.style.color='#fff'; this.style.transform='rotate(-45deg)'" onmouseout="this.style.color='#aaa'; this.style.transform='rotate(0deg)'">
+                <div style="display:flex; align-items:center; margin-left: 4px; gap: 2px;">
+                    <button id="tb-reset-module" style="background:transparent; border:none; color:#aaa; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; transition:color 0.2s, transform 0.2s; width: 28px; height: 28px;" title="重置模块参数到新建状态" onmouseover="this.style.color='#fff'; this.style.transform='rotate(-45deg)'" onmouseout="this.style.color='#aaa'; this.style.transform='rotate(0deg)'">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
                     </button>
-                </div>
-                
-                <div style="position:relative; display:inline-flex; align-items:center; margin-left: 2px;">
-                    <button class="sl-btn" id="tb-batch-sync-btn" title="批量同步与移动" style="padding: 0; width: 34px; height: 34px; display:flex; align-items:center; justify-content:center;">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M12 11h4"></path><path d="M12 16h4"></path><path d="M8 11h.01"></path><path d="M8 16h.01"></path></svg>
+                    
+                    <button class="sl-btn" id="tb-btn-sync-params" title="同步参数至其它任务相同位置" style="padding: 0; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; color: #aaa; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 12v-2.5c0-1.93 1.57-3.5 3.5-3.5h11"/>
+                            <polyline points="15 2 19 6 15 10"/>
+                            <path d="M20 12v2.5c0 1.93-1.57 3.5-3.5 3.5h-11"/>
+                            <polyline points="9 22 5 18 9 14"/>
+                        </svg>
                     </button>
-                    <div id="tb-batch-sync-dropdown" class="sl-custom-select-dropdown" style="display:none; top: calc(100% + 4px); right: 0; left: auto; min-width: 140px; z-index: 10002;">
-                        <div class="sl-custom-select-group-title">同步</div>
-                        <div class="sl-custom-select-item" id="sl-batch-sync-params">同步参数</div>
-                        <div class="sl-custom-select-item" id="sl-batch-select-same">选择相同模块</div>
-                        <div class="sl-custom-select-item" id="sl-batch-delete-modules">删除相同模块</div>
-                        <div class="sl-custom-select-group-title">批量</div>
-                        <div class="sl-custom-select-item" id="sl-batch-move-backward">批量向后移动</div>
-                        <div class="sl-custom-select-item" id="sl-batch-move-forward">批量向前移动</div>
-                    </div>
                 </div>
             `;
         }
     }
 
-    if (html !== '') html += `<div style="width:1px; height:20px; background:rgba(255,255,255,0.2); margin:0 4px;"></div>`;
+    // 【UI 优化】：垂直分割线间距大幅缩小 (margin 降到 2px，高度降到 16px)
+    if (html !== '') html += `<div style="width:1px; height:16px; background:rgba(255,255,255,0.25); margin:0 2px;"></div>`;
     
     html += `
-        <div style="display:flex; align-items:center; gap:4px;">
-            ${mainType === 'preview' ? `
-            <button id="tb-manage-history" class="sl-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; ${mainArea?.isManageMode ? 'background:#4CAF50; border-color:#4CAF50; color:#fff;' : 'background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;'}" title="管理生成记录 (网格视图与拖拽排序)" onmouseover="if(!${mainArea?.isManageMode}) this.style.color='#fff'" onmouseout="if(!${mainArea?.isManageMode}) this.style.color='#aaa'">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-            </button>
-            ` : ''}
+        <div style="display:flex; align-items:center; gap:2px;">
             <button id="tb-clone-btn" class="sl-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;" title="原样克隆选中项" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
             </button>
@@ -147,6 +138,18 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
             </button>
         </div>
     `;
+
+    if (mainType === 'preview') {
+        // 【UI 优化】：垂直分割线间距大幅缩小
+        html += `<div style="width:1px; height:16px; background:rgba(255,255,255,0.25); margin:0 2px;"></div>`;
+        html += `
+            <div style="display:flex; align-items:center; gap:2px;">
+                <button id="tb-manage-history" class="sl-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; ${mainArea?.isManageMode ? 'background:#4CAF50; border-color:#4CAF50; color:#fff;' : 'background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;'}" title="管理生成记录 (网格视图与拖拽排序)" onmouseover="if(!${mainArea?.isManageMode}) this.style.color='#fff'" onmouseout="if(!${mainArea?.isManageMode}) this.style.color='#aaa'">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                </button>
+            </div>
+        `;
+    }
 
     tb.innerHTML = html;
     if (wasNodeOpen) tb.querySelector('#tb-node-select-custom')?.classList.add('open');
@@ -364,7 +367,12 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
             });
         });
 
-        attachBatchSyncEvents(tb, selectedAreas);
+        tb.querySelector('#tb-btn-sync-params')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (mainArea && selectedAreas.length > 0) {
+                execSyncParams(mainArea, selectedAreas[0].card);
+            }
+        });
 
         if (mainType === 'preview') {
             const ratioW = tb.querySelector('#tb-ratio-w');

@@ -1,185 +1,318 @@
 /**
  * 文件名: comp_contextmenu.js
- * 职责: 负责“输出模块”专属的全局右键菜单的生成、定位及核心记录管理逻辑
+ * 路径: web/components/comp_contextmenu.js
+ * 职责: 拦截模块（输入/输出）的右键事件，生成动态菜单，并支持多选批量操作与全局资产清理
  */
 import { state, saveAndRender } from "./ui_state.js";
-import { execSyncParams, execSelectSameModules, execDeleteSameModules, execMoveBackward, execMoveForward } from "./actions/action_batch_sync.js";
+import { showBindingToast, hideBindingToast } from "./ui_utils.js";
+import { execSelectSameModules, execDeleteSameModules, execMoveBackward, execMoveForward } from "./actions/action_batch_sync.js";
 
-let contextMenuEl = null;
+// 辅助方法：触发定时消失的提示
+function showAutoToast(msg, isError = false) {
+    showBindingToast(msg, isError);
+    setTimeout(hideBindingToast, 3000); 
+}
 
-export function showOutputContextMenu(e, card, area) {
-    e.preventDefault();
-    e.stopPropagation();
+// =========================================================================
+// 内部辅助方法：调用后端物理删除文件 API
+// =========================================================================
+async function deletePhysicalFile(urlStr) {
+    if (!urlStr) return;
+    try {
+        const urlObj = new URL(urlStr, window.location.origin);
+        const filename = urlObj.searchParams.get('filename');
+        const subfolder = urlObj.searchParams.get('subfolder') || '';
+        if (!filename) return;
 
-    // 1. 单例模式：创建或获取全局唯一的菜单 DOM
-    if (!contextMenuEl) {
-        contextMenuEl = document.createElement('div');
-        contextMenuEl.id = 'sl-output-context-menu';
-        contextMenuEl.className = 'sl-custom-select-dropdown';
-        // 复用你的 UI 风格，加入适当的层级与阴影
-        contextMenuEl.style.cssText = 'display:none; position:fixed; z-index:10005; min-width: 180px; padding: 4px 0; border: 1px solid #555; background: #2a2a2a; border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); font-size: 13px;';
-        document.body.appendChild(contextMenuEl);
-
-        // 全局点击隐藏菜单
-        document.addEventListener('mousedown', (evt) => {
-            if (!contextMenuEl.contains(evt.target)) {
-                contextMenuEl.style.display = 'none';
-            }
-        }, true);
+        await fetch('/shell_link/delete_file', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename, subfolder })
+        });
+    } catch (e) {
+        console.error("[ShellLink] 删除本地文件失败", e);
     }
+}
 
-    // 2. 注入菜单 HTML (严格按照你的层级要求设计)
-    contextMenuEl.innerHTML = `
-        <div style="padding: 6px 10px 2px 10px; font-size: 11px; color: #888; font-weight: bold;">内容</div>
-        <div class="sl-custom-select-item" id="ctx-download">⬇️ 下载</div>
-        <div class="sl-custom-select-item" id="ctx-download-all">⏬ 下载全部生成记录</div>
-        <div style="height: 1px; background: #444; margin: 4px 0;"></div>
-        <div class="sl-custom-select-item" id="ctx-remove">➖ 移除</div>
-        <div class="sl-custom-select-item" style="color:#ff4d4f;" id="ctx-remove-del">🗑️ 移除并删除本地文件</div>
-        <div class="sl-custom-select-item" id="ctx-clear">🧹 清除</div>
-        <div class="sl-custom-select-item" style="color:#ff4d4f;" id="ctx-clear-del">💣 清除并删除本地文件</div>
-
-        <div style="padding: 10px 10px 2px 10px; font-size: 11px; color: #888; font-weight: bold;">模块</div>
-        <div class="sl-custom-select-item" id="ctx-sync">🔄 同步参数</div>
-        <div class="sl-custom-select-item" id="ctx-sel-same">🔲 选择相同模块</div>
-        <div class="sl-custom-select-item" style="color:#ff4d4f;" id="ctx-del-same">❌ 删除相同模块</div>
-        <div style="height: 1px; background: #444; margin: 4px 0;"></div>
-        <div class="sl-custom-select-item" id="ctx-move-back">⏪ 批量向后移动</div>
-        <div class="sl-custom-select-item" id="ctx-move-fwd">⏩ 批量向前移动</div>
-    `;
-
-    // 3. 计算坐标并显示 (防屏幕溢出)
-    contextMenuEl.style.display = 'block';
-    const rect = contextMenuEl.getBoundingClientRect();
-    let x = e.clientX;
-    let y = e.clientY;
-    if (x + rect.width > window.innerWidth) x -= rect.width;
-    if (y + rect.height > window.innerHeight) y -= rect.height;
-    contextMenuEl.style.left = `${x}px`;
-    contextMenuEl.style.top = `${y}px`;
-
-    // -------------------------------------------------------------------------
-    // 4. 核心功能逻辑区
-    // -------------------------------------------------------------------------
-    const hide = () => contextMenuEl.style.display = 'none';
-
-    // 【辅助方法】下载单个文件
-    const triggerDownload = (urlStr) => {
-        if (!urlStr) return;
+// 辅助方法：触发浏览器下载
+function downloadFile(url) {
+    if (!url) return;
+    try {
+        const urlObj = new URL(url, window.location.origin);
+        const filename = urlObj.searchParams.get('filename') || `image_${Date.now()}.png`;
         const a = document.createElement('a');
-        a.href = urlStr;
-        try {
-            const urlObj = new URL(urlStr, window.location.origin);
-            a.download = urlObj.searchParams.get('filename') || 'download';
-        } catch(e) { a.download = 'download'; }
+        a.href = url;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-    };
+    } catch (e) { console.error("下载失败", e); }
+}
 
-    // 【辅助方法】调用后端 API 删除本地文件
-    const deleteLocalFile = async (urlStr) => {
-        if (!urlStr) return;
-        try {
-            const urlObj = new URL(urlStr, window.location.origin);
-            const filename = urlObj.searchParams.get('filename');
-            const subfolder = urlObj.searchParams.get('subfolder') || "";
-            const type = urlObj.searchParams.get('type') || "output";
-
-            if (filename) {
-                await fetch('/shell_link/delete_file', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ filename, subfolder, type })
-                });
-            }
-        } catch (err) { console.error("[ShellLink] 本地删除失败:", err); }
-    };
-
-    // --- 内容管理事件绑定 ---
+// =========================================================================
+// 【核心逻辑】：全局清理指定的 URL，保证所有卡片中的残影都被清除
+// =========================================================================
+function removeUrlsGlobally(urlsToRemove) {
+    if (!urlsToRemove || urlsToRemove.length === 0) return;
     
-    // 1. 下载当前
-    contextMenuEl.querySelector('#ctx-download').onclick = (evt) => {
-        evt.stopPropagation(); hide();
-        triggerDownload(area.resultUrl);
-    };
+    state.cards.forEach(c => {
+        c.areas?.forEach(a => {
+            if (a.type === 'preview') {
+                // 如果有历史记录数组，则在数组中过滤
+                if (a.history && a.history.length > 0) {
+                    const activeUrl = a.resultUrl;
+                    a.history = a.history.filter(h => !urlsToRemove.includes(h));
+                    
+                    if (a.history.length === 0) {
+                        a.resultUrl = '';
+                        a.historyIndex = 0;
+                        a.selectedThumbIndices = []; // 清空选中状态
+                    } else {
+                        // 修正当前显示的索引
+                        let newActiveIdx = a.history.indexOf(activeUrl);
+                        if (newActiveIdx === -1) newActiveIdx = Math.max(0, a.history.length - 1);
+                        a.historyIndex = newActiveIdx;
+                        a.resultUrl = a.history[newActiveIdx];
+                    }
+                } 
+                // 如果是单图模式（没有history但有resultUrl）
+                else if (a.resultUrl && urlsToRemove.includes(a.resultUrl)) {
+                    a.resultUrl = '';
+                }
+            }
+        });
+    });
+    saveAndRender();
+}
 
-    // 2. 下载全部记录
-    contextMenuEl.querySelector('#ctx-download-all').onclick = (evt) => {
-        evt.stopPropagation(); hide();
-        if (area.history && area.history.length > 0) {
-            // 设置延时防止浏览器拦截批量下载
-            area.history.forEach((url, idx) => {
-                setTimeout(() => triggerDownload(url), idx * 200); 
-            });
+// =========================================================================
+// 核心：初始化与挂载右键菜单
+// =========================================================================
+export function setupContextMenu(panelContainer) {
+    // 1. 在页面中创建隐藏的全局新菜单容器
+    const menuEl = document.createElement('div');
+    menuEl.className = 'sl-context-menu';
+    document.body.appendChild(menuEl);
+
+    // 2. 全局点击关闭菜单
+    const closeMenuGlobally = (e) => {
+        if (menuEl.style.display === 'block' && !menuEl.contains(e.target)) {
+            menuEl.style.display = 'none';
         }
     };
+    window.addEventListener('mousedown', closeMenuGlobally, true);
+    window.addEventListener('contextmenu', (e) => {
+        if (menuEl.style.display === 'block' && !menuEl.contains(e.target)) {
+            menuEl.style.display = 'none';
+        }
+    }, true);
 
-    // 3. 移除逻辑 (单张移除)
-    const handleRemove = async (withDelete) => {
-        if (!area.history || area.history.length === 0) return;
-        const targetUrl = area.resultUrl;
+    // 3. 抽离出的公共唤出逻辑
+    const showMenu = (clientX, clientY, clickedAreaId) => {
+        // 找到当前选中的所有模块对象
+        const selectedAreaObjs = [];
+        state.cards.forEach(c => {
+            c.areas?.forEach(a => {
+                if (state.selectedAreaIds.includes(a.id)) {
+                    selectedAreaObjs.push({ card: c, area: a });
+                }
+            });
+        });
 
-        if (withDelete) await deleteLocalFile(targetUrl);
+        // 找到当前点击的那个模块
+        const mainObj = selectedAreaObjs.find(o => o.area.id === clickedAreaId);
+        if (!mainObj) return;
 
-        const idx = area.history.findIndex(u => u === targetUrl);
-        if (idx !== -1) {
-            area.history.splice(idx, 1);
-            if (area.history.length === 0) {
-                area.resultUrl = '';
-                area.historyIndex = 0;
-            } else {
-                area.historyIndex = Math.min(idx, area.history.length - 1);
-                area.resultUrl = area.history[area.historyIndex];
-            }
+        // 【判断显示分组】：只有当点击的是“输出模块”时，才显示“内容”分组
+        const showContentGroup = mainObj.area.type === 'preview';
+
+        // 4. 动态渲染菜单内部 HTML
+        let menuHTML = ``;
+
+        if (showContentGroup) {
+            menuHTML += `
+                <div class="sl-context-menu-title">内容</div>
+                <div class="sl-context-menu-item" id="sl-ctx-download">下载</div>
+                <div class="sl-context-menu-item" id="sl-ctx-download-all">下载全部生成记录</div>
+                <div class="sl-context-menu-divider"></div>
+                <div class="sl-context-menu-item" id="sl-ctx-remove">移除</div>
+                <div class="sl-context-menu-item sl-danger" id="sl-ctx-remove-del">移除并删除本地文件</div>
+                <div class="sl-context-menu-item" id="sl-ctx-clear">清除</div>
+                <div class="sl-context-menu-item sl-danger" id="sl-ctx-clear-del">清除并删除本地文件</div>
+            `;
+        }
+
+        menuHTML += `
+            <div class="sl-context-menu-title">模块</div>
+            <div class="sl-context-menu-item" id="sl-ctx-select-same">选择相同模块</div>
+            <div class="sl-context-menu-item sl-danger" id="sl-ctx-del-same">删除相同模块</div>
+            <div class="sl-context-menu-divider"></div>
+            <div class="sl-context-menu-item" id="sl-ctx-move-back">批量向后移动</div>
+            <div class="sl-context-menu-item" id="sl-ctx-move-fwd">批量向前移动</div>
+        `;
+
+        menuEl.innerHTML = menuHTML;
+
+        // 防止菜单超出屏幕边界
+        menuEl.style.display = 'block';
+        let left = clientX;
+        let top = clientY;
+        const menuRect = menuEl.getBoundingClientRect();
+        if (left + menuRect.width > window.innerWidth) left -= menuRect.width;
+        if (top + menuRect.height > window.innerHeight) top -= menuRect.height;
+        menuEl.style.left = `${left}px`;
+        menuEl.style.top = `${top}px`;
+
+        // =========================================================
+        // 5. 绑定点击事件 (智能适配历史记录结构并支持多选)
+        // =========================================================
+        const getHistoryArr = (area) => area.history || area.historyUrls || area.results || [];
+        const getHistoryIdx = (area) => area.historyIndex !== undefined ? area.historyIndex : (area.currentRecordIndex || 0);
+        const getCurrentUrl = (area) => {
+            const arr = getHistoryArr(area);
+            const idx = getHistoryIdx(area);
+            return area.resultUrl || (arr.length > 0 ? arr[idx] : null);
+        };
+
+        // --- 内容区事件 ---
+        if (showContentGroup) {
+            menuEl.querySelector('#sl-ctx-download').onclick = () => {
+                menuEl.style.display = 'none';
+                selectedAreaObjs.forEach(o => {
+                    const url = getCurrentUrl(o.area);
+                    if (url) downloadFile(url);
+                });
+            };
+
+            menuEl.querySelector('#sl-ctx-download-all').onclick = () => {
+                menuEl.style.display = 'none';
+                selectedAreaObjs.forEach(o => {
+                    const arr = getHistoryArr(o.area);
+                    if (arr.length > 0) arr.forEach(url => downloadFile(url));
+                    else if (o.area.resultUrl) downloadFile(o.area.resultUrl);
+                });
+            };
+
+            // 【移除 - 全局同步版】
+            menuEl.querySelector('#sl-ctx-remove').onclick = () => {
+                menuEl.style.display = 'none';
+                let urlsToRemove = [];
+                selectedAreaObjs.forEach(o => {
+                    const url = getCurrentUrl(o.area);
+                    if (url) urlsToRemove.push(url);
+                });
+                removeUrlsGlobally(urlsToRemove);
+            };
+
+            // 【移除并删除 - 全局同步版】
+            menuEl.querySelector('#sl-ctx-remove-del').onclick = async () => {
+                menuEl.style.display = 'none';
+                let urlsToRemove = [];
+                for (let o of selectedAreaObjs) {
+                    const url = getCurrentUrl(o.area); 
+                    if (url) {
+                        await deletePhysicalFile(url);
+                        urlsToRemove.push(url);
+                    }
+                }
+                removeUrlsGlobally(urlsToRemove);
+                showAutoToast("已彻底删除选中的实体文件及全部记录");
+            };
+
+            // 【清除 - 全局同步版】
+            menuEl.querySelector('#sl-ctx-clear').onclick = () => {
+                menuEl.style.display = 'none';
+                let urlsToRemove = [];
+                selectedAreaObjs.forEach(o => {
+                    const arr = getHistoryArr(o.area);
+                    if (arr.length > 0) urlsToRemove.push(...arr);
+                    else if (o.area.resultUrl) urlsToRemove.push(o.area.resultUrl);
+                });
+                removeUrlsGlobally(urlsToRemove);
+            };
+
+            // 【清除并删除 - 全局同步版】
+            menuEl.querySelector('#sl-ctx-clear-del').onclick = async () => {
+                menuEl.style.display = 'none';
+                let deleteCount = 0;
+                let urlsToRemove = [];
+                for (let o of selectedAreaObjs) {
+                    const arr = getHistoryArr(o.area);
+                    const allUrls = arr.length > 0 ? [...arr] : (o.area.resultUrl ? [o.area.resultUrl] : []);
+                    for (let url of allUrls) { 
+                        await deletePhysicalFile(url); 
+                        urlsToRemove.push(url);
+                        deleteCount++; 
+                    }
+                }
+                removeUrlsGlobally(urlsToRemove);
+                showAutoToast(`已彻底删除选中的 ${deleteCount} 个本地文件`);
+            };
+        }
+
+        // --- 模块区事件 ---
+        menuEl.querySelector('#sl-ctx-select-same').onclick = () => { 
+            menuEl.style.display = 'none'; 
+            execSelectSameModules(selectedAreaObjs); 
+        };
+        menuEl.querySelector('#sl-ctx-del-same').onclick = () => { 
+            menuEl.style.display = 'none'; 
+            // 批量删除同名模块
+            selectedAreaObjs.forEach(o => execDeleteSameModules(o.area, o.card));
+        };
+        menuEl.querySelector('#sl-ctx-move-back').onclick = () => { 
+            menuEl.style.display = 'none'; 
+            execMoveBackward(state.selectedAreaIds); 
+        };
+        menuEl.querySelector('#sl-ctx-move-fwd').onclick = () => { 
+            menuEl.style.display = 'none'; 
+            execMoveForward(state.selectedAreaIds); 
+        };
+    };
+
+    // 5. 劫持旧的 Preview API（用于媒体元素内部点击）
+    window.ShellLink.showPreviewContextMenu = (x, y, cardId, areaId, url) => {
+        // 【核心修复】：如果是格式刷模式，直接屏蔽菜单弹出，并且关闭格式刷状态
+        if (state.painterMode) {
+            state.painterMode = false;
+            state.painterSource = null;
+            saveAndRender();
+            return;
+        }
+
+        // 如果右键的不是当前选中的模块之一，则重置选中为仅该模块
+        if (!state.selectedAreaIds.includes(areaId)) {
+            state.selectedAreaIds = [areaId];
             saveAndRender();
         }
+        showMenu(x, y, areaId);
     };
 
-    contextMenuEl.querySelector('#ctx-remove').onclick = (evt) => {
-        evt.stopPropagation(); hide(); handleRemove(false);
-    };
-    contextMenuEl.querySelector('#ctx-remove-del').onclick = (evt) => {
-        evt.stopPropagation(); hide(); handleRemove(true);
-    };
-
-    // 4. 清除逻辑 (清空全部历史)
-    const handleClear = async (withDelete) => {
-        if (!area.history || area.history.length === 0) return;
-        
-        if (withDelete) {
-            // 并发删除所有本地文件
-            await Promise.all(area.history.map(url => deleteLocalFile(url)));
+    // 6. 模块容器通用右键监听（用于模块空白区域点击）
+    panelContainer.addEventListener('contextmenu', (e) => {
+        // 【核心修复】：如果是格式刷模式，直接屏蔽菜单弹出，并且关闭格式刷状态
+        if (state.painterMode) {
+            e.preventDefault();
+            e.stopPropagation();
+            state.painterMode = false;
+            state.painterSource = null;
+            saveAndRender();
+            return;
         }
 
-        area.history = [];
-        area.historyIndex = 0;
-        area.resultUrl = '';
-        saveAndRender();
-    };
+        const areaEl = e.target.closest('.sl-area');
+        if (!areaEl) return;
 
-    contextMenuEl.querySelector('#ctx-clear').onclick = (evt) => {
-        evt.stopPropagation(); hide(); handleClear(false);
-    };
-    contextMenuEl.querySelector('#ctx-clear-del').onclick = (evt) => {
-        evt.stopPropagation(); hide(); handleClear(true);
-    };
+        const areaId = areaEl.dataset.areaId;
+        
+        // 逻辑同上：如果未选中则单选，已选中则保留多选
+        if (!state.selectedAreaIds.includes(areaId)) {
+            state.selectedAreaIds = [areaId];
+            saveAndRender();
+        }
 
-
-    // --- 模块批处理事件绑定 (复用 action_batch_sync) ---
-    contextMenuEl.querySelector('#ctx-sync').onclick = (evt) => {
-        evt.stopPropagation(); hide(); execSyncParams(area, card);
-    };
-    contextMenuEl.querySelector('#ctx-sel-same').onclick = (evt) => {
-        evt.stopPropagation(); hide(); execSelectSameModules([{area, card}]);
-    };
-    contextMenuEl.querySelector('#ctx-del-same').onclick = (evt) => {
-        evt.stopPropagation(); hide(); execDeleteSameModules(area, card);
-    };
-    contextMenuEl.querySelector('#ctx-move-back').onclick = (evt) => {
-        evt.stopPropagation(); hide(); execMoveBackward(state.selectedAreaIds);
-    };
-    contextMenuEl.querySelector('#ctx-move-fwd').onclick = (evt) => {
-        evt.stopPropagation(); hide(); execMoveForward(state.selectedAreaIds);
-    };
+        e.preventDefault(); 
+        e.stopPropagation();
+        showMenu(e.clientX, e.clientY, areaId);
+    });
 }

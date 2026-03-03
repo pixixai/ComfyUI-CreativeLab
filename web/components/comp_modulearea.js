@@ -2,7 +2,7 @@
  * comp_modulearea.js：【组件】负责卡片内部的“模块”渲染与交互。
  */
 import { state, dragState, saveAndRender } from "./ui_state.js";
-import { buildCustomSelect, getWidgetDef, getRatioCSS } from "./ui_utils.js";
+import { buildCustomSelect, getWidgetDef, getRatioCSS, showBindingToast, hideBindingToast } from "./ui_utils.js";
 import { renderDynamicToolbar, attachDynamicToolbarEvents } from "./actions/action_module_config.js";
 
 export function generateAreaHTML(area, card) {
@@ -201,7 +201,7 @@ export function generateAreaHTML(area, card) {
     } else if (area.type === 'preview') {
         // 管理模式渲染分支
         if (area.isManageMode && area.history && area.history.length > 0) {
-            let gridHtml = `<div class="sl-history-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 10px; width: 100%; box-sizing: border-box; max-height: 400px; overflow-y: auto;">`;
+            let gridHtml = `<div class="sl-history-grid" data-card-id="${card.id}" data-area-id="${area.id}" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 10px; width: 100%; box-sizing: border-box; max-height: 400px; overflow-y: auto;">`;
             
             const selectedThumbs = area.selectedThumbIndices || [];
 
@@ -221,7 +221,6 @@ export function generateAreaHTML(area, card) {
 
                 const overlay = isSelected ? `<div style="position:absolute;inset:0;background:rgba(33,150,243,0.3);pointer-events:none;"></div>` : '';
                 
-                // 【修改】：更新悬浮删除按钮的样式，与卡片模块的删除按钮保持一致（较小尺寸）
                 const delBtn = `<div class="sl-thumb-delete" data-card="${card.id}" data-area="${area.id}" data-index="${idx}" style="position:absolute; top:3px; right:3px; width:18px; height:18px; background:rgba(255, 255, 255, 0.6); color:#333; font-weight:bold; border-radius:50%; font-size:10px; display:none; align-items:center; justify-content:center; cursor:pointer; z-index:10; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: all 0.2s;" title="删除此记录">✖</div>`;
 
                 gridHtml += `
@@ -234,13 +233,28 @@ export function generateAreaHTML(area, card) {
             });
             gridHtml += `</div>`;
 
+            // 【UI逻辑】：只要有蓝框或绿框(当前显示)，都算作选中状态，激活按钮
+            const hasSelection = true; // 在管理模式下，至少有1张绿框主显，因此按钮默认可用
+            
+            const btnBaseStyle = "padding:4px 8px; border-radius:4px; border:none; transition:all 0.2s; font-size:10px; font-weight:normal;";
+            const btnActiveStyle = 'cursor:pointer; color:#eee; background:rgba(255,255,255,0.15); box-shadow: 0 1px 3px rgba(0,0,0,0.3);';
+            const btnDisabledStyle = 'cursor:not-allowed; color:#777; background:rgba(255,255,255,0.05); box-shadow:none;';
+            
+            const btnRemoveStyle = hasSelection ? btnActiveStyle : btnDisabledStyle;
+            const btnDeleteStyle = hasSelection ? btnActiveStyle : btnDisabledStyle;
+
             return `
                 <div class="sl-area ${isAreaSelected ? 'active' : ''}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="padding:0; overflow:hidden; position:relative; background: rgba(0,0,0,0.4); min-height: 100px;">
                     <button class="sl-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="删除输出模块" style="z-index: 30;">✖</button>
-                    <div style="padding: 8px 10px; font-size: 12px; font-weight: bold; color: #ccc; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; background: rgba(0,0,0,0.3);">
+                    
+                    <div style="padding: 8px 10px; font-size: 12px; font-weight: bold; color: #ccc; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3);">
                         <span>生成记录管理 (${area.history.length})</span>
-                        <span style="font-weight: normal; font-size: 10px; color: #888;">(拖拽排序 / 点击设为当前)</span>
+                        <div style="display:flex; gap: 6px; align-items: center;">
+                            <button class="sl-manage-remove-btn" data-card="${card.id}" data-area="${area.id}" style="${btnBaseStyle} ${btnRemoveStyle}" ${hasSelection ? '' : 'disabled'} onmouseover="if(!this.disabled) { this.style.background='rgba(255,255,255,0.25)'; this.style.color='#fff'; }" onmouseout="if(!this.disabled) { this.style.background='rgba(255,255,255,0.15)'; this.style.color='#eee'; }">移除</button>
+                            <button class="sl-manage-delete-btn" data-card="${card.id}" data-area="${area.id}" style="${btnBaseStyle} ${btnDeleteStyle}" ${hasSelection ? '' : 'disabled'} onmouseover="if(!this.disabled) { this.style.background='rgba(255,77,77,0.3)'; this.style.color='#fff'; }" onmouseout="if(!this.disabled) { this.style.background='rgba(255,255,255,0.15)'; this.style.color='#eee'; }">移除并删除文件</button>
+                        </div>
                     </div>
+                    
                     ${gridHtml}
                 </div>
             `;
@@ -306,6 +320,161 @@ export function attachAreaEvents(container) {
         document.head.appendChild(style);
     }
 
+    // =========================================================================
+    // 【核心修复】：自带独立且绝对执行的全局同步清理引擎
+    // =========================================================================
+    const removeUrlsGlobally = (urlsToRemove) => {
+        if (!urlsToRemove || urlsToRemove.length === 0) return;
+        state.cards.forEach(c => {
+            c.areas?.forEach(a => {
+                if (a.type === 'preview') {
+                    if (a.history && a.history.length > 0) {
+                        const activeUrl = a.resultUrl;
+                        // 只要模块历史记录中有交集，就执行清理
+                        const hasMatch = a.history.some(h => urlsToRemove.includes(h));
+                        if (hasMatch) {
+                            a.history = a.history.filter(h => !urlsToRemove.includes(h));
+                            if (a.history.length === 0) {
+                                a.resultUrl = '';
+                                a.historyIndex = 0;
+                                a.selectedThumbIndices = [];
+                            } else {
+                                let newActiveIdx = a.history.indexOf(activeUrl);
+                                if (newActiveIdx === -1) newActiveIdx = Math.max(0, a.history.length - 1);
+                                a.historyIndex = newActiveIdx;
+                                a.resultUrl = a.history[newActiveIdx];
+                                if (a.selectedThumbIndices) {
+                                    a.selectedThumbIndices = []; // 安全起见，清理被删后的其他模块的蓝框
+                                }
+                            }
+                        }
+                    } else if (a.resultUrl && urlsToRemove.includes(a.resultUrl)) {
+                        a.resultUrl = '';
+                    }
+                }
+            });
+        });
+        saveAndRender();
+    };
+
+    // =========================================================================
+    // 【逻辑修复】：移除与删除按钮的事件绑定 (支持蓝绿高亮合并与精准区分)
+    // =========================================================================
+    container.querySelectorAll('.sl-manage-remove-btn').forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            if (btn.disabled) return;
+            const cardId = btn.dataset.card;
+            const areaId = btn.dataset.area;
+            const card = state.cards.find(c => c.id === cardId);
+            const area = card?.areas.find(a => a.id === areaId);
+
+            if (area && area.history && area.history.length > 0) {
+                // 【合并选中集合】：绿框 + 蓝框
+                let targetIndicesSet = new Set();
+                if (area.selectedThumbIndices && area.selectedThumbIndices.length > 0) {
+                    area.selectedThumbIndices.forEach(idx => targetIndicesSet.add(idx));
+                }
+                if (area.historyIndex !== undefined && area.historyIndex >= 0 && area.historyIndex < area.history.length) {
+                    targetIndicesSet.add(area.historyIndex);
+                }
+                
+                let targetIndices = Array.from(targetIndicesSet);
+
+                if (targetIndices.length > 0) {
+                    // 【局部移除】：只改变当前模块自身的数组，不影响外部模块
+                    const activeUrl = area.resultUrl;
+                    area.history = area.history.filter((_, i) => !targetIndices.includes(i));
+                    
+                    if (area.history.length === 0) {
+                        area.resultUrl = '';
+                        area.historyIndex = 0;
+                        area.selectedThumbIndices = [];
+                    } else {
+                        let newActiveIdx = area.history.indexOf(activeUrl);
+                        if (newActiveIdx === -1) newActiveIdx = Math.max(0, area.history.length - 1);
+                        area.historyIndex = newActiveIdx;
+                        area.resultUrl = area.history[newActiveIdx];
+                        area.selectedThumbIndices = []; 
+                    }
+                    saveAndRender();
+                }
+            }
+        };
+    });
+
+    container.querySelectorAll('.sl-manage-delete-btn').forEach(btn => {
+        btn.onclick = async (e) => {
+            e.stopPropagation();
+            if (btn.disabled) return;
+            const cardId = btn.dataset.card;
+            const areaId = btn.dataset.area;
+            const card = state.cards.find(c => c.id === cardId);
+            const area = card?.areas.find(a => a.id === areaId);
+
+            if (area && area.history && area.history.length > 0) {
+                // 【合并选中集合】：绿框 + 蓝框
+                let targetIndicesSet = new Set();
+                if (area.selectedThumbIndices && area.selectedThumbIndices.length > 0) {
+                    area.selectedThumbIndices.forEach(idx => targetIndicesSet.add(idx));
+                }
+                if (area.historyIndex !== undefined && area.historyIndex >= 0 && area.historyIndex < area.history.length) {
+                    targetIndicesSet.add(area.historyIndex);
+                }
+                
+                let targetIndices = Array.from(targetIndicesSet);
+
+                if (targetIndices.length > 0) {
+                    let urlsToRemove = targetIndices.map(idx => area.history[idx]);
+                    let deleteCount = 0;
+                    
+                    for (let urlStr of urlsToRemove) {
+                        if (!urlStr) continue;
+                        try {
+                            const urlObj = new URL(urlStr, window.location.origin);
+                            const filename = urlObj.searchParams.get('filename');
+                            const subfolder = urlObj.searchParams.get('subfolder') || '';
+                            if (filename) {
+                                await fetch('/shell_link/delete_file', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ filename, subfolder })
+                                });
+                                deleteCount++;
+                            }
+                        } catch (err) {
+                            console.error("[ShellLink] 删除本地文件失败", err);
+                        }
+                    }
+                    
+                    // 【全局物理移除】：利用组件内置引擎无脑清扫所有残影
+                    removeUrlsGlobally(urlsToRemove); 
+                    
+                    if (window.ShellLink && window.ShellLink.showAutoToast) {
+                        window.ShellLink.showAutoToast(`已彻底删除选中的 ${deleteCount} 个本地文件`);
+                    } else if (typeof showBindingToast !== 'undefined') {
+                        showBindingToast(`已彻底删除选中的 ${deleteCount} 个本地文件`);
+                        setTimeout(hideBindingToast, 3000);
+                    }
+                }
+            }
+        };
+    });
+
+    container.querySelectorAll('.sl-history-grid').forEach(grid => {
+        grid.onclick = (e) => {
+            if (e.target === grid) {
+                const card = state.cards.find(c => c.id === grid.dataset.cardId);
+                const area = card?.areas.find(a => a.id === grid.dataset.areaId);
+                if (area) {
+                    area.selectedThumbIndices = []; 
+                    saveAndRender();
+                }
+            }
+        };
+    });
+
+    // 单个图片右上角的“✖”小按钮依然保持局部移除行为
     container.querySelectorAll('.sl-thumb-delete').forEach(btn => {
         btn.onclick = (e) => {
             e.stopPropagation();
@@ -320,7 +489,7 @@ export function attachAreaEvents(container) {
                 if (area.selectedThumbIndices && area.selectedThumbIndices.includes(idx)) {
                     toDelete = [...area.selectedThumbIndices];
                 }
-
+                
                 const activeUrl = area.resultUrl;
                 area.history = area.history.filter((_, i) => !toDelete.includes(i));
                 
@@ -368,9 +537,14 @@ export function attachAreaEvents(container) {
                     for(let i = start; i <= end; i++) range.push(i);
                     area.selectedThumbIndices = Array.from(new Set([...area.selectedThumbIndices, ...range]));
                 } else {
-                    area.historyIndex = idx;
-                    area.resultUrl = area.history[idx];
-                    area.selectedThumbIndices = [idx];
+                    if (area.selectedThumbIndices.includes(idx)) {
+                        area.historyIndex = idx;
+                        area.resultUrl = area.history[idx];
+                    } else {
+                        area.historyIndex = idx;
+                        area.resultUrl = area.history[idx];
+                        area.selectedThumbIndices = [idx];
+                    }
                     area.lastClickedThumbIdx = idx;
                 }
                 saveAndRender();

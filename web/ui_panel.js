@@ -8,6 +8,7 @@ import { injectCSS, showBindingToast, hideBindingToast, getWidgetDef } from "./c
 import { setupStaticToolbarEvents, renderDynamicToolbar, attachDynamicToolbarEvents } from "./components/comp_toolbar.js";
 import { renderCardsList, attachCardEvents } from "./components/comp_taskcard.js";
 import { attachAreaEvents } from "./components/comp_modulearea.js";
+// 【核心修复1】：彻底删除了此处的静态 import { setupContextMenu }，防止因找不到文件导致整个插件熔断瘫痪
 
 console.log("[ShellLink] UI 拆分重构版本已被成功导入 (极速响应安全版)");
 
@@ -40,6 +41,55 @@ export function setupUI() {
         #sl-card-width-input[type=number] {
             -moz-appearance: textfield;
         }
+        
+        /* ========================================================================= */
+        /* 右键菜单独立样式 (完美对齐导出选项菜单) */
+        /* ========================================================================= */
+        .sl-context-menu {
+            background: #2a2a2a;
+            border: 1px solid #555;
+            border-radius: 6px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            padding: 4px 0;
+            font-family: sans-serif;
+            z-index: 10005;
+        }
+        .sl-context-menu-title {
+            padding: 8px 12px;
+            font-size: 12px;
+            line-height: 1;
+            color: #aaa;
+            font-weight: bold;
+            background: rgba(255,255,255,0.08);
+            margin: 0;
+            pointer-events: none;
+        }
+        .sl-context-menu-item {
+            padding: 8px 12px;
+            font-size: 12px;
+            line-height: 1;
+            color: #eee;
+            cursor: pointer;
+            transition: background 0.1s;
+            display: flex;
+            align-items: center;
+        }
+        .sl-context-menu-item:hover {
+            background-color: rgba(255, 255, 255, 0.15);
+            color: #ffffff;
+        }
+        .sl-context-menu-item.sl-danger {
+            color: #ff4d4f;
+        }
+        .sl-context-menu-item.sl-danger:hover {
+            background-color: #ff4d4f;
+            color: #ffffff;
+        }
+        .sl-context-menu-divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.1);
+            margin: 4px 12px;
+        }
     `;
     document.head.appendChild(overrideStyle);
 
@@ -49,6 +99,14 @@ export function setupUI() {
             setupGlobalEventListeners();
             if (backdropContainer) document.body.appendChild(backdropContainer);
             document.body.appendChild(panelContainer);
+            
+            // 【核心修复2】：采用“动态异步加载”挂载右键菜单。
+            // 这样即使你本地还没建好 comp_contextmenu.js 文件，或者文件里有报错，主界面也能 100% 正常打开！
+            import("./components/comp_contextmenu.js").then(module => {
+                module.setupContextMenu(panelContainer);
+            }).catch(err => {
+                console.warn("[ShellLink] 提示：右键菜单模块未找到或内部存在错误，右键功能暂不生效，详情见下方报错：", err);
+            });
         }
 
         if (app.extensionManager && app.extensionManager.registerSidebarTab) {
@@ -329,92 +387,6 @@ function createPanelDOM() {
             widthCtrlNode.addEventListener('click', stopProp);
         }
     }
-
-    // =========================================================================
-    // 【新增】：创建并挂载输出模块专属的右键菜单 DOM
-    // =========================================================================
-    const previewMenu = document.createElement('div');
-    previewMenu.id = 'sl-preview-ctx-menu';
-    previewMenu.className = 'sl-custom-select-dropdown';
-    previewMenu.style.cssText = 'display:none; position:fixed; z-index:10005; min-width: 140px; padding: 6px;';
-    previewMenu.innerHTML = `
-        <div class="sl-custom-select-item" id="sl-btn-delete-local" style="color: #ff4d4f; display:flex; align-items:center; gap:8px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line>
-            </svg>
-            在本地彻底删除
-        </div>
-    `;
-    document.body.appendChild(previewMenu);
-
-    let activePreviewCtx = null;
-
-    // 暴露全局唤出接口给 comp_modulearea.js 里的监听器调用
-    window.ShellLink.showPreviewContextMenu = (x, y, cardId, areaId, url) => {
-        activePreviewCtx = { cardId, areaId, url };
-        previewMenu.style.display = 'block';
-        
-        // 边界保护
-        const rect = previewMenu.getBoundingClientRect();
-        let finalX = x;
-        let finalY = y;
-        if (x + 150 > window.innerWidth) finalX -= 150;
-        if (y + rect.height > window.innerHeight) finalY -= rect.height;
-        
-        previewMenu.style.left = `${finalX}px`;
-        previewMenu.style.top = `${finalY}px`;
-    };
-
-    // 全局点击关闭菜单
-    document.addEventListener('mousedown', (e) => {
-        if (!previewMenu.contains(e.target)) {
-            previewMenu.style.display = 'none';
-        }
-    }, true);
-
-    // 删除逻辑与后端通信
-    previewMenu.querySelector('#sl-btn-delete-local').onclick = async (e) => {
-        e.stopPropagation();
-        previewMenu.style.display = 'none';
-        if (!activePreviewCtx) return;
-
-        const { cardId, areaId, url } = activePreviewCtx;
-        
-        try {
-            const urlObj = new URL(url, window.location.origin);
-            const filename = urlObj.searchParams.get('filename');
-            const subfolder = urlObj.searchParams.get('subfolder') || "";
-            const type = urlObj.searchParams.get('type') || "output";
-
-            if (!filename) throw new Error("无法解析要删除的文件名");
-
-            // 请求后端自定义删除接口
-            const res = await fetch('/shell_link/delete_file', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filename, subfolder, type })
-            });
-
-            if (!res.ok) {
-                if (res.status === 404) {
-                    throw new Error("后端接口缺失！请参照说明，在 server.py 中添加 /shell_link/delete_file 接口。");
-                }
-                throw new Error("请求失败 (状态码: " + res.status + ")");
-            }
-            
-            const result = await res.json();
-            if (result.status !== 'success') throw new Error(result.error || '未知错误');
-
-            // 核心技巧：利用幽灵文件清理机制，把它从历史记录中砍掉并自动切换到下一张！
-            window.ShellLink.handleMediaError(cardId, areaId, url);
-            
-            showBindingToast("✅ 实体文件已彻底删除并移出历史记录", true);
-            setTimeout(hideBindingToast, 3000);
-
-        } catch (err) {
-            alert("❌ 删除失败: " + err.message);
-        }
-    };
 
     // 【新增】：核心的“幽灵文件”防碎图清理机制（向外暴露给媒体标签的 onerror 属性）
     window.ShellLink.handleMediaError = (cardId, areaId, failedUrl) => {
