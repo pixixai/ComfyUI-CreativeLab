@@ -1,6 +1,6 @@
 /**
  * 文件名: media_video.js
- * 职责: 视频组件的专属渲染与事件处理
+ * 职责: 视频组件的专属渲染与事件处理 (纯净直出架构，告别拔插)
  */
 import { formatTime, formatTimeWithFrames } from "./media_utils.js";
 
@@ -81,6 +81,7 @@ export function updateVideoProgress() {
                 if (volWrap) volWrap.classList.add('no-audio');
                 muteOpt.style.color = '#888';
                 muteOpt.style.pointerEvents = 'none';
+                muteOpt.style.cursor = 'default';
                 muteOpt.title = '无音频';
                 if (iconHigh) iconHigh.style.display = 'none';
                 if (iconMuted) iconMuted.style.display = 'none';
@@ -92,6 +93,7 @@ export function updateVideoProgress() {
                     muteOpt.style.color = '#aaa'; 
                 }
                 muteOpt.style.pointerEvents = 'auto';
+                muteOpt.style.cursor = 'pointer';
                 muteOpt.title = (vid.muted || vid.volume === 0) ? '取消静音' : '静音';
                 if (slider) slider.style.display = 'block';
                 
@@ -126,11 +128,13 @@ export function attachVideoEvents(container) {
         let hasRightDragged = false;
         let blockContextMenu = false;
 
+        const vid = player.querySelector('video');
+        if (!vid) return;
+
         const updateMuteButtonState = () => {
-            const vid = player.querySelector('video');
             const muteOpt = player.querySelector('.sl-opt-mute');
             const volWrap = player.querySelector('.sl-volume-wrap');
-            if (!vid || !muteOpt) return;
+            if (!muteOpt) return;
             
             let noAudio = false;
             if (vid.audioTracks && vid.audioTracks.length === 0) noAudio = true;
@@ -154,9 +158,7 @@ export function attachVideoEvents(container) {
                 if (slider) slider.style.display = 'none';
             } else {
                 if (volWrap) volWrap.classList.remove('no-audio');
-                if (muteOpt.style.color === 'rgb(136, 136, 136)' || muteOpt.style.color === '#888') {
-                    muteOpt.style.color = '#aaa'; 
-                }
+                muteOpt.style.color = '#aaa'; 
                 muteOpt.style.pointerEvents = 'auto';
                 muteOpt.style.cursor = 'pointer';
                 muteOpt.title = (vid.muted || vid.volume === 0) ? '取消静音' : '静音';
@@ -174,50 +176,41 @@ export function attachVideoEvents(container) {
             }
         };
 
-        const initialVid = player.querySelector('video');
-        if (initialVid) {
-            initialVid.addEventListener('loadeddata', updateMuteButtonState);
-            initialVid.addEventListener('timeupdate', updateMuteButtonState); 
-        }
+        vid.addEventListener('loadeddata', updateMuteButtonState);
+        vid.addEventListener('timeupdate', updateMuteButtonState); 
 
         // 1. 鼠标按下事件：左键播放/暂停，右键准备拖拽
         player.addEventListener('mousedown', (e) => {
             if (e.target.closest('.sl-video-controls-interactive')) return;
 
-            const currentVid = player.querySelector('video');
-            if (!currentVid) return;
-
             if (e.button === 0) { 
-                if (currentVid.paused) currentVid.play().catch(()=>{});
-                else currentVid.pause();
+                if (vid.paused) vid.play().catch(()=>{});
+                else vid.pause();
             } else if (e.button === 2) { 
-                if (!currentVid.duration) return;
+                if (!vid.duration) return;
 
                 const startX = e.clientX;
-                const startPlayTime = currentVid.currentTime;
-                const wasPlaying = !currentVid.paused;
+                const startPlayTime = vid.currentTime;
+                const wasPlaying = !vid.paused;
                 
                 hasRightDragged = false;
                 blockContextMenu = false;
-                currentVid.dataset.isScrubbing = 'true';
-                currentVid.pause(); 
+                vid.dataset.isScrubbing = 'true';
+                vid.pause(); 
 
                 const onMove = (ev) => {
-                    const freshVid = player.querySelector('video');
-                    if (!freshVid) return;
-
                     const deltaX = ev.clientX - startX;
                     if (!hasRightDragged && Math.abs(deltaX) > 3) hasRightDragged = true;
 
                     if (hasRightDragged) {
                         const width = player.offsetWidth || 300;
-                        let newTime = startPlayTime + (deltaX / width) * freshVid.duration;
-                        newTime = Math.max(0, Math.min(freshVid.duration, newTime));
+                        let newTime = startPlayTime + (deltaX / width) * vid.duration;
+                        newTime = Math.max(0, Math.min(vid.duration, newTime));
 
-                        freshVid.currentTime = newTime;
+                        vid.currentTime = newTime;
 
                         const bar = player.querySelector('.sl-video-progress-bar');
-                        if (bar) bar.style.width = `${(newTime / freshVid.duration) * 100}%`;
+                        if (bar) bar.style.width = `${(newTime / vid.duration) * 100}%`;
                         const tc = player.querySelector('.sl-timecode');
                         if (tc) {
                             tc.textContent = formatTimeWithFrames(newTime, 30);
@@ -229,8 +222,7 @@ export function attachVideoEvents(container) {
 
                 const onUp = (ev) => {
                     if (ev.button === 2) {
-                        const freshVid = player.querySelector('video');
-                        if (freshVid) freshVid.dataset.isScrubbing = 'false';
+                        vid.dataset.isScrubbing = 'false';
 
                         window.removeEventListener('mousemove', onMove);
                         window.removeEventListener('mouseup', onUp);
@@ -249,10 +241,10 @@ export function attachVideoEvents(container) {
                             }, 100);
 
                             blockContextMenu = true; 
-                            if (wasPlaying && freshVid) freshVid.play().catch(()=>{});
+                            if (wasPlaying) vid.play().catch(()=>{});
                             setTimeout(() => { blockContextMenu = false; }, 100);
                         } else {
-                            if (wasPlaying && freshVid) freshVid.play().catch(()=>{});
+                            if (wasPlaying) vid.play().catch(()=>{});
                         }
                     }
                 };
@@ -278,22 +270,19 @@ export function attachVideoEvents(container) {
                 e.stopPropagation();
                 if (e.button !== 0) return; 
 
-                const currentVid = player.querySelector('video');
-                if (!currentVid || !currentVid.duration) return;
+                if (!vid.duration) return;
                 
                 let isDraggingBar = true;
-                const wasPlaying = !currentVid.paused;
+                const wasPlaying = !vid.paused;
                 
-                currentVid.pause(); 
-                currentVid.dataset.isScrubbing = 'true';
+                vid.pause(); 
+                vid.dataset.isScrubbing = 'true';
                 
                 const updateProgress = (clientX) => {
-                    const freshVid = player.querySelector('video');
-                    if (!freshVid) return;
                     const rect = progContainer.getBoundingClientRect();
                     const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-                    const newTime = pos * freshVid.duration;
-                    freshVid.currentTime = newTime;
+                    const newTime = pos * vid.duration;
+                    vid.currentTime = newTime;
                     
                     const bar = player.querySelector('.sl-video-progress-bar');
                     if (bar) bar.style.width = `${pos * 100}%`;
@@ -316,8 +305,7 @@ export function attachVideoEvents(container) {
                 const onUp = (ev) => {
                     if (ev.button !== 0) return;
                     isDraggingBar = false;
-                    const freshVid = player.querySelector('video');
-                    if (freshVid) freshVid.dataset.isScrubbing = 'false';
+                    vid.dataset.isScrubbing = 'false';
                     
                     const tc = player.querySelector('.sl-timecode');
                     if (tc) tc.style.color = '';
@@ -325,10 +313,8 @@ export function attachVideoEvents(container) {
                     window.removeEventListener('mousemove', onMove);
                     window.removeEventListener('mouseup', onUp);
                     
-                    if (wasPlaying && freshVid) {
-                        freshVid.play().catch(()=>{});
-                    } else if (freshVid) {
-                        freshVid.dataset.manualPause = 'true';
+                    if (wasPlaying) {
+                        vid.play().catch(()=>{});
                     }
                 };
                 
@@ -337,12 +323,11 @@ export function attachVideoEvents(container) {
             });
         }
 
-        // 4. 音量滑杆交互 (左大右小)
+        // 4. 音量防劫持滑杆逻辑
         const volContainer = player.querySelector('.sl-vid-vol-slider');
         const volWrap = player.querySelector('.sl-volume-wrap');
-        const currentVidNode = player.querySelector('video');
         
-        if (volContainer && currentVidNode) {
+        if (volContainer && vid) {
             const updateVolUI = (vol) => {
                 const fill = volContainer.querySelector('.sl-volume-slider-fill');
                 const thumb = volContainer.querySelector('.sl-volume-slider-thumb');
@@ -350,16 +335,13 @@ export function attachVideoEvents(container) {
                 if (thumb) thumb.style.right = `${vol * 100}%`;
             };
 
-            if (currentVidNode.muted || currentVidNode.volume === 0) updateVolUI(0);
-            else updateVolUI(currentVidNode.volume);
+            if (vid.muted || vid.volume === 0) updateVolUI(0);
+            else updateVolUI(vid.volume);
 
             volContainer.addEventListener('mousedown', (e) => {
                 e.preventDefault(); 
                 e.stopPropagation();
                 if (e.button !== 0) return;
-                
-                const vid = player.querySelector('video');
-                if (!vid) return;
 
                 volContainer.classList.add('is-dragging');
                 if (volWrap) volWrap.classList.add('is-active'); 
@@ -368,7 +350,7 @@ export function attachVideoEvents(container) {
                 const updateVolume = (clientX) => {
                     const rect = volContainer.getBoundingClientRect();
                     const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-                    const newVol = 1.0 - pos;
+                    const newVol = 1.0 - pos; 
                     
                     vid.muted = false; 
                     vid.volume = newVol;
@@ -400,28 +382,25 @@ export function attachVideoEvents(container) {
         if (muteOpt) {
             muteOpt.onclick = (e) => { 
                 e.stopPropagation(); 
-                const vid = player.querySelector('video');
-                if (vid) {
-                    if (vid.muted || vid.volume === 0) {
-                        vid.muted = false;
-                        vid.volume = 0.8;
-                        const fill = player.querySelector('.sl-volume-slider-fill');
-                        const thumb = player.querySelector('.sl-volume-slider-thumb');
-                        if (fill) fill.style.width = `80%`;
-                        if (thumb) thumb.style.right = `80%`;
-                    } else {
-                        vid.muted = true;
-                        vid.volume = 0;
-                        const fill = player.querySelector('.sl-volume-slider-fill');
-                        const thumb = player.querySelector('.sl-volume-slider-thumb');
-                        if (fill) fill.style.width = `0%`;
-                        if (thumb) thumb.style.right = `0%`;
-                    }
+                if (vid.muted || vid.volume === 0) {
+                    vid.muted = false;
+                    vid.volume = 0.8;
+                    const fill = player.querySelector('.sl-volume-slider-fill');
+                    const thumb = player.querySelector('.sl-volume-slider-thumb');
+                    if (fill) fill.style.width = `80%`;
+                    if (thumb) thumb.style.right = `80%`;
+                } else {
+                    vid.muted = true;
+                    vid.volume = 0;
+                    const fill = player.querySelector('.sl-volume-slider-fill');
+                    const thumb = player.querySelector('.sl-volume-slider-thumb');
+                    if (fill) fill.style.width = `0%`;
+                    if (thumb) thumb.style.right = `0%`;
                 }
             };
         }
 
-        // 5. 突破裁切的全局下拉菜单 (游离挂载技术)
+        // 5. 更多选项菜单控制
         const moreToggle = player.querySelector('.sl-more-toggle');
         const moreDropdown = player.querySelector('.sl-more-dropdown');
 
@@ -429,48 +408,18 @@ export function attachVideoEvents(container) {
             moreToggle.onclick = (e) => {
                 e.stopPropagation();
                 const isShow = moreDropdown.classList.contains('show');
-                
-                document.querySelectorAll('.sl-media-dropdown.show').forEach(m => {
-                    m.classList.remove('show');
-                    if (m._originalParent) m._originalParent.appendChild(m);
-                });
-                
-                if (!isShow) {
-                    if (!moreDropdown._originalParent) moreDropdown._originalParent = moreDropdown.parentNode;
-                    document.body.appendChild(moreDropdown);
-                    
-                    const rect = moreToggle.getBoundingClientRect();
-                    moreDropdown.style.bottom = `${window.innerHeight - rect.top + 8}px`;
-                    moreDropdown.style.right = `${window.innerWidth - rect.right}px`;
-                    moreDropdown.style.left = 'auto';
-                    moreDropdown.classList.add('show');
-                }
+                document.querySelectorAll('.sl-media-dropdown.show').forEach(m => m.classList.remove('show'));
+                if (!isShow) moreDropdown.classList.add('show');
             };
         }
         
-        const pipOpt = moreDropdown?.querySelector('.sl-opt-pip');
-        if (pipOpt) pipOpt.onclick = (e) => { 
-            e.stopPropagation(); 
-            const currentVid = player.querySelector('video');
-            if (!currentVid) return;
-            if (document.pictureInPictureElement) document.exitPictureInPicture(); 
-            else currentVid.requestPictureInPicture().catch(()=>{}); 
-            moreDropdown.classList.remove('show'); 
-            if (moreDropdown._originalParent) moreDropdown._originalParent.appendChild(moreDropdown);
-        };
+        const pipOpt = player.querySelector('.sl-opt-pip');
+        if (pipOpt) pipOpt.onclick = (e) => { e.stopPropagation(); if (document.pictureInPictureElement) document.exitPictureInPicture(); else vid.requestPictureInPicture().catch(()=>{}); moreDropdown.classList.remove('show'); };
         
-        const fsOpt = moreDropdown?.querySelector('.sl-opt-fullscreen');
-        if (fsOpt) fsOpt.onclick = (e) => { 
-            e.stopPropagation(); 
-            const currentVid = player.querySelector('video');
-            if (!currentVid) return;
-            if (currentVid.requestFullscreen) currentVid.requestFullscreen(); 
-            else if (currentVid.webkitRequestFullscreen) currentVid.webkitRequestFullscreen(); 
-            moreDropdown.classList.remove('show'); 
-            if (moreDropdown._originalParent) moreDropdown._originalParent.appendChild(moreDropdown);
-        };
+        const fsOpt = player.querySelector('.sl-opt-fullscreen');
+        if (fsOpt) fsOpt.onclick = (e) => { e.stopPropagation(); if (vid.requestFullscreen) vid.requestFullscreen(); else if (vid.webkitRequestFullscreen) vid.webkitRequestFullscreen(); moreDropdown.classList.remove('show'); };
 
-        const speedInput = moreDropdown?.querySelector('.sl-media-speed-input');
+        const speedInput = player.querySelector('.sl-media-speed-input');
         if (speedInput) {
             speedInput.onclick = (e) => { e.stopPropagation(); }; 
             speedInput.onchange = (e) => {
@@ -478,20 +427,17 @@ export function attachVideoEvents(container) {
                 if (isNaN(v) || v < 0.1) v = 1.0;
                 if (v > 5.0) v = 5.0;
                 e.target.value = v.toFixed(1);
-                const currentVid = player.querySelector('video');
-                if(currentVid) currentVid.playbackRate = v;
+                vid.playbackRate = v;
             };
         }
         
-        moreDropdown?.querySelectorAll('.sl-vid-speed-opt').forEach(item => {
+        player.querySelectorAll('.sl-vid-speed-opt').forEach(item => {
             item.onclick = (e) => {
                 e.stopPropagation();
                 const spd = parseFloat(item.dataset.spd);
                 if (speedInput) speedInput.value = spd.toFixed(1);
-                const currentVid = player.querySelector('video');
-                if(currentVid) currentVid.playbackRate = spd;
-                moreDropdown.classList.remove('show');
-                if (moreDropdown._originalParent) moreDropdown._originalParent.appendChild(moreDropdown);
+                vid.playbackRate = spd;
+                if(moreDropdown) moreDropdown.classList.remove('show');
             };
         });
     });

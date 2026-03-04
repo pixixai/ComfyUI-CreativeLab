@@ -37,11 +37,11 @@ class ShellLinkSaveImage(nodes.SaveImage):
 
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             
-            # 【重要保留】：修复无限覆盖的自增判定补丁
-            file = f"{filename_with_batch_num}_{counter:05}.png"
+            # 【核心修改】：修复无限覆盖补丁，并将 :05 修改为 :02，实现 pix_01.png 的命名规则
+            file = f"{filename_with_batch_num}_{counter:02}.png"
             while os.path.exists(os.path.join(full_output_folder, file)):
                 counter += 1
-                file = f"{filename_with_batch_num}_{counter:05}.png"
+                file = f"{filename_with_batch_num}_{counter:02}.png"
             
             img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
             results.append({
@@ -143,4 +143,66 @@ async def shell_link_organize_files(request):
         return web.json_response({"status": "success", "results": results})
     except Exception as e:
         print(f"[ShellLink] 组织文件发生错误: {str(e)}")
+        return web.json_response({"status": "error", "error": str(e)})
+
+# =========================================================================
+# 3. 截胡转移专用接口 (复制 temp 或 output 文件到专属归档目录)
+# =========================================================================
+@server.PromptServer.instance.routes.post("/shell_link/copy_temp_asset")
+async def shell_link_copy_temp_asset(request):
+    try:
+        data = await request.json()
+        filename = data.get("filename")
+        subfolder = data.get("subfolder", "")
+        # 目标类型：video, audio, image, file
+        asset_type = data.get("asset_type", "file") 
+        source_type = data.get("source_type", "temp") # 获取来源类型，决定是从 temp 还是 output 捞
+        
+        # 根据文件来源获取基础目录
+        if source_type == "output":
+            source_base_dir = folder_paths.get_output_directory()
+        else:
+            source_base_dir = folder_paths.get_temp_directory()
+            
+        source_path = os.path.normpath(os.path.join(source_base_dir, subfolder, filename))
+        
+        if not os.path.exists(source_path):
+            return web.json_response({"status": "error", "error": f"源文件不存在: {source_path}"})
+
+        # 确定目标目录 
+        target_base_dir = folder_paths.get_output_directory()
+        if asset_type == "image":
+            target_subfolder = "ShellLink"
+        else:
+            target_subfolder = f"ShellLink/{asset_type}"
+            
+        target_dir = os.path.normpath(os.path.join(target_base_dir, target_subfolder))
+        os.makedirs(target_dir, exist_ok=True)
+        
+        # 提取扩展名
+        ext = os.path.splitext(filename)[1]
+        
+        # 【核心修改】：自动重命名逻辑修改为两位数 (例如: pix_01.mp4)
+        counter = 1
+        new_filename = f"pix_{counter:02}{ext}"
+        target_path = os.path.normpath(os.path.join(target_dir, new_filename))
+        
+        while os.path.exists(target_path):
+            counter += 1
+            new_filename = f"pix_{counter:02}{ext}"
+            target_path = os.path.normpath(os.path.join(target_dir, new_filename))
+            
+        # 执行复制操作 (保留原始文件，避免干涉其他正常节点逻辑)
+        shutil.copy2(source_path, target_path)
+        print(f"[ShellLink] 🎯 成功截胡资产: {filename} -> {target_subfolder}/{new_filename}")
+        
+        return web.json_response({
+            "status": "success", 
+            "new_filename": new_filename,
+            "new_subfolder": target_subfolder,
+            "new_type": "output" # 告诉前端现在这已经是个 output 级的文件了
+        })
+        
+    except Exception as e:
+        print(f"[ShellLink] 截胡转移资产时发生错误: {str(e)}")
         return web.json_response({"status": "error", "error": str(e)})

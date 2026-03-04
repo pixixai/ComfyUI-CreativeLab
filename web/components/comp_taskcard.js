@@ -22,7 +22,6 @@ function addNewCard() {
 }
 
 export function renderCardsList(container) {
-    // 【新增】：动态注入卡片左右半区拖拽高亮的 CSS 样式
     if (!document.getElementById('sl-card-dnd-styles')) {
         const style = document.createElement('style');
         style.id = 'sl-card-dnd-styles';
@@ -56,40 +55,13 @@ export function renderCardsList(container) {
         height: 100%; align-items: stretch;
     `;
 
-    // 【新增】：监听包裹层（卡片间隙）的点击事件，实现点击空白处完美取消选中
-    wrapper.addEventListener('click', (e) => {
-        if (e.target === wrapper) {
-            // 先关闭可能打开的下拉菜单
-            const openDropdowns = document.querySelectorAll('.sl-custom-select.open');
-            if (openDropdowns.length > 0) {
-                openDropdowns.forEach(el => el.classList.remove('open'));
-                return; 
-            }
-            
-            let changed = false;
-            if (state.painterMode) {
-                state.painterMode = false;
-                state.painterSource = null;
-                changed = true;
-            }
-            if (state.selectedCardIds && state.selectedCardIds.length > 0) {
-                state.selectedCardIds = [];
-                state.activeCardId = null;
-                changed = true;
-            }
-            if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
-                state.selectedAreaIds = [];
-                changed = true;
-            }
-            if (changed) saveAndRender();
-        }
-    });
-
     if (state.cards.length > 0) {
         state.cards.forEach((card, index) => {
             const cardEl = document.createElement("div");
             const isCardSelected = state.selectedCardIds && state.selectedCardIds.includes(card.id);
-            cardEl.className = `sl-card ${isCardSelected ? 'active' : ''}`;
+            // 修复：生成 HTML 时赋予 active 类名，适配 CSS
+            cardEl.className = `sl-card ${isCardSelected ? 'active selected' : ''}`;
+            if (isCardSelected) cardEl.style.borderColor = '#4CAF50';
             cardEl.dataset.cardId = card.id;
             cardEl.setAttribute('draggable', 'true');
             
@@ -185,65 +157,9 @@ export function attachCardEvents(container) {
         };
     });
 
+    // 🚨 所有的 click/mousedown 全盘铲除，彻底绝后患
     container.querySelectorAll('.sl-card').forEach(cardEl => {
         if (cardEl.classList.contains('sl-add-card-inline')) return;
-
-        cardEl.onclick = (e) => {
-            if (['BUTTON', 'TEXTAREA', 'INPUT', 'SELECT'].includes(e.target.tagName) || e.target.closest('.sl-custom-select') || e.target.closest('.sl-edit-val-bool')) return;
-            
-            const cardId = cardEl.dataset.cardId;
-            const card = state.cards.find(c => c.id === cardId);
-
-            if (state.painterMode) {
-                if (state.painterSource?.type === 'card') {
-                    if (state.painterSource.data.id !== card.id) {
-                        card.areas = JSON.parse(JSON.stringify(state.painterSource.data.areas));
-                        card.areas.forEach(a => a.id = 'area_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
-                        saveAndRender();
-                    }
-                    return; 
-                }
-
-                if (state.painterSource?.type === 'area') {
-                    let insertIndex = card.areas ? card.areas.length : 0;
-                    const areaEls = cardEl.querySelectorAll('.sl-area');
-                    for (let i = 0; i < areaEls.length; i++) {
-                        const rect = areaEls[i].getBoundingClientRect();
-                        if (e.clientY < rect.top + rect.height / 2) {
-                            insertIndex = i;
-                            break;
-                        }
-                    }
-                    const newArea = JSON.parse(JSON.stringify(state.painterSource.data));
-                    newArea.id = 'area_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-                    if (!card.areas) card.areas = [];
-                    card.areas.splice(insertIndex, 0, newArea);
-                    saveAndRender();
-                    return;
-                }
-            }
-            
-            if (e.ctrlKey || e.metaKey) {
-                if (state.selectedCardIds.includes(card.id)) state.selectedCardIds = state.selectedCardIds.filter(id => id !== card.id);
-                else state.selectedCardIds.push(card.id);
-                appState.lastClickedCardId = card.id;
-            } else if (e.shiftKey && appState.lastClickedCardId) {
-                const currentIndex = state.cards.findIndex(c => c.id === card.id);
-                const lastIndex = state.cards.findIndex(c => c.id === appState.lastClickedCardId);
-                const minIdx = Math.min(currentIndex, lastIndex);
-                const maxIdx = Math.max(currentIndex, lastIndex);
-                const rangeIds = state.cards.slice(minIdx, maxIdx + 1).map(c => c.id);
-                state.selectedCardIds = Array.from(new Set([...state.selectedCardIds, ...rangeIds]));
-                appState.lastClickedCardId = card.id;
-            } else {
-                state.selectedCardIds = [card.id];
-                appState.lastClickedCardId = card.id;
-            }
-            
-            state.activeCardId = state.selectedCardIds.length > 0 ? state.selectedCardIds[state.selectedCardIds.length - 1] : null;
-            state.selectedAreaIds = []; 
-            saveAndRender();
-        };
 
         cardEl.addEventListener('dragstart', (e) => {
             if (['INPUT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName) || e.target.closest('.sl-custom-select') || e.target.closest('.sl-edit-val-bool')) {
@@ -258,7 +174,6 @@ export function attachCardEvents(container) {
             setTimeout(() => cardEl.classList.add('sl-dragging'), 0);
         });
 
-        // 【修改】：拖拽结束时清理左右高亮边框类名
         cardEl.addEventListener('dragend', () => {
             cardEl.classList.remove('sl-dragging');
             document.querySelectorAll('.sl-drag-over-card-left, .sl-drag-over-card-right').forEach(el => {
@@ -267,20 +182,17 @@ export function attachCardEvents(container) {
             dragState.type = null; dragState.cardId = null; dragState.areaId = null;
         });
 
-        // 【核心修改】：精准的中线判定逻辑，判定鼠标悬停在卡片左半边还是右半边
         cardEl.addEventListener('dragover', (e) => {
             if (dragState.type === 'card' && cardEl.dataset.cardId !== dragState.cardId) {
                 e.preventDefault();
                 const rect = cardEl.getBoundingClientRect();
-                const midX = rect.left + rect.width / 2; // 计算卡片中线的 X 坐标
+                const midX = rect.left + rect.width / 2; 
                 
                 if (e.clientX < midX) {
-                    // 悬停在左半区：亮起左绿线
                     cardEl.classList.add('sl-drag-over-card-left');
                     cardEl.classList.remove('sl-drag-over-card-right');
                     cardEl.dataset.dropPosition = 'left';
                 } else {
-                    // 悬停在右半区：亮起右绿线
                     cardEl.classList.add('sl-drag-over-card-right');
                     cardEl.classList.remove('sl-drag-over-card-left');
                     cardEl.dataset.dropPosition = 'right';
@@ -288,16 +200,13 @@ export function attachCardEvents(container) {
             }
         });
 
-        // 离开卡片范围时，清理高亮效果
         cardEl.addEventListener('dragleave', (e) => {
-            // 防闪烁处理：确保是真的离开了卡片本身，而不是滑动到了卡片内的子元素上
             if (!cardEl.contains(e.relatedTarget)) {
                 cardEl.classList.remove('sl-drag-over-card-left', 'sl-drag-over-card-right');
                 delete cardEl.dataset.dropPosition;
             }
         });
 
-        // 【核心修改】：落点时根据中线判定结果，进行前插或后插
         cardEl.addEventListener('drop', (e) => {
             if (dragState.type === 'card') {
                 e.preventDefault(); e.stopPropagation();
@@ -311,23 +220,14 @@ export function attachCardEvents(container) {
                     const sourceIdx = state.cards.findIndex(c => c.id === dragState.cardId);
                     
                     if (sourceIdx !== -1) {
-                        // 1. 先把拖动的卡片从原数组中“抽”出来
                         const [moved] = state.cards.splice(sourceIdx, 1);
-                        
-                        // 2. 抽离后，目标卡片的索引可能发生偏移，必须重新查找！
                         let targetIdx = state.cards.findIndex(c => c.id === targetCardId);
                         
                         if (targetIdx !== -1) {
-                            // 3. 根据左右落点决定插入位置
-                            if (dropPos === 'right') {
-                                targetIdx += 1; // 插入到目标卡片的后面
-                            }
-                            // 如果是 left，则保持 targetIdx 原样（即插入到目标卡片的前面）
-                            
+                            if (dropPos === 'right') targetIdx += 1; 
                             state.cards.splice(targetIdx, 0, moved);
                             saveAndRender();
                         } else {
-                            // 兜底保护
                             state.cards.push(moved);
                             saveAndRender();
                         }

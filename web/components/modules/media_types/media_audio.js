@@ -1,12 +1,8 @@
 /**
  * 文件名: media_audio.js
- * 职责: 音频组件的专属渲染与事件处理
+ * 职责: 音频组件的专属渲染与事件处理 (纯净渲染版，不再需要DOM缓存)
  */
 import { formatTime } from "./media_utils.js";
-
-// 【终极修复：真实 DOM 缓存池】
-// 用于在 UI 重绘瞬间把真实的 <audio> 节点拔出并保存，避免内部状态和播放被中断
-if (!window._slAudioDOMCache) window._slAudioDOMCache = {};
 
 export function renderAudio(area, url, errCall) {
     let filename = "未知音频文件";
@@ -16,35 +12,11 @@ export function renderAudio(area, url, errCall) {
         ? "aspect-ratio: auto; height: auto;" 
         : "aspect-ratio: 16/9; height: 100%;";
 
-    // 1. 拔出：如果当前网页上存在此模块的音频，赶在 HTML 覆盖前将其连根拔起并存入缓存
-    const existingAud = document.querySelector(`.sl-audio-player[data-area-id="${area.id}"] audio`);
-    if (existingAud) {
-        existingAud.parentNode.removeChild(existingAud);
-        window._slAudioDOMCache[area.id] = existingAud;
-    }
-
-    // 2. 初始化：如果缓存里没有，则创建真实的 DOM 节点
-    let aud = window._slAudioDOMCache[area.id];
-    if (!aud) {
-        aud = document.createElement('audio');
-        aud.id = `sl-img-${area.id}`;
-        aud.className = 'sl-preview-img sl-media-target';
-        aud.loop = true;
-        aud.style.display = 'none';
-        if (errCall) aud.setAttribute('onerror', errCall);
-        window._slAudioDOMCache[area.id] = aud;
-    }
-    
-    // 如果发现文件更换，才去修改 src
-    if (aud.getAttribute('src') !== url) {
-        aud.src = url;
-    }
-
     return `
         <div class="sl-audio-player" data-area-id="${area.id}" style="${dimensionStyle} box-sizing: border-box; width: 100%; padding: 32px 20px 16px 20px; background-color: #000; background-image: radial-gradient(circle at 100% 50%, rgba(20, 80, 40, 0.4) 0%, rgba(10, 40, 20, 0.1) 40%, rgba(0, 0, 0, 1) 80%); border-radius: 6px; display: flex; flex-direction: column; justify-content: center;">
             
-            <!-- 占位插槽：等事件绑定时，再把真实的 <audio> 节点插回这里 -->
-            <div class="sl-audio-slot" style="display:none;"></div>
+            <!-- 直接渲染原生的 <audio> 标签，不再使用 slot 占位符和全局拔插机制 -->
+            <audio id="sl-img-${area.id}" class="sl-preview-img sl-media-target" src="${url}" loop style="display:none;" onerror="${errCall}"></audio>
             
             <!-- 1. 顶部：音频名称 (左对齐) -->
             <div style="font-size: 13px; font-weight: bold; color: #eee; word-break: break-all; text-align: left; margin-bottom: 12px; font-family: sans-serif; letter-spacing: 0.5px;">
@@ -65,7 +37,7 @@ export function renderAudio(area, url, errCall) {
             <!-- 4. 底部：所有控制按钮 -->
             <div class="sl-audio-controls-row" style="display: flex; align-items: center;">
                 
-                <!-- 纯净无背景的播放按钮，放大1.5倍 (28px)，颜色与悬停效果统一为 #aaa -> #fff -->
+                <!-- 纯净无背景的播放按钮 -->
                 <button class="sl-audio-btn sl-audio-play sl-video-controls-interactive" style="background: transparent; border: none; color: #aaa; padding: 0; width: 28px; height: 28px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">
                     <svg class="sl-play-icon" style="display: block;" width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                     <svg class="sl-pause-icon" style="display: none;" width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
@@ -159,17 +131,8 @@ export function attachAudioEvents(container) {
         if (player.dataset.binded) return;
         player.dataset.binded = "1";
         
-        const areaId = player.dataset.areaId;
-        
-        // 3. 插回：把缓存里的真实音频节点，重新安插回占位插槽中，播放进度绝不中断
-        let aud = window._slAudioDOMCache[areaId];
-        const slot = player.querySelector('.sl-audio-slot');
-        if (slot && aud) {
-            slot.parentNode.replaceChild(aud, slot);
-        } else {
-            aud = player.querySelector('audio'); 
-        }
-
+        // 【核心清理】：直接拿节点，再也不需要去缓存池里查字典了
+        const aud = player.querySelector('audio'); 
         if (!aud) return;
 
         // 突破父级限制。如果音频启用了 matchMedia，强行重写外部画框的比例

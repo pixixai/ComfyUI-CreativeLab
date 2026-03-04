@@ -8,9 +8,8 @@ import { injectCSS, showBindingToast, hideBindingToast, getWidgetDef } from "./c
 import { setupStaticToolbarEvents, renderDynamicToolbar, attachDynamicToolbarEvents } from "./components/comp_toolbar.js";
 import { renderCardsList, attachCardEvents } from "./components/comp_taskcard.js";
 import { attachAreaEvents } from "./components/comp_modulearea.js";
-// 【核心修复1】：彻底删除了此处的静态 import { setupContextMenu }，防止因找不到文件导致整个插件熔断瘫痪
 
-console.log("[ShellLink] UI 拆分重构版本已被成功导入 (极速响应安全版)");
+console.log("[ShellLink] UI 拆分重构版本已被成功导入 (终极中央代理极速版)");
 
 let panelContainer = null;
 let backdropContainer = null;
@@ -24,16 +23,6 @@ export function setupUI() {
             background-color: rgba(255, 255, 255, 0.15) !important;
             color: #ffffff !important;
         }
-
-        /* ====== 【修复】：让下拉菜单自适应内容宽度，防止长节点名换行 ====== */
-        .sl-custom-select-dropdown {
-            width: max-content !important;
-        }
-        .sl-custom-select-group-title {
-            white-space: nowrap !important;
-        }
-        /* ============================================================= */
-
         #shell-link-panel {
             --sl-card-width: 320px;
         }
@@ -52,53 +41,49 @@ export function setupUI() {
             -moz-appearance: textfield;
         }
         
-        /* ========================================================================= */
-        /* 右键菜单独立样式 (完美对齐导出选项菜单) */
-        /* ========================================================================= */
         .sl-context-menu {
-            background: #2a2a2a;
-            border: 1px solid #555;
-            border-radius: 6px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            padding: 4px 0;
-            font-family: sans-serif;
-            z-index: 10005;
+            background: #2a2a2a !important;
+            border: 1px solid #555 !important;
+            border-radius: 6px !important;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important;
+            padding: 4px 0 !important;
+            font-family: sans-serif !important;
+            backdrop-filter: none !important;
         }
         .sl-context-menu-title {
-            padding: 8px 12px;
-            font-size: 12px;
-            line-height: 1;
-            color: #aaa;
-            font-weight: bold;
-            background: rgba(255,255,255,0.08);
-            margin: 0;
-            pointer-events: none;
+            padding: 6px 12px !important; 
+            font-size: 12px !important;  
+            color: #aaa !important;
+            font-weight: bold !important;
+            background: rgba(255,255,255,0.08) !important; 
+            margin: 0 !important; 
+            pointer-events: none !important;
+            letter-spacing: normal !important;
         }
         .sl-context-menu-item {
-            padding: 8px 12px;
-            font-size: 12px;
-            line-height: 1;
-            color: #eee;
-            cursor: pointer;
-            transition: background 0.1s;
-            display: flex;
-            align-items: center;
+            padding: 6px 12px !important;
+            font-size: 12px !important;
+            color: #eee !important;
+            cursor: pointer !important;
+            transition: background 0.1s !important;
+            display: flex !important;
+            align-items: center !important;
         }
         .sl-context-menu-item:hover {
-            background-color: rgba(255, 255, 255, 0.15);
-            color: #ffffff;
+            background-color: rgba(255, 255, 255, 0.15) !important;
+            color: #ffffff !important;
         }
         .sl-context-menu-item.sl-danger {
-            color: #ff4d4f;
+            color: #ff4d4f !important;
         }
         .sl-context-menu-item.sl-danger:hover {
-            background-color: #ff4d4f;
-            color: #ffffff;
+            background-color: #ff4d4f !important;
+            color: #ffffff !important;
         }
         .sl-context-menu-divider {
-            height: 1px;
-            background: rgba(255, 255, 255, 0.1);
-            margin: 4px 12px;
+            height: 1px !important;
+            background: rgba(255, 255, 255, 0.1) !important;
+            margin: 4px 12px !important; 
         }
     `;
     document.head.appendChild(overrideStyle);
@@ -110,8 +95,6 @@ export function setupUI() {
             if (backdropContainer) document.body.appendChild(backdropContainer);
             document.body.appendChild(panelContainer);
             
-            // 【核心修复2】：采用“动态异步加载”挂载右键菜单。
-            // 这样即使你本地还没建好 comp_contextmenu.js 文件，或者文件里有报错，主界面也能 100% 正常打开！
             import("./components/comp_contextmenu.js").then(module => {
                 module.setupContextMenu(panelContainer);
             }).catch(err => {
@@ -235,7 +218,7 @@ function createPanelDOM() {
                 <line x1="9" y1="3" x2="9" y2="21"></line>
             </svg>
             <input type="range" id="sl-card-width-slider" min="260" max="600" value="320" style="width: 80px; accent-color: #888; cursor: pointer; height: 4px; background: rgba(255,255,255,0.2); outline: none; border-radius: 2px; -webkit-appearance: none;">
-            <input type="number" id="sl-card-width-input" title="手动输入宽度 (回车确认)" style="width: 36px; background: transparent; border: none; color: #888; font-size: 12px; outline: none; text-align: left; padding: 0; margin: 0; font-family: sans-serif; transition: color 0.2s;" onfocus="this.style.color='#fff'" onblur="this.style.color='#888'">
+            <input type="number" id="sl-card-width-input" title="手动输入宽度 (回车确认)" style="width: 36px; background: transparent; border: none; color: #888; font-size: 12px; outline: none; text-align: left; padding: 0; margin: 0; font-family: monospace; transition: color 0.2s;" onfocus="this.style.color='#fff'" onblur="this.style.color='#888'">
         </div>
     `;
 
@@ -257,14 +240,151 @@ function createPanelDOM() {
     const cardsContainer = panelContainer.querySelector("#sl-cards-container");
     const toolbar = panelContainer.querySelector("#sl-toolbar-handle");
     
+    // ==============================================================================================
+    // 🌟 中央集权拦截引擎 🌟
+    // 将原本散落在各个组件内部的杂乱点击事件，全部集中到外层大容器进行最高权限代理！
+    // ==============================================================================================
+
+    // [1] Mousedown：专门负责处理所有的“正常选中与多选”操作 (排斥格式刷模式)
     cardsContainer.addEventListener("mousedown", (e) => {
-        if (state.painterMode) return; 
+        if (state.painterMode) return;
+        if (e.button !== 0) return; // 仅左键处理选中
+
+        // 如果点击的是各种按钮、输入框等功能控件，放行，不做任何选中操作
+        const isInteractive = e.target.closest('button, input, select, textarea, .sl-custom-select, .sl-edit-val-bool, .sl-del-area-btn, .sl-del-card-btn, .sl-history-thumb, .sl-upload-zone');
+        if (isInteractive) return;
+
+        const areaEl = e.target.closest('.sl-area');
         const cardEl = e.target.closest('.sl-card:not(.sl-add-card-inline)');
-        if (cardEl && cardEl.dataset.cardId) {
+
+        if (areaEl) {
+            // 【情况 A：点击了模块】
+            const areaId = areaEl.dataset.areaId;
+            if (e.ctrlKey || e.metaKey) {
+                if (state.selectedAreaIds.includes(areaId)) state.selectedAreaIds = state.selectedAreaIds.filter(id => id !== areaId);
+                else state.selectedAreaIds.push(areaId);
+            } else {
+                state.selectedAreaIds = [areaId];
+            }
+            
+            // 🛡️ 强制清空卡片选中，完美解决“双重选中”的互斥 Bug！
+            state.selectedCardIds = [];
+            state.activeCardId = null;
+            updateSelectionUI(); // 执行极速局部刷新
+            
+        } else if (cardEl) {
+            // 【情况 B：点击了卡片本身】
             const targetId = cardEl.dataset.cardId;
-            if (state.activeCardId !== targetId) state.activeCardId = targetId;
+            if (e.ctrlKey || e.metaKey) {
+                if (state.selectedCardIds.includes(targetId)) state.selectedCardIds = state.selectedCardIds.filter(id => id !== targetId);
+                else state.selectedCardIds.push(targetId);
+                appState.lastClickedCardId = targetId;
+            } else if (e.shiftKey && appState.lastClickedCardId) {
+                const currentIndex = state.cards.findIndex(c => c.id === targetId);
+                const lastIndex = state.cards.findIndex(c => c.id === appState.lastClickedCardId);
+                const minIdx = Math.min(currentIndex, lastIndex);
+                const maxIdx = Math.max(currentIndex, lastIndex);
+                const rangeIds = state.cards.slice(minIdx, maxIdx + 1).map(c => c.id);
+                state.selectedCardIds = Array.from(new Set([...state.selectedCardIds, ...rangeIds]));
+                appState.lastClickedCardId = targetId;
+            } else {
+                state.selectedCardIds = [targetId];
+                appState.lastClickedCardId = targetId;
+            }
+            
+            state.activeCardId = state.selectedCardIds.length > 0 ? state.selectedCardIds[state.selectedCardIds.length - 1] : null;
+            
+            // 🛡️ 强制清空模块选中，完美排斥
+            state.selectedAreaIds = [];
+            updateSelectionUI(); // 执行极速局部刷新
         }
-    }, true); 
+    });
+
+    // [2] Click：专门处理“格式刷”和“点击空白处脱选”
+    cardsContainer.addEventListener("click", (e) => {
+        const isInteractive = e.target.closest('button, input, select, textarea, .sl-custom-select, .sl-edit-val-bool, .sl-del-area-btn, .sl-del-card-btn, .sl-history-thumb, .sl-upload-zone');
+        const areaEl = e.target.closest('.sl-area');
+        const cardEl = e.target.closest('.sl-card:not(.sl-add-card-inline)');
+
+        if (state.painterMode) {
+            if (isInteractive) return;
+            
+            if (state.painterSource?.type === 'card') {
+                if (cardEl && !areaEl) {
+                    const targetId = cardEl.dataset.cardId;
+                    if (state.painterSource.data.id !== targetId) {
+                        const targetCard = state.cards.find(c => c.id === targetId);
+                        targetCard.areas = JSON.parse(JSON.stringify(state.painterSource.data.areas));
+                        targetCard.areas.forEach(a => a.id = 'area_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
+                        saveAndRender();
+                    }
+                } else if (!cardEl) {
+                    let insertIndex = state.cards.length;
+                    const cardEls = cardsContainer.querySelectorAll('.sl-card:not(.sl-add-card-inline)');
+                    for (let i = 0; i < cardEls.length; i++) {
+                        const rect = cardEls[i].getBoundingClientRect();
+                        if (e.clientX < rect.left + rect.width / 2) { insertIndex = i; break; }
+                    }
+                    const newCard = JSON.parse(JSON.stringify(state.painterSource.data));
+                    newCard.id = 'card_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+                    if (newCard.areas) newCard.areas.forEach(a => a.id = 'area_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
+                    state.cards.splice(insertIndex, 0, newCard);
+                    saveAndRender();
+                }
+                return;
+            }
+
+            if (state.painterSource?.type === 'area') {
+                if (areaEl) {
+                    const targetAreaId = areaEl.dataset.areaId;
+                    if (state.painterSource.data.id !== targetAreaId) {
+                        const src = state.painterSource.data;
+                        const card = state.cards.find(c => c.id === areaEl.dataset.cardId);
+                        const area = card?.areas.find(a => a.id === targetAreaId);
+                        if (area) {
+                            area.type = src.type;
+                            area.targetNodeId = src.targetNodeId;
+                            area.targetWidget = src.targetWidget;
+                            area.targetNodeIds = Array.isArray(src.targetNodeIds) ? [...src.targetNodeIds] : [];
+                            area.targetWidgets = Array.isArray(src.targetWidgets) ? [...src.targetWidgets] : [];
+                            area.dataType = src.dataType;
+                            area.autoHeight = src.autoHeight;
+                            area.ratio = src.ratio;
+                            area.width = src.width;
+                            area.height = src.height;
+                            area.matchMedia = src.matchMedia;
+                            area.fillMode = src.fillMode;
+                            if (area.type !== src.type) area.value = ''; 
+                            saveAndRender();
+                        }
+                    }
+                } else if (cardEl && !areaEl) {
+                    let insertIndex = 0;
+                    const targetCard = state.cards.find(c => c.id === cardEl.dataset.cardId);
+                    const areaEls = cardEl.querySelectorAll('.sl-area');
+                    if (areaEls && areaEls.length > 0) {
+                        insertIndex = targetCard.areas ? targetCard.areas.length : 0;
+                        for (let i = 0; i < areaEls.length; i++) {
+                            const rect = areaEls[i].getBoundingClientRect();
+                            if (e.clientY < rect.top + rect.height / 2) { insertIndex = i; break; }
+                        }
+                    }
+                    const newArea = JSON.parse(JSON.stringify(state.painterSource.data));
+                    newArea.id = 'area_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+                    if (!targetCard.areas) targetCard.areas = [];
+                    targetCard.areas.splice(insertIndex, 0, newArea);
+                    saveAndRender();
+                }
+                return;
+            }
+            return;
+        }
+
+        // 【情况 C：点击空白处执行完全脱选】
+        if (!isInteractive && (e.target === cardsContainer || e.target.classList.contains('sl-cards-wrapper'))) {
+            handleDeselectAll(false);
+        }
+    });
 
     const handleDeselectAll = (forceExitPainter = false) => {
         const openDropdowns = document.querySelectorAll('.sl-custom-select.open');
@@ -287,27 +407,10 @@ function createPanelDOM() {
             state.selectedAreaIds = [];
             changed = true;
         }
-        if(changed) saveAndRender();
-    };
-
-    cardsContainer.addEventListener("click", (e) => {
-        if (state.painterMode && state.painterSource?.type === 'area') return;
-        if (state.painterMode && state.painterSource?.type === 'card' && !e.target.closest('.sl-card')) {
-            let insertIndex = state.cards.length;
-            const cardEls = cardsContainer.querySelectorAll('.sl-card:not(.sl-add-card-inline)');
-            for (let i = 0; i < cardEls.length; i++) {
-                const rect = cardEls[i].getBoundingClientRect();
-                if (e.clientX < rect.left + rect.width / 2) { insertIndex = i; break; }
-            }
-            const newCard = JSON.parse(JSON.stringify(state.painterSource.data));
-            newCard.id = 'card_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-            if (newCard.areas) newCard.areas.forEach(a => a.id = 'area_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
-            state.cards.splice(insertIndex, 0, newCard);
-            saveAndRender();
-            return;
+        if(changed) {
+            updateSelectionUI();
         }
-        if (e.target === cardsContainer) handleDeselectAll(false);
-    });
+    };
 
     toolbar.addEventListener("click", (e) => {
         const isInteractive = ['BUTTON', 'INPUT', 'LABEL', 'SELECT'].includes(e.target.tagName) || 
@@ -398,12 +501,10 @@ function createPanelDOM() {
         }
     }
 
-    // 【新增】：核心的“幽灵文件”防碎图清理机制（向外暴露给媒体标签的 onerror 属性）
     window.ShellLink.handleMediaError = (cardId, areaId, failedUrl) => {
         const card = state.cards.find(c => c.id === cardId);
         const area = card?.areas.find(a => a.id === areaId);
         if (area && area.history && area.history.length > 0) {
-            // 利用路径匹配避免跨域编码差异
             const failedPath = new URL(failedUrl, window.location.origin).pathname + new URL(failedUrl, window.location.origin).search;
             const idx = area.history.findIndex(hUrl => {
                 const hPath = new URL(hUrl, window.location.origin).pathname + new URL(hUrl, window.location.origin).search;
@@ -416,13 +517,11 @@ function createPanelDOM() {
                     area.resultUrl = '';
                     area.historyIndex = 0;
                 } else {
-                    // 如果删掉的是最后一张，索引往前退一位；否则保持原位（自动顶上来一张新的）
                     area.historyIndex = Math.min(idx, area.history.length - 1);
                     area.resultUrl = area.history[area.historyIndex];
                 }
                 setTimeout(() => saveAndRender(), 10);
             } else if (area.resultUrl === failedUrl) {
-                // 异常兜底保护
                 area.resultUrl = '';
                 setTimeout(() => saveAndRender(), 10);
             }
@@ -529,9 +628,7 @@ function setupGlobalEventListeners() {
             return;
         }
 
-        // 【新增】：历史记录键盘导航逻辑 (左与右)
         if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && state.selectedAreaIds.length === 1) {
-            // 防误触：如果你正在输入框里打字，绝对不要切换图片！
             if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
             
             const areaId = state.selectedAreaIds[0];
@@ -541,9 +638,8 @@ function setupGlobalEventListeners() {
                 if (a) { targetArea = a; break; }
             }
             
-            // 执行丝滑切换
             if (targetArea && targetArea.type === 'preview' && targetArea.history && targetArea.history.length > 1) {
-                e.preventDefault(); // 阻止页面可能发生的滚动
+                e.preventDefault(); 
                 let idx = targetArea.historyIndex !== undefined ? targetArea.historyIndex : targetArea.history.length - 1;
                 
                 if (e.key === 'ArrowLeft') {
@@ -638,7 +734,6 @@ function setupGlobalEventListeners() {
         }
     });
 
-    // 【新增】：利用核心任务池拦截 Executed 事件，自动将后端返回的文件推入历史数组，彻底独立于各种复杂的老代码
     api.addEventListener("executed", (event) => {
         const detail = event.detail;
         const executedNodeId = detail.node;     
@@ -658,16 +753,13 @@ function setupGlobalEventListeners() {
 
             if (String(area.targetNodeId) === String(executedNodeId)) {
                 let newUrl = null;
-                // 【核心同步】：支持提取历史记录中的 outputData.audio
-                let targetItems = null;
-                if (outputData.videos && outputData.videos.length > 0) targetItems = outputData.videos;
-                else if (outputData.audio && outputData.audio.length > 0) targetItems = outputData.audio;
-                else if (outputData.gifs && outputData.gifs.length > 0) targetItems = outputData.gifs;
-                else if (outputData.images && outputData.images.length > 0) targetItems = outputData.images;
-
-                if (targetItems && targetItems.length > 0) {
-                    const media = targetItems[0];
-                    const params = new URLSearchParams({ filename: media.filename, type: media.type, subfolder: media.subfolder || "" });
+                if (outputData.images && outputData.images.length > 0) {
+                    const img = outputData.images[0];
+                    const params = new URLSearchParams({ filename: img.filename, type: img.type, subfolder: img.subfolder || "" });
+                    newUrl = api.apiURL(`/view?${params.toString()}`);
+                } else if (outputData.gifs && outputData.gifs.length > 0) {
+                    const video = outputData.gifs[0]; 
+                    const params = new URLSearchParams({ filename: video.filename, type: video.type, subfolder: video.subfolder || "" });
                     newUrl = api.apiURL(`/view?${params.toString()}`);
                 }
                 
@@ -728,34 +820,9 @@ function setupGlobalEventListeners() {
         const { cardId, areaId, url } = e.detail;
         const areaEl = document.querySelector(`.sl-area[data-area-id="${areaId}"]`);
         if (areaEl) {
-            const mediaEl = areaEl.querySelector('.sl-preview-img');
-            
-            if (!mediaEl) {
-                document.dispatchEvent(new CustomEvent("sl_render_ui"));
-                return;
-            }
-
+            const imgEl = areaEl.querySelector('.sl-preview-img');
             const placeholder = areaEl.querySelector('.sl-preview-placeholder');
-            
-            const isVideo = url.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv)$/);
-            const isAudio = url.toLowerCase().match(/\.(mp3|wav|ogg|flac|aac|m4a)$/);
-            
-            const tagName = mediaEl.tagName.toLowerCase();
-            const isImgTag = tagName === 'img';
-            const isVidTag = tagName === 'video';
-            const isAudTag = tagName === 'audio';
-            
-            // 【核心修复】：如果你上一次生成的是图片，这次是音频，DOM 标签 (img 和 audio) 根本不匹配！
-            // 此时最安全的做法是：直接触发 sl_render_ui 让 module_media 重新生成对应组件的播放器
-            if ((isVideo && !isVidTag) || (isAudio && !isAudTag) || (!isVideo && !isAudio && !isImgTag)) {
-                document.dispatchEvent(new CustomEvent("sl_render_ui"));
-                return;
-            }
-
-            // 如果媒体类型没变，直接替换 src 实现无感更新
-            mediaEl.src = url;
-            mediaEl.style.display = "block";
-            
+            if (imgEl) { imgEl.src = url; imgEl.style.display = "block"; }
             if (placeholder) placeholder.style.display = "none";
         }
     });
@@ -931,3 +998,50 @@ function enterBindingModeForSelected(targetType) {
         window.addEventListener("pointerup", onPointerUp, true);
     }, 100);
 }
+
+// =====================================================================================
+// 🌟 终极架构飞升：外科手术级局部更新引擎
+// =====================================================================================
+export function updateSelectionUI() {
+    // 1. 遍历卡片 DOM，修改高亮
+    document.querySelectorAll('.sl-card:not(.sl-add-card-inline)').forEach(card => {
+        const cardId = card.dataset.cardId;
+        if (state.selectedCardIds && state.selectedCardIds.includes(cardId)) {
+            card.classList.add('active', 'selected'); // 增加对齐 CSS 的 active 类
+            card.style.borderColor = '#4CAF50'; 
+        } else {
+            card.classList.remove('active', 'selected');
+            card.style.borderColor = ''; 
+        }
+    });
+
+    // 2. 遍历模块 DOM，修改高亮
+    document.querySelectorAll('.sl-area').forEach(area => {
+        const areaId = area.dataset.areaId;
+        if (state.selectedAreaIds && state.selectedAreaIds.includes(areaId)) {
+            area.classList.add('active', 'selected');
+            area.style.borderColor = '#2196F3'; 
+        } else {
+            area.classList.remove('active', 'selected');
+            area.style.borderColor = ''; 
+        }
+    });
+
+    // 3. 刷新动态工具栏
+    const toolbarHandle = document.querySelector('#sl-toolbar-handle');
+    if (toolbarHandle) {
+        renderDynamicToolbar(toolbarHandle);
+        attachDynamicToolbarEvents(toolbarHandle);
+    }
+
+    // 4. 静默保存数据到节点 (绝不触发全局渲染事件)
+    if (window.ShellLink && window.ShellLink.saveState) {
+        window.ShellLink.saveState(state);
+    } else if (window.StateManager && window.StateManager.syncToNode) {
+        window.StateManager.syncToNode(app.graph);
+    }
+}
+
+// 将更新 UI 引擎暴露给全局，方便其他组件调用
+window.ShellLink = window.ShellLink || {};
+window.ShellLink.updateSelectionUI = updateSelectionUI;
