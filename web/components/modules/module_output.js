@@ -1,0 +1,403 @@
+/**
+ * 文件名: module_output.js
+ * 职责: 负责卡片内“输出模块”的 UI 渲染与交互 (网格管理、媒体预览、缩略图拖拽排序)
+ */
+import { state, dragState, saveAndRender, removeUrlsGlobally } from "../ui_state.js";
+import { getRatioCSS, showBindingToast, hideBindingToast } from "../ui_utils.js";
+
+export function generateOutputHTML(area, card) {
+    const isAreaSelected = state.selectedAreaIds.includes(area.id);
+
+    if (area.isManageMode && area.history && area.history.length > 0) {
+        let gridHtml = `<div class="sl-history-grid" data-card-id="${card.id}" data-area-id="${area.id}" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 10px; width: 100%; box-sizing: border-box; max-height: 400px; overflow-y: auto;">`;
+        
+        const selectedThumbs = area.selectedThumbIndices || [];
+
+        area.history.forEach((hUrl, idx) => {
+            const isCurrent = idx === (area.historyIndex !== undefined ? area.historyIndex : area.history.length - 1);
+            const isSelected = selectedThumbs.includes(idx);
+
+            let border = '2px solid rgba(255,255,255,0.1)';
+            if (isCurrent) border = '2px solid #4CAF50';
+            else if (isSelected) border = '2px solid #2196F3';
+
+            const urlLower = hUrl.toLowerCase();
+            const isVid = urlLower.includes('.mp4') || urlLower.includes('.webm') || urlLower.includes('.mov');
+            const media = isVid 
+                ? `<video src="${hUrl}" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" muted></video>` 
+                : `<img src="${hUrl}" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" />`;
+
+            const overlay = isSelected ? `<div style="position:absolute;inset:0;background:rgba(33,150,243,0.3);pointer-events:none;"></div>` : '';
+            
+            const delBtn = `<div class="sl-thumb-delete" data-card="${card.id}" data-area="${area.id}" data-index="${idx}" style="position:absolute; top:3px; right:3px; width:18px; height:18px; background:rgba(255, 255, 255, 0.6); color:#333; font-weight:bold; border-radius:50%; font-size:10px; display:none; align-items:center; justify-content:center; cursor:pointer; z-index:10; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: all 0.2s;" title="删除此记录">✖</div>`;
+
+            gridHtml += `
+                <div class="sl-history-thumb" draggable="true" data-card="${card.id}" data-area="${area.id}" data-index="${idx}" style="aspect-ratio: 1/1; border: ${border}; border-radius: 4px; cursor: grab; overflow: hidden; position: relative; background: #000; transition: border-color 0.2s;">
+                    ${media}
+                    ${overlay}
+                    ${delBtn}
+                </div>
+            `;
+        });
+        gridHtml += `</div>`;
+
+        const actionableIndices = (selectedThumbs && selectedThumbs.length > 0) 
+            ? selectedThumbs 
+            : (area.historyIndex !== undefined && area.history.length > 0 ? [area.historyIndex] : []);
+        const hasSelection = actionableIndices.length > 0;
+        
+        const btnBaseStyle = "padding:4px 8px; border-radius:4px; border:none; transition:all 0.2s; font-size:10px; font-weight:normal;";
+        const btnActiveStyle = 'cursor:pointer; color:#eee; background:rgba(255,255,255,0.15); box-shadow: 0 1px 3px rgba(0,0,0,0.3);';
+        const btnDisabledStyle = 'cursor:not-allowed; color:#777; background:rgba(255,255,255,0.05); box-shadow:none;';
+        
+        const btnRemoveStyle = hasSelection ? btnActiveStyle : btnDisabledStyle;
+        const btnDeleteStyle = hasSelection ? btnActiveStyle : btnDisabledStyle;
+
+        return `
+            <div class="sl-area ${isAreaSelected ? 'active' : ''}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="padding:0; overflow:hidden; position:relative; background: rgba(0,0,0,0.4); min-height: 100px;">
+                <button class="sl-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="删除输出模块" style="z-index: 30;">✖</button>
+                
+                <div style="padding: 8px 10px; font-size: 12px; font-weight: bold; color: #ccc; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3);">
+                    <span>生成记录管理 (${area.history.length})</span>
+                    <div style="display:flex; gap: 6px; align-items: center;">
+                        <button class="sl-manage-remove-btn" data-card="${card.id}" data-area="${area.id}" style="${btnBaseStyle} ${btnRemoveStyle}" ${hasSelection ? '' : 'disabled'} onmouseover="if(!this.disabled) { this.style.background='rgba(255,255,255,0.25)'; this.style.color='#fff'; }" onmouseout="if(!this.disabled) { this.style.background='rgba(255,255,255,0.15)'; this.style.color='#eee'; }">移除</button>
+                        <button class="sl-manage-delete-btn" data-card="${card.id}" data-area="${area.id}" style="${btnBaseStyle} ${btnDeleteStyle}" ${hasSelection ? '' : 'disabled'} onmouseover="if(!this.disabled) { this.style.background='rgba(255,77,77,0.3)'; this.style.color='#fff'; }" onmouseout="if(!this.disabled) { this.style.background='rgba(255,255,255,0.15)'; this.style.color='#eee'; }">移除并删除文件</button>
+                    </div>
+                </div>
+                
+                ${gridHtml}
+            </div>
+        `;
+    }
+
+    let finalRatioCSS = getRatioCSS(area);
+    if (area.matchMedia && area.width && area.height) {
+        finalRatioCSS = `aspect-ratio: ${area.width} / ${area.height};`;
+    }
+
+    let objectFit = 'contain'; 
+    if (area.fillMode === '填充') objectFit = 'cover';
+    if (area.fillMode === '拉伸') objectFit = 'fill';
+
+    let historyHtml = '';
+    if (area.history && area.history.length > 1) {
+        const currIdx = area.historyIndex !== undefined ? area.historyIndex + 1 : area.history.length;
+        historyHtml = `<div style="position:absolute; top: 8px; left: 10px; color: rgba(255,255,255,0.9); font-size: 12px; font-weight: bold; font-family: sans-serif; letter-spacing: -0.5px; z-index: 20; pointer-events: none;">${currIdx} / ${area.history.length}</div>`;
+    }
+
+    // 🌟 未来 module_media.js 接管区域 🌟
+    let mediaHtml = '';
+    if (area.resultUrl) {
+        const urlLower = area.resultUrl.toLowerCase();
+        const errCall = `if(window.ShellLink && window.ShellLink.handleMediaError) window.ShellLink.handleMediaError('${card.id}', '${area.id}', '${area.resultUrl}');`;
+        
+        if (urlLower.includes('.mp4') || urlLower.includes('.webm') || urlLower.includes('.mov')) {
+            mediaHtml = `<video id="sl-img-${area.id}" class="sl-preview-img" src="${area.resultUrl}" draggable="false" style="object-fit: ${objectFit}; width: 100%; height: 100%; display: block;" autoplay loop muted controls onerror="${errCall}"></video>`;
+        } else {
+            mediaHtml = `<img id="sl-img-${area.id}" class="sl-preview-img" src="${area.resultUrl}" draggable="false" style="object-fit: ${objectFit}; width: 100%; height: 100%; display: block;" onerror="${errCall}" />`;
+        }
+    } else {
+        mediaHtml = `<img id="sl-img-${area.id}" class="sl-preview-img" src="" draggable="false" style="display:none;" />`;
+    }
+
+    return `
+        <div class="sl-area ${isAreaSelected ? 'active' : ''}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="padding:0; overflow:hidden; position:relative;">
+            <button class="sl-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="删除输出模块" style="z-index: 30;">✖</button>
+            ${historyHtml}
+            <div class="sl-preview-bg" style="${finalRatioCSS} position: relative;">
+                ${mediaHtml}
+                <span class="sl-preview-placeholder" style="display:${area.resultUrl ? 'none' : 'block'}; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; text-align: center;">${area.targetNodeId ? `等待节点 [${area.targetNodeId}] 输出...` : '未关联节点'}</span>
+            </div>
+        </div>
+    `;
+}
+
+export function attachOutputEvents(container) {
+    container.querySelectorAll('.sl-manage-remove-btn').forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            if (btn.disabled) return;
+            const cardId = btn.dataset.card;
+            const areaId = btn.dataset.area;
+            const card = state.cards.find(c => c.id === cardId);
+            const area = card?.areas.find(a => a.id === areaId);
+
+            if (area && area.history && area.history.length > 0) {
+                let targetIndicesSet = new Set();
+                if (area.selectedThumbIndices && area.selectedThumbIndices.length > 0) {
+                    area.selectedThumbIndices.forEach(idx => targetIndicesSet.add(idx));
+                }
+                if (area.historyIndex !== undefined && area.historyIndex >= 0 && area.historyIndex < area.history.length) {
+                    targetIndicesSet.add(area.historyIndex);
+                }
+                
+                let targetIndices = Array.from(targetIndicesSet);
+
+                if (targetIndices.length > 0) {
+                    const activeUrl = area.resultUrl;
+                    area.history = area.history.filter((_, i) => !targetIndices.includes(i));
+                    
+                    if (area.history.length === 0) {
+                        area.resultUrl = '';
+                        area.historyIndex = 0;
+                        area.selectedThumbIndices = [];
+                    } else {
+                        let newActiveIdx = area.history.indexOf(activeUrl);
+                        if (newActiveIdx === -1) newActiveIdx = Math.max(0, area.history.length - 1);
+                        area.historyIndex = newActiveIdx;
+                        area.resultUrl = area.history[newActiveIdx];
+                        area.selectedThumbIndices = []; 
+                    }
+                    saveAndRender();
+                }
+            }
+        };
+    });
+
+    container.querySelectorAll('.sl-manage-delete-btn').forEach(btn => {
+        btn.onclick = async (e) => {
+            e.stopPropagation();
+            if (btn.disabled) return;
+            const cardId = btn.dataset.card;
+            const areaId = btn.dataset.area;
+            const card = state.cards.find(c => c.id === cardId);
+            const area = card?.areas.find(a => a.id === areaId);
+
+            if (area && area.history && area.history.length > 0) {
+                let targetIndicesSet = new Set();
+                if (area.selectedThumbIndices && area.selectedThumbIndices.length > 0) {
+                    area.selectedThumbIndices.forEach(idx => targetIndicesSet.add(idx));
+                }
+                if (area.historyIndex !== undefined && area.historyIndex >= 0 && area.historyIndex < area.history.length) {
+                    targetIndicesSet.add(area.historyIndex);
+                }
+                
+                let targetIndices = Array.from(targetIndicesSet);
+
+                if (targetIndices.length > 0) {
+                    let urlsToRemove = targetIndices.map(idx => area.history[idx]);
+                    let deleteCount = 0;
+                    
+                    for (let urlStr of urlsToRemove) {
+                        if (!urlStr) continue;
+                        try {
+                            const urlObj = new URL(urlStr, window.location.origin);
+                            const filename = urlObj.searchParams.get('filename');
+                            const subfolder = urlObj.searchParams.get('subfolder') || '';
+                            if (filename) {
+                                await fetch('/shell_link/delete_file', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ filename, subfolder })
+                                });
+                                deleteCount++;
+                            }
+                        } catch (err) {
+                            console.error("[ShellLink] 删除本地文件失败", err);
+                        }
+                    }
+                    
+                    removeUrlsGlobally(urlsToRemove); 
+                    
+                    if (window.ShellLink && window.ShellLink.showAutoToast) {
+                        window.ShellLink.showAutoToast(`已彻底删除选中的 ${deleteCount} 个本地文件`);
+                    } else if (typeof showBindingToast !== 'undefined') {
+                        showBindingToast(`已彻底删除选中的 ${deleteCount} 个本地文件`);
+                        setTimeout(hideBindingToast, 3000);
+                    }
+                }
+            }
+        };
+    });
+
+    container.querySelectorAll('.sl-history-grid').forEach(grid => {
+        grid.onclick = (e) => {
+            if (e.target === grid) {
+                const card = state.cards.find(c => c.id === grid.dataset.cardId);
+                const area = card?.areas.find(a => a.id === grid.dataset.areaId);
+                if (area) {
+                    area.selectedThumbIndices = []; 
+                    saveAndRender();
+                }
+            }
+        };
+    });
+
+    container.querySelectorAll('.sl-thumb-delete').forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const cardId = btn.dataset.card;
+            const areaId = btn.dataset.area;
+            const idx = parseInt(btn.dataset.index, 10);
+            const card = state.cards.find(c => c.id === cardId);
+            const area = card?.areas.find(a => a.id === areaId);
+
+            if (area && area.history) {
+                let toDelete = [idx];
+                if (area.selectedThumbIndices && area.selectedThumbIndices.includes(idx)) {
+                    toDelete = [...area.selectedThumbIndices];
+                }
+                
+                const activeUrl = area.resultUrl;
+                area.history = area.history.filter((_, i) => !toDelete.includes(i));
+                
+                if (area.history.length === 0) {
+                    area.resultUrl = '';
+                    area.historyIndex = 0;
+                    area.selectedThumbIndices = [];
+                } else {
+                    let newActiveIdx = area.history.indexOf(activeUrl);
+                    if (newActiveIdx === -1) newActiveIdx = Math.max(0, area.history.length - 1);
+                    area.historyIndex = newActiveIdx;
+                    area.resultUrl = area.history[newActiveIdx];
+                    area.selectedThumbIndices = [];
+                }
+                saveAndRender();
+            }
+        }
+    });
+
+    container.querySelectorAll('.sl-history-thumb').forEach(thumb => {
+        thumb.onclick = (e) => {
+            e.stopPropagation();
+            if (e.target.closest('.sl-thumb-delete')) return;
+            
+            const cardId = thumb.dataset.card;
+            const areaId = thumb.dataset.area;
+            const idx = parseInt(thumb.dataset.index, 10);
+            const card = state.cards.find(c => c.id === cardId);
+            const area = card?.areas.find(a => a.id === areaId);
+            
+            if (area && area.history) {
+                if (!area.selectedThumbIndices) area.selectedThumbIndices = [];
+                
+                if (e.ctrlKey || e.metaKey) {
+                    if (area.selectedThumbIndices.includes(idx)) {
+                        area.selectedThumbIndices = area.selectedThumbIndices.filter(i => i !== idx);
+                    } else {
+                        area.selectedThumbIndices.push(idx);
+                    }
+                    area.lastClickedThumbIdx = idx;
+                } else if (e.shiftKey && area.lastClickedThumbIdx !== undefined) {
+                    const start = Math.min(area.lastClickedThumbIdx, idx);
+                    const end = Math.max(area.lastClickedThumbIdx, idx);
+                    const range = [];
+                    for(let i = start; i <= end; i++) range.push(i);
+                    area.selectedThumbIndices = Array.from(new Set([...area.selectedThumbIndices, ...range]));
+                } else {
+                    if (area.selectedThumbIndices.includes(idx)) {
+                        area.historyIndex = idx;
+                        area.resultUrl = area.history[idx];
+                    } else {
+                        area.historyIndex = idx;
+                        area.resultUrl = area.history[idx];
+                        area.selectedThumbIndices = [idx];
+                    }
+                    area.lastClickedThumbIdx = idx;
+                }
+                saveAndRender();
+            }
+        };
+
+        thumb.addEventListener('dragstart', (e) => {
+            e.stopPropagation(); 
+            if (e.target.closest('.sl-thumb-delete')) { e.preventDefault(); return; }
+
+            const idx = parseInt(thumb.dataset.index, 10);
+            const card = state.cards.find(c => c.id === thumb.dataset.card);
+            const area = card?.areas.find(a => a.id === thumb.dataset.area);
+
+            let dragIndices = [idx];
+            if (area && area.selectedThumbIndices && area.selectedThumbIndices.includes(idx)) {
+                dragIndices = [...area.selectedThumbIndices].sort((a,b) => a-b);
+            }
+
+            dragState.type = 'thumb';
+            dragState.cardId = thumb.dataset.card;
+            dragState.areaId = thumb.dataset.area;
+            dragState.thumbIndices = dragIndices; 
+
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', 'thumb');
+            setTimeout(() => thumb.style.opacity = '0.5', 0);
+        });
+
+        thumb.addEventListener('dragend', (e) => {
+            e.stopPropagation();
+            thumb.style.opacity = '1';
+            document.querySelectorAll('.sl-drag-over-thumb-left, .sl-drag-over-thumb-right').forEach(el => {
+                el.classList.remove('sl-drag-over-thumb-left', 'sl-drag-over-thumb-right');
+            });
+            dragState.type = null; dragState.cardId = null; dragState.areaId = null; dragState.thumbIndices = null;
+        });
+
+        thumb.addEventListener('dragover', (e) => {
+            const idx = parseInt(thumb.dataset.index, 10);
+            if (dragState.type === 'thumb' && dragState.areaId === thumb.dataset.area && (!dragState.thumbIndices || !dragState.thumbIndices.includes(idx))) {
+                e.preventDefault(); e.stopPropagation();
+                const rect = thumb.getBoundingClientRect();
+                const midX = rect.left + rect.width / 2;
+                
+                if (e.clientX < midX) {
+                    thumb.classList.add('sl-drag-over-thumb-left');
+                    thumb.classList.remove('sl-drag-over-thumb-right');
+                    thumb.dataset.dropPosition = 'left';
+                } else {
+                    thumb.classList.add('sl-drag-over-thumb-right');
+                    thumb.classList.remove('sl-drag-over-thumb-left');
+                    thumb.dataset.dropPosition = 'right';
+                }
+            }
+        });
+
+        thumb.addEventListener('dragleave', (e) => {
+            e.stopPropagation();
+            if (!thumb.contains(e.relatedTarget)) {
+                thumb.classList.remove('sl-drag-over-thumb-left', 'sl-drag-over-thumb-right');
+                delete thumb.dataset.dropPosition;
+            }
+        });
+
+        thumb.addEventListener('drop', (e) => {
+            if (dragState.type === 'thumb') {
+                e.preventDefault(); e.stopPropagation();
+                const dropPos = thumb.dataset.dropPosition;
+                thumb.classList.remove('sl-drag-over-thumb-left', 'sl-drag-over-thumb-right');
+                delete thumb.dataset.dropPosition;
+
+                const targetIdx = parseInt(thumb.dataset.index, 10);
+                const draggedIndices = dragState.thumbIndices;
+                
+                if (!draggedIndices || draggedIndices.includes(targetIdx)) return;
+
+                const card = state.cards.find(c => c.id === dragState.cardId);
+                const area = card?.areas.find(a => a.id === dragState.areaId);
+                
+                if (area && area.history) {
+                    const activeUrl = area.resultUrl;
+                    const targetUrl = area.history[targetIdx];
+
+                    const movedItems = draggedIndices.map(i => area.history[i]);
+                    let newHistory = area.history.filter((_, i) => !draggedIndices.includes(i));
+                    
+                    let newTargetIdx = newHistory.indexOf(targetUrl);
+                    if (newTargetIdx === -1) newTargetIdx = newHistory.length; 
+                    if (dropPos === 'right') newTargetIdx += 1;
+                    
+                    newHistory.splice(newTargetIdx, 0, ...movedItems);
+                    area.history = newHistory;
+                    
+                    const newActiveIdx = area.history.indexOf(activeUrl);
+                    if (newActiveIdx !== -1) area.historyIndex = newActiveIdx;
+
+                    area.selectedThumbIndices = [];
+                    for(let i=0; i<movedItems.length; i++) {
+                        area.selectedThumbIndices.push(newTargetIdx + i);
+                    }
+                    
+                    saveAndRender();
+                }
+            }
+        });
+    });
+}

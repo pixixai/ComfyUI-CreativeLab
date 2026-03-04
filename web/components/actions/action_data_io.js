@@ -1,11 +1,27 @@
 /**
  * 文件名: action_data_io.js
  * 路径: web/components/actions/action_data_io.js
- * 职责: 负责导入JSON、导出JSON、媒体打包下载、后端本地文件整理
+ * 职责: 负责导入JSON、导出JSON、媒体打包下载、后端本地文件整理、文件上传
  */
 import { state, appState, saveAndRender } from "../ui_state.js";
 import { showBindingToast, hideBindingToast } from "../ui_utils.js";
 import { app } from "../../../../scripts/app.js";
+
+// =========================================================================
+// 核心网络请求：上传本地文件到服务器并返回文件名
+// =========================================================================
+export async function uploadImageToServer(file) {
+    const formData = new FormData();
+    formData.append('image', file);
+    const resp = await fetch('/upload/image', {
+        method: 'POST',
+        body: formData
+    });
+    if(!resp.ok) throw new Error(resp.statusText);
+    const data = await resp.json();
+    if (!data.name) throw new Error(data.error || '上传失败，未返回文件名');
+    return data;
+}
 
 export function attachDataIOEvents(panelContainer) {
     // ----------------------------------------------------
@@ -395,7 +411,7 @@ export function attachDataIOEvents(panelContainer) {
             const jsonStr = generateExportJSON(mode);
             if (currentJsonAction === 'copy') {
                 try {
-                    await navigator.clipboard.writeText(jsonStr);
+                    await clipboard.writeText(jsonStr);
                     alert("✅ JSON 数据已成功复制到剪切板！");
                 } catch (err) { alert("❌ 复制失败。\n" + err.message); }
             } else if (currentJsonAction === 'download') {

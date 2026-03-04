@@ -24,6 +24,16 @@ export function setupUI() {
             background-color: rgba(255, 255, 255, 0.15) !important;
             color: #ffffff !important;
         }
+
+        /* ====== 【修复】：让下拉菜单自适应内容宽度，防止长节点名换行 ====== */
+        .sl-custom-select-dropdown {
+            width: max-content !important;
+        }
+        .sl-custom-select-group-title {
+            white-space: nowrap !important;
+        }
+        /* ============================================================= */
+
         #shell-link-panel {
             --sl-card-width: 320px;
         }

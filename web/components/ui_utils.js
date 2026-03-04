@@ -31,6 +31,10 @@ export function getRatioCSS(area) {
     return 'aspect-ratio: 16/9;';
 }
 
+export function truncateString(str, maxLength) {
+    return (str && str.length > maxLength) ? str.substring(0, maxLength) + '...' : (str || '');
+}
+
 // =========================================================================
 // --- ComfyUI 底层数据解析与菜单构建 ---
 // =========================================================================
@@ -171,7 +175,6 @@ export function showBindingToast(msg, isError = false) {
         document.body.appendChild(toast);
     }
     
-    // 如果是报错，使用红色背景；否则使用默认绿色
     const bgColor = isError ? "rgba(244, 67, 54, 0.95)" : "rgba(76, 175, 80, 0.95)";
     
     toast.style.cssText = `
@@ -184,10 +187,7 @@ export function showBindingToast(msg, isError = false) {
     toast.innerText = msg;
     toast.style.display = 'block';
 
-    // 【核心修复】：防止重复点击导致的定时器叠加，加入自动消失的 3 秒计时
-    if (window._slToastTimeout) {
-        clearTimeout(window._slToastTimeout);
-    }
+    if (window._slToastTimeout) clearTimeout(window._slToastTimeout);
     window._slToastTimeout = setTimeout(() => {
         toast.style.display = 'none';
     }, 3000);
@@ -199,8 +199,133 @@ export function hideBindingToast() {
 }
 
 // =========================================================================
+// --- 通用交互绑定 ---
+// =========================================================================
+
+export function bindComboSelectEvents(container, stateObj, saveAndRenderCallback) {
+    container.querySelectorAll('.sl-custom-select[data-type="module-combo"]').forEach(el => {
+        if (el.classList.contains('disabled')) return;
+        const input = el.querySelector('.sl-custom-select-value');
+        const items = el.querySelectorAll('.sl-custom-select-item');
+
+        el.addEventListener('mousedown', e => e.stopPropagation());
+        
+        const openDropdown = (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.sl-custom-select.open').forEach(other => {
+                if (other !== el) {
+                    other.classList.remove('open');
+                    const dp = other.querySelector('.sl-custom-select-dropdown');
+                    if (dp) { dp.style.top = ''; dp.style.bottom = ''; dp.style.transform = ''; }
+                    const otherArea = other.closest('.sl-area');
+                    if (otherArea) otherArea.style.zIndex = '';
+                }
+            });
+            el.classList.add('open');
+
+            const currentArea = el.closest('.sl-area');
+            if (currentArea) currentArea.style.zIndex = '9999';
+
+            const dropdown = el.querySelector('.sl-custom-select-dropdown');
+            if (dropdown) {
+                dropdown.style.top = '';
+                dropdown.style.bottom = '';
+                dropdown.style.transform = '';
+                const dropdownRect = dropdown.getBoundingClientRect();
+                const cardBody = el.closest('.sl-card-body');
+                let overflowOffset = 0;
+                if (cardBody) {
+                    const cardRect = cardBody.getBoundingClientRect();
+                    const diff = dropdownRect.bottom - (cardRect.bottom - 10);
+                    if (diff > 0) overflowOffset = diff;
+                } else {
+                    const diff = dropdownRect.bottom - (window.innerHeight - 10);
+                    if (diff > 0) overflowOffset = diff;
+                }
+                if (overflowOffset > 0) dropdown.style.transform = `translateY(-${overflowOffset}px)`;
+            }
+        };
+
+        el.addEventListener('click', openDropdown);
+        input.addEventListener('click', (e) => { openDropdown(e); input.select(); });
+
+        input.addEventListener('input', (e) => {
+            const keyword = e.target.value.toLowerCase().trim();
+            el.classList.add('open');
+            const groupTitles = el.querySelectorAll('.sl-custom-select-group-title');
+            if (keyword !== '') groupTitles.forEach(title => title.style.display = 'none');
+            else groupTitles.forEach(title => title.style.display = 'flex');
+            items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(keyword) ? 'block' : 'none';
+            });
+        });
+
+        input.addEventListener('blur', () => {
+            setTimeout(() => {
+                el.classList.remove('open');
+                const currentArea = el.closest('.sl-area');
+                if (currentArea) currentArea.style.zIndex = '';
+                const dp = el.querySelector('.sl-custom-select-dropdown');
+                if (dp) { dp.style.top = ''; dp.style.bottom = ''; dp.style.transform = ''; }
+                
+                items.forEach(item => item.style.display = 'block');
+                const groupTitles = el.querySelectorAll('.sl-custom-select-group-title');
+                groupTitles.forEach(title => title.style.display = 'flex');
+
+                const selected = el.querySelector('.sl-custom-select-item.selected');
+                if (selected) input.value = selected.textContent;
+                else input.value = input.getAttribute('title');
+            }, 200);
+        });
+
+        items.forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const val = item.dataset.value;
+                el.classList.remove('open');
+                
+                const currentArea = el.closest('.sl-area');
+                if (currentArea) currentArea.style.zIndex = '';
+                const dp = el.querySelector('.sl-custom-select-dropdown');
+                if (dp) { dp.style.top = ''; dp.style.bottom = ''; dp.style.transform = ''; }
+                
+                const cardId = el.dataset.cardId;
+                const areaId = el.dataset.areaId;
+                const card = stateObj.cards.find(c => c.id === cardId);
+                const area = card?.areas.find(a => a.id === areaId);
+                
+                if (area) {
+                    area.value = val;
+                    stateObj.selectedAreaIds = [areaId];
+                    stateObj.selectedCardIds = [];
+                    saveAndRenderCallback(); 
+                }
+            });
+        });
+    });
+}
+
+// =========================================================================
 // --- CSS 全局样式注入 ---
 // =========================================================================
+
+export function injectDnDCSS() {
+    if (!document.getElementById('sl-area-dnd-styles')) {
+        const style = document.createElement('style');
+        style.id = 'sl-area-dnd-styles';
+        style.innerHTML = `
+            .sl-drag-over-area-top { border-top: 3px solid #4CAF50 !important; background: rgba(76, 175, 80, 0.1) !important; }
+            .sl-drag-over-area-bottom { border-bottom: 3px solid #4CAF50 !important; background: rgba(76, 175, 80, 0.1) !important; }
+            .sl-drag-over-thumb-left { border-left: 3px solid #4CAF50 !important; border-radius: 0 !important; }
+            .sl-drag-over-thumb-right { border-right: 3px solid #4CAF50 !important; border-radius: 0 !important; }
+            .sl-history-thumb:hover .sl-thumb-delete { display: flex !important; }
+            .sl-thumb-delete:hover { transform: scale(1.15); background: #ff5555 !important; color: #fff !important; }
+            .sl-history-thumb:active { cursor: grabbing !important; opacity: 0.8; }
+        `;
+        document.head.appendChild(style);
+    }
+}
 
 export function injectCSS() {
     const style = document.createElement("style");
