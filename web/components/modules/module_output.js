@@ -4,6 +4,8 @@
  */
 import { state, dragState, saveAndRender, removeUrlsGlobally } from "../ui_state.js";
 import { getRatioCSS, showBindingToast, hideBindingToast } from "../ui_utils.js";
+// 引入全新的多媒体专员
+import { renderMedia, attachMediaEvents } from "./module_media.js";
 
 export function generateOutputHTML(area, card) {
     const isAreaSelected = state.selectedAreaIds.includes(area.id);
@@ -85,20 +87,8 @@ export function generateOutputHTML(area, card) {
         historyHtml = `<div style="position:absolute; top: 8px; left: 10px; color: rgba(255,255,255,0.9); font-size: 12px; font-weight: bold; font-family: sans-serif; letter-spacing: -0.5px; z-index: 20; pointer-events: none;">${currIdx} / ${area.history.length}</div>`;
     }
 
-    // 🌟 未来 module_media.js 接管区域 🌟
-    let mediaHtml = '';
-    if (area.resultUrl) {
-        const urlLower = area.resultUrl.toLowerCase();
-        const errCall = `if(window.ShellLink && window.ShellLink.handleMediaError) window.ShellLink.handleMediaError('${card.id}', '${area.id}', '${area.resultUrl}');`;
-        
-        if (urlLower.includes('.mp4') || urlLower.includes('.webm') || urlLower.includes('.mov')) {
-            mediaHtml = `<video id="sl-img-${area.id}" class="sl-preview-img" src="${area.resultUrl}" draggable="false" style="object-fit: ${objectFit}; width: 100%; height: 100%; display: block;" autoplay loop muted controls onerror="${errCall}"></video>`;
-        } else {
-            mediaHtml = `<img id="sl-img-${area.id}" class="sl-preview-img" src="${area.resultUrl}" draggable="false" style="object-fit: ${objectFit}; width: 100%; height: 100%; display: block;" onerror="${errCall}" />`;
-        }
-    } else {
-        mediaHtml = `<img id="sl-img-${area.id}" class="sl-preview-img" src="" draggable="false" style="display:none;" />`;
-    }
+    // 🌟 将原本庞杂的媒体判定逻辑交给专员去处理！
+    let mediaHtml = renderMedia(area, objectFit);
 
     return `
         <div class="sl-area ${isAreaSelected ? 'active' : ''}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="padding:0; overflow:hidden; position:relative;">
@@ -113,6 +103,9 @@ export function generateOutputHTML(area, card) {
 }
 
 export function attachOutputEvents(container) {
+    // 🌟 接管媒体区域特有的交互！
+    attachMediaEvents(container);
+
     container.querySelectorAll('.sl-manage-remove-btn').forEach(btn => {
         btn.onclick = (e) => {
             e.stopPropagation();
