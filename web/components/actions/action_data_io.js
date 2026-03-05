@@ -239,6 +239,8 @@ export function attachDataIOEvents(panelContainer) {
                     <div class="sl-custom-select-item" id="sl-export-json-input">输入模块</div>
                     <div class="sl-custom-select-item" id="sl-export-json-output">输出模块</div>
                     <div class="sl-custom-select-item" id="sl-export-json-all">全部模块</div>
+                    <div class="sl-custom-select-item" id="sl-export-json-output-history">输出模块 (含所有生成记录)</div>
+                    <div class="sl-custom-select-item" id="sl-export-json-all-history">全部模块 (含所有生成记录)</div>
                 </div>
             </div>
         `);
@@ -377,28 +379,46 @@ export function attachDataIOEvents(panelContainer) {
             const cardsToExport = (state.selectedCardIds && state.selectedCardIds.length > 0) 
                 ? state.cards.filter(c => state.selectedCardIds.includes(c.id)) : state.cards;
 
+            // 提取辅助函数：格式化单个URL为相对路径
+            const formatUrl = (val) => {
+                if (!val) return "";
+                try {
+                    const urlObj = new URL(val, window.location.origin);
+                    const filename = urlObj.searchParams.get('filename');
+                    let subfolder = urlObj.searchParams.get('subfolder');
+                    if (filename) return subfolder ? `${subfolder.replace(/\\/g, '/')}/${filename}` : filename;
+                } catch (e) {}
+                return val;
+            };
+
             cardsToExport.forEach((card) => {
                 const cardObj = {};
                 let unnamedInputCount = 1, unnamedOutputCount = 1;
                 
-                if (mode === 'input' || mode === 'all') {
+                // 1. 判断是否需要导出 Input
+                if (mode === 'input' || mode === 'all' || mode === 'all_history') {
                     card.areas?.filter(a => a.type === 'edit').forEach((a) => {
                         cardObj[a.title || `##${unnamedInputCount++}`] = a.value || "";
                     });
                 }
                 
-                if (mode === 'output' || mode === 'all') {
+                // 2. 判断是否需要导出 Output
+                if (mode === 'output' || mode === 'all' || mode === 'output_history' || mode === 'all_history') {
+                    const includeHistory = mode.includes('_history');
+                    
                     card.areas?.filter(a => a.type === 'preview').forEach((a) => {
-                        let val = a.resultUrl || "";
-                        if (val) {
-                            try {
-                                const urlObj = new URL(val, window.location.origin);
-                                const filename = urlObj.searchParams.get('filename');
-                                let subfolder = urlObj.searchParams.get('subfolder');
-                                if (filename) val = subfolder ? `${subfolder.replace(/\\/g, '/')}/${filename}` : filename;
-                            } catch (e) {}
+                        let exportValue;
+                        
+                        // 包含生成历史且历史记录存在
+                        if (includeHistory && a.history && a.history.length > 0) {
+                            exportValue = a.history.map(h => formatUrl(h)).filter(h => h !== "");
+                            // 如果数组只有一个元素，且恰好与封面图相同，是否保持数组？这里为了统一格式，既然选了带history，就全部输出数组结构
+                        } else {
+                            // 否则仅导出当前封面的单条记录（字符串格式）
+                            exportValue = formatUrl(a.resultUrl || "");
                         }
-                        cardObj[a.title || `##${unnamedOutputCount++}`] = val;
+                        
+                        cardObj[a.title || `##${unnamedOutputCount++}`] = exportValue;
                     });
                 }
                 result.push(cardObj);
@@ -411,7 +431,6 @@ export function attachDataIOEvents(panelContainer) {
             const jsonStr = generateExportJSON(mode);
             if (currentJsonAction === 'copy') {
                 try {
-                    // 【修复】：补全 navigator.clipboard 前缀
                     await navigator.clipboard.writeText(jsonStr);
                     alert("✅ JSON 数据已成功复制到剪切板！");
                 } catch (err) { alert("❌ 复制失败。\n" + err.message); }
@@ -424,9 +443,12 @@ export function attachDataIOEvents(panelContainer) {
             }
         };
 
+        // 绑定所有的导出按钮点击事件
         exportWrapper.querySelector("#sl-export-json-input").onclick = (e) => { e.stopPropagation(); handleJsonExport('input'); };
         exportWrapper.querySelector("#sl-export-json-output").onclick = (e) => { e.stopPropagation(); handleJsonExport('output'); };
         exportWrapper.querySelector("#sl-export-json-all").onclick = (e) => { e.stopPropagation(); handleJsonExport('all'); };
+        exportWrapper.querySelector("#sl-export-json-output-history").onclick = (e) => { e.stopPropagation(); handleJsonExport('output_history'); };
+        exportWrapper.querySelector("#sl-export-json-all-history").onclick = (e) => { e.stopPropagation(); handleJsonExport('all_history'); };
 
         const organizeOutputFiles = async (action) => {
             exportDropdown.style.display = 'none';

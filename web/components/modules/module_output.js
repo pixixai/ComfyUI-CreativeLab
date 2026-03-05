@@ -7,6 +7,22 @@ import { getRatioCSS, showBindingToast, hideBindingToast } from "../ui_utils.js"
 // 引入全新的多媒体专员
 import { renderMedia, attachMediaEvents } from "./module_media.js";
 
+// 【新增防裂图引擎】：解析并强制刷新 ComfyUI 原生 /view URL 的访问时间戳
+function getValidMediaUrl(urlStr) {
+    if (!urlStr || typeof urlStr !== 'string') return urlStr;
+    try {
+        let urlObj = new URL(urlStr, window.location.origin);
+        if (urlObj.pathname === '/view') {
+            // 通过附带最新的时间戳，强行打破浏览器旧有的可能破损的 temp 文件缓存
+            urlObj.searchParams.set('t', Date.now());
+            return urlObj.pathname + urlObj.search + urlObj.hash;
+        }
+        return urlStr;
+    } catch(e) {
+        return urlStr;
+    }
+}
+
 export function generateOutputHTML(area, card) {
     const isAreaSelected = state.selectedAreaIds.includes(area.id);
 
@@ -27,13 +43,16 @@ export function generateOutputHTML(area, card) {
             const isVid = urlLower.match(/\.(mp4|webm|mov|avi|mkv)/);
             const isAud = urlLower.match(/\.(mp3|wav|ogg|flac|aac|m4a)/);
             
+            // 【核心修改】：调用动态 URL 引擎提取安全、新鲜的链接
+            const displayUrl = getValidMediaUrl(hUrl); 
+
             let media = '';
             if (isVid) {
-                media = `<video src="${hUrl}" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" muted></video>`;
+                media = `<video src="${displayUrl}" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" muted></video>`;
             } else if (isAud) {
                 media = `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#222; color:#fff; font-size:24px;">🎵</div>`;
             } else {
-                media = `<img src="${hUrl}" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" />`;
+                media = `<img src="${displayUrl}" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" />`;
             }
 
             const overlay = isSelected ? `<div style="position:absolute;inset:0;background:rgba(33,150,243,0.3);pointer-events:none;"></div>` : '';

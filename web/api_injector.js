@@ -19,11 +19,6 @@ export function setupAPIInjector(app) {
     window._slDoneTasks = window._slDoneTasks || new Set();
 
     // =========================================================================
-    // 🧹 历史包袱已清理：原先用于防止视频闪烁的“全局事件劫持”和“DOM拔插术”
-    // 已被完全删除，得益于局部刷新架构，代码变得纯净且高效。
-    // =========================================================================
-
-    // =========================================================================
     // 【神级修复】：全局媒体加载监听器，实现切换历史记录时动态适配尺寸
     // =========================================================================
     if (!window._slMediaLoadHijacked) {
@@ -37,7 +32,6 @@ export function setupAPIInjector(app) {
             const area = card?.areas.find(a => a.id === areaId);
             
             if (area && area.matchMedia) {
-                // 只有当尺寸确实发生了变化，才去触发重绘，避免无限循环死锁
                 if (area.width !== width || area.height !== height || area.ratio !== '自定义比例') {
                     area.ratio = '自定义比例';
                     area.width = width;
@@ -48,14 +42,12 @@ export function setupAPIInjector(app) {
             }
         };
 
-        // 捕获阶段监听所有的图片加载
         document.addEventListener('load', (e) => {
             if (e.target && e.target.tagName === 'IMG' && e.target.classList && e.target.classList.contains('sl-preview-img')) {
                 handleMediaLoad(e.target, e.target.naturalWidth, e.target.naturalHeight);
             }
         }, true);
 
-        // 捕获阶段监听所有的视频数据加载
         document.addEventListener('loadeddata', (e) => {
             if (e.target && e.target.tagName === 'VIDEO' && e.target.classList && e.target.classList.contains('sl-preview-img')) {
                 handleMediaLoad(e.target, e.target.videoWidth, e.target.videoHeight);
@@ -66,7 +58,7 @@ export function setupAPIInjector(app) {
     }
 
     // =========================================================================
-    // 【核弹级 UI 渲染器】：支持报错红灯模式，最高权限 (!important) 压制闪烁
+    // 【核弹级 UI 渲染器】：支持报错红灯模式
     // =========================================================================
     const setUIProgress = (cardId, percentage, isHide = false, isError = false, isRestore = false) => {
         if (window._slDoneTasks.has(cardId) && !isHide && !isRestore && percentage < 100) return; 
@@ -254,12 +246,9 @@ export function setupAPIInjector(app) {
         const result = await originalGraphToPrompt.apply(this, arguments);
         
         let execTask = window._slExecQueue.shift();
-
         if (!execTask) return result; 
 
         window._slLastGeneratedTask = execTask;
-        console.log(`[ShellLink] 🚀 插件运行模式：当前注入任务卡片: ${execTask.cardId}`);
-
         const activeCard = StateManager.state.cards.find(c => c.id === execTask.cardId);
         if (!activeCard) return result;
 
@@ -294,8 +283,6 @@ export function setupAPIInjector(app) {
             });
         }
 
-        // 🌟 删除危险的 A.5 篡改阶段，保持原生节点稳定，后续由截胡逻辑处理 🌟
-
         // --- 阶段 B: 动态剪枝 ---
         const targetPreviewAreas = activeCard.areas?.filter(a => a.type === 'preview' && a.targetNodeId && execTask.previewAreaIds.includes(a.id)) || [];
         
@@ -327,7 +314,6 @@ export function setupAPIInjector(app) {
     // =========================================================================
     // 3. 全局进度监听
     // =========================================================================
-    
     api.addEventListener("progress_state", (e) => {
         const pid = e.detail?.prompt_id;
         const nodes = e.detail?.nodes;
@@ -366,7 +352,7 @@ export function setupAPIInjector(app) {
     });
 
     // =========================================================================
-    // 4. 监听引擎执行完成事件 (增强版：截胡转存系统)
+    // 4. 监听引擎执行完成事件 (增强版：截胡转存与状态回写闭环)
     // =========================================================================
     api.addEventListener("executed", async (event) => {
         const detail = event.detail;
@@ -386,9 +372,9 @@ export function setupAPIInjector(app) {
             }
 
             if (String(area.targetNodeId) === String(executedNodeId)) {
-                let newUrl = null;
-                let isVideo = false;
-                let isAudio = false;
+                let newUrlFirst = null;
+                let isVideoFirst = false;
+                let isAudioFirst = false;
 
                 let targetItems = null;
                 if (outputData.videos && outputData.videos.length > 0) targetItems = outputData.videos;
@@ -397,86 +383,123 @@ export function setupAPIInjector(app) {
                 else if (outputData.images && outputData.images.length > 0) targetItems = outputData.images;
 
                 if (targetItems && targetItems.length > 0) {
-                    let media = targetItems[0];
                     
-                    const ext = media.filename.split('.').pop().toLowerCase();
-                    if (['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext) || (media.format && media.format.startsWith('video/'))) {
-                        isVideo = true;
-                    } else if (['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'].includes(ext) || (media.format && media.format.startsWith('audio/'))) {
-                        isAudio = true;
-                    }
-                    
-                    // 🛡️ 截胡归档系统：不管是 temp 预览缓存，还是 output 原始输出，统统拷贝到 ShellLink 的专属归档目录！
-                    if (media.type === "temp" || media.type === "output") {
-                        try {
-                            const asset_type = isVideo ? "video" : (isAudio ? "audio" : "image");
-                            const res = await fetch('/shell_link/copy_temp_asset', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    filename: media.filename,
-                                    subfolder: media.subfolder || "",
-                                    asset_type: asset_type,
-                                    source_type: media.type // 告诉后端这是临时文件还是输出文件
-                                })
-                            });
-                            
-                            const data = await res.json();
-                            if (data.status === "success") {
-                                // 替换为我们专属目录的永久资产信息
-                                media.filename = data.new_filename;
-                                media.subfolder = data.new_subfolder;
-                                media.type = data.new_type; 
-                            } else {
-                                console.error("[ShellLink] 截胡资产失败:", data.error);
+                    // 🔥【优化】：遍历所有的生成资产（处理多图批次出图），彻底消灭漏网之鱼
+                    for (let i = 0; i < targetItems.length; i++) {
+                        let media = targetItems[i];
+                        
+                        const ext = media.filename.split('.').pop().toLowerCase();
+                        let isVideo = false;
+                        let isAudio = false;
+                        if (['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext) || (media.format && media.format.startsWith('video/'))) {
+                            isVideo = true;
+                        } else if (['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'].includes(ext) || (media.format && media.format.startsWith('audio/'))) {
+                            isAudio = true;
+                        }
+
+                        // 记录原始的临时路径，等会要去 history 里面“抓人”
+                        const oldParams = new URLSearchParams({ filename: media.filename, type: media.type, subfolder: media.subfolder || "" });
+                        const oldUrlStr = `/view?${oldParams.toString()}`;
+                        const oldUrl = api.apiURL(oldUrlStr);
+
+                        // 🛡️ 截胡归档系统
+                        if (media.type === "temp" || media.type === "output") {
+                            try {
+                                const asset_type = isVideo ? "video" : (isAudio ? "audio" : "image");
+                                const res = await fetch('/shell_link/copy_temp_asset', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        filename: media.filename,
+                                        subfolder: media.subfolder || "",
+                                        asset_type: asset_type,
+                                        source_type: media.type
+                                    })
+                                });
+                                
+                                const data = await res.json();
+                                if (data.status === "success") {
+                                    media.filename = data.new_filename;
+                                    media.subfolder = data.new_subfolder;
+                                    media.type = data.new_type; 
+                                } else {
+                                    console.error("[ShellLink] 截胡资产失败:", data.error);
+                                }
+                            } catch (err) {
+                                console.error("[ShellLink] 截胡资产网络请求失败:", err);
                             }
-                        } catch (err) {
-                            console.error("[ShellLink] 截胡资产网络请求失败:", err);
+                        }
+
+                        // 构造后端复制完毕后的永久物理路径
+                        const newParams = new URLSearchParams({ filename: media.filename, type: media.type, subfolder: media.subfolder || "" });
+                        const newUrl = api.apiURL(`/view?${newParams.toString()}`);
+
+                        // 🔥 【核心状态回写】：强制纠正由于异步时间差被提前写进去的 temp 路径！
+                        if (newUrl) {
+                            if (!area.history) area.history = [];
+                            
+                            // 查找是否已经存在于 history 中（匹配完整路径或包含参数）
+                            const foundIdx = area.history.findIndex(h => h === oldUrl || h.includes(oldUrlStr));
+                            if (foundIdx !== -1) {
+                                // 替换为永久资产路径
+                                area.history[foundIdx] = newUrl;
+                            } else {
+                                // 如果没被别处拦截写入，那么我们主动帮它存入历史记录里，防止丢失
+                                if (!area.history.includes(newUrl)) {
+                                    area.history.push(newUrl);
+                                }
+                            }
+                        }
+
+                        // 记录第一项结果用于设置封面和触发排版
+                        if (i === 0 && newUrl) {
+                            newUrlFirst = newUrl;
+                            isVideoFirst = isVideo;
+                            isAudioFirst = isAudio;
                         }
                     }
 
-                    const params = new URLSearchParams({ filename: media.filename, type: media.type, subfolder: media.subfolder || "" });
-                    newUrl = api.apiURL(`/view?${params.toString()}`);
-                }
+                    if (newUrlFirst) {
+                        area.resultUrl = newUrlFirst;
 
-                if (newUrl) {
-                    area.resultUrl = newUrl;
-
-                    if (area.matchMedia) {
-                        if (isVideo) {
-                            const tempVid = document.createElement('video');
-                            tempVid.muted = true;
-                            tempVid.playsInline = true;
-                            tempVid.onloadeddata = () => {
-                                area.ratio = '自定义比例';
-                                area.width = tempVid.videoWidth;
-                                area.height = tempVid.videoHeight;
-                                StateManager.syncToNode(app.graph);
-                                document.dispatchEvent(new CustomEvent("sl_render_ui"));
-                            };
-                            tempVid.onerror = (e) => console.error("[ShellLink] 读取视频尺寸失败", e);
-                            tempVid.src = newUrl;
-                            tempVid.load();
-                        } else if (isAudio) {
-                            area.ratio = 'auto';
-                            StateManager.syncToNode(app.graph);
-                            document.dispatchEvent(new CustomEvent("sl_render_ui"));
-                        } else {
-                            const tempImg = new Image();
-                            tempImg.onload = () => {
-                                area.ratio = '自定义比例';
-                                area.width = tempImg.naturalWidth;
-                                area.height = tempImg.naturalHeight;
-                                StateManager.syncToNode(app.graph);
-                                document.dispatchEvent(new CustomEvent("sl_render_ui"));
-                            };
-                            tempImg.src = newUrl; 
-                        }
-                    } else {
+                        // 🔥 状态变更后，立即序列化同步到 ComfyUI 图谱内保存配置！
                         StateManager.syncToNode(app.graph);
-                        document.dispatchEvent(new CustomEvent("shell_link_update_preview", {
-                            detail: { cardId: card.id, areaId: area.id, url: newUrl }
-                        }));
+
+                        if (area.matchMedia) {
+                            if (isVideoFirst) {
+                                const tempVid = document.createElement('video');
+                                tempVid.muted = true;
+                                tempVid.playsInline = true;
+                                tempVid.onloadeddata = () => {
+                                    area.ratio = '自定义比例';
+                                    area.width = tempVid.videoWidth;
+                                    area.height = tempVid.videoHeight;
+                                    StateManager.syncToNode(app.graph);
+                                    document.dispatchEvent(new CustomEvent("sl_render_ui"));
+                                };
+                                tempVid.onerror = (e) => console.error("[ShellLink] 读取视频尺寸失败", e);
+                                tempVid.src = newUrlFirst;
+                                tempVid.load();
+                            } else if (isAudioFirst) {
+                                area.ratio = 'auto';
+                                StateManager.syncToNode(app.graph);
+                                document.dispatchEvent(new CustomEvent("sl_render_ui"));
+                            } else {
+                                const tempImg = new Image();
+                                tempImg.onload = () => {
+                                    area.ratio = '自定义比例';
+                                    area.width = tempImg.naturalWidth;
+                                    area.height = tempImg.naturalHeight;
+                                    StateManager.syncToNode(app.graph);
+                                    document.dispatchEvent(new CustomEvent("sl_render_ui"));
+                                };
+                                tempImg.src = newUrlFirst; 
+                            }
+                        } else {
+                            document.dispatchEvent(new CustomEvent("shell_link_update_preview", {
+                                detail: { cardId: card.id, areaId: area.id, url: newUrlFirst }
+                            }));
+                        }
                     }
                 }
             }

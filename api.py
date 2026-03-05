@@ -73,9 +73,11 @@ async def shell_link_delete_file(request):
         else: base_dir = folder_paths.get_output_directory()
             
         full_path = os.path.normpath(os.path.join(base_dir, subfolder, filename))
+        base_dir_norm = os.path.abspath(base_dir)
         
-        if not full_path.startswith(os.path.normpath(base_dir)):
-            return web.json_response({"status": "error", "error": "非法路径访问！"})
+        # 【安全补丁】：使用 commonpath 严格防御目录穿越，确保全路径没有逃离沙箱
+        if os.path.commonpath([base_dir_norm, os.path.abspath(full_path)]) != base_dir_norm:
+            return web.json_response({"status": "error", "error": "非法路径访问 (Directory Traversal Detected)！"})
         
         if os.path.exists(full_path):
             os.remove(full_path)
@@ -108,9 +110,18 @@ async def shell_link_organize_files(request):
             else: base_dir = folder_paths.get_output_directory()
             
             source_path = os.path.normpath(os.path.join(base_dir, subfolder, filename))
+            base_dir_norm = os.path.abspath(base_dir)
+
+            # 【安全补丁】：防御源文件目录穿越
+            if os.path.commonpath([base_dir_norm, os.path.abspath(source_path)]) != base_dir_norm:
+                continue
 
             target_base_dir = folder_paths.get_output_directory()
             target_dir = os.path.normpath(os.path.join(target_base_dir, target_subfolder))
+
+            # 【安全补丁】：防御目标子文件夹越界
+            if os.path.commonpath([os.path.abspath(target_base_dir), os.path.abspath(target_dir)]) != os.path.abspath(target_base_dir):
+                continue
 
             if not os.path.exists(target_dir):
                 os.makedirs(target_dir, exist_ok=True)
@@ -156,7 +167,9 @@ async def shell_link_copy_temp_asset(request):
         subfolder = data.get("subfolder", "")
         # 目标类型：video, audio, image, file
         asset_type = data.get("asset_type", "file") 
-        source_type = data.get("source_type", "temp") # 获取来源类型，决定是从 temp 还是 output 捞
+        
+        # 【核心修复】：兼容前端传 type 还是 source_type。找不到 source_type 时回退到 type，彻底解决截胡报 404 错误
+        source_type = data.get("source_type", data.get("type", "temp")) 
         
         # 根据文件来源获取基础目录
         if source_type == "output":
@@ -165,6 +178,11 @@ async def shell_link_copy_temp_asset(request):
             source_base_dir = folder_paths.get_temp_directory()
             
         source_path = os.path.normpath(os.path.join(source_base_dir, subfolder, filename))
+        source_base_norm = os.path.abspath(source_base_dir)
+
+        # 【安全补丁】：防御源文件目录穿越
+        if os.path.commonpath([source_base_norm, os.path.abspath(source_path)]) != source_base_norm:
+            return web.json_response({"status": "error", "error": "非法的源文件路径！"})
         
         if not os.path.exists(source_path):
             return web.json_response({"status": "error", "error": f"源文件不存在: {source_path}"})

@@ -81,8 +81,9 @@ export const StateManager = {
 
     /**
      * 【取】从画布节点读取 JSON，并恢复或清空内存状态
+     * 【核心修改】：标记为 async 异步，并在加载完毕后执行硬盘扫盘
      */
-    loadFromNode(graph) {
+    async loadFromNode(graph) {
         const node = this.getConfigNode(graph);
         if (node) {
             const widget = node.widgets?.find(w => w.name === "scenes_data");
@@ -100,6 +101,10 @@ export const StateManager = {
                         // 有效数据，执行恢复
                         this.state = parsedData;
                         console.log("[ShellLink] 成功从节点恢复卡片数据");
+                        
+                        // 【新增】：扫描硬盘，强行补齐缺失的历史图片记录
+                        await this.syncLocalHistoryToOutputAreas();
+                        
                         document.dispatchEvent(new CustomEvent("shell_link_state_loaded", { detail: this.state }));
                     }
                 } catch (e) {
@@ -114,6 +119,48 @@ export const StateManager = {
             document.dispatchEvent(new CustomEvent("shell_link_state_cleared"));
         }
         this.startWatchdog(graph); // 确保看门狗在运行
+    },
+
+    /**
+     * 【新增功能】：让前端拥有自动补全本地硬盘缺失记录的能力
+     */
+    async syncLocalHistoryToOutputAreas() {
+        try {
+            const resp = await fetch('/shell_link/get_local_history');
+            const data = await resp.json();
+            
+            if (data.status === 'success' && data.history && data.history.length > 0) {
+                const localUrls = data.history.map(item => item.url);
+                
+                if (!this.state.cards) return;
+                
+                this.state.cards.forEach(card => {
+                    card.areas.forEach(area => {
+                        // 兼容你数据结构里的 'output' 和 'preview' 模块
+                        if (area.type === 'output' || area.type === 'preview') {
+                            if (!area.history) area.history = [];
+                            
+                            // 过滤出那些在硬盘里存在，但当前模块记录里却没有的 URL (忽略时间戳后缀)
+                            const newUrls = localUrls.filter(url => 
+                                !area.history.some(hUrl => hUrl.split('&t=')[0] === url.split('&t=')[0])
+                            );
+                            
+                            if (newUrls.length > 0) {
+                                area.history = [...area.history, ...newUrls];
+                                // 如果当前模块是空的，恢复后自动选中最后一张
+                                if (!area.resultUrl && area.history.length > 0) {
+                                    area.historyIndex = area.history.length - 1;
+                                    area.resultUrl = area.history[area.historyIndex];
+                                }
+                            }
+                        }
+                    });
+                });
+                console.log("[ShellLink] 💽 已成功将本地硬盘记录同步回输出模块中！");
+            }
+        } catch (e) {
+            console.error("[ShellLink] 同步硬盘历史记录请求失败:", e);
+        }
     },
 
     /**
