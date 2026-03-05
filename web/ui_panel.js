@@ -13,7 +13,7 @@ import { updateSelectionUI } from "./components/ui_selection.js";
 import { setupGlobalEvents } from "./components/events/event_global.js";
 import { setupExecutionEvents } from "./components/events/event_execution.js";
 
-console.log("[ShellLink] UI 拆分重构版本已被成功导入 (模块化纯净架构)");
+console.log("[ShellLink] UI 拆分重构版本已被成功导入 (极简去冗余版)");
 
 let panelContainer = null;
 let backdropContainer = null;
@@ -55,11 +55,11 @@ export function setupUI() {
             backdrop-filter: none !important;
         }
         .sl-context-menu-title {
-            padding: 6px 12px !important;
-            font-size: 12px !important; 
+            padding: 6px 12px !important; 
+            font-size: 12px !important;  
             color: #aaa !important;
             font-weight: bold !important;
-            background: rgba(255,255,255,0.08) !important;
+            background: rgba(255,255,255,0.08) !important; 
             margin: 0 !important; 
             pointer-events: none !important;
             letter-spacing: normal !important;
@@ -95,12 +95,10 @@ export function setupUI() {
     try {
         if (!panelContainer) {
             createPanelDOM();
-            
-            // 🚨 【救命修复】：必须把创建的 DOM 放入 HTML 页面中，面板才能显示！
             if (backdropContainer) document.body.appendChild(backdropContainer);
             document.body.appendChild(panelContainer);
 
-            // 组装两大神经系统 (事件监听)
+            // 🌟 仅仅挂载新版的独立神经系统，绝不能调用旧版的僵尸函数
             setupGlobalEvents(panelContainer, backdropContainer, togglePanel, performRender);
             setupExecutionEvents();
 
@@ -248,38 +246,74 @@ function createPanelDOM() {
     const cardsContainer = panelContainer.querySelector("#sl-cards-container");
     const toolbar = panelContainer.querySelector("#sl-toolbar-handle");
     
+    const handleDeselectAll = (forceExitPainter = false) => {
+        const openDropdowns = document.querySelectorAll('.sl-custom-select.open');
+        if (openDropdowns.length > 0) {
+            openDropdowns.forEach(el => el.classList.remove('open'));
+            return; 
+        }
+        let changed = false;
+        if (forceExitPainter && state.painterMode) {
+            state.painterMode = false;
+            state.painterSource = null;
+            changed = true;
+        }
+        if (state.selectedCardIds && state.selectedCardIds.length > 0) {
+            state.selectedCardIds = [];
+            state.activeCardId = null;
+            changed = true;
+        }
+        if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
+            state.selectedAreaIds = [];
+            changed = true;
+        }
+        if(changed) updateSelectionUI(); 
+    };
+
     // ==============================================================================================
-    // 🌟 中央集权拦截引擎 🌟
-    // 处理模块、卡片的互斥选中与格式刷，拦截无关点击
+    // 🌟 中央集权拦截引擎 (智能穿透版) 🌟
     // ==============================================================================================
     cardsContainer.addEventListener("mousedown", (e) => {
         if (state.painterMode) return;
         if (e.button !== 0) return; 
 
         const isInteractive = e.target.closest('button, input, select, textarea, .sl-custom-select, .sl-edit-val-bool, .sl-del-area-btn, .sl-del-card-btn, .sl-history-thumb, .sl-upload-zone');
-        if (isInteractive) return;
-
+        
         const areaEl = e.target.closest('.sl-area');
         const cardEl = e.target.closest('.sl-card:not(.sl-add-card-inline)');
 
         if (areaEl) {
             const areaId = areaEl.dataset.areaId;
             if (e.ctrlKey || e.metaKey) {
-                if (state.selectedAreaIds.includes(areaId)) state.selectedAreaIds = state.selectedAreaIds.filter(id => id !== areaId);
-                else state.selectedAreaIds.push(areaId);
+                if (isInteractive) {
+                    if (!state.selectedAreaIds.includes(areaId)) state.selectedAreaIds.push(areaId);
+                } else {
+                    if (state.selectedAreaIds.includes(areaId)) state.selectedAreaIds = state.selectedAreaIds.filter(id => id !== areaId);
+                    else state.selectedAreaIds.push(areaId);
+                }
             } else {
-                state.selectedAreaIds = [areaId];
+                if (isInteractive && state.selectedAreaIds.includes(areaId) && state.selectedAreaIds.length > 1) {
+                    // 保持多选状态不变
+                } else {
+                    state.selectedAreaIds = [areaId];
+                }
             }
             state.selectedCardIds = [];
-            state.activeCardId = null;
+            state.activeCardId = cardEl ? cardEl.dataset.cardId : null;
+            
             updateSelectionUI(); 
-            e.stopPropagation();
+            
+            if (!isInteractive) e.stopPropagation();
             
         } else if (cardEl) {
             const targetId = cardEl.dataset.cardId;
             if (e.ctrlKey || e.metaKey) {
-                if (state.selectedCardIds.includes(targetId)) state.selectedCardIds = state.selectedCardIds.filter(id => id !== targetId);
-                else state.selectedCardIds.push(targetId);
+                if (isInteractive) {
+                    if (!state.selectedCardIds.includes(targetId)) state.selectedCardIds.push(targetId);
+                } else {
+                    if (state.selectedCardIds.includes(targetId)) state.selectedCardIds = state.selectedCardIds.filter(id => id !== targetId);
+                    else state.selectedCardIds.push(targetId);
+                }
                 appState.lastClickedCardId = targetId;
             } else if (e.shiftKey && appState.lastClickedCardId) {
                 const currentIndex = state.cards.findIndex(c => c.id === targetId);
@@ -290,16 +324,23 @@ function createPanelDOM() {
                 state.selectedCardIds = Array.from(new Set([...state.selectedCardIds, ...rangeIds]));
                 appState.lastClickedCardId = targetId;
             } else {
-                state.selectedCardIds = [targetId];
+                if (isInteractive && state.selectedCardIds.includes(targetId) && state.selectedCardIds.length > 1) {
+                    // 保持多选状态不变
+                } else {
+                    state.selectedCardIds = [targetId];
+                }
                 appState.lastClickedCardId = targetId;
             }
             
             state.activeCardId = state.selectedCardIds.length > 0 ? state.selectedCardIds[state.selectedCardIds.length - 1] : null;
             state.selectedAreaIds = [];
+            
             updateSelectionUI(); 
-            e.stopPropagation();
+            
+            if (!isInteractive) e.stopPropagation();
         }
-    }, true);
+    }, true); 
+
 
     cardsContainer.addEventListener("click", (e) => {
         const isInteractive = e.target.closest('button, input, select, textarea, .sl-custom-select, .sl-edit-val-bool, .sl-del-area-btn, .sl-del-card-btn, .sl-history-thumb, .sl-upload-zone');
@@ -388,30 +429,6 @@ function createPanelDOM() {
             handleDeselectAll(false);
         }
     }, true);
-
-    const handleDeselectAll = (forceExitPainter = false) => {
-        const openDropdowns = document.querySelectorAll('.sl-custom-select.open');
-        if (openDropdowns.length > 0) {
-            openDropdowns.forEach(el => el.classList.remove('open'));
-            return; 
-        }
-        let changed = false;
-        if (forceExitPainter && state.painterMode) {
-            state.painterMode = false;
-            state.painterSource = null;
-            changed = true;
-        }
-        if (state.selectedCardIds && state.selectedCardIds.length > 0) {
-            state.selectedCardIds = [];
-            state.activeCardId = null;
-            changed = true;
-        }
-        if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
-            state.selectedAreaIds = [];
-            changed = true;
-        }
-        if(changed) updateSelectionUI();
-    };
 
     toolbar.addEventListener("click", (e) => {
         const isInteractive = ['BUTTON', 'INPUT', 'LABEL', 'SELECT'].includes(e.target.tagName) || 
@@ -502,6 +519,7 @@ function createPanelDOM() {
         }
     }
 
+    // 防碎图清理机制
     window.ShellLink.handleMediaError = (cardId, areaId, failedUrl) => {
         const card = state.cards.find(c => c.id === cardId);
         const area = card?.areas.find(a => a.id === areaId);

@@ -12,10 +12,12 @@ export function updateSelectionUI() {
         document.querySelectorAll('.sl-card:not(.sl-add-card-inline)').forEach(card => {
             const cardId = card.dataset.cardId;
             if (state.selectedCardIds && state.selectedCardIds.includes(cardId)) {
-                card.classList.add('selected');
+                // 【核心修复】：必须同时添加 active 和 selected，匹配 CSS
+                card.classList.add('active', 'selected');
                 card.style.borderColor = '#4CAF50'; 
             } else {
-                card.classList.remove('selected');
+                // 【核心修复】：必须同时移除 active 和 selected，消除残影
+                card.classList.remove('active', 'selected');
                 card.style.borderColor = ''; 
             }
         });
