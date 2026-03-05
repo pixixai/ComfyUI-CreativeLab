@@ -3,8 +3,7 @@
  * 路径: web/components/comp_contextmenu.js
  * 职责: 拦截模块（输入/输出）的右键事件，生成动态菜单，并支持多选批量操作与全局资产清理
  */
-// 【核心修复】：导入 ui_state.js 中的统一全局清理引擎 removeUrlsGlobally
-import { state, saveAndRender, removeUrlsGlobally } from "./ui_state.js";
+import { state, saveAndRender } from "./ui_state.js";
 import { showBindingToast, hideBindingToast } from "./ui_utils.js";
 import { execSelectSameModules, execDeleteSameModules, execMoveBackward, execMoveForward } from "./actions/action_batch_sync.js";
 
@@ -15,27 +14,6 @@ function showAutoToast(msg, isError = false) {
     } else {
         showBindingToast(msg, isError);
         setTimeout(hideBindingToast, 3000); 
-    }
-}
-
-// =========================================================================
-// 内部辅助方法：调用后端物理删除文件 API
-// =========================================================================
-async function deletePhysicalFile(urlStr) {
-    if (!urlStr) return;
-    try {
-        const urlObj = new URL(urlStr, window.location.origin);
-        const filename = urlObj.searchParams.get('filename');
-        const subfolder = urlObj.searchParams.get('subfolder') || '';
-        if (!filename) return;
-
-        await fetch('/shell_link/delete_file', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filename, subfolder })
-        });
-    } catch (e) {
-        console.error("[ShellLink] 删除本地文件失败", e);
     }
 }
 
@@ -58,12 +36,10 @@ function downloadFile(url) {
 // 核心：初始化与挂载右键菜单
 // =========================================================================
 export function setupContextMenu(panelContainer) {
-    // 1. 在页面中创建隐藏的全局新菜单容器
     const menuEl = document.createElement('div');
     menuEl.className = 'sl-context-menu';
     document.body.appendChild(menuEl);
 
-    // 2. 全局点击关闭菜单
     const closeMenuGlobally = (e) => {
         if (menuEl.style.display === 'block' && !menuEl.contains(e.target)) {
             menuEl.style.display = 'none';
@@ -76,9 +52,7 @@ export function setupContextMenu(panelContainer) {
         }
     }, true);
 
-    // 3. 抽离出的公共唤出逻辑
     const showMenu = (clientX, clientY, clickedAreaId) => {
-        // 找到当前选中的所有模块对象
         const selectedAreaObjs = [];
         state.cards.forEach(c => {
             c.areas?.forEach(a => {
@@ -88,14 +62,10 @@ export function setupContextMenu(panelContainer) {
             });
         });
 
-        // 找到当前点击的那个模块
         const mainObj = selectedAreaObjs.find(o => o.area.id === clickedAreaId);
         if (!mainObj) return;
 
-        // 【判断显示分组】：只有当点击的是“输出模块”时，才显示“内容”分组
         const showContentGroup = mainObj.area.type === 'preview';
-
-        // 4. 动态渲染菜单内部 HTML
         let menuHTML = ``;
 
         if (showContentGroup) {
@@ -104,10 +74,8 @@ export function setupContextMenu(panelContainer) {
                 <div class="sl-context-menu-item" id="sl-ctx-download">下载</div>
                 <div class="sl-context-menu-item" id="sl-ctx-download-all">下载全部生成记录</div>
                 <div class="sl-context-menu-divider"></div>
-                <div class="sl-context-menu-item" id="sl-ctx-remove">移除 (仅限此模块)</div>
-                <div class="sl-context-menu-item sl-danger" id="sl-ctx-remove-del">移除并删除本地文件</div>
-                <div class="sl-context-menu-item" id="sl-ctx-clear">清除所有 (仅限此模块)</div>
-                <div class="sl-context-menu-item sl-danger" id="sl-ctx-clear-del">清除所有并删除本地文件</div>
+                <div class="sl-context-menu-item" id="sl-ctx-remove">移除</div>
+                <div class="sl-context-menu-item" id="sl-ctx-clear">清除所有生成记录</div>
             `;
         }
 
@@ -121,9 +89,8 @@ export function setupContextMenu(panelContainer) {
         `;
 
         menuEl.innerHTML = menuHTML;
-
-        // 防止菜单超出屏幕边界
         menuEl.style.display = 'block';
+        
         let left = clientX;
         let top = clientY;
         const menuRect = menuEl.getBoundingClientRect();
@@ -132,9 +99,6 @@ export function setupContextMenu(panelContainer) {
         menuEl.style.left = `${left}px`;
         menuEl.style.top = `${top}px`;
 
-        // =========================================================
-        // 5. 绑定点击事件 (智能适配历史记录结构并支持多选)
-        // =========================================================
         const getHistoryArr = (area) => area.history || area.historyUrls || area.results || [];
         const getHistoryIdx = (area) => area.historyIndex !== undefined ? area.historyIndex : (area.currentRecordIndex || 0);
         const getCurrentUrl = (area) => {
@@ -143,7 +107,6 @@ export function setupContextMenu(panelContainer) {
             return area.resultUrl || (arr.length > 0 ? arr[idx] : null);
         };
 
-        // --- 内容区事件 ---
         if (showContentGroup) {
             menuEl.querySelector('#sl-ctx-download').onclick = () => {
                 menuEl.style.display = 'none';
@@ -162,7 +125,7 @@ export function setupContextMenu(panelContainer) {
                 });
             };
 
-            // 【局部移除】：仅在当前模块内移除当前显示的媒体，绝不影响其他模块
+            // 【功能1】：仅移除当前记录（不影响本地文件，不波及其他模块）
             menuEl.querySelector('#sl-ctx-remove').onclick = () => {
                 menuEl.style.display = 'none';
                 selectedAreaObjs.forEach(o => {
@@ -177,33 +140,12 @@ export function setupContextMenu(panelContainer) {
                     } else {
                         o.area.resultUrl = null;
                     }
-                    if (o.area.selectedThumbIndices) o.area.selectedThumbIndices = []; // 清理选中状态
+                    if (o.area.selectedThumbIndices) o.area.selectedThumbIndices = []; 
                 });
                 saveAndRender(); 
             };
 
-            // 【全局移除并删除】：删除物理文件，并利用已导入的全局引擎同步清理残影
-            menuEl.querySelector('#sl-ctx-remove-del').onclick = async () => {
-                menuEl.style.display = 'none';
-                let urlsToRemove = [];
-                for (let o of selectedAreaObjs) {
-                    const url = getCurrentUrl(o.area);
-                    if (url) {
-                        await deletePhysicalFile(url);
-                        urlsToRemove.push(url);
-                    }
-                }
-                
-                // 【核心修复】：直接调用引入的全局清理方法
-                if (typeof removeUrlsGlobally === 'function') {
-                    removeUrlsGlobally(urlsToRemove); 
-                } else {
-                    saveAndRender();
-                }
-                showAutoToast("已移除并彻底删除选中的媒体文件");
-            };
-
-            // 【局部清除】：仅清空当前模块的所有媒体，绝不影响其他模块
+            // 【功能2】：仅清除当前模块所有记录（不影响本地文件，不波及其他模块）
             menuEl.querySelector('#sl-ctx-clear').onclick = () => {
                 menuEl.style.display = 'none';
                 selectedAreaObjs.forEach(o => {
@@ -217,30 +159,6 @@ export function setupContextMenu(panelContainer) {
                 });
                 saveAndRender(); 
             };
-
-            // 【全局清除并删除】：删除当前模块所有物理文件，并全局清空残影
-            menuEl.querySelector('#sl-ctx-clear-del').onclick = async () => {
-                menuEl.style.display = 'none';
-                let deleteCount = 0;
-                let urlsToRemove = [];
-                for (let o of selectedAreaObjs) {
-                    const arr = getHistoryArr(o.area);
-                    const allUrls = arr.length > 0 ? [...arr] : (o.area.resultUrl ? [o.area.resultUrl] : []);
-                    for (let url of allUrls) {
-                        await deletePhysicalFile(url);
-                        urlsToRemove.push(url);
-                        deleteCount++;
-                    }
-                }
-                
-                // 【核心修复】：直接调用引入的全局清理方法
-                if (typeof removeUrlsGlobally === 'function') {
-                    removeUrlsGlobally(urlsToRemove); 
-                } else {
-                    saveAndRender();
-                }
-                showAutoToast(`已彻底清除并删除 ${deleteCount} 个本地文件`);
-            };
         }
 
         // --- 模块区事件 ---
@@ -250,7 +168,6 @@ export function setupContextMenu(panelContainer) {
         };
         menuEl.querySelector('#sl-ctx-del-same').onclick = () => { 
             menuEl.style.display = 'none'; 
-            // 批量删除同名模块
             selectedAreaObjs.forEach(o => execDeleteSameModules(o.area, o.card));
         };
         menuEl.querySelector('#sl-ctx-move-back').onclick = () => { 
@@ -263,9 +180,7 @@ export function setupContextMenu(panelContainer) {
         };
     };
 
-    // 5. 劫持旧的 Preview API（用于媒体元素内部点击）
     window.ShellLink.showPreviewContextMenu = (x, y, cardId, areaId, url) => {
-        // 如果是格式刷模式，直接屏蔽菜单弹出，并且关闭格式刷状态
         if (state.painterMode) {
             state.painterMode = false;
             state.painterSource = null;
@@ -273,7 +188,6 @@ export function setupContextMenu(panelContainer) {
             return;
         }
 
-        // 如果右键的不是当前选中的模块之一，则重置选中为仅该模块
         if (!state.selectedAreaIds.includes(areaId)) {
             state.selectedAreaIds = [areaId];
             saveAndRender();
@@ -281,9 +195,7 @@ export function setupContextMenu(panelContainer) {
         showMenu(x, y, areaId);
     };
 
-    // 6. 模块容器通用右键监听（用于模块空白区域点击）
     panelContainer.addEventListener('contextmenu', (e) => {
-        // 如果是格式刷模式，直接屏蔽菜单弹出，并且关闭格式刷状态
         if (state.painterMode) {
             e.preventDefault();
             e.stopPropagation();
@@ -298,7 +210,6 @@ export function setupContextMenu(panelContainer) {
 
         const areaId = areaEl.dataset.areaId;
         
-        // 逻辑同上：如果未选中则单选，已选中则保留多选
         if (!state.selectedAreaIds.includes(areaId)) {
             state.selectedAreaIds = [areaId];
             saveAndRender();

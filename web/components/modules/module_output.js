@@ -2,7 +2,7 @@
  * 文件名: module_output.js
  * 职责: 负责卡片内“输出模块”的 UI 渲染与交互 (网格管理、媒体预览、缩略图拖拽排序)
  */
-import { state, dragState, saveAndRender, removeUrlsGlobally } from "../ui_state.js";
+import { state, dragState, saveAndRender } from "../ui_state.js";
 import { getRatioCSS, showBindingToast, hideBindingToast } from "../ui_utils.js";
 // 引入全新的多媒体专员
 import { renderMedia, attachMediaEvents } from "./module_media.js";
@@ -31,7 +31,6 @@ export function generateOutputHTML(area, card) {
             if (isVid) {
                 media = `<video src="${hUrl}" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" muted></video>`;
             } else if (isAud) {
-                // 【核心修复】：为音频文件在历史网格中提供专属占位图标，防止裂图
                 media = `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#222; color:#fff; font-size:24px;">🎵</div>`;
             } else {
                 media = `<img src="${hUrl}" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" />`;
@@ -61,7 +60,6 @@ export function generateOutputHTML(area, card) {
         const btnDisabledStyle = 'cursor:not-allowed; color:#777; background:rgba(255,255,255,0.05); box-shadow:none;';
         
         const btnRemoveStyle = hasSelection ? btnActiveStyle : btnDisabledStyle;
-        const btnDeleteStyle = hasSelection ? btnActiveStyle : btnDisabledStyle;
 
         return `
             <div class="sl-area ${isAreaSelected ? 'active' : ''}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="padding:0; overflow:hidden; position:relative; background: rgba(0,0,0,0.4); min-height: 100px;">
@@ -71,7 +69,6 @@ export function generateOutputHTML(area, card) {
                     <span>生成记录管理 (${area.history.length})</span>
                     <div style="display:flex; gap: 6px; align-items: center;">
                         <button class="sl-manage-remove-btn" data-card="${card.id}" data-area="${area.id}" style="${btnBaseStyle} ${btnRemoveStyle}" ${hasSelection ? '' : 'disabled'} onmouseover="if(!this.disabled) { this.style.background='rgba(255,255,255,0.25)'; this.style.color='#fff'; }" onmouseout="if(!this.disabled) { this.style.background='rgba(255,255,255,0.15)'; this.style.color='#eee'; }">移除</button>
-                        <button class="sl-manage-delete-btn" data-card="${card.id}" data-area="${area.id}" style="${btnBaseStyle} ${btnDeleteStyle}" ${hasSelection ? '' : 'disabled'} onmouseover="if(!this.disabled) { this.style.background='rgba(255,77,77,0.3)'; this.style.color='#fff'; }" onmouseout="if(!this.disabled) { this.style.background='rgba(255,255,255,0.15)'; this.style.color='#eee'; }">移除并删除文件</button>
                     </div>
                 </div>
                 
@@ -114,6 +111,7 @@ export function attachOutputEvents(container) {
     // 🌟 接管媒体区域特有的交互！
     attachMediaEvents(container);
 
+    // 【功能1】：网格视图下“仅移除” (仅限当前模块，不删文件)
     container.querySelectorAll('.sl-manage-remove-btn').forEach(btn => {
         btn.onclick = (e) => {
             e.stopPropagation();
@@ -150,62 +148,6 @@ export function attachOutputEvents(container) {
                         area.selectedThumbIndices = []; 
                     }
                     saveAndRender();
-                }
-            }
-        };
-    });
-
-    container.querySelectorAll('.sl-manage-delete-btn').forEach(btn => {
-        btn.onclick = async (e) => {
-            e.stopPropagation();
-            if (btn.disabled) return;
-            const cardId = btn.dataset.card;
-            const areaId = btn.dataset.area;
-            const card = state.cards.find(c => c.id === cardId);
-            const area = card?.areas.find(a => a.id === areaId);
-
-            if (area && area.history && area.history.length > 0) {
-                let targetIndicesSet = new Set();
-                if (area.selectedThumbIndices && area.selectedThumbIndices.length > 0) {
-                    area.selectedThumbIndices.forEach(idx => targetIndicesSet.add(idx));
-                }
-                if (area.historyIndex !== undefined && area.historyIndex >= 0 && area.historyIndex < area.history.length) {
-                    targetIndicesSet.add(area.historyIndex);
-                }
-                
-                let targetIndices = Array.from(targetIndicesSet);
-
-                if (targetIndices.length > 0) {
-                    let urlsToRemove = targetIndices.map(idx => area.history[idx]);
-                    let deleteCount = 0;
-                    
-                    for (let urlStr of urlsToRemove) {
-                        if (!urlStr) continue;
-                        try {
-                            const urlObj = new URL(urlStr, window.location.origin);
-                            const filename = urlObj.searchParams.get('filename');
-                            const subfolder = urlObj.searchParams.get('subfolder') || '';
-                            if (filename) {
-                                await fetch('/shell_link/delete_file', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ filename, subfolder })
-                                });
-                                deleteCount++;
-                            }
-                        } catch (err) {
-                            console.error("[ShellLink] 删除本地文件失败", err);
-                        }
-                    }
-                    
-                    removeUrlsGlobally(urlsToRemove); 
-                    
-                    if (window.ShellLink && window.ShellLink.showAutoToast) {
-                        window.ShellLink.showAutoToast(`已彻底删除选中的 ${deleteCount} 个本地文件`);
-                    } else if (typeof showBindingToast !== 'undefined') {
-                        showBindingToast(`已彻底删除选中的 ${deleteCount} 个本地文件`);
-                        setTimeout(hideBindingToast, 3000);
-                    }
                 }
             }
         };

@@ -13,7 +13,7 @@ import { updateSelectionUI } from "./components/ui_selection.js";
 import { setupGlobalEvents } from "./components/events/event_global.js";
 import { setupExecutionEvents } from "./components/events/event_execution.js";
 
-console.log("[ShellLink] UI 拆分重构版本已被成功导入 (极简去冗余版)");
+console.log("[ShellLink] UI 拆分重构版本已被成功导入 (极速响应安全版)");
 
 let panelContainer = null;
 let backdropContainer = null;
@@ -98,7 +98,6 @@ export function setupUI() {
             if (backdropContainer) document.body.appendChild(backdropContainer);
             document.body.appendChild(panelContainer);
 
-            // 🌟 仅仅挂载新版的独立神经系统，绝不能调用旧版的僵尸函数
             setupGlobalEvents(panelContainer, backdropContainer, togglePanel, performRender);
             setupExecutionEvents();
 
@@ -166,10 +165,21 @@ document.addEventListener("sl_render_ui", () => {
 
 function performRender() {
     if (!panelContainer) return;
+
+    // 🌟 1. 渲染前：唤醒媒体保险库，拔下正在播放的所有视频和音频
+    if (window.ShellLink && window.ShellLink.stashMedia) window.ShellLink.stashMedia();
+
     const toolbarHandle = panelContainer.querySelector('#sl-toolbar-handle');
     const cardsContainer = panelContainer.querySelector('#sl-cards-container');
+    
+    // 💥 核弹级重绘：清空旧 HTML 并生成全新 HTML
     renderDynamicToolbar(toolbarHandle);
     renderCardsList(cardsContainer);
+    
+    // 🌟 2. 渲染后：在全新 HTML 里找到占位符，把正在播放的视频原样插回去
+    if (window.ShellLink && window.ShellLink.restoreMedia) window.ShellLink.restoreMedia();
+
+    // 3. 重新绑定交互事件（新生成的控制按钮会完美绑定到插回去的老视频上）
     attachDynamicToolbarEvents(toolbarHandle);
     attachCardEvents(cardsContainer);
     attachAreaEvents(cardsContainer);
@@ -246,6 +256,15 @@ function createPanelDOM() {
     const cardsContainer = panelContainer.querySelector("#sl-cards-container");
     const toolbar = panelContainer.querySelector("#sl-toolbar-handle");
     
+    cardsContainer.addEventListener("mousedown", (e) => {
+        if (state.painterMode) return; 
+        const cardEl = e.target.closest('.sl-card:not(.sl-add-card-inline)');
+        if (cardEl && cardEl.dataset.cardId) {
+            const targetId = cardEl.dataset.cardId;
+            if (state.activeCardId !== targetId) state.activeCardId = targetId;
+        }
+    }, true); 
+
     const handleDeselectAll = (forceExitPainter = false) => {
         const openDropdowns = document.querySelectorAll('.sl-custom-select.open');
         if (openDropdowns.length > 0) {
@@ -270,14 +289,15 @@ function createPanelDOM() {
         if(changed) updateSelectionUI(); 
     };
 
-    // ==============================================================================================
-    // 🌟 中央集权拦截引擎 (智能穿透版) 🌟
-    // ==============================================================================================
+    // 🌟 中央集权拦截引擎 (智能穿透版)
     cardsContainer.addEventListener("mousedown", (e) => {
         if (state.painterMode) return;
         if (e.button !== 0) return; 
 
-        const isInteractive = e.target.closest('button, input, select, textarea, .sl-custom-select, .sl-edit-val-bool, .sl-del-area-btn, .sl-del-card-btn, .sl-history-thumb, .sl-upload-zone');
+        // 【核心修复】：白名单加入 .sl-video-controls-interactive
+        const isInteractive = e.target.closest('button, input, select, textarea, .sl-custom-select, .sl-edit-val-bool, .sl-del-area-btn, .sl-del-card-btn, .sl-history-thumb, .sl-upload-zone, .sl-video-controls-interactive');
+        // 【核心新增】：建立专属的媒体区域白名单，防止停止冒泡导致视频不响应点击！
+        const isMedia = e.target.closest('.sl-video-player, .sl-audio-player, .sl-preview-bg, video, audio');
         
         const areaEl = e.target.closest('.sl-area');
         const cardEl = e.target.closest('.sl-card:not(.sl-add-card-inline)');
@@ -303,7 +323,8 @@ function createPanelDOM() {
             
             updateSelectionUI(); 
             
-            if (!isInteractive) e.stopPropagation();
+            // 【核心穿透】：如果点击的既不是输入框按钮，也不是音视频媒体，才阻止冒泡！
+            if (!isInteractive && !isMedia) e.stopPropagation();
             
         } else if (cardEl) {
             const targetId = cardEl.dataset.cardId;
@@ -337,13 +358,16 @@ function createPanelDOM() {
             
             updateSelectionUI(); 
             
-            if (!isInteractive) e.stopPropagation();
+            if (!isInteractive && !isMedia) e.stopPropagation();
         }
     }, true); 
 
 
     cardsContainer.addEventListener("click", (e) => {
-        const isInteractive = e.target.closest('button, input, select, textarea, .sl-custom-select, .sl-edit-val-bool, .sl-del-area-btn, .sl-del-card-btn, .sl-history-thumb, .sl-upload-zone');
+        const isInteractive = e.target.closest('button, input, select, textarea, .sl-custom-select, .sl-edit-val-bool, .sl-del-area-btn, .sl-del-card-btn, .sl-history-thumb, .sl-upload-zone, .sl-video-controls-interactive');
+        // 【核心新增】：媒体元素同样纳入白名单
+        const isMedia = e.target.closest('.sl-video-player, .sl-audio-player, .sl-preview-bg, video, audio');
+        
         const areaEl = e.target.closest('.sl-area');
         const cardEl = e.target.closest('.sl-card:not(.sl-add-card-inline)');
 
@@ -420,12 +444,13 @@ function createPanelDOM() {
             return;
         }
 
-        if ((areaEl || cardEl) && !isInteractive) {
+        // 【核心穿透】：如果在视频组件上触发了点击，同样不阻止冒泡
+        if ((areaEl || cardEl) && !isInteractive && !isMedia) {
             e.stopPropagation();
             return;
         }
 
-        if (!isInteractive && (e.target === cardsContainer || e.target.classList.contains('sl-cards-wrapper'))) {
+        if (!isInteractive && !isMedia && (e.target === cardsContainer || e.target.classList.contains('sl-cards-wrapper'))) {
             handleDeselectAll(false);
         }
     }, true);

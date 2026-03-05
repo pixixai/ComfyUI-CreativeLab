@@ -2,70 +2,6 @@
 # 职责: 在 ComfyUI 后端注册 "ShellLinkSystemConfig" 节点
 # 作用: 作为一个无连线的“数据仓库”，专用于将前端 ShellLink 面板的 JSON 数据保存在工作流 (.json) 中
 
-import json
-import os
-import shutil
-from aiohttp import web
-import folder_paths
-from server import PromptServer
-
-# =========================================================================
-# 【新增】：注册 ShellLink 专用的后端 API，用于物理移动/复制并重命名图像文件
-# =========================================================================
-@PromptServer.instance.routes.post("/shell_link/organize_files")
-async def shell_link_organize_files(request):
-    try:
-        data = await request.json()
-        action = data.get("action", "copy") # 支持 "move" 或 "copy"
-        files = data.get("files", [])
-        
-        output_dir = folder_paths.get_output_directory()
-        results = []
-        
-        for f in files:
-            orig_filename = f.get("filename")
-            orig_subfolder = f.get("subfolder", "")
-            target_subfolder = f.get("target_subfolder", "")
-            target_filename = f.get("target_filename")
-            
-            if not orig_filename or not target_filename:
-                continue
-                
-            src_path = os.path.join(output_dir, orig_subfolder, orig_filename)
-            
-            # 安全校验：确保文件存在，且没有越权访问 output 以外的目录
-            if not os.path.exists(src_path) or not os.path.abspath(src_path).startswith(os.path.abspath(output_dir)):
-                continue
-                
-            dest_dir = os.path.join(output_dir, target_subfolder)
-            os.makedirs(dest_dir, exist_ok=True)
-            
-            # 自动补全正确的扩展名 (例如 .png 或 .mp4)
-            ext = os.path.splitext(orig_filename)[1]
-            if not ext:
-                ext = ".png" # 兜底扩展名
-            if not target_filename.endswith(ext):
-                target_filename += ext
-                
-            dest_path = os.path.join(dest_dir, target_filename)
-            
-            # 执行文件操作
-            if action == "move":
-                shutil.move(src_path, dest_path)
-            else:
-                shutil.copy(src_path, dest_path)
-                
-            results.append({
-                "old_id": f.get("id"),
-                "new_filename": target_filename,
-                "new_subfolder": target_subfolder
-            })
-            
-        return web.json_response({"status": "success", "results": results})
-    except Exception as e:
-        return web.json_response({"status": "error", "error": str(e)}, status=500)
-
-
 class ShellLinkSystemConfig:
     """
     ComfyUI-ShellLink 全局配置节点
@@ -100,7 +36,7 @@ class ShellLinkSystemConfig:
     # ComfyUI 的 CATEGORY 决定了它在右键菜单里的位置
     CATEGORY = "ShellLink"
     
-    # 【修复点】：节点执行函数名！如果没有这个，ComfyUI 后端会拒绝加载该节点
+    # 【核心点】：节点执行函数名！如果没有这个，ComfyUI 后端会拒绝加载该节点
     FUNCTION = "execute"
 
     def execute(self, scenes_data):
