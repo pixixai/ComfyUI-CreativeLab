@@ -166,16 +166,46 @@ document.addEventListener("sl_render_ui", () => {
 function performRender() {
     if (!panelContainer) return;
 
-    if (window.ShellLink && window.ShellLink.stashMedia) window.ShellLink.stashMedia();
-
     const toolbarHandle = panelContainer.querySelector('#sl-toolbar-handle');
     const cardsContainer = panelContainer.querySelector('#sl-cards-container');
+
+    // =========================================================================
+    // 【核心升级】：渲染前全局状态记忆引擎 (阻断滚动条归零坍塌)
+    // =========================================================================
+    let savedScrollLeft = 0;
+    const savedCardScrolls = new Map();
+    if (cardsContainer) {
+        savedScrollLeft = cardsContainer.scrollLeft; // 记忆横向滚动条
+        cardsContainer.querySelectorAll('.sl-card-body').forEach(body => {
+            if (body.dataset.cardId) {
+                savedCardScrolls.set(body.dataset.cardId, body.scrollTop); // 记忆每一个卡片的内部高度
+            }
+        });
+    }
+
+    // 🌟 1. 渲染前：唤醒媒体保险库，拔下正在播放的所有视频和音频
+    if (window.ShellLink && window.ShellLink.stashMedia) window.ShellLink.stashMedia();
     
+    // 💥 核弹级重绘：清空旧 HTML 并生成全新 HTML
     renderDynamicToolbar(toolbarHandle);
     renderCardsList(cardsContainer);
     
+    // =========================================================================
+    // 【核心升级】：渲染后立即归位滚动条 (在浏览器重绘画面前瞬间完成无缝衔接)
+    // =========================================================================
+    if (cardsContainer) {
+        cardsContainer.scrollLeft = savedScrollLeft;
+        cardsContainer.querySelectorAll('.sl-card-body').forEach(body => {
+            if (body.dataset.cardId && savedCardScrolls.has(body.dataset.cardId)) {
+                body.scrollTop = savedCardScrolls.get(body.dataset.cardId);
+            }
+        });
+    }
+
+    // 🌟 2. 渲染后：在全新 HTML 里找到占位符，把正在播放的视频原样插回去
     if (window.ShellLink && window.ShellLink.restoreMedia) window.ShellLink.restoreMedia();
 
+    // 3. 重新绑定交互事件
     attachDynamicToolbarEvents(toolbarHandle);
     attachCardEvents(cardsContainer);
     attachAreaEvents(cardsContainer);
@@ -290,7 +320,9 @@ function createPanelDOM() {
         if (state.painterMode) return;
         if (e.button !== 0) return; 
 
+        // 【核心修复】：白名单加入 .sl-video-controls-interactive
         const isInteractive = e.target.closest('button, input, select, textarea, .sl-custom-select, .sl-edit-val-bool, .sl-del-area-btn, .sl-del-card-btn, .sl-history-thumb, .sl-upload-zone, .sl-video-controls-interactive');
+        // 【核心新增】：建立专属的媒体区域白名单，防止停止冒泡导致视频不响应点击！
         const isMedia = e.target.closest('.sl-video-player, .sl-audio-player, .sl-preview-bg, video, audio');
         
         const areaEl = e.target.closest('.sl-area');
@@ -352,8 +384,6 @@ function createPanelDOM() {
                     state.selectedAreaIds = [areaId];
                     appState.lastClickedAreaId = areaId; // 只有降级为单选时才重置锚点
                 }
-                // 【核心修复 B】：这里去掉了 appState.lastClickedAreaId = areaId;
-                // 让标准的 Shift 连选行为不移动锚点，保持连选区间的稳定性！
             } 
             else {
                 if (isInteractive && state.selectedAreaIds.includes(areaId) && state.selectedAreaIds.length > 1) {
@@ -369,6 +399,7 @@ function createPanelDOM() {
             
             updateSelectionUI(); 
             
+            // 【核心穿透】：如果点击的既不是输入框按钮，也不是音视频媒体，才阻止冒泡！
             if (!isInteractive && !isMedia) e.stopPropagation();
             
         } else if (cardEl) {
@@ -388,8 +419,6 @@ function createPanelDOM() {
                 const maxIdx = Math.max(currentIndex, lastIndex);
                 const rangeIds = state.cards.slice(minIdx, maxIdx + 1).map(c => c.id);
                 state.selectedCardIds = Array.from(new Set([...state.selectedCardIds, ...rangeIds]));
-                // 【核心修复 B】：同样去掉这里的 appState.lastClickedCardId = targetId; 
-                // 让卡片的 Shift 连选也能保持锚点不变！
             } else {
                 if (isInteractive && state.selectedCardIds.includes(targetId) && state.selectedCardIds.length > 1) {
                     // 保持多选状态不变
@@ -411,6 +440,7 @@ function createPanelDOM() {
 
     cardsContainer.addEventListener("click", (e) => {
         const isInteractive = e.target.closest('button, input, select, textarea, .sl-custom-select, .sl-edit-val-bool, .sl-del-area-btn, .sl-del-card-btn, .sl-history-thumb, .sl-upload-zone, .sl-video-controls-interactive');
+        // 【核心新增】：媒体元素同样纳入白名单
         const isMedia = e.target.closest('.sl-video-player, .sl-audio-player, .sl-preview-bg, video, audio');
         
         const areaEl = e.target.closest('.sl-area');
@@ -489,6 +519,7 @@ function createPanelDOM() {
             return;
         }
 
+        // 【核心穿透】：如果在视频组件上触发了点击，同样不阻止冒泡
         if ((areaEl || cardEl) && !isInteractive && !isMedia) {
             e.stopPropagation();
             return;
@@ -588,6 +619,7 @@ function createPanelDOM() {
         }
     }
 
+    // 防碎图清理机制
     window.ShellLink.handleMediaError = (cardId, areaId, failedUrl) => {
         const card = state.cards.find(c => c.id === cardId);
         const area = card?.areas.find(a => a.id === areaId);
