@@ -37,11 +37,14 @@ export function setupUI() {
             transition: width 0.1s ease, min-width 0.1s ease, max-width 0.1s ease;
         }
         #sl-card-width-input::-webkit-outer-spin-button,
-        #sl-card-width-input::-webkit-inner-spin-button {
+        #sl-card-width-input::-webkit-inner-spin-button,
+        #sl-run-batch-count::-webkit-outer-spin-button,
+        #sl-run-batch-count::-webkit-inner-spin-button {
             -webkit-appearance: none;
             margin: 0;
         }
-        #sl-card-width-input[type=number] {
+        #sl-card-width-input[type=number],
+        #sl-run-batch-count[type=number] {
             -moz-appearance: textfield;
         }
         
@@ -221,24 +224,42 @@ function createPanelDOM() {
             </div>
 
             <div style="display:flex; gap:10px; align-items:center; margin-left:auto;">
-                <div id="sl-run-btn-wrapper" class="sl-run-wrapper">
-                    <button class="sl-btn run-btn-main" id="sl-btn-run" title="按规则运行选中任务 (局部)">▶ 运行</button>
-                    <div style="width:1px; height:16px; background:rgba(255,255,255,0.4); margin: 0 4px; align-self: center;"></div>
-                    <button class="sl-btn run-btn-toggle" id="sl-run-dropdown-toggle" title="展开更多运行选项">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                    </button>
-                    <div id="sl-run-dropdown-menu" class="sl-custom-select-dropdown" style="display:none; top: calc(100% + 4px); right: 0; left: auto; min-width: 140px; z-index: 10002;">
-                        <div class="sl-custom-select-item" id="sl-btn-run-all" style="display:flex; align-items:center; gap:8px;">
-                            <svg width="15" height="15" viewBox="0 0 17.08 15.01" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M6.63,6.6L1.95,2.64c-.77-.65-1.95-.11-1.95.91v7.93c0,1.01,1.18,1.56,1.95.91l4.68-3.96c.56-.47.56-1.34,0-1.81Z"/>
-                                <path d="M16.74,6.77L9.02.23c-.63-.53-1.59-.09-1.59.74v13.07c0,.82.96,1.27,1.59.74l7.72-6.54c.46-.39.46-1.09,0-1.48Z"/>
+                
+                <div style="display:inline-flex; align-items:stretch; height: 34px;">
+                    <!-- 蓝色核心组 -->
+                    <div id="sl-run-btn-wrapper" class="sl-run-wrapper" style="border-top-right-radius: 0; border-bottom-right-radius: 0; height: 100%;">
+                        <button class="sl-btn run-btn-main" id="sl-btn-run" title="按规则运行选中任务 (局部)" style="height: 100%;">▶ 运行</button>
+                        <div style="width:1px; height:16px; background:rgba(255,255,255,0.4); margin: 0 4px; align-self: center;"></div>
+                        <button class="sl-btn run-btn-toggle" id="sl-run-dropdown-toggle" title="展开更多运行选项" style="height: 100%;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
                             </svg>
-                            运行全部
+                        </button>
+                        <div id="sl-run-dropdown-menu" class="sl-custom-select-dropdown" style="display:none; top: calc(100% + 4px); right: 0; left: auto; min-width: 140px; z-index: 10002;">
+                            <div class="sl-custom-select-item" id="sl-btn-run-all" style="display:flex; align-items:center; gap:8px;">
+                                <svg width="15" height="15" viewBox="0 0 19.6 15.01" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M19.26,6.77L11.55.23c-.63-.53-1.59-.09-1.59.74v13.07c0,.82.96,1.27,1.59.74l7.72-6.54c.46-.39.46-1.09,0-1.48Z"/>
+                                    <path d="M9.31,6.77L1.59.23C.96-.3,0,.15,0,.97v13.07c0,.82.96,1.27,1.59.74l7.72-6.54c.46-.39.46-1.09,0-1.48Z"/>
+                                </svg>
+                                运行全部
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 深色拼接口：裁剪了 viewBox 彻底放大并拉近箭头 -->
+                    <div style="display:flex; align-items:center; background: rgba(0,0,0,0.5); border: 1px solid #555; border-left: none; border-top-right-radius: 6px; border-bottom-right-radius: 6px; padding-left: 6px; height: 100%; box-sizing: border-box;" title="循环运行次数 (排队执行)">
+                        <input type="number" id="sl-run-batch-count" value="1" min="1" max="999" style="width: 24px; background: transparent; border: none; color: #eee; font-size: 14px; text-align: center; outline: none; font-family: sans-serif; -moz-appearance: textfield; padding: 0;">
+                        <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; height: 100%; margin-left: 2px; gap: 2px;">
+                            <div id="sl-run-count-up" style="cursor:pointer; display:flex; align-items:center; justify-content:center; padding: 2px 6px;" onmouseover="this.querySelector('svg').style.stroke='#fff'" onmouseout="this.querySelector('svg').style.stroke='#aaa'">
+                                <svg width="14" height="8" viewBox="0 7 24 10" fill="none" stroke="#aaa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block; transition: stroke 0.2s;"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                            </div>
+                            <div id="sl-run-count-down" style="cursor:pointer; display:flex; align-items:center; justify-content:center; padding: 2px 6px;" onmouseover="this.querySelector('svg').style.stroke='#fff'" onmouseout="this.querySelector('svg').style.stroke='#aaa'">
+                                <svg width="14" height="8" viewBox="0 7 24 10" fill="none" stroke="#aaa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block; transition: stroke 0.2s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
                         </div>
                     </div>
                 </div>
+
                 <button class="sl-btn" id="sl-btn-config" title="在画布创建配置节点">⚓ 创建配置锚点</button>
             </div>
         </div>
@@ -255,6 +276,27 @@ function createPanelDOM() {
     `;
 
     setupStaticToolbarEvents(panelContainer);
+    
+    // 绑定上下箭头的调节交互
+    const countInput = panelContainer.querySelector('#sl-run-batch-count');
+    const upBtn = panelContainer.querySelector('#sl-run-count-up');
+    const downBtn = panelContainer.querySelector('#sl-run-count-down');
+    if (countInput && upBtn && downBtn) {
+        upBtn.onclick = (e) => {
+            e.stopPropagation();
+            countInput.value = Math.min(999, parseInt(countInput.value || 1) + 1);
+        };
+        downBtn.onclick = (e) => {
+            e.stopPropagation();
+            countInput.value = Math.max(1, parseInt(countInput.value || 1) - 1);
+        };
+        countInput.onchange = () => {
+            let v = parseInt(countInput.value);
+            if (isNaN(v) || v < 1) v = 1;
+            if (v > 999) v = 999;
+            countInput.value = v;
+        };
+    }
 
     panelContainer.addEventListener("click", (e) => {
         if (!state.painterMode) return;
@@ -301,6 +343,8 @@ function createPanelDOM() {
         }
         if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
             state.selectedAreaIds = [];
+            // 【核心修复】：点击背景取消模块选择时，连同焦点卡片一并清除，杜绝误触运行
+            state.activeCardId = null; 
             changed = true;
         }
         if(changed) updateSelectionUI(); 
@@ -310,17 +354,13 @@ function createPanelDOM() {
     cardsContainer.addEventListener("mousedown", (e) => {
         const isInteractive = e.target.closest('button, input, select, textarea, .sl-custom-select, .sl-edit-val-bool, .sl-del-area-btn, .sl-del-card-btn, .sl-history-thumb, .sl-upload-zone, .sl-video-controls-interactive');
         
-        // 【核心修复 A】：如果是画笔模式，且按在了某个交互按钮上，彻底退出画笔模式，但**不阻断**原生事件冒泡
-        // 这样按钮就能正常执行它原来的逻辑了！
         if (state.painterMode) {
             if (isInteractive && e.button === 0) {
                 state.painterMode = false;
                 state.painterSource = null;
                 panelContainer.classList.remove('sl-painter-active');
                 updateSelectionUI();
-                // 去掉了 e.stopPropagation() 和 e.preventDefault()
             }
-            // 无论如何，在画笔模式下都不应该继续走下面的选择和拖拽逻辑
             return; 
         }
 
@@ -397,7 +437,8 @@ function createPanelDOM() {
             }
             
             state.selectedCardIds = [];
-            state.activeCardId = targetCardId;
+            // 【核心修复】：如果选中模块数组为空，说明用户刚刚执行了取消选择，此时彻底清空卡片焦点！
+            state.activeCardId = state.selectedAreaIds.length > 0 ? targetCardId : null;
             
             updateSelectionUI(); 
             
@@ -447,13 +488,11 @@ function createPanelDOM() {
         const cardEl = e.target.closest('.sl-card:not(.sl-add-card-inline)');
 
         if (state.painterMode) {
-            // 【核心修复 B】：如果画笔模式下，点到了交互按钮，立刻退出画笔模式，但**不阻断**原生事件冒泡
             if (isInteractive) {
                 state.painterMode = false;
                 state.painterSource = null;
                 panelContainer.classList.remove('sl-painter-active');
                 updateSelectionUI();
-                // 去掉了 e.stopPropagation() 和 e.preventDefault()
                 return;
             }
 
