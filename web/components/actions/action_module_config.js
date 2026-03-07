@@ -2,10 +2,13 @@
  * action_module_config.js
  * 负责动态悬浮工具栏渲染、模块属性配置、克隆与格式刷逻辑
  */
-import { state, saveAndRender } from "../ui_state.js";
+import { state, appState, saveAndRender } from "../ui_state.js";
 import { buildCustomSelect, getCustomNodeMenuHTML, getMultiNodeMenuHTML, getMultiWidgetMenuHTML, getWidgetDef } from "../ui_utils.js";
 import { app } from "../../../../scripts/app.js";
 import { execSyncParams } from "./action_batch_sync.js";
+
+// 引入无感卡片生成引擎
+import { generateSingleCardHTML, attachCardEvents } from "../comp_taskcard.js";
 
 export function renderDynamicToolbar(toolbarHandleContainer) {
     const separator = toolbarHandleContainer.querySelector('#sl-module-toolbar-separator');
@@ -162,19 +165,66 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
         const mainType = selectedAreas[0]?.area.type;
         const mainArea = selectedAreas[0]?.area;
 
-        // 【核心修复 1】：在所有局部更新动作的结尾，强制刷新工具栏自身的 HTML 和事件，让下拉框和开关恢复响应联动！
-        const updateSelected = (updater) => {
+        // 【终极护盾：CSS 软更新引擎】
+        // 当修改影响排版的参数 (如比例、拉伸) 时，绝对不要拆毁重建 DOM，只通过直接修改 CSS 属性达成无感更新！
+        const updateSelected = (updater, isSoftUpdate = false) => {
             selectedAreas.forEach(sa => { 
                 if (sa.area.type === mainType) {
                     updater(sa.area);
-                    if (window._slSurgicallyUpdateArea) window._slSurgicallyUpdateArea(sa.area.id);
+                    
+                    if (isSoftUpdate) {
+                        const areaEl = document.querySelector(`.sl-area[data-area-id="${sa.area.id}"]`);
+                        if (areaEl) {
+                            const bg = areaEl.querySelector('.sl-preview-bg');
+                            const media = areaEl.querySelector('.sl-media-target');
+                            if (bg) {
+                                let finalRatio = '16/9';
+                                if (sa.area.matchMedia) {
+                                    // 【核心修复 1】：无视之前手动修改写入的脏数据，只要启用了匹配，就强行从真实的媒体元素身上“偷取”绝对准确的分辨率！
+                                    if (media) {
+                                        const w = media.videoWidth || media.naturalWidth;
+                                        const h = media.videoHeight || media.naturalHeight;
+                                        if (w && h) {
+                                            sa.area.width = w;
+                                            sa.area.height = h;
+                                        }
+                                    }
+                                    if (sa.area.width && sa.area.height) {
+                                        finalRatio = `${sa.area.width} / ${sa.area.height}`;
+                                    }
+                                } else if (sa.area.ratio) {
+                                    if (sa.area.ratio === '自定义比例' && sa.area.width && sa.area.height) {
+                                        finalRatio = `${sa.area.width} / ${sa.area.height}`;
+                                    } else {
+                                        const ratios = {
+                                            '21:9': '21/9', '16:9': '16/9', '3:2': '3/2', '4:3': '4/3', '1:1': '1/1',
+                                            '3:4': '3/4', '2:3': '2/3', '9:16': '9/16', '9:21': '9/21'
+                                        };
+                                        finalRatio = ratios[sa.area.ratio] || '16/9';
+                                    }
+                                }
+                                bg.style.aspectRatio = finalRatio;
+                            }
+                            if (media) {
+                                let fit = 'contain';
+                                if (sa.area.fillMode === '填充') fit = 'cover';
+                                if (sa.area.fillMode === '拉伸') fit = 'fill';
+                                media.style.objectFit = fit;
+                            }
+                        }
+                    } else {
+                        // 只有涉及到节点、组件等深层数据的变动时，才调用外科手术重建 DOM
+                        if (window._slSurgicallyUpdateArea) window._slSurgicallyUpdateArea(sa.area.id);
+                    }
                 } 
             });
+            
             if (window._slJustSave) window._slJustSave(); else saveAndRender();
             
-            // 刷新工具栏自我状态！
             renderDynamicToolbar(toolbarHandleContainer);
             attachDynamicToolbarEvents(toolbarHandleContainer);
+
+            if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles();
         };
 
         tb.querySelector('#tb-manage-history')?.addEventListener('click', (e) => {
@@ -303,11 +353,16 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                                 }
                             });
                         } else {
+                            // 【核心修复 2】：打破记忆魔法！由于输出模块只能单选，在执行更新后强行剥除所有下拉菜单的 open 样式，实现“点击即关”。
                             updateSelected(a => a.targetNodeId = val);
+                            document.querySelectorAll('#sl-module-toolbar .sl-custom-select.open').forEach(dp => dp.classList.remove('open'));
                         }
                     } else if (el.id === 'tb-fill-select-custom') {
-                        updateSelected(a => a.fillMode = val);
+                        updateSelected(a => a.fillMode = val, true);
+                        // 【点击即关】
+                        document.querySelectorAll('#sl-module-toolbar .sl-custom-select.open').forEach(dp => dp.classList.remove('open'));
                     } else if (el.id === 'tb-widget-select-custom') {
+                        // (输入模块的多选参数菜单，保留不关)
                         if (!val) return;
                         updateSelected(a => {
                             let widgets = Array.isArray(a.targetWidgets) ? [...a.targetWidgets] : (a.targetWidget && a.targetNodeId ? [`${a.targetNodeId}||${a.targetWidget}`] : []);
@@ -345,7 +400,9 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                                     a.height = parseInt(parts[1].trim(), 10);
                                 }
                             }
-                        });
+                        }, true);
+                        // 【点击即关】
+                        document.querySelectorAll('#sl-module-toolbar .sl-custom-select.open').forEach(dp => dp.classList.remove('open'));
                     }
                 });
             });
@@ -358,9 +415,9 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
         tb.querySelector('#tb-reset-module')?.addEventListener('click', (e) => {
             e.stopPropagation();
             updateSelected(a => {
-                a.targetNodeId = null; a.targetWidget = null; a.targetNodeIds = []; a.targetWidgets = []; a.value = ''; a.title = '';
+                a.targetNodeId = null; a.targetWidget = null; a.targetNodeIds = []; a.targetWidgets = []; 
                 if (a.type === 'preview') {
-                    a.matchMedia = true; a.ratio = '16:9'; a.fillMode = '显示全部'; a.width = ''; a.height = ''; a.resultUrl = '';
+                    a.matchMedia = true; a.ratio = '16:9'; a.fillMode = '显示全部'; a.width = ''; a.height = ''; 
                     a.isManageMode = false;
                 } else {
                     a.dataType = 'string'; a.autoHeight = true;
@@ -379,13 +436,12 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
             const ratioW = tb.querySelector('#tb-ratio-w');
             const ratioH = tb.querySelector('#tb-ratio-h');
             const onDimKeydown = (e) => {
-                if (e.key === 'Enter') { updateSelected(a => { a.ratio = '自定义比例'; a.width = ratioW.value; a.height = ratioH.value; }); e.target.blur(); }
+                if (e.key === 'Enter') { updateSelected(a => { a.ratio = '自定义比例'; a.width = ratioW.value; a.height = ratioH.value; }, true); e.target.blur(); }
             };
             if(ratioW) ratioW.onkeydown = onDimKeydown;
             if(ratioH) ratioH.onkeydown = onDimKeydown;
             const matchCb = tb.querySelector('#tb-match-media');
-            // 【核心联动修复】：当勾选匹配比例时，也同步走局部更新和工具栏重绘
-            if(matchCb) matchCb.onchange = e => updateSelected(a => a.matchMedia = e.target.checked);
+            if(matchCb) matchCb.onchange = e => updateSelected(a => a.matchMedia = e.target.checked, true);
         } else {
             const autoCb = tb.querySelector('#tb-auto-height');
             if(autoCb) autoCb.onchange = e => updateSelected(a => a.autoHeight = e.target.checked);
@@ -405,6 +461,8 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                     areasByCard[card.id].push(areaId);
                 }
             });
+
+            document.querySelectorAll('.sl-area.active').forEach(el => el.classList.remove('active', 'selected'));
 
             for (const cardId in areasByCard) {
                 const card = state.cards.find(c => c.id === cardId);
@@ -434,6 +492,9 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                     }
                 });
                 
+                state.selectedAreaIds = newSelectedAreaIds;
+                appState.lastClickedAreaId = newSelectedAreaIds[newSelectedAreaIds.length - 1];
+                
                 card.areas.splice(insertBaseIndex, 0, ...clonedAreas);
 
                 const lastEl = document.querySelector(`.sl-area[data-area-id="${sortedAreaIdsToClone[sortedAreaIdsToClone.length - 1]}"]`);
@@ -447,16 +508,22 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                 }
             }
             
-            state.selectedAreaIds = newSelectedAreaIds;
             if (window._slJustSave) window._slJustSave(); else saveAndRender();
             
-            // 重新刷新工具栏，显示新选中项的参数
             renderDynamicToolbar(toolbarHandleContainer);
             attachDynamicToolbarEvents(toolbarHandleContainer);
             if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles();
+            if (window.ShellLink && window.ShellLink.updateSelectionUI) {
+                window.ShellLink.updateSelectionUI();
+            }
+
+            setTimeout(() => {
+                if(newSelectedAreaIds.length > 0) {
+                     document.querySelector(`.sl-area[data-area-id="${newSelectedAreaIds[newSelectedAreaIds.length - 1]}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }, 50);
 
         } else if (state.selectedCardIds && state.selectedCardIds.length > 0) {
-            // 卡片克隆逻辑 (省略了 DOM 直接插入，暂用 saveAndRender 保底，因为它比较宏观)
             let newSelectedCardIds = [];
             const sortedCardIdsToClone = [...state.selectedCardIds].sort((idA, idB) => {
                 return state.cards.findIndex(c => c.id === idA) - state.cards.findIndex(c => c.id === idB);
@@ -466,14 +533,14 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
             let insertBaseIndex = lastSrcIndex + 1;
             
             const clonedCards = [];
-            sortedCardIdsToClone.forEach(cardId => {
+            sortedCardIdsToClone.forEach((cardId, indexOffset) => {
                 const srcCard = state.cards.find(c => c.id === cardId);
                 if (srcCard) {
                     const newCard = JSON.parse(JSON.stringify(srcCard));
-                    newCard.id = 'card_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+                    newCard.id = 'card_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + indexOffset;
                     if (newCard.areas) {
-                        newCard.areas.forEach(a => {
-                            a.id = 'area_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+                        newCard.areas.forEach((a, aIdx) => {
+                            a.id = 'area_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + aIdx;
                             if(a.type === 'preview') {
                                 a.resultUrl = '';
                                 a.history = [];
@@ -486,12 +553,57 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                     newSelectedCardIds.push(newCard.id);
                 }
             });
+
+            document.querySelectorAll('.sl-card.active').forEach(el => {
+                el.classList.remove('active', 'selected');
+                el.style.borderColor = ''; 
+            });
             
             state.cards.splice(insertBaseIndex, 0, ...clonedCards);
             state.selectedCardIds = newSelectedCardIds;
             state.activeCardId = newSelectedCardIds[newSelectedCardIds.length - 1];
-            
-            saveAndRender();
+            appState.lastClickedCardId = state.activeCardId;
+
+            import("../comp_taskcard.js").then(taskcard => {
+                const wrapper = document.querySelector('.sl-cards-wrapper');
+                if (wrapper) {
+                    const temp = document.createElement('div');
+                    clonedCards.forEach((c, idx) => {
+                        temp.innerHTML += taskcard.generateSingleCardHTML(c, insertBaseIndex + idx);
+                    });
+                    
+                    const frag = document.createDocumentFragment();
+                    while(temp.firstChild) frag.appendChild(temp.firstChild);
+                    
+                    const lastSrcCardId = sortedCardIdsToClone[sortedCardIdsToClone.length - 1];
+                    const lastSrcEl = wrapper.querySelector(`.sl-card[data-card-id="${lastSrcCardId}"]`);
+                    
+                    if (lastSrcEl && lastSrcEl.nextSibling) {
+                        wrapper.insertBefore(frag, lastSrcEl.nextSibling);
+                    } else {
+                        const addBtn = wrapper.querySelector('.sl-add-card-inline');
+                        if (addBtn) wrapper.insertBefore(frag, addBtn);
+                        else wrapper.appendChild(frag);
+                    }
+                    
+                    taskcard.attachCardEvents(wrapper);
+                    if (window._slAttachAreaEvents) window._slAttachAreaEvents(wrapper);
+                }
+                
+                if (window._slJustSave) window._slJustSave();
+                if (window.ShellLink && window.ShellLink.updateSelectionUI) window.ShellLink.updateSelectionUI();
+                if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles();
+                if (window._slUpdateCardsLayout) window._slUpdateCardsLayout();
+                
+                setTimeout(() => {
+                    if(newSelectedCardIds.length > 0) {
+                         document.querySelector(`.sl-card[data-card-id="${newSelectedCardIds[newSelectedCardIds.length - 1]}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                    }
+                }, 50);
+            }).catch(err => {
+                console.error("[ShellLink] 动态加载卡片引擎失败，降级为全量刷新:", err);
+                saveAndRender();
+            });
         }
     });
     

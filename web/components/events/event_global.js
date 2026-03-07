@@ -16,6 +16,18 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
         const shieldEvent = (e) => {
             if (e.button !== 0 && e.type !== 'contextmenu') return;
 
+            // 【核心修复】：由于护盾拦截权重极高，必须在拦截前主动收起所有下拉菜单！
+            if (e.type === 'mousedown' || e.type === 'pointerdown') {
+                // 如果点到的不是下拉菜单本身，就关掉所有已展开的菜单
+                if (!e.target.closest('.sl-custom-select')) {
+                    document.querySelectorAll('.sl-custom-select.open').forEach(el => {
+                        el.classList.remove('open');
+                        const area = el.closest('.sl-area');
+                        if (area) area.style.zIndex = '';
+                    });
+                }
+            }
+
             const isInteractive = ['INPUT', 'TEXTAREA', 'BUTTON', 'SELECT'].includes(e.target.tagName) ||
                                   e.target.closest('.sl-custom-select') || e.target.closest('.sl-history-thumb') ||
                                   e.target.closest('.sl-bool-label') || e.target.closest('.sl-upload-zone') ||
@@ -126,7 +138,6 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
                     targetArea.historyIndex = idx;
                     targetArea.resultUrl = targetArea.history[idx];
 
-                    // 【核心修复】：彻底接入局部更新引擎，键盘切换不再闪屏重绘！
                     if (window._slSurgicallyUpdateArea) {
                         window._slSurgicallyUpdateArea(targetArea.id);
                         if (window._slJustSave) window._slJustSave();

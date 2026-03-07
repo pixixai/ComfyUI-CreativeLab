@@ -4,6 +4,8 @@
  * 职责: 负责任务卡片之间的模块同步、匹配、删除及批量位移逻辑 (全微创更新版)
  */
 import { state, saveAndRender } from "../ui_state.js";
+import { updateSelectionUI } from "../ui_selection.js"; // 【修复】：直接引入纯净选择态引擎
+import { generateSingleCardHTML, attachCardEvents } from "../comp_taskcard.js"; // 【修复】：引入物理级卡片创建引擎
 
 // 获取模块比对的标题（如果未命名则根据类型计算默认的 ##1, ##2）
 export function getAreaDisplayTitle(card, area) {
@@ -75,8 +77,9 @@ export function execDeleteSameModules(mainArea, mainCard) {
             if (el) el.remove();
         });
         
-        // 刷新 UI 选择态，清空悬浮工具栏
-        if (window.ShellLink && window.ShellLink.updateSelectionUI) window.ShellLink.updateSelectionUI();
+        // 【核心修复】：显式调用模块 UI 选择态刷新，彻底防闪屏
+        updateSelectionUI();
+        
         // 自动纠正被删后可能乱掉的序号
         if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles();
         
@@ -105,20 +108,14 @@ export function execSelectSameModules(selectedAreas) {
     
     state.selectedAreaIds = Array.from(new Set(newSelection)); 
     
-    // 仅刷新选择高亮 UI，绝不闪屏
-    if (window.ShellLink && window.ShellLink.updateSelectionUI) {
-        window.ShellLink.updateSelectionUI();
-    } else {
-        saveAndRender();
-    }
+    // 【核心修复】：直接调用原生的选择 UI 刷新，取消外部 window 对象的判定依赖，彻底消灭重绘
+    updateSelectionUI();
 }
 
 // =========================================================================
-// 核心逻辑 4：批量向后移动 (DOM 物理位移)
+// 核心逻辑 4：批量向后移动 (DOM 物理位移，支持无感创建卡片)
 // =========================================================================
 export function execMoveBackward(selectedAreaIds) {
-    let needsFullRender = false;
-
     for (let i = state.cards.length - 1; i >= 0; i--) {
         const card = state.cards[i];
         if (!card.areas) continue;
@@ -129,12 +126,32 @@ export function execMoveBackward(selectedAreaIds) {
         card.areas = card.areas.filter(a => !selectedAreaIds.includes(a.id));
 
         let targetCardIndex = i + 1;
+        let targetCard;
+
+        // 【核心升级】：向后溢出时，触发外科手术级动态创建卡片，彻底干掉 needsFullRender 全局重绘！
         if (targetCardIndex >= state.cards.length) {
-            state.cards.push({ id: 'card_' + Date.now() + Math.random(), title: '', areas: [] });
-            needsFullRender = true; // 罕见情况：越界生成了新卡片，触发一次全量渲染
+            const newCard = { id: 'card_' + Date.now() + '_' + Math.floor(Math.random()*1000), title: '', areas: [] };
+            state.cards.push(newCard);
+            targetCard = newCard;
+
+            // 进行物理级 DOM 插入
+            const wrapper = document.querySelector('.sl-cards-wrapper');
+            if (wrapper) {
+                const temp = document.createElement('div');
+                temp.innerHTML = generateSingleCardHTML(newCard, state.cards.length - 1);
+                const newEl = temp.firstElementChild;
+                const addBtn = wrapper.querySelector('.sl-add-card-inline');
+                
+                if (addBtn) wrapper.insertBefore(newEl, addBtn);
+                else wrapper.appendChild(newEl);
+                
+                attachCardEvents(wrapper);
+                if (window._slUpdateCardsLayout) window._slUpdateCardsLayout();
+            }
+        } else {
+            targetCard = state.cards[targetCardIndex];
         }
         
-        const targetCard = state.cards[targetCardIndex];
         if (!targetCard.areas) targetCard.areas = [];
 
         areasToMove.forEach(item => {
@@ -143,22 +160,23 @@ export function execMoveBackward(selectedAreaIds) {
         });
     }
     
-    if (needsFullRender) {
-        saveAndRender();
-    } else {
-        // 利用 appendChild 的特性，将现存 DOM 直接拽入新顺序，物理级防闪烁
-        state.cards.forEach(card => {
-            const list = document.querySelector(`.sl-card[data-card-id="${card.id}"] .sl-area-list`);
-            if (list && card.areas) {
-                card.areas.forEach(a => {
-                    const el = document.querySelector(`.sl-area[data-area-id="${a.id}"]`);
-                    if (el) list.appendChild(el);
-                });
-            }
-        });
-        if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles();
-        if (window._slJustSave) window._slJustSave(); else saveAndRender();
-    }
+    // 利用 appendChild 的特性，将现存 DOM 直接拽入新顺序，物理级防闪烁
+    state.cards.forEach(card => {
+        const list = document.querySelector(`.sl-card[data-card-id="${card.id}"] .sl-area-list`);
+        if (list && card.areas) {
+            card.areas.forEach(a => {
+                const el = document.querySelector(`.sl-area[data-area-id="${a.id}"]`);
+                if (el) {
+                    list.appendChild(el);
+                    // 顺便把位移过后的模块的旧户口本换成新卡片
+                    if (window._slUpdateAreaDOMIdentity) window._slUpdateAreaDOMIdentity(a.id, card.id);
+                }
+            });
+        }
+    });
+    
+    if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles();
+    if (window._slJustSave) window._slJustSave(); else saveAndRender();
 }
 
 // =========================================================================
@@ -195,7 +213,10 @@ export function execMoveForward(selectedAreaIds) {
         if (list && card.areas) {
             card.areas.forEach(a => {
                 const el = document.querySelector(`.sl-area[data-area-id="${a.id}"]`);
-                if (el) list.appendChild(el);
+                if (el) {
+                    list.appendChild(el);
+                    if (window._slUpdateAreaDOMIdentity) window._slUpdateAreaDOMIdentity(a.id, card.id);
+                }
             });
         }
     });

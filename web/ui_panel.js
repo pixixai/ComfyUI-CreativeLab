@@ -5,7 +5,7 @@ import { app } from "../../scripts/app.js";
 import { state, appState, saveAndRender } from "./components/ui_state.js";
 import { injectCSS } from "./components/ui_utils.js";
 import { setupStaticToolbarEvents, renderDynamicToolbar, attachDynamicToolbarEvents } from "./components/comp_toolbar.js";
-import { renderCardsList, attachCardEvents } from "./components/comp_taskcard.js";
+import { renderCardsList, attachCardEvents, generateSingleCardHTML } from "./components/comp_taskcard.js";
 import { attachAreaEvents } from "./components/comp_modulearea.js";
 import { updateSelectionUI } from "./components/ui_selection.js";
 
@@ -558,7 +558,20 @@ function createPanelDOM() {
                         const targetCard = state.cards.find(c => c.id === targetId);
                         targetCard.areas = JSON.parse(JSON.stringify(state.painterSource.data.areas));
                         targetCard.areas.forEach(a => a.id = 'area_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
-                        saveAndRender();
+                        
+                        // 【核心修复】：剥除原有 saveAndRender()，实施原地外科手术级卡片替换！
+                        const newHtml = generateSingleCardHTML(targetCard, state.cards.indexOf(targetCard));
+                        const temp = document.createElement('div');
+                        temp.innerHTML = newHtml;
+                        const newEl = temp.firstElementChild;
+                        
+                        cardEl.replaceWith(newEl);
+                        
+                        attachCardEvents(newEl.parentElement);
+                        attachAreaEvents(newEl);
+                        
+                        if (window._slJustSave) window._slJustSave();
+                        if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles();
                     }
                 } else if (!cardEl) {
                     let insertIndex = state.cards.length;
@@ -571,7 +584,35 @@ function createPanelDOM() {
                     newCard.id = 'card_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
                     if (newCard.areas) newCard.areas.forEach(a => a.id = 'area_' + Date.now() + '_' + Math.floor(Math.random() * 1000));
                     state.cards.splice(insertIndex, 0, newCard);
-                    saveAndRender();
+                    
+                    // 【核心修复】：在空白处刷出新卡片时，也采用原生物理 DOM 拼贴引擎！
+                    const wrapper = document.querySelector('.sl-cards-wrapper');
+                    if (wrapper) {
+                        const newHtml = generateSingleCardHTML(newCard, insertIndex);
+                        const temp = document.createElement('div');
+                        temp.innerHTML = newHtml;
+                        const newEl = temp.firstElementChild;
+                        
+                        const nextCard = state.cards[insertIndex + 1];
+                        let referenceNode = nextCard ? wrapper.querySelector(`.sl-card[data-card-id="${nextCard.id}"]`) : null;
+                        if (!referenceNode) referenceNode = wrapper.querySelector('.sl-add-card-inline');
+                        
+                        if (referenceNode) wrapper.insertBefore(newEl, referenceNode);
+                        else wrapper.appendChild(newEl);
+                        
+                        attachCardEvents(wrapper);
+                        attachAreaEvents(newEl);
+                        
+                        if (window._slJustSave) window._slJustSave();
+                        if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles();
+                        if (window._slUpdateCardsLayout) window._slUpdateCardsLayout();
+                        
+                        setTimeout(() => {
+                            newEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                        }, 50);
+                    } else {
+                        saveAndRender();
+                    }
                 }
                 e.stopPropagation(); return;
             }
@@ -684,7 +725,14 @@ function createPanelDOM() {
         }
         if (!isInsideVerticalScrollable) {
             e.preventDefault(); 
-            cardsContainer.scrollLeft += Math.sign(e.deltaY) * 360;
+            
+            // 【核心修复】：动态获取当前卡片的真实宽度（完美适配自定义宽度滑块） + 20px (CSS gap 间距)
+            const cardEl = cardsContainer.querySelector('.sl-card:not(.sl-add-card-inline)');
+            const cardWidth = cardEl ? cardEl.offsetWidth : (parseInt(getComputedStyle(panelContainer).getPropertyValue('--sl-card-width')) || 320);
+            const scrollDistance = cardWidth + 20; 
+            
+            // 采用平滑滚动 (smooth)，让每次滚动刚好优雅地对齐一张卡片！
+            cardsContainer.scrollBy({ left: Math.sign(e.deltaY) * scrollDistance, behavior: 'smooth' });
         }
     }, { passive: false });
 

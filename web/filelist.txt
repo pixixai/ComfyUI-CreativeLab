@@ -1,0 +1,43 @@
+卷 AI 的文件夹 PATH 列表
+卷序列号为 104F-0B6F
+E:.
+|   all_merged_javascript.txt
+|   api_injector.js
+|   filelist.txt
+|   main.js
+|   merge_js.bat
+|   state_manager.js
+|   ui_panel.js
+|   
+\---components
+    |   comp_contextmenu.js
+    |   comp_modulearea.js
+    |   comp_taskcard.js
+    |   comp_toolbar.js
+    |   ui_selection.js
+    |   ui_state.js
+    |   ui_utils.js
+    |   
+    +---actions
+    |       action_batch_sync.js
+    |       action_binding.js
+    |       action_data_io.js
+    |       action_module_config.js
+    |       action_run_executor.js
+    |       
+    +---events
+    |       event_execution.js
+    |       event_global.js
+    |       
+    \---modules
+        |   module_input.js
+        |   module_media.js
+        |   module_output.js
+        |   
+        \---media_types
+                media_audio.js
+                media_file.js
+                media_image.js
+                media_utils.js
+                media_video.js
+                

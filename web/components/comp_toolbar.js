@@ -108,6 +108,9 @@ export function setupStaticToolbarEvents(panelContainer) {
         
         state.selectedAreaIds = [templateArea.id];
         state.selectedCardIds = [];
+        
+        // 【核心修复】：为新创建的模块打上隐形锚点，让后续的 Shift 连选拥有正确的起点！
+        appState.lastClickedAreaId = templateArea.id;
 
         const cardBody = document.querySelector(`.sl-card[data-card-id="${targetCard.id}"] .sl-area-list`);
         if (cardBody) {

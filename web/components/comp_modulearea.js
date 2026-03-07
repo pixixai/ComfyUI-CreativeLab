@@ -25,7 +25,6 @@ export function surgicallyUpdateArea(areaId) {
         if (a) { targetCard = c; targetArea = a; }
     });
     if (targetCard && targetArea) {
-        // --- 1. Mini-Stash：把视频塞进口袋 ---
         const mediaEl = areaEl.querySelector('.sl-media-target');
         let stashedMedia = null, stashedSrc = null, stashedTime = 0, stashedPaused = true;
 
@@ -44,14 +43,11 @@ export function surgicallyUpdateArea(areaId) {
             window._slMiniVault.appendChild(mediaEl);
         }
 
-        // --- 2. 暴力拔除并换上新 HTML ---
         const temp = document.createElement('div');
         temp.innerHTML = generateAreaHTML(targetArea, targetCard);
         const newAreaEl = temp.firstElementChild;
         areaEl.replaceWith(newAreaEl);
-        attachAreaEvents(newAreaEl.parentElement); 
 
-        // --- 3. 从口袋里掏出来完美装回 ---
         if (stashedMedia) {
             const newMediaEl = newAreaEl.querySelector('.sl-media-target');
             if (newMediaEl) {
@@ -72,6 +68,10 @@ export function surgicallyUpdateArea(areaId) {
                 stashedMedia.remove();
             }
         }
+        
+        // 【核心修复】：必须在旧媒体元素被移花接木、物归原主之后，再重新执行事件绑定！
+        // 否则会导致事件绑定在了那个被舍弃的新空壳视频上，导致所有控制组件全部失灵。
+        attachAreaEvents(newAreaEl.parentElement); 
     }
 }
 
@@ -82,7 +82,6 @@ export function updateAllDefaultTitles() {
         const stateCardIdx = state.cards.findIndex(c => c.id === cardId);
         if (stateCardIdx === -1) return;
 
-        // 1. 卡片序号
         const stateCard = state.cards[stateCardIdx];
         const defaultCardTitle = `#${stateCardIdx + 1}`;
         const cardTitleInput = cardEl.querySelector('.sl-card-title-input');
@@ -96,16 +95,27 @@ export function updateAllDefaultTitles() {
             }
         }
 
-        // 2. 模块序号 (统一给该卡片下的所有区域排号)
+        let editCount = 0;
+        let previewCount = 0;
+
         const allAreas = cardEl.querySelectorAll('.sl-area');
-        allAreas.forEach((areaEl, aIdx) => {
+        allAreas.forEach((areaEl) => {
             const areaId = areaEl.dataset.areaId;
             const stateArea = stateCard.areas?.find(a => a.id === areaId);
             if (!stateArea) return;
 
-            const defaultAreaTitle = `##${aIdx + 1}`;
+            let currentIdx = 0;
+            if (stateArea.type === 'edit') {
+                editCount++;
+                currentIdx = editCount;
+            } else if (stateArea.type === 'preview') {
+                previewCount++;
+                currentIdx = previewCount;
+            }
+
+            const defaultAreaTitle = `##${currentIdx}`;
             const areaTitleInput = areaEl.querySelector('.sl-area-title-input');
-            // 输出模块没有标题输入框，所以只更新那些存在的输入框
+            
             if (areaTitleInput) {
                 areaTitleInput.placeholder = defaultAreaTitle;
                 if (!stateArea.title) {
@@ -117,9 +127,22 @@ export function updateAllDefaultTitles() {
     });
 }
 
+// 【全新洗牌引擎】：当模块发生物理位移时，重写 DOM 上所有残留的卡片 ID 烙印
+export function updateAreaDOMIdentity(areaId, newCardId) {
+    try {
+        const el = document.querySelector(`.sl-area[data-area-id="${areaId}"]`);
+        if (el) {
+            el.dataset.cardId = newCardId;
+            el.querySelectorAll('[data-card]').forEach(child => child.dataset.card = newCardId);
+            el.querySelectorAll('[data-card-id]').forEach(child => child.dataset.cardId = newCardId);
+        }
+    } catch(e) { console.error("[ShellLink] DOM 身份更新失败:", e); }
+}
+
 window._slSurgicallyUpdateArea = surgicallyUpdateArea;
 window._slJustSave = justSave;
 window._slUpdateAllDefaultTitles = updateAllDefaultTitles;
+window._slUpdateAreaDOMIdentity = updateAreaDOMIdentity;
 window._slGenerateAreaHTML = generateAreaHTML;
 window._slAttachAreaEvents = attachAreaEvents;
 
@@ -127,7 +150,7 @@ export function syncAreaDOMOrder(cardId, newAreasArray) {
     const list = document.querySelector(`.sl-card[data-card-id="${cardId}"] .sl-area-list`);
     if (!list) return;
     newAreasArray.forEach(a => {
-        const el = list.querySelector(`.sl-area[data-area-id="${a.id}"]`);
+        const el = document.querySelector(`.sl-area[data-area-id="${a.id}"]`);
         if (el) list.appendChild(el); 
     });
 }
@@ -142,7 +165,7 @@ export function attachAreaEvents(container) {
     injectDnDCSS();
     attachInputEvents(container);
     attachOutputEvents(container);
-    // 这里我们把输入模块下拉框的操作，也替换为不引发全局闪烁的微创更新
+    
     bindComboSelectEvents(container, state, () => {
         if (window._slSurgicallyUpdateArea && appState.lastClickedAreaId) {
             window._slSurgicallyUpdateArea(appState.lastClickedAreaId);
@@ -184,7 +207,7 @@ export function attachAreaEvents(container) {
                 }
             }
             justSave();
-            updateAllDefaultTitles(); // 删除后自动补齐序号
+            updateAllDefaultTitles(); 
         };
     });
 
@@ -211,6 +234,9 @@ export function attachAreaEvents(container) {
     container.querySelectorAll('.sl-area').forEach(areaEl => {
         if (areaEl.dataset.slEventsBound) return;
         areaEl.dataset.slEventsBound = "1";
+        
+        // 【防御补丁】：强行确保所有模块节点都具备原生物理拖拽能力
+        areaEl.setAttribute('draggable', 'true');
 
         areaEl.addEventListener('contextmenu', (e) => {
             const areaId = areaEl.dataset.areaId;
@@ -234,7 +260,6 @@ export function attachAreaEvents(container) {
             }
         });
 
-        // 起飞阶段
         areaEl.addEventListener('dragstart', (e) => {
             if (['INPUT', 'TEXTAREA', 'BUTTON', 'SELECT'].includes(e.target.tagName) || e.target.closest('.sl-custom-select') || e.target.closest('.sl-bool-label') || e.target.closest('.sl-upload-zone') || e.target.closest('.sl-history-thumb')) return;
             
@@ -261,6 +286,16 @@ export function attachAreaEvents(container) {
                     });
                 }
             });
+            
+            // 【核心修复】：为新生儿（新建工作流中刚添加的模块）提供户口本补录保险
+            if (!dragState.sourceInfo[currentAreaId]) {
+                state.cards.forEach(c => {
+                    const idx = c.areas?.findIndex(a => a.id === currentAreaId);
+                    if (idx !== -1 && idx !== undefined) {
+                        dragState.sourceInfo[currentAreaId] = { cardId: c.id, index: idx };
+                    }
+                });
+            }
             
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', 'area');
@@ -310,7 +345,7 @@ export function attachAreaEvents(container) {
             }
         });
 
-        // 降落阶段 - 物理级 DOM 重排！
+        // 降落阶段 - 【全新绝对镜像平行拖拽引擎】
         areaEl.addEventListener('drop', (e) => {
             if (e.dataTransfer.types.includes('Files')) return;
             if (dragState.type === 'area' && dragState.areaIds) {
@@ -355,31 +390,34 @@ export function attachAreaEvents(container) {
                     }
 
                     if (isSameCard) {
-                        const anchorOrigIdx = dragState.sourceInfo[dragState.anchorAreaId].index;
-                        const delta = targetIdx - anchorOrigIdx; 
-
+                        // 【核心修复】：放弃容易造成歧义的相对 delta 运算！
+                        // 直接使用主目标卡片的绝对插入位置 (targetIdx) 作为全宇宙的降落坐标！
                         state.cards.forEach(c => {
                             const moved = movedAreasByCard[c.id];
                             if (moved && moved.length > 0) {
-                                if (c.id === targetCardId) {
-                                    c.areas.splice(targetIdx, 0, ...moved);
-                                } else {
-                                    const firstOrigIdx = dragState.sourceInfo[moved[0].id].index;
-                                    let newIdx = firstOrigIdx + delta;
-                                    newIdx = Math.max(0, Math.min(newIdx, c.areas.length));
-                                    c.areas.splice(newIdx, 0, ...moved);
-                                }
+                                // 强制在同一绝对索引处执行插入，达成完美的平行镜像同步！
+                                let absoluteMirrorIdx = Math.max(0, Math.min(targetIdx, c.areas.length));
+                                c.areas.splice(absoluteMirrorIdx, 0, ...moved);
+                                
                                 syncAreaDOMOrder(c.id, c.areas);
+                                if (window._slUpdateAreaDOMIdentity) moved.forEach(a => window._slUpdateAreaDOMIdentity(a.id, c.id));
                             }
                         });
                     } else {
                         targetCard.areas.splice(targetIdx, 0, ...allMovedAreas);
-                        syncAreaDOMOrder(dragState.cardId, state.cards.find(c => c.id === dragState.cardId).areas);
+                        
+                        state.cards.forEach(c => {
+                            if (movedAreasByCard[c.id] && movedAreasByCard[c.id].length > 0 && c.id !== targetCardId) {
+                                syncAreaDOMOrder(c.id, c.areas);
+                            }
+                        });
+                        
                         syncAreaDOMOrder(targetCardId, targetCard.areas);
+                        if (window._slUpdateAreaDOMIdentity) allMovedAreas.forEach(a => window._slUpdateAreaDOMIdentity(a.id, targetCardId));
                     }
                     
                     justSave();
-                    updateAllDefaultTitles(); // 拖拽结束后，静默纠正标题
+                    updateAllDefaultTitles(); 
                 }
             }
         });

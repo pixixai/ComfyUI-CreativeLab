@@ -1,11 +1,16 @@
 /**
  * 文件名: action_data_io.js
  * 路径: web/components/actions/action_data_io.js
- * 职责: 负责导入JSON、导出JSON、媒体打包下载、后端本地文件整理、文件上传
+ * 职责: 负责导入JSON、导出JSON、媒体打包下载、后端本地文件整理、文件上传 (全微创更新版)
  */
 import { state, appState, saveAndRender } from "../ui_state.js";
 import { showBindingToast, hideBindingToast } from "../ui_utils.js";
 import { app } from "../../../../scripts/app.js";
+
+// 【引入微创渲染引擎与静态保存】
+import { generateSingleCardHTML, attachCardEvents } from "../comp_taskcard.js"; 
+import { generateAreaHTML, attachAreaEvents, justSave } from "../comp_modulearea.js"; 
+import { updateSelectionUI } from "../ui_selection.js";
 
 // =========================================================================
 // 核心网络请求：上传本地文件到服务器并返回文件名
@@ -68,6 +73,8 @@ export function attachDataIOEvents(panelContainer) {
                 if (dataArray.length === 0) return alert("导入的数据为空！");
 
                 let smartAppendStartIndex = 0;
+                let newCardsToDOM = []; // 暂存需要插入 DOM 的新卡片
+                let newAreasToDOM = {}; // 暂存需要插入 DOM 的新模块
 
                 if (mode === 'new') {
                     const newCards = [];
@@ -90,11 +97,16 @@ export function attachDataIOEvents(panelContainer) {
                     });
 
                     if (newCards.length > 0) {
+                        const insertIndex = state.cards.length;
                         state.cards.push(...newCards);
                         state.selectedCardIds = [newCards[0].id];
                         state.activeCardId = newCards[0].id;
                         state.selectedAreaIds = [];
                         appState.lastClickedCardId = newCards[0].id;
+                        
+                        newCards.forEach((c, idx) => {
+                            newCardsToDOM.push({ card: c, index: insertIndex + idx });
+                        });
                     }
 
                 } else if (mode === 'smart_append') {
@@ -109,25 +121,37 @@ export function attachDataIOEvents(panelContainer) {
                         if (typeof obj !== 'object' || obj === null) return;
                         const targetIndex = startIndex + indexOffset;
                         let targetCard;
+                        let isNewCard = false;
 
                         if (targetIndex < state.cards.length) targetCard = state.cards[targetIndex];
                         else {
                             targetCard = { id: 'card_' + Date.now() + '_' + Math.floor(Math.random() * 1000) + indexOffset, title: '', areas: [] };
                             state.cards.push(targetCard);
+                            isNewCard = true;
                         }
 
                         if (!targetCard.areas) targetCard.areas = [];
                         let aIdx = 0;
+                        const addedAreas = [];
                         for (const [key, value] of Object.entries(obj)) {
                             let finalValue = value;
                             if (typeof finalValue === 'object' && finalValue !== null) finalValue = JSON.stringify(finalValue);
                             else if (finalValue === null) finalValue = "";
                             else finalValue = String(finalValue);
 
-                            targetCard.areas.push({
+                            addedAreas.push({
                                 id: 'area_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + aIdx++,
                                 type: 'edit', title: key, value: finalValue, targetNodeId: null, targetWidget: null, dataType: 'string', autoHeight: true
                             });
+                        }
+                        
+                        targetCard.areas.push(...addedAreas);
+
+                        if (isNewCard) {
+                            newCardsToDOM.push({ card: targetCard, index: targetIndex });
+                        } else {
+                            if (!newAreasToDOM[targetCard.id]) newAreasToDOM[targetCard.id] = [];
+                            newAreasToDOM[targetCard.id].push(...addedAreas);
                         }
                     });
                 } else if (mode === 'append_selected') {
@@ -140,22 +164,69 @@ export function attachDataIOEvents(panelContainer) {
                         if (card && obj && typeof obj === 'object' && obj !== null) {
                             if (!card.areas) card.areas = [];
                             let aIdx = 0;
+                            const addedAreas = [];
                             for (const [key, value] of Object.entries(obj)) {
                                 let finalValue = value;
                                 if (typeof finalValue === 'object' && finalValue !== null) finalValue = JSON.stringify(finalValue);
                                 else if (finalValue === null) finalValue = "";
                                 else finalValue = String(finalValue);
 
-                                card.areas.push({
+                                addedAreas.push({
                                     id: 'area_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + aIdx++,
                                     type: 'edit', title: key, value: finalValue, targetNodeId: null, targetWidget: null, dataType: 'string', autoHeight: true
                                 });
                             }
+                            card.areas.push(...addedAreas);
+                            if (!newAreasToDOM[card.id]) newAreasToDOM[card.id] = [];
+                            newAreasToDOM[card.id].push(...addedAreas);
                         }
                     });
                 }
                 
-                saveAndRender();
+                // =========================================================
+                // 【核心引擎替换】：彻底抛弃 saveAndRender，采用无感 DOM 物理拼贴
+                // =========================================================
+                const cardsWrapper = document.querySelector('.sl-cards-wrapper');
+                
+                // 1. 批量插入全新生成的任务卡片
+                if (newCardsToDOM.length > 0 && cardsWrapper) {
+                    const temp = document.createElement('div');
+                    newCardsToDOM.forEach(item => {
+                        temp.innerHTML += generateSingleCardHTML(item.card, item.index);
+                    });
+                    const addBtn = cardsWrapper.querySelector('.sl-add-card-inline');
+                    const frag = document.createDocumentFragment();
+                    while(temp.firstChild) frag.appendChild(temp.firstChild);
+                    if (addBtn) cardsWrapper.insertBefore(frag, addBtn);
+                    else cardsWrapper.appendChild(frag);
+                    
+                    attachCardEvents(cardsWrapper);
+                    // 为通过 JSON 凭空生成的新卡片内部模块，补绑拖拽和监听事件！
+                    if (window._slAttachAreaEvents) window._slAttachAreaEvents(cardsWrapper);
+                }
+                
+                // 2. 批量追加新模块到现有的任务卡片中
+                for (let cardId in newAreasToDOM) {
+                    const card = state.cards.find(c => c.id === cardId);
+                    const cardBody = document.querySelector(`.sl-card[data-card-id="${cardId}"] .sl-area-list`);
+                    if (cardBody && card) {
+                        const temp = document.createElement('div');
+                        newAreasToDOM[cardId].forEach(area => {
+                            temp.innerHTML += generateAreaHTML(area, card);
+                        });
+                        const frag = document.createDocumentFragment();
+                        while(temp.firstChild) frag.appendChild(temp.firstChild);
+                        cardBody.appendChild(frag);
+                        attachAreaEvents(cardBody);
+                    }
+                }
+
+                // 3. 静默保存数据与更新 UI，全程不闪屏
+                justSave();
+                updateSelectionUI();
+                if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles();
+                if (window._slUpdateCardsLayout) window._slUpdateCardsLayout();
+                
                 setTimeout(() => {
                     const container = panelContainer.querySelector("#sl-cards-container");
                     if (!container) return;
@@ -213,7 +284,7 @@ export function attachDataIOEvents(panelContainer) {
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line>
                     </svg>
                 </button>
-                <div id="sl-export-json-dropdown" class="sl-custom-select-dropdown" style="display:none; top: calc(100% + 4px); right: 0; left: auto; min-width: 230px; z-index: 10002;">
+                <div id="sl-export-json-dropdown" class="sl-custom-select-dropdown" style="display:none; top: calc(100% + 4px); right: 0; left: auto; min-width: 250px; z-index: 10002;">
                     
                     <div class="sl-custom-select-group-title" style="padding: 6px 12px; font-size: 12px; margin-top: 0; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05); display: flex; align-items: center; white-space: nowrap; gap: 12px;">打包为ZIP</div>
                     <div class="sl-custom-select-item" id="sl-export-media-all">下载全部</div>
@@ -224,6 +295,8 @@ export function attachDataIOEvents(panelContainer) {
                     <div class="sl-custom-select-group-title" style="padding: 6px 12px; font-size: 12px; margin-top: 4px; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05);">收集整理</div>
                     <div class="sl-custom-select-item" id="sl-export-org-move">移动到子文件夹</div>
                     <div class="sl-custom-select-item" id="sl-export-org-copy">复制到子文件夹</div>
+                    <div class="sl-custom-select-item" id="sl-export-org-move-history">移动到子文件夹 (含所有生成记录)</div>
+                    <div class="sl-custom-select-item" id="sl-export-org-copy-history">复制到子文件夹 (含所有生成记录)</div>
                     
                     <div class="sl-custom-select-group-title" style="padding: 0 0 0 12px; height: 28px; font-size: 12px; margin-top: 4px; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: space-between; white-space: nowrap;">
                         <span>导出JSON数据</span>
@@ -379,7 +452,6 @@ export function attachDataIOEvents(panelContainer) {
             const cardsToExport = (state.selectedCardIds && state.selectedCardIds.length > 0) 
                 ? state.cards.filter(c => state.selectedCardIds.includes(c.id)) : state.cards;
 
-            // 提取辅助函数：格式化单个URL为相对路径
             const formatUrl = (val) => {
                 if (!val) return "";
                 try {
@@ -395,29 +467,21 @@ export function attachDataIOEvents(panelContainer) {
                 const cardObj = {};
                 let unnamedInputCount = 1, unnamedOutputCount = 1;
                 
-                // 1. 判断是否需要导出 Input
                 if (mode === 'input' || mode === 'all' || mode === 'all_history') {
                     card.areas?.filter(a => a.type === 'edit').forEach((a) => {
                         cardObj[a.title || `##${unnamedInputCount++}`] = a.value || "";
                     });
                 }
                 
-                // 2. 判断是否需要导出 Output
                 if (mode === 'output' || mode === 'all' || mode === 'output_history' || mode === 'all_history') {
                     const includeHistory = mode.includes('_history');
-                    
                     card.areas?.filter(a => a.type === 'preview').forEach((a) => {
                         let exportValue;
-                        
-                        // 包含生成历史且历史记录存在
                         if (includeHistory && a.history && a.history.length > 0) {
                             exportValue = a.history.map(h => formatUrl(h)).filter(h => h !== "");
-                            // 如果数组只有一个元素，且恰好与封面图相同，是否保持数组？这里为了统一格式，既然选了带history，就全部输出数组结构
                         } else {
-                            // 否则仅导出当前封面的单条记录（字符串格式）
                             exportValue = formatUrl(a.resultUrl || "");
                         }
-                        
                         cardObj[a.title || `##${unnamedOutputCount++}`] = exportValue;
                     });
                 }
@@ -443,14 +507,16 @@ export function attachDataIOEvents(panelContainer) {
             }
         };
 
-        // 绑定所有的导出按钮点击事件
         exportWrapper.querySelector("#sl-export-json-input").onclick = (e) => { e.stopPropagation(); handleJsonExport('input'); };
         exportWrapper.querySelector("#sl-export-json-output").onclick = (e) => { e.stopPropagation(); handleJsonExport('output'); };
         exportWrapper.querySelector("#sl-export-json-all").onclick = (e) => { e.stopPropagation(); handleJsonExport('all'); };
         exportWrapper.querySelector("#sl-export-json-output-history").onclick = (e) => { e.stopPropagation(); handleJsonExport('output_history'); };
         exportWrapper.querySelector("#sl-export-json-all-history").onclick = (e) => { e.stopPropagation(); handleJsonExport('all_history'); };
 
-        const organizeOutputFiles = async (action) => {
+        // =========================================================================
+        // 【核心升级】：支持遍历所有生成记录的物理文件重排与归档
+        // =========================================================================
+        const organizeOutputFiles = async (action, includeHistory = false) => {
             exportDropdown.style.display = 'none';
             let workflowName = "Unsaved_Workflow";
             const configNode = app.graph._nodes.find(n => n.type === "ShellLinkSystemConfig");
@@ -466,44 +532,62 @@ export function attachDataIOEvents(panelContainer) {
                 card.areas?.forEach((area) => {
                     if (area.type === 'preview') {
                         previewCount++;
-                        if (area.resultUrl) {
+                        const areaName = area.title ? area.title.replace(/[\\/:"*?<>|]/g, "_").trim() : String(previewCount);
+                        
+                        const extractUrl = (urlStr, indexSuffix = "") => {
+                            if (!urlStr) return;
                             try {
-                                const urlObj = new URL(area.resultUrl, window.location.origin);
+                                const urlObj = new URL(urlStr, window.location.origin);
                                 const filename = urlObj.searchParams.get('filename');
                                 if (filename) {
                                     const subfolder = urlObj.searchParams.get('subfolder') || "";
-                                    const areaName = area.title ? area.title.replace(/[\\/:"*?<>|]/g, "_").trim() : String(previewCount);
-                                    
                                     filesToProcess.push({
                                         id: area.id, 
                                         filename: filename,
                                         type: urlObj.searchParams.get('type') || "output", 
                                         subfolder: subfolder,
                                         target_subfolder: `ShellLink/${workflowName}`,
-                                        target_filename: `${taskName}_${areaName}`
+                                        // 为历史记录添加有序后缀 (例如: _v1, _v2)，防止依赖后端容错导致排序错乱
+                                        target_filename: indexSuffix ? `${taskName}_${areaName}${indexSuffix}` : `${taskName}_${areaName}`
                                     });
                                 }
                             } catch (e) {}
+                        };
+
+                        if (includeHistory && area.history && area.history.length > 0) {
+                            // 【新增】：循环提取整个历史数组中的所有文件
+                            area.history.forEach((hUrl, idx) => {
+                                extractUrl(hUrl, `_v${idx + 1}`);
+                            });
+                        } else if (area.resultUrl) {
+                            // 仅提取当前显示的封面文件
+                            extractUrl(area.resultUrl, "");
                         }
                     }
                 });
             });
 
-            if (filesToProcess.length === 0) return alert("当前面板没有找到任何带有输出图像的模块！");
+            if (filesToProcess.length === 0) return alert("当前面板没有找到任何可处理的输出媒体文件！");
 
             try {
                 const response = await fetch('/shell_link/organize_files', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: action, files: filesToProcess }) });
                 const res = await response.json();
                 if (res.status === 'success') {
                     if (action === 'move') {
+                        let affectedAreaIds = [];
                         res.results.forEach(r => {
                             state.cards.forEach(c => c.areas?.forEach(a => {
                                 if (a.id === r.old_id) {
+                                    // 【核心修复】：更新 resultUrl 前，必须严格检查原文件名是否匹配，防止在 includeHistory=true 时被后续历史记录强行覆盖
                                     if (a.resultUrl) {
-                                        const urlObj = new URL(a.resultUrl, window.location.origin);
-                                        urlObj.searchParams.set('filename', r.new_filename);
-                                        urlObj.searchParams.set('subfolder', r.new_subfolder);
-                                        a.resultUrl = urlObj.toString();
+                                        try {
+                                            const urlObj = new URL(a.resultUrl, window.location.origin);
+                                            if (urlObj.searchParams.get('filename') === r.old_filename) {
+                                                urlObj.searchParams.set('filename', r.new_filename);
+                                                urlObj.searchParams.set('subfolder', r.new_subfolder);
+                                                a.resultUrl = urlObj.toString();
+                                            }
+                                        } catch(e) {}
                                     }
                                     
                                     if (a.history && a.history.length > 0) {
@@ -519,17 +603,28 @@ export function attachDataIOEvents(panelContainer) {
                                             return hUrl;
                                         });
                                     }
+                                    if (!affectedAreaIds.includes(a.id)) affectedAreaIds.push(a.id);
                                 }
                             }));
                         });
+                        
+                        // 全部走微创定点更新，绝对不闪屏！
+                        if (affectedAreaIds.length > 0) {
+                            affectedAreaIds.forEach(id => {
+                                if (window._slSurgicallyUpdateArea) window._slSurgicallyUpdateArea(id);
+                            });
+                            if (window._slJustSave) window._slJustSave(); else saveAndRender();
+                        }
                     }
-                    saveAndRender();
                     alert(`✅ 成功${action === 'move' ? '移动' : '复制'}并重命名了 ${res.results.length} 个文件到 ${workflowName} 文件夹！`);
                 } else alert("❌ 操作失败: " + (res.error || "未知错误"));
             } catch (err) { alert("❌ 请求后端接口失败。\n" + err.message); }
         };
 
-        exportWrapper.querySelector("#sl-export-org-move").onclick = (e) => { e.stopPropagation(); organizeOutputFiles('move'); };
-        exportWrapper.querySelector("#sl-export-org-copy").onclick = (e) => { e.stopPropagation(); organizeOutputFiles('copy'); };
+        exportWrapper.querySelector("#sl-export-org-move").onclick = (e) => { e.stopPropagation(); organizeOutputFiles('move', false); };
+        exportWrapper.querySelector("#sl-export-org-copy").onclick = (e) => { e.stopPropagation(); organizeOutputFiles('copy', false); };
+        // 【新增】：绑定历史记录归档功能
+        exportWrapper.querySelector("#sl-export-org-move-history").onclick = (e) => { e.stopPropagation(); organizeOutputFiles('move', true); };
+        exportWrapper.querySelector("#sl-export-org-copy-history").onclick = (e) => { e.stopPropagation(); organizeOutputFiles('copy', true); };
     }
 }

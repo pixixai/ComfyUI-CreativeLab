@@ -6,7 +6,40 @@ import { state, dragState, appState } from "./ui_state.js";
 import { generateAreaHTML, syncAreaDOMOrder, justSave } from "./comp_modulearea.js";
 import { updateSelectionUI } from "./ui_selection.js";
 
-// 【新核武器】：提供单个卡片实体的纯净渲染，拒绝波及池鱼
+// 【全新动态布局引擎】：实时精确计算纯卡片宽度，控制自适应居中与左对齐（彻底忽略悬挂的新建按钮）
+export function updateCardsLayout() {
+    setTimeout(() => {
+        const container = document.querySelector('#sl-cards-container');
+        const wrapper = document.querySelector('.sl-cards-wrapper');
+        if (!container || !wrapper) return;
+
+        const cardEls = wrapper.querySelectorAll('.sl-card:not(.sl-add-card-inline)');
+        let totalWidth = 0;
+        
+        // 动态获取每个卡片的真实宽度，不再写死
+        cardEls.forEach((el, idx) => {
+            totalWidth += el.offsetWidth || 320;
+            if (idx < cardEls.length - 1) totalWidth += 20; // 补充 20px gap
+        });
+
+        if (totalWidth === 0) totalWidth = 320;
+
+        // 核心修复：强制限制 wrapper 的宽度只包含任务卡片，让新建按钮被排斥在外
+        wrapper.style.width = `${totalWidth}px`;
+        wrapper.style.flex = 'none';
+
+        const containerWidth = container.clientWidth > 0 ? container.clientWidth : window.innerWidth * 0.8;
+        
+        // 判断溢出时减去 40px 的安全内边距
+        if (totalWidth >= containerWidth - 40) {
+            wrapper.style.margin = '0'; // 溢出时靠左，允许滚动
+        } else {
+            wrapper.style.margin = '0 auto'; // 未溢出时完美纯净居中
+        }
+    }, 20); // 略微延时，等待上一步 DOM 插入完毕且具备宽高
+}
+window._slUpdateCardsLayout = updateCardsLayout;
+
 export function generateSingleCardHTML(card, index) {
     const isCardSelected = state.selectedCardIds && state.selectedCardIds.includes(card.id);
     const borderStyle = isCardSelected ? 'border-color: #4CAF50;' : '';
@@ -54,16 +87,10 @@ export function renderCardsList(container) {
     const wrapper = document.createElement("div");
     wrapper.className = "sl-cards-wrapper";
     
-    const containerWidth = container.clientWidth > 0 ? container.clientWidth : window.innerWidth * 0.8;
-    const innerWidth = containerWidth - 40; 
-    const cardsWidth = state.cards.length * 360 - 20; 
-    const isOverflowing = cardsWidth >= innerWidth;
-
     wrapper.style.cssText = `
         display: flex; gap: 20px; position: relative;
-        margin-left: ${isOverflowing ? '0' : 'auto'};
-        margin-right: ${isOverflowing ? '0' : 'auto'};
         height: 100%; align-items: stretch;
+        transition: margin 0.3s ease;
     `;
 
     if (state.cards.length > 0) {
@@ -125,7 +152,8 @@ export function renderCardsList(container) {
         justSave();
         updateSelectionUI();
         
-        if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles(); // 新建后纠正
+        if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles(); 
+        if (window._slUpdateCardsLayout) window._slUpdateCardsLayout(); // 触发动态对齐引擎
 
         setTimeout(() => {
             const dContainer = document.querySelector("#sl-cards-container");
@@ -134,6 +162,9 @@ export function renderCardsList(container) {
     };
     
     container.appendChild(wrapper);
+    
+    // 界面初次打开时计算一次居中状态
+    setTimeout(() => { if (window._slUpdateCardsLayout) window._slUpdateCardsLayout(); }, 0);
 }
 
 export function attachCardEvents(container) {
@@ -177,7 +208,9 @@ export function attachCardEvents(container) {
             });
             justSave();
             updateSelectionUI();
-            if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles(); // 删除后纠正
+            if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles(); 
+            
+            if (window._slUpdateCardsLayout) window._slUpdateCardsLayout(); // 删除后触发重对齐，自动居中
         };
     });
 
@@ -280,7 +313,7 @@ export function attachCardEvents(container) {
                     });
                     
                     justSave();
-                    if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles(); // 拖拽后纠正
+                    if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles();
                 }
             }
         });
@@ -332,9 +365,11 @@ export function attachCardEvents(container) {
                     if (!targetCard.areas) targetCard.areas = [];
                     targetCard.areas.push(...movedAreas); 
                     syncAreaDOMOrder(targetCardId, targetCard.areas);
+                    
+                    if (window._slUpdateAreaDOMIdentity) movedAreas.forEach(a => window._slUpdateAreaDOMIdentity(a.id, targetCardId));
 
                     justSave();
-                    if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles(); // 拖入空卡片后纠正
+                    if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles(); 
                 }
             }
         });
