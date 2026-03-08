@@ -6,37 +6,51 @@ import { state, dragState, appState } from "./ui_state.js";
 import { generateAreaHTML, syncAreaDOMOrder, justSave } from "./comp_modulearea.js";
 import { updateSelectionUI } from "./ui_selection.js";
 
-// 【全新动态布局引擎】：实时精确计算纯卡片宽度，控制自适应居中与左对齐（彻底忽略悬挂的新建按钮）
+// 【全新动态布局引擎】：同步精确计算纯卡片宽度，控制自适应居中与左对齐
 export function updateCardsLayout() {
-    setTimeout(() => {
-        const container = document.querySelector('#sl-cards-container');
-        const wrapper = document.querySelector('.sl-cards-wrapper');
-        if (!container || !wrapper) return;
+    const container = document.querySelector('#sl-cards-container');
+    const wrapper = document.querySelector('.sl-cards-wrapper');
+    if (!container || !wrapper) return;
 
-        const cardEls = wrapper.querySelectorAll('.sl-card:not(.sl-add-card-inline)');
-        let totalWidth = 0;
-        
-        // 动态获取每个卡片的真实宽度，不再写死
-        cardEls.forEach((el, idx) => {
-            totalWidth += el.offsetWidth || 320;
-            if (idx < cardEls.length - 1) totalWidth += 20; // 补充 20px gap
-        });
-
-        if (totalWidth === 0) totalWidth = 320;
-
-        // 核心修复：强制限制 wrapper 的宽度只包含任务卡片，让新建按钮被排斥在外
-        wrapper.style.width = `${totalWidth}px`;
-        wrapper.style.flex = 'none';
-
-        const containerWidth = container.clientWidth > 0 ? container.clientWidth : window.innerWidth * 0.8;
-        
-        // 判断溢出时减去 40px 的安全内边距
-        if (totalWidth >= containerWidth - 40) {
-            wrapper.style.margin = '0'; // 溢出时靠左，允许滚动
-        } else {
-            wrapper.style.margin = '0 auto'; // 未溢出时完美纯净居中
+    const cardEls = wrapper.querySelectorAll('.sl-card');
+    const count = cardEls.length;
+    
+    // 【核心修复 1】：彻底抛弃 20ms 的 setTimeout 异步等待！
+    // 刚插入的卡片就算没被浏览器绘制出 offsetWidth 也没关系，
+    // 我们直接抓取面板配置的 CSS 绝对宽度，做到“未卜先知”的 0 延迟同步排版！
+    let cardWidth = 340; 
+    const panel = document.getElementById('shell-link-panel');
+    if (panel) {
+        const cssVal = parseInt(getComputedStyle(panel).getPropertyValue('--sl-card-width'));
+        if (!isNaN(cssVal) && cssVal > 0) {
+            cardWidth = cssVal;
+        } else if (cardEls.length > 0 && cardEls[0].offsetWidth > 0) {
+            cardWidth = cardEls[0].offsetWidth;
         }
-    }, 20); // 略微延时，等待上一步 DOM 插入完毕且具备宽高
+    }
+
+    const gap = 20;
+    const totalWidth = count > 0 ? (count * cardWidth + (count - 1) * gap) : 0;
+
+    // 核心排版：如果连卡片都没有，直接占满；如果有，严丝合缝地包裹
+    if (totalWidth === 0) {
+        wrapper.style.width = '100%';
+        wrapper.style.flex = '1';
+        wrapper.style.margin = '0';
+        return;
+    }
+
+    wrapper.style.width = `${totalWidth}px`;
+    wrapper.style.flex = 'none';
+
+    const containerWidth = container.clientWidth > 0 ? container.clientWidth : window.innerWidth * 0.8;
+    
+    // 判断溢出时减去 40px 的安全内边距
+    if (totalWidth >= containerWidth - 40) {
+        wrapper.style.margin = '0'; // 溢出时靠左，允许滚动
+    } else {
+        wrapper.style.margin = '0 auto'; // 未溢出时完美纯净居中
+    }
 }
 window._slUpdateCardsLayout = updateCardsLayout;
 
@@ -87,10 +101,11 @@ export function renderCardsList(container) {
     const wrapper = document.createElement("div");
     wrapper.className = "sl-cards-wrapper";
     
+    // 【核心修复 2】：彻底剔除 transition: margin 0.3s ease;
+    // 这样在创建新卡片需要居中对齐时，不会再产生任何拖泥带水的“平移滑动动画”，瞬间清爽对齐！
     wrapper.style.cssText = `
         display: flex; gap: 20px; position: relative;
         height: 100%; align-items: stretch;
-        transition: margin 0.3s ease;
     `;
 
     if (state.cards.length > 0) {
@@ -101,70 +116,10 @@ export function renderCardsList(container) {
         });
     }
 
-    const inlineAddBtn = document.createElement("div");
-    inlineAddBtn.className = "sl-card sl-add-card-inline";
-    inlineAddBtn.innerHTML = `<span style="font-size: 32px; color: #ccc; margin-bottom: 15px; font-weight: 300;">+</span><span style="font-size: 16px; color: #ccc;">新建任务</span>`;
-    
-    if (state.cards.length === 0) {
-        inlineAddBtn.style.cssText = `
-            display: flex; flex-direction: column; justify-content: center; align-items: center; 
-            background: rgba(255,255,255,0.02); border: 2px dashed rgba(255,255,255,0.1); 
-            cursor: pointer; flex: 0 0 340px; width: 340px; height: 100%; box-sizing: border-box; 
-            opacity: 0.7; transition: all 0.2s; margin: auto;
-        `;
-        wrapper.appendChild(inlineAddBtn);
-    } else {
-        inlineAddBtn.style.cssText = `
-            display: flex; flex-direction: column; justify-content: center; align-items: center; 
-            background: rgba(255,255,255,0.02); border: 2px dashed rgba(255,255,255,0.1); 
-            cursor: pointer; flex: 0 0 340px; width: 340px; box-sizing: border-box; 
-            opacity: 0.7; transition: all 0.2s;
-            position: absolute; left: 100%; top: 0; bottom: 0; margin-left: 20px;
-            box-shadow: 20px 0 0 transparent;
-        `;
-        wrapper.appendChild(inlineAddBtn);
-    }
-    
-    inlineAddBtn.onmouseover = () => {
-        inlineAddBtn.style.opacity = '1';
-        inlineAddBtn.style.background = 'rgba(255,255,255,0.06)';
-        inlineAddBtn.style.borderColor = 'rgba(255,255,255,0.3)';
-    };
-    inlineAddBtn.onmouseout = () => {
-        inlineAddBtn.style.opacity = '0.7';
-        inlineAddBtn.style.background = 'rgba(255,255,255,0.02)';
-        inlineAddBtn.style.borderColor = 'rgba(255,255,255,0.1)';
-    };
-    
-    inlineAddBtn.onclick = () => {
-        const newCard = { id: 'card_' + Date.now(), title: ``, areas: [] };
-        state.cards.push(newCard);
-        state.selectedCardIds = [newCard.id];
-        state.activeCardId = newCard.id;
-        state.selectedAreaIds = []; 
-        appState.lastClickedCardId = newCard.id;
-        
-        const temp = document.createElement('div');
-        temp.innerHTML = generateSingleCardHTML(newCard, state.cards.length - 1);
-        wrapper.insertBefore(temp.firstElementChild, inlineAddBtn);
-        
-        attachCardEvents(wrapper);
-        justSave();
-        updateSelectionUI();
-        
-        if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles(); 
-        if (window._slUpdateCardsLayout) window._slUpdateCardsLayout(); // 触发动态对齐引擎
-
-        setTimeout(() => {
-            const dContainer = document.querySelector("#sl-cards-container");
-            if (dContainer) dContainer.scrollTo({ left: dContainer.scrollWidth, behavior: 'smooth' });
-        }, 50);
-    };
-    
     container.appendChild(wrapper);
     
-    // 界面初次打开时计算一次居中状态
-    setTimeout(() => { if (window._slUpdateCardsLayout) window._slUpdateCardsLayout(); }, 0);
+    // 界面初次打开时，同步执行一次对齐排版
+    if (window._slUpdateCardsLayout) window._slUpdateCardsLayout();
 }
 
 export function attachCardEvents(container) {
@@ -210,11 +165,11 @@ export function attachCardEvents(container) {
             updateSelectionUI();
             if (window._slUpdateAllDefaultTitles) window._slUpdateAllDefaultTitles(); 
             
-            if (window._slUpdateCardsLayout) window._slUpdateCardsLayout(); // 删除后触发重对齐，自动居中
+            if (window._slUpdateCardsLayout) window._slUpdateCardsLayout();
         };
     });
 
-    container.querySelectorAll('.sl-card:not(.sl-add-card-inline)').forEach(cardEl => {
+    container.querySelectorAll('.sl-card').forEach(cardEl => {
         if (cardEl.dataset.slEventsBound) return;
         cardEl.dataset.slEventsBound = "1";
 
@@ -306,10 +261,9 @@ export function attachCardEvents(container) {
                         state.cards.push(...movedCards);
                     }
 
-                    const inlineBtn = wrapper.querySelector('.sl-add-card-inline');
                     state.cards.forEach(c => {
                         const el = wrapper.querySelector(`.sl-card[data-card-id="${c.id}"]`);
-                        if (el) wrapper.insertBefore(el, inlineBtn);
+                        if (el) wrapper.appendChild(el);
                     });
                     
                     justSave();

@@ -165,8 +165,6 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
         const mainType = selectedAreas[0]?.area.type;
         const mainArea = selectedAreas[0]?.area;
 
-        // 【终极护盾：CSS 软更新引擎】
-        // 当修改影响排版的参数 (如比例、拉伸) 时，绝对不要拆毁重建 DOM，只通过直接修改 CSS 属性达成无感更新！
         const updateSelected = (updater, isSoftUpdate = false) => {
             selectedAreas.forEach(sa => { 
                 if (sa.area.type === mainType) {
@@ -180,7 +178,6 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                             if (bg) {
                                 let finalRatio = '16/9';
                                 if (sa.area.matchMedia) {
-                                    // 【核心修复 1】：无视之前手动修改写入的脏数据，只要启用了匹配，就强行从真实的媒体元素身上“偷取”绝对准确的分辨率！
                                     if (media) {
                                         const w = media.videoWidth || media.naturalWidth;
                                         const h = media.videoHeight || media.naturalHeight;
@@ -213,7 +210,6 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                             }
                         }
                     } else {
-                        // 只有涉及到节点、组件等深层数据的变动时，才调用外科手术重建 DOM
                         if (window._slSurgicallyUpdateArea) window._slSurgicallyUpdateArea(sa.area.id);
                     }
                 } 
@@ -353,16 +349,13 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                                 }
                             });
                         } else {
-                            // 【核心修复 2】：打破记忆魔法！由于输出模块只能单选，在执行更新后强行剥除所有下拉菜单的 open 样式，实现“点击即关”。
+                            el.classList.remove('open');
                             updateSelected(a => a.targetNodeId = val);
-                            document.querySelectorAll('#sl-module-toolbar .sl-custom-select.open').forEach(dp => dp.classList.remove('open'));
                         }
                     } else if (el.id === 'tb-fill-select-custom') {
                         updateSelected(a => a.fillMode = val, true);
-                        // 【点击即关】
-                        document.querySelectorAll('#sl-module-toolbar .sl-custom-select.open').forEach(dp => dp.classList.remove('open'));
+                        el.classList.remove('open');
                     } else if (el.id === 'tb-widget-select-custom') {
-                        // (输入模块的多选参数菜单，保留不关)
                         if (!val) return;
                         updateSelected(a => {
                             let widgets = Array.isArray(a.targetWidgets) ? [...a.targetWidgets] : (a.targetWidget && a.targetNodeId ? [`${a.targetNodeId}||${a.targetWidget}`] : []);
@@ -401,8 +394,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                                 }
                             }
                         }, true);
-                        // 【点击即关】
-                        document.querySelectorAll('#sl-module-toolbar .sl-custom-select.open').forEach(dp => dp.classList.remove('open'));
+                        el.classList.remove('open');
                     }
                 });
             });
@@ -479,14 +471,9 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                 sortedAreaIdsToClone.forEach(areaId => {
                     const srcArea = card.areas.find(a => a.id === areaId);
                     if (srcArea) {
+                        // 【克隆修复】：原封不动地保留所有属性，不再清空历史记录！
                         const newArea = JSON.parse(JSON.stringify(srcArea));
                         newArea.id = 'area_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
-                        if(newArea.type === 'preview') {
-                            newArea.resultUrl = '';
-                            newArea.history = [];
-                            newArea.historyIndex = 0;
-                            newArea.selectedThumbIndices = [];
-                        }
                         clonedAreas.push(newArea);
                         newSelectedAreaIds.push(newArea.id);
                     }
@@ -536,17 +523,12 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
             sortedCardIdsToClone.forEach((cardId, indexOffset) => {
                 const srcCard = state.cards.find(c => c.id === cardId);
                 if (srcCard) {
+                    // 【克隆修复】：原封不动地保留所有属性，不再清空历史记录！
                     const newCard = JSON.parse(JSON.stringify(srcCard));
                     newCard.id = 'card_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + indexOffset;
                     if (newCard.areas) {
                         newCard.areas.forEach((a, aIdx) => {
                             a.id = 'area_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + aIdx;
-                            if(a.type === 'preview') {
-                                a.resultUrl = '';
-                                a.history = [];
-                                a.historyIndex = 0;
-                                a.selectedThumbIndices = [];
-                            }
                         });
                     }
                     clonedCards.push(newCard);
@@ -581,9 +563,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                     if (lastSrcEl && lastSrcEl.nextSibling) {
                         wrapper.insertBefore(frag, lastSrcEl.nextSibling);
                     } else {
-                        const addBtn = wrapper.querySelector('.sl-add-card-inline');
-                        if (addBtn) wrapper.insertBefore(frag, addBtn);
-                        else wrapper.appendChild(frag);
+                        wrapper.appendChild(frag);
                     }
                     
                     taskcard.attachCardEvents(wrapper);
@@ -619,10 +599,33 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
             if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
                 let srcArea = null;
                 state.cards.forEach(c => c.areas?.forEach(a => { if (a.id === state.selectedAreaIds[0]) srcArea = a; }));
-                state.painterSource = { type: 'area', data: JSON.parse(JSON.stringify(srcArea)) };
+                
+                // 【格式刷修复】：在提取“源墨水”时，直接剥离并清空所有的历史记录与图库状态！
+                const clonedData = JSON.parse(JSON.stringify(srcArea));
+                if (clonedData && clonedData.type === 'preview') {
+                    clonedData.resultUrl = '';
+                    clonedData.history = [];
+                    clonedData.historyIndex = 0;
+                    clonedData.selectedThumbIndices = [];
+                }
+                state.painterSource = { type: 'area', data: clonedData };
+                
             } else if (state.selectedCardIds && state.selectedCardIds.length > 0) {
                 const srcCard = state.cards.find(c => c.id === state.selectedCardIds[0]);
-                state.painterSource = { type: 'card', data: JSON.parse(JSON.stringify(srcCard)) };
+                
+                // 【格式刷修复】：同理，提取卡片级的“源墨水”时，遍历剥离所有子模块的历史记录！
+                const clonedCard = JSON.parse(JSON.stringify(srcCard));
+                if (clonedCard && clonedCard.areas) {
+                    clonedCard.areas.forEach(a => {
+                        if (a.type === 'preview') {
+                            a.resultUrl = '';
+                            a.history = [];
+                            a.historyIndex = 0;
+                            a.selectedThumbIndices = [];
+                        }
+                    });
+                }
+                state.painterSource = { type: 'card', data: clonedCard };
             }
             if (panelContainer) panelContainer.classList.add('sl-painter-active');
         }

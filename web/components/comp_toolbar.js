@@ -63,15 +63,17 @@ export function setupStaticToolbarEvents(panelContainer) {
             temp.innerHTML = generateSingleCardHTML(newCard, insertIndex);
             const newEl = temp.firstElementChild;
             
+            // 【干净利落的插入逻辑】：不再去寻找幽灵大按钮了，直接追加到末尾即可！
             if (insertIndex >= state.cards.length - 1) {
-                const addBtn = wrapper.querySelector('.sl-add-card-inline');
-                wrapper.insertBefore(newEl, addBtn);
+                wrapper.appendChild(newEl);
             } else {
                 const nextCard = state.cards[insertIndex + 1];
                 const nextEl = wrapper.querySelector(`.sl-card[data-card-id="${nextCard.id}"]`);
                 wrapper.insertBefore(newEl, nextEl);
             }
             attachCardEvents(wrapper);
+            // 触发全新动态排版引擎，确保居中或左对齐计算准确
+            if (window._slUpdateCardsLayout) window._slUpdateCardsLayout();
         }
 
         justSave();

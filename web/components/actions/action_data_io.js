@@ -194,11 +194,12 @@ export function attachDataIOEvents(panelContainer) {
                     newCardsToDOM.forEach(item => {
                         temp.innerHTML += generateSingleCardHTML(item.card, item.index);
                     });
-                    const addBtn = cardsWrapper.querySelector('.sl-add-card-inline');
+                    
                     const frag = document.createDocumentFragment();
                     while(temp.firstChild) frag.appendChild(temp.firstChild);
-                    if (addBtn) cardsWrapper.insertBefore(frag, addBtn);
-                    else cardsWrapper.appendChild(frag);
+                    
+                    // 【直接追加】：剔除寻找幽灵按钮的代码，直接追加碎片
+                    cardsWrapper.appendChild(frag);
                     
                     attachCardEvents(cardsWrapper);
                     // 为通过 JSON 凭空生成的新卡片内部模块，补绑拖拽和监听事件！

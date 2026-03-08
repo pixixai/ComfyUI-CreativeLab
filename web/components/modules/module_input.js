@@ -67,37 +67,52 @@ export function generateInputHTML(area, card) {
     let uploadType = 'file';
     let comboValues = [];
     
-    if (widgetDef) {
-        let opts = widgetDef.options || {};
-        const isComboWidget = widgetDef.type === "combo" || Array.isArray(widgetDef.type) || Array.isArray(opts.values);
+    // 【核心修复】：将原本包裹在 if(widgetDef) 里的逻辑提取出来！
+    let opts = widgetDef ? (widgetDef.options || {}) : {};
+    let wType = widgetDef ? widgetDef.type : null;
+    let isComboWidget = widgetDef ? (wType === "combo" || Array.isArray(wType) || Array.isArray(opts.values)) : false;
+
+    const node = app.graph ? app.graph.getNodeById(Number(primaryNodeId)) : null;
+    
+    // 关键突破：即使 ComfyUI 刚重启，节点的 widgetDef 还没来得及懒加载（为 null），
+    // 它的静态类定义 (constructor.nodeData) 是永远常驻内存的！我们可以直接去底层扒出原始参数类型！
+    if (node && node.constructor && node.constructor.nodeData) {
+        const nodeData = node.constructor.nodeData;
+        const inputs = { ...(nodeData.input?.required || {}), ...(nodeData.input?.optional || {}) };
         
-        const node = app.graph ? app.graph.getNodeById(Number(primaryNodeId)) : null;
-        if (node && node.constructor && node.constructor.nodeData) {
-            const nodeData = node.constructor.nodeData;
-            const inputs = { ...(nodeData.input?.required || {}), ...(nodeData.input?.optional || {}) };
+        if (inputs[primaryWidget]) {
+            const pyType = inputs[primaryWidget][0];
+            const pyDict = inputs[primaryWidget][1];
             
-            if (inputs[primaryWidget] && Array.isArray(inputs[primaryWidget]) && inputs[primaryWidget].length > 1) {
-                const pyDict = inputs[primaryWidget][1]; 
-                if (pyDict && typeof pyDict === 'object') {
-                    opts = { ...opts, ...pyDict }; 
-                }
+            if (Array.isArray(pyType)) {
+                wType = "combo";
+                comboValues = pyType;
+                isComboWidget = true;
+            } else if (!wType) {
+                wType = pyType;
+            }
+
+            if (pyDict && typeof pyDict === 'object') {
+                opts = { ...opts, ...pyDict }; 
             }
         }
+    }
 
-        if (opts.image_upload || opts.upload === 'image_upload' || opts.upload === 'image') { isUpload = true; uploadType = 'image'; }
-        else if (opts.video_upload || opts.upload === 'video_upload' || opts.upload === 'video') { isUpload = true; uploadType = 'video'; }
-        else if (opts.audio_upload || opts.upload === 'audio_upload' || opts.upload === 'audio') { isUpload = true; uploadType = 'audio'; }
-        else if (opts.file_upload || opts.upload === 'file_upload' || opts.upload === 'model' || opts.upload === true) { isUpload = true; uploadType = 'file'; }
-        
-        else if (node && isComboWidget) {
-            if (primaryWidget === 'image' && node.type === 'LoadImage') { isUpload = true; uploadType = 'image'; }
-            else if (primaryWidget === 'video' && node.type === 'VHS_LoadVideo') { isUpload = true; uploadType = 'video'; }
-        }
+    // 只要扒出的 options 里带有 upload 标识，无论动态 widgetDef 在不在，都强制渲染媒体组件！
+    if (opts.image_upload || opts.upload === 'image_upload' || opts.upload === 'image') { isUpload = true; uploadType = 'image'; }
+    else if (opts.video_upload || opts.upload === 'video_upload' || opts.upload === 'video') { isUpload = true; uploadType = 'video'; }
+    else if (opts.audio_upload || opts.upload === 'audio_upload' || opts.upload === 'audio') { isUpload = true; uploadType = 'audio'; }
+    else if (opts.file_upload || opts.upload === 'file_upload' || opts.upload === 'model' || opts.upload === true) { isUpload = true; uploadType = 'file'; }
+    else if (node && isComboWidget) {
+        if (primaryWidget === 'image' && node.type === 'LoadImage') { isUpload = true; uploadType = 'image'; }
+        else if (primaryWidget === 'video' && node.type === 'VHS_LoadVideo') { isUpload = true; uploadType = 'video'; }
+    }
 
-        if (Array.isArray(widgetDef.type)) {
-            comboValues = widgetDef.type;
-        } else if (isComboWidget) {
-            comboValues = opts.values || [];
+    if (!comboValues.length) {
+        if (Array.isArray(wType)) {
+            comboValues = wType;
+        } else if (isComboWidget && Array.isArray(opts.values)) {
+            comboValues = opts.values;
         }
     }
 
