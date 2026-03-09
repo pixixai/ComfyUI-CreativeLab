@@ -14,7 +14,7 @@ export function updateSelectionUI() {
             if (state.selectedCardIds && state.selectedCardIds.includes(cardId)) {
                 // 【核心修复】：必须同时添加 active 和 selected，匹配 CSS
                 card.classList.add('active', 'selected');
-                card.style.borderColor = '#4CAF50'; 
+                card.style.borderColor = 'var(--clab-theme-card, #4CAF50)'; 
             } else {
                 // 【核心修复】：必须同时移除 active 和 selected，消除残影
                 card.classList.remove('active', 'selected');
@@ -28,7 +28,7 @@ export function updateSelectionUI() {
             if (state.selectedAreaIds && state.selectedAreaIds.includes(areaId)) {
                 area.classList.add('active');
                 area.classList.add('selected');
-                area.style.borderColor = '#2196F3'; 
+                area.style.borderColor = 'var(--clab-theme-module, #2196F3)'; 
             } else {
                 area.classList.remove('active');
                 area.classList.remove('selected');

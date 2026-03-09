@@ -79,11 +79,13 @@ export function setupExecutionEvents() {
                 setUIProgress(cardId, 0, true);
             }, 6000);
             
-            // 遇到校验错误，直接清空等待队列，防止后续卡片卡死
-            if (window._clabExecQueue) {
-                while (window._clabExecQueue.length > 0) {
-                    let skippedTask = window._clabExecQueue.shift();
-                    setUIProgress(skippedTask.cardId, 0, true);
+            // 遇到校验错误，判断是否需要直接清空等待队列
+            if (window._clabHaltOnError !== false) {
+                if (window._clabExecQueue) {
+                    while (window._clabExecQueue.length > 0) {
+                        let skippedTask = window._clabExecQueue.shift();
+                        setUIProgress(skippedTask.cardId, 0, true);
+                    }
                 }
             }
         }
@@ -208,6 +210,12 @@ export function setupExecutionEvents() {
                     if (!area.history) area.history = [];
                     if (area.history.length === 0 || area.history[area.history.length - 1] !== newUrl) {
                         area.history.push(newUrl);
+                        
+                        // 【核心注入】：应用历史容量上限
+                        const maxLimit = window._clabMaxHistory || 50;
+                        while (area.history.length > maxLimit) {
+                            area.history.shift();
+                        }
                     }
                     area.historyIndex = area.history.length - 1;
                 }
@@ -256,23 +264,25 @@ export function setupExecutionEvents() {
             }, 6000);
         }
 
-        // 4. 熔断机制：如果在批量运行多张卡片时报错，自动拦截并取消排队中的后续任务！
-        if (window._clabCurrentBatchPromptIds && window._clabCurrentBatchPromptIds.length > 0) {
-            const toDelete = window._clabCurrentBatchPromptIds.filter(id => id !== pid);
-            if (toDelete.length > 0) {
-                // 调用 ComfyUI 的队列清理 API
-                api.fetchApi('/queue', {
-                    method: 'POST',
-                    body: JSON.stringify({ delete: toDelete })
-                }).catch(err => console.error("[CLab] 无法删除后续队列", err));
+        // 4. 熔断机制：根据 HaltOnError 判断是否取消排队中的后续任务
+        if (window._clabHaltOnError !== false) {
+            if (window._clabCurrentBatchPromptIds && window._clabCurrentBatchPromptIds.length > 0) {
+                const toDelete = window._clabCurrentBatchPromptIds.filter(id => id !== pid);
+                if (toDelete.length > 0) {
+                    // 调用 ComfyUI 的队列清理 API
+                    api.fetchApi('/queue', {
+                        method: 'POST',
+                        body: JSON.stringify({ delete: toDelete })
+                    }).catch(err => console.error("[CLab] 无法删除后续队列", err));
 
-                // 隐藏掉那些被无辜牵连、还没开始跑的蓝条
-                toDelete.forEach(delPid => {
-                    const delTask = window._clabTaskMap[delPid];
-                    if (delTask) setUIProgress(delTask.cardId, 0, true);
-                });
+                    // 隐藏掉那些被无辜牵连、还没开始跑的蓝条
+                    toDelete.forEach(delPid => {
+                        const delTask = window._clabTaskMap[delPid];
+                        if (delTask) setUIProgress(delTask.cardId, 0, true);
+                    });
+                }
+                window._clabCurrentBatchPromptIds = [];
             }
-            window._clabCurrentBatchPromptIds = [];
         }
     });
 

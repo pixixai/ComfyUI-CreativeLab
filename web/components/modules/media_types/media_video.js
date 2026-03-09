@@ -5,9 +5,16 @@
 import { formatTime, formatTimeWithFrames } from "./media_utils.js";
 
 export function renderVideo(area, objectFit, url, errCall) {
+    const autoplayAttr = window._clabVideoAutoplay !== false ? 'autoplay' : '';
+    const mutedAttr = window._clabVideoMuted !== false ? 'muted' : '';
+    
+    // 初始化静音图标的状态，与视频标签保持一致
+    const displayHigh = window._clabVideoMuted !== false ? 'none' : 'block';
+    const displayMuted = window._clabVideoMuted !== false ? 'block' : 'none';
+
     return `
         <div class="clab-video-player" data-area-id="${area.id}">
-            <video id="clab-img-${area.id}" class="clab-preview-img clab-media-target" src="${url}" draggable="false" style="object-fit: ${objectFit}; width: 100%; height: 100%; display: block;" autoplay loop muted playsinline onerror="${errCall}"></video>
+            <video id="clab-img-${area.id}" class="clab-preview-img clab-media-target" src="${url}" draggable="false" style="object-fit: ${objectFit}; width: 100%; height: 100%; display: block;" ${autoplayAttr} loop ${mutedAttr} playsinline onerror="${errCall}"></video>
             <div class="clab-video-controls">
                 <div class="clab-video-toolbar">
                     <!-- 【样式锁定】：强制无衬线体，彻底去除投影 -->
@@ -23,8 +30,8 @@ export function renderVideo(area, objectFit, url, errCall) {
                                 </div>
                             </div>
                             <button class="clab-media-opt-btn clab-opt-mute" title="静音/取消静音" style="padding: 4px 6px; background: transparent !important; color: #aaa; transition: color 0.2s;" onmouseover="if(this.style.pointerEvents !== 'none') this.style.color='#fff'" onmouseout="if(this.style.pointerEvents !== 'none') this.style.color='#aaa'">
-                                <svg class="clab-vol-icon-high" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
-                                <svg class="clab-vol-icon-muted" style="display:none;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+                                <svg class="clab-vol-icon-high" style="display:${displayHigh};" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                                <svg class="clab-vol-icon-muted" style="display:${displayMuted};" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
                                 <svg class="clab-vol-icon-none" style="display:none;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon></svg>
                             </button>
                         </div>

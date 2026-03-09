@@ -56,19 +56,20 @@ window._clabUpdateCardsLayout = updateCardsLayout;
 
 export function generateSingleCardHTML(card, index) {
     const isCardSelected = state.selectedCardIds && state.selectedCardIds.includes(card.id);
-    const borderStyle = isCardSelected ? 'border-color: #4CAF50;' : '';
+    const borderStyle = isCardSelected ? 'border-color: var(--clab-theme-card, #4CAF50);' : '';
     const activeClass = isCardSelected ? 'active selected' : '';
     let areasHtml = (card.areas || []).map(area => generateAreaHTML(area, card)).join('');
     const defaultTitle = `#${index + 1}`;
     const displayTitle = card.title ? card.title : defaultTitle;
 
+    // 【主题引擎支持】：进度条背景与发光色接入 CSS 变量
     return `
         <div class="clab-card ${activeClass}" style="${borderStyle}" data-card-id="${card.id}" draggable="true">
             <div class="clab-card-title-bar" style="cursor: grab; position: relative;">
                 <input class="clab-card-title-input" type="text" data-id="${card.id}" data-default="${defaultTitle}" value="${displayTitle}" placeholder="${defaultTitle}" size="${Math.max(displayTitle.length, 2)}" style="width: unset; max-width: 240px; min-width: 30px;" />
                 
                 <div class="clab-card-progress-container" data-card-prog-id="${card.id}" style="position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; opacity: 0; transition: opacity 0.3s ease; z-index: 5;">
-                    <div class="clab-card-progress-bar" style="height: 100%; width: 0%; background: #4CAF50; transition: width 0.1s ease-out, background-color 0.2s; box-shadow: 0 0 5px rgba(76,175,80,0.5);"></div>
+                    <div class="clab-card-progress-bar" style="height: 100%; width: 0%; background: var(--clab-theme-card, #4CAF50); transition: width 0.1s ease-out, background-color 0.2s; box-shadow: 0 0 5px var(--clab-theme-card-alpha, rgba(76,175,80,0.5));"></div>
                 </div>
             </div>
             <button class="clab-del-card-btn" data-id="${card.id}" title="删除此任务(若多选则批量删除)">✖</button>
@@ -83,9 +84,10 @@ export function renderCardsList(container) {
     if (!document.getElementById('clab-card-dnd-styles')) {
         const style = document.createElement('style');
         style.id = 'clab-card-dnd-styles';
+        // 【主题引擎支持】：拖拽的边缘高亮也会随您的主题色变幻！
         style.innerHTML = `
-            .clab-drag-over-card-left { border-left: 3px solid #4CAF50 !important; }
-            .clab-drag-over-card-right { border-right: 3px solid #4CAF50 !important; }
+            .clab-drag-over-card-left { border-left: 3px solid var(--clab-theme-card, #4CAF50) !important; }
+            .clab-drag-over-card-right { border-right: 3px solid var(--clab-theme-card, #4CAF50) !important; }
         `;
         document.head.appendChild(style);
     }
@@ -101,8 +103,6 @@ export function renderCardsList(container) {
     const wrapper = document.createElement("div");
     wrapper.className = "clab-cards-wrapper";
     
-    // 【核心修复 2】：彻底剔除 transition: margin 0.3s ease;
-    // 这样在创建新卡片需要居中对齐时，不会再产生任何拖泥带水的“平移滑动动画”，瞬间清爽对齐！
     wrapper.style.cssText = `
         display: flex; gap: 20px; position: relative;
         height: 100%; align-items: stretch;
@@ -118,7 +118,6 @@ export function renderCardsList(container) {
 
     container.appendChild(wrapper);
     
-    // 界面初次打开时，同步执行一次对齐排版
     if (window._clabUpdateCardsLayout) window._clabUpdateCardsLayout();
 }
 

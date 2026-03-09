@@ -163,20 +163,23 @@ export function setupAPIInjector(app) {
                 setUIProgress(task.cardId, 0, true);
             }, 6000);
 
-            if (window._clabCurrentBatchPromptIds && window._clabCurrentBatchPromptIds.length > 0) {
-                const toDelete = window._clabCurrentBatchPromptIds.filter(id => id !== pid);
-                if (toDelete.length > 0) {
-                    api.fetchApi('/queue', {
-                        method: 'POST',
-                        body: JSON.stringify({ delete: toDelete })
-                    }).catch(err => console.error("[CLab] 无法删除后续队列", err));
+            // 【核心】：根据 HaltOnError 设置决定是否清空后续队列
+            if (window._clabHaltOnError !== false) {
+                if (window._clabCurrentBatchPromptIds && window._clabCurrentBatchPromptIds.length > 0) {
+                    const toDelete = window._clabCurrentBatchPromptIds.filter(id => id !== pid);
+                    if (toDelete.length > 0) {
+                        api.fetchApi('/queue', {
+                            method: 'POST',
+                            body: JSON.stringify({ delete: toDelete })
+                        }).catch(err => console.error("[CLab] 无法删除后续队列", err));
 
-                    toDelete.forEach(delPid => {
-                        const delTask = window._clabTaskMap[delPid];
-                        if (delTask) setUIProgress(delTask.cardId, 0, true);
-                    });
+                        toDelete.forEach(delPid => {
+                            const delTask = window._clabTaskMap[delPid];
+                            if (delTask) setUIProgress(delTask.cardId, 0, true);
+                        });
+                    }
+                    window._clabCurrentBatchPromptIds = [];
                 }
-                window._clabCurrentBatchPromptIds = [];
             }
         }
     });
@@ -218,11 +221,17 @@ export function setupAPIInjector(app) {
                     window._clabLastGeneratedTask = null;
                 }
 
-                while (window._clabExecQueue.length > 0) {
-                    let skippedTask = window._clabExecQueue.shift();
-                    setUIProgress(skippedTask.cardId, 0, true);
+                // 【核心】：根据 HaltOnError 设置决定是否清空前端排队任务
+                if (window._clabHaltOnError !== false) {
+                    while (window._clabExecQueue.length > 0) {
+                        let skippedTask = window._clabExecQueue.shift();
+                        setUIProgress(skippedTask.cardId, 0, true);
+                    }
+                    break;
+                } else {
+                    // 若关闭了异常阻断，则跳过当前报错任务，继续执行队列里的下一个任务
+                    continue;
                 }
-                break;
             }
         }
     };
@@ -413,7 +422,10 @@ export function setupAPIInjector(app) {
                                         filename: media.filename,
                                         subfolder: media.subfolder || "",
                                         asset_type: asset_type,
-                                        source_type: media.type
+                                        source_type: media.type,
+                                        archive_dir: window._clabArchiveDir || "CLab",
+                                        delete_temp: window._clabDeleteTemp === true,
+                                        file_prefix: window._clabFilePrefix || "pix"
                                     })
                                 });
                                 
@@ -447,6 +459,12 @@ export function setupAPIInjector(app) {
                                 // 如果没被别处拦截写入，那么我们主动帮它存入历史记录里，防止丢失
                                 if (!area.history.includes(newUrl)) {
                                     area.history.push(newUrl);
+                                    
+                                    // 【核心注入】：应用历史容量上限
+                                    const maxLimit = window._clabMaxHistory || 50;
+                                    while (area.history.length > maxLimit) {
+                                        area.history.shift();
+                                    }
                                 }
                             }
                         }

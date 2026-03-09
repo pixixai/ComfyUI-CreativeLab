@@ -6,9 +6,24 @@ import { state, appState, saveAndRender } from "../ui_state.js";
 import { updateSelectionUI } from "../ui_selection.js";
 import { enterBindingModeForSelected } from "../actions/action_binding.js";
 
+// 【核心新增】：快捷键解析引擎下沉至此，根据字符串动态计算修饰键和主键
+function parseShortcut(shortcutStr) {
+    if (!shortcutStr) return { key: 'c', ctrl: false, shift: false, alt: false, meta: false };
+    const parts = shortcutStr.toLowerCase().split('+').map(s => s.trim());
+    const parsed = { ctrl: false, shift: false, alt: false, meta: false, key: '' };
+    
+    parts.forEach(part => {
+        if (part === 'ctrl' || part === 'control') parsed.ctrl = true;
+        else if (part === 'shift') parsed.shift = true;
+        else if (part === 'alt' || part === 'option') parsed.alt = true;
+        else if (part === 'meta' || part === 'cmd' || part === 'win' || part === 'windows') parsed.meta = true;
+        else parsed.key = part; 
+    });
+    return parsed;
+}
+
 export function setupGlobalEvents(panelContainer, backdropContainer, togglePanelFunc, performRenderFunc) {
     
-    // 【核心新增】：全局媒体加载与失效 (404) 拦截器！统一显示媒体丢失的 UI，且加载成功时自动清除
     if (!window._clabGlobalMediaErrorHijacked) {
         const clearFallback = (target) => {
             const parent = target.parentElement;
@@ -20,20 +35,15 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
 
         window.addEventListener('error', (e) => {
             const target = e.target;
-            // 拦截所有图片、视频、音频的加载报错
             if (target && ['IMG', 'VIDEO', 'AUDIO'].includes(target.tagName)) {
                 const isPreview = target.classList && target.classList.contains('clab-preview-img');
                 const isThumb = target.closest && target.closest('.clab-history-thumb');
-                // 仅针对我们面板内的媒体生效
                 if (isPreview || isThumb) {
-                    // 【修复 1】：防止空 src 触发误判。只有当 src 看起来像是一个真实的请求路径时才处理
                     const src = target.getAttribute('src');
                     if (!src || !src.includes('filename=')) return;
 
                     target.style.display = 'none';
                     const parent = target.parentElement;
-                    // 在原地插入一个漂亮的统一丢失图标
-                    // 【修复 2】：将 background 改为不透明的深灰色 #1e1e1e，确保覆盖背后的蓝紫色渐变
                     if (parent && !parent.querySelector('.clab-media-dead-fallback')) {
                         parent.insertAdjacentHTML('beforeend', `
                             <div class="clab-media-dead-fallback" style="position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; background:#1e1e1e; color:#ff5555; z-index:10; pointer-events:none;">
@@ -44,9 +54,8 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
                     }
                 }
             }
-        }, true); // 必须设置为 true 进行捕获，因为 error 事件不会冒泡
+        }, true); 
 
-        // 如果用户执行了“同步”且文件回来了，自动清理这个报错 UI
         window.addEventListener('load', (e) => {
             if (e.target && ['IMG', 'VIDEO', 'AUDIO'].includes(e.target.tagName)) clearFallback(e.target);
         }, true);
@@ -175,7 +184,6 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
                     targetArea.historyIndex = idx;
                     targetArea.resultUrl = targetArea.history[idx];
 
-                    // 【核心修复】：彻底接入局部更新引擎，键盘切换不再闪屏重绘！
                     if (window._clabSurgicallyUpdateArea) {
                         window._clabSurgicallyUpdateArea(targetArea.id);
                         if (window._clabJustSave) window._clabJustSave();
@@ -190,7 +198,15 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
         const tag = e.target.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
         
-        if (e.key.toLowerCase() === 'c' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // 【核心修复】：动态解析快捷键配置，执行严格的修饰键全量比对
+        const sc = parseShortcut(window._clabShortcutRaw || 'C');
+        
+        if (e.key.toLowerCase() === sc.key && 
+            e.ctrlKey === sc.ctrl && 
+            e.shiftKey === sc.shift && 
+            e.altKey === sc.alt && 
+            e.metaKey === sc.meta) {
+            
             e.preventDefault();
             togglePanelFunc();
         }

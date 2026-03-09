@@ -173,11 +173,17 @@ export function setupUI() {
         }
 
         if (app.extensionManager && app.extensionManager.registerSidebarTab) {
+            // 尝试读取一下当前的快捷键，如果没有准备好则默认为 C
+            let currentShortcut = 'C';
+            try {
+                 currentShortcut = (app.extensionManager.setting.get("CLab.UI.Shortcut") || 'c').toUpperCase();
+            } catch(e) {}
+
             app.extensionManager.registerSidebarTab({
                 id: "clabSidebar",
                 icon: "pi pi-sliders-v clab-sidebar-icon", 
                 title: "CLab",
-                tooltip: "打开 CLab 主面板 (快捷键 C)",
+                tooltip: `打开 CLab 主面板 (快捷键 ${currentShortcut})`,
                 type: "custom",
                 render: (el) => {}
             });

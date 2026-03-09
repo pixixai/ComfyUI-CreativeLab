@@ -361,6 +361,9 @@ export function attachDataIOEvents(panelContainer) {
             const uniqueUrls = [...new Set(urlsToDownload)];
             if (uniqueUrls.length === 0) return alert("没有找到可下载的媒体文件！");
 
+            // 同步获取自定义的文件夹名称用于 Zip 命名
+            const archiveBase = window._clabArchiveDir || "CLab";
+
             if (uniqueUrls.length === 1) {
                 try {
                     const url = uniqueUrls[0];
@@ -386,7 +389,7 @@ export function attachDataIOEvents(panelContainer) {
                         });
                     }
                     const zip = new window.JSZip();
-                    const folder = zip.folder("CLab_Export");
+                    const folder = zip.folder(`${archiveBase}_Export`);
                     
                     for (let i = 0; i < uniqueUrls.length; i++) {
                         const url = uniqueUrls[i];
@@ -400,7 +403,7 @@ export function attachDataIOEvents(panelContainer) {
                     const zipBlob = await zip.generateAsync({ type: "blob" });
                     const zipUrl = URL.createObjectURL(zipBlob);
                     const a = document.createElement('a');
-                    a.href = zipUrl; a.download = `CLab_Media_${Date.now()}.zip`;
+                    a.href = zipUrl; a.download = `${archiveBase}_Media_${Date.now()}.zip`;
                     document.body.appendChild(a); a.click(); document.body.removeChild(a);
                     URL.revokeObjectURL(zipUrl);
                     if (typeof hideBindingToast === 'function') hideBindingToast();
@@ -526,6 +529,8 @@ export function attachDataIOEvents(panelContainer) {
             workflowName = workflowName.replace(/[\\/:"*?<>|]/g, "_").trim();
 
             const filesToProcess = [];
+            const archiveBase = window._clabArchiveDir || "CLab"; // 同步获取用户设置的归档路径
+
             state.cards.forEach((card, cardIndex) => {
                 const taskName = card.title ? card.title.replace(/[\\/:"*?<>|]/g, "_").trim() : String(cardIndex + 1);
                 let previewCount = 0;
@@ -547,7 +552,7 @@ export function attachDataIOEvents(panelContainer) {
                                         filename: filename,
                                         type: urlObj.searchParams.get('type') || "output", 
                                         subfolder: subfolder,
-                                        target_subfolder: `CLab/${workflowName}`,
+                                        target_subfolder: `${archiveBase}/${workflowName}`, // 【核心修改】：应用用户的自定义归档路径
                                         // 为历史记录添加有序后缀 (例如: _v1, _v2)，防止依赖后端容错导致排序错乱
                                         target_filename: indexSuffix ? `${taskName}_${areaName}${indexSuffix}` : `${taskName}_${areaName}`
                                     });
@@ -556,12 +561,10 @@ export function attachDataIOEvents(panelContainer) {
                         };
 
                         if (includeHistory && area.history && area.history.length > 0) {
-                            // 【新增】：循环提取整个历史数组中的所有文件
                             area.history.forEach((hUrl, idx) => {
                                 extractUrl(hUrl, `_v${idx + 1}`);
                             });
                         } else if (area.resultUrl) {
-                            // 仅提取当前显示的封面文件
                             extractUrl(area.resultUrl, "");
                         }
                     }
@@ -579,7 +582,6 @@ export function attachDataIOEvents(panelContainer) {
                         res.results.forEach(r => {
                             state.cards.forEach(c => c.areas?.forEach(a => {
                                 if (a.id === r.old_id) {
-                                    // 【核心修复】：更新 resultUrl 前，必须严格检查原文件名是否匹配，防止在 includeHistory=true 时被后续历史记录强行覆盖
                                     if (a.resultUrl) {
                                         try {
                                             const urlObj = new URL(a.resultUrl, window.location.origin);
@@ -609,7 +611,6 @@ export function attachDataIOEvents(panelContainer) {
                             }));
                         });
                         
-                        // 全部走微创定点更新，绝对不闪屏！
                         if (affectedAreaIds.length > 0) {
                             affectedAreaIds.forEach(id => {
                                 if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(id);
@@ -617,14 +618,13 @@ export function attachDataIOEvents(panelContainer) {
                             if (window._clabJustSave) window._clabJustSave(); else saveAndRender();
                         }
                     }
-                    alert(`✅ 成功${action === 'move' ? '移动' : '复制'}并重命名了 ${res.results.length} 个文件到 ${workflowName} 文件夹！`);
+                    alert(`✅ 成功${action === 'move' ? '移动' : '复制'}并重命名了 ${res.results.length} 个文件到 ${archiveBase}/${workflowName} 文件夹！`);
                 } else alert("❌ 操作失败: " + (res.error || "未知错误"));
             } catch (err) { alert("❌ 请求后端接口失败。\n" + err.message); }
         };
 
         exportWrapper.querySelector("#clab-export-org-move").onclick = (e) => { e.stopPropagation(); organizeOutputFiles('move', false); };
         exportWrapper.querySelector("#clab-export-org-copy").onclick = (e) => { e.stopPropagation(); organizeOutputFiles('copy', false); };
-        // 【新增】：绑定历史记录归档功能
         exportWrapper.querySelector("#clab-export-org-move-history").onclick = (e) => { e.stopPropagation(); organizeOutputFiles('move', true); };
         exportWrapper.querySelector("#clab-export-org-copy-history").onclick = (e) => { e.stopPropagation(); organizeOutputFiles('copy', true); };
     }

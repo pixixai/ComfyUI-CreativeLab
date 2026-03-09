@@ -155,8 +155,11 @@ export function generateInputHTML(area, card) {
                     ${fallbackHtml}
                 `;
             } else if (uploadType === 'video') {
+                const autoplayAttr = window._clabVideoAutoplay !== false ? 'autoplay' : '';
+                const mutedAttr = window._clabVideoMuted !== false ? 'muted' : '';
+                
                 previewHtml = `
-                    <video src="${fileUrl}" draggable="false" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; display: block;" autoplay loop muted onerror="this.style.display='none'; const fb=this.parentElement.querySelector('.clab-upload-fallback'); if(fb) fb.style.display='flex';"></video>
+                    <video src="${fileUrl}" draggable="false" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; display: block;" ${autoplayAttr} loop ${mutedAttr} onerror="this.style.display='none'; const fb=this.parentElement.querySelector('.clab-upload-fallback'); if(fb) fb.style.display='flex';"></video>
                     ${fallbackHtml}
                 `;
             } else if (uploadType === 'audio') {

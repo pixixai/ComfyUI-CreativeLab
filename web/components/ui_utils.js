@@ -3,7 +3,7 @@
  * 职责: UI 渲染辅助工具、ComfyUI 图谱解析、CSS 样式库
  */
 import { app } from "../../../scripts/app.js";
-import { appState } from "./ui_state.js"; // 【补丁】：引入 appState 记录点击锚点
+import { appState } from "./ui_state.js"; 
 
 // =========================================================================
 // --- DOM 辅助构建方法 ---
@@ -176,7 +176,7 @@ export function showBindingToast(msg, isError = false) {
         document.body.appendChild(toast);
     }
     
-    const bgColor = isError ? "rgba(244, 67, 54, 0.95)" : "rgba(76, 175, 80, 0.95)";
+    const bgColor = isError ? "rgba(244, 67, 54, 0.95)" : "var(--clab-theme-card, rgba(76, 175, 80, 0.95))";
     
     toast.style.cssText = `
         position: fixed; top: 30px; left: 50%; transform: translateX(-50%);
@@ -302,7 +302,6 @@ export function bindComboSelectEvents(container, stateObj, saveAndRenderCallback
                     stateObj.selectedCardIds = [];
                     appState.lastClickedAreaId = areaId;
                     
-                    // 【核心修复】：优先使用局部更新，让视频绝对不闪烁
                     if (window._clabSurgicallyUpdateArea) {
                         window._clabSurgicallyUpdateArea(areaId);
                         if (window._clabJustSave) window._clabJustSave();
@@ -323,11 +322,12 @@ export function injectDnDCSS() {
     if (!document.getElementById('clab-area-dnd-styles')) {
         const style = document.createElement('style');
         style.id = 'clab-area-dnd-styles';
+        // 【主题引擎】：拖拽样式实时关联 CSS 变量
         style.innerHTML = `
-            .clab-drag-over-area-top { border-top: 3px solid #4CAF50 !important; background: rgba(76, 175, 80, 0.1) !important; }
-            .clab-drag-over-area-bottom { border-bottom: 3px solid #4CAF50 !important; background: rgba(76, 175, 80, 0.1) !important; }
-            .clab-drag-over-thumb-left { border-left: 3px solid #4CAF50 !important; border-radius: 0 !important; }
-            .clab-drag-over-thumb-right { border-right: 3px solid #4CAF50 !important; border-radius: 0 !important; }
+            .clab-drag-over-area-top { border-top: 3px solid var(--clab-theme-card, #4CAF50) !important; background: var(--clab-theme-card-hover, rgba(76, 175, 80, 0.1)) !important; }
+            .clab-drag-over-area-bottom { border-bottom: 3px solid var(--clab-theme-card, #4CAF50) !important; background: var(--clab-theme-card-hover, rgba(76, 175, 80, 0.1)) !important; }
+            .clab-drag-over-thumb-left { border-left: 3px solid var(--clab-theme-card, #4CAF50) !important; border-radius: 0 !important; }
+            .clab-drag-over-thumb-right { border-right: 3px solid var(--clab-theme-card, #4CAF50) !important; border-radius: 0 !important; }
             .clab-history-thumb:hover .clab-thumb-delete { display: flex !important; }
             .clab-thumb-delete:hover { transform: scale(1.15); background: #ff5555 !important; color: #fff !important; }
             .clab-history-thumb:active { cursor: grabbing !important; opacity: 0.8; }
@@ -338,6 +338,7 @@ export function injectDnDCSS() {
 
 export function injectCSS() {
     const style = document.createElement("style");
+    // 【主题引擎】：全面抛弃硬编码颜色，全线启用 CSS 变量！
     style.innerHTML = `
         #clab-backdrop {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -398,12 +399,18 @@ export function injectCSS() {
         .clab-cards-container::-webkit-scrollbar-track, .clab-card-body::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
         
         .clab-card {
-            background: rgba(0, 0, 0, 0.3); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 8px; 
-            padding: 15px 15px 5px 15px; transition: border-color 0.2s, box-shadow 0.2s;
+            background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; 
+            padding: 15px 15px 5px 15px; transition: border-color 0.2s, border-width 0.2s, box-shadow 0.2s, background 0.2s;
             flex: 0 0 340px; display: flex; flex-direction: column;
             max-height: 100%; overflow: hidden; position: relative;
         }
-        .clab-card.active { border-color: #4CAF50; box-shadow: 0 0 15px rgba(76, 175, 80, 0.3); background: rgba(76, 175, 80, 0.08); }
+        .clab-card.active { 
+            border-color: var(--clab-theme-card, #4CAF50) !important;
+            border-width: var(--clab-theme-card-border, 2px) !important;
+            border-style: solid !important;
+            box-shadow: 0 0 var(--clab-theme-card-glow, 15px) var(--clab-theme-card-alpha, rgba(76, 175, 80, 0.3)); 
+            background: var(--clab-theme-card-bg, rgba(76, 175, 80, 0.08)); 
+        }
         
         .clab-card-body {
             flex: 1; overflow-y: auto; overflow-x: hidden; padding-right: 5px; padding-bottom: 10px;
@@ -436,11 +443,17 @@ export function injectCSS() {
         
         .clab-area { 
             background: rgba(255, 255, 255, 0.05); border: 1px dashed rgba(255, 255, 255, 0.2); 
-            border-radius: 6px; font-size: 12px; position: relative; cursor: grab; transition: border-color 0.2s;
+            border-radius: 6px; font-size: 12px; position: relative; cursor: grab; transition: border-color 0.2s, border-width 0.2s, box-shadow 0.2s, background 0.2s;
             flex-shrink: 0; overflow: hidden;
         }
         .clab-area:active { cursor: grabbing; }
-        .clab-area.active { border: 1px solid #2196F3; box-shadow: 0 0 10px rgba(33, 150, 243, 0.4); background: rgba(33, 150, 243, 0.05); }
+        .clab-area.active { 
+            border-color: var(--clab-theme-module, #2196F3) !important;
+            border-width: var(--clab-theme-module-border, 1px) !important;
+            border-style: solid !important;
+            box-shadow: 0 0 var(--clab-theme-module-glow, 10px) var(--clab-theme-module-alpha, rgba(33, 150, 243, 0.4)); 
+            background: var(--clab-theme-module-bg, rgba(33, 150, 243, 0.05)); 
+        }
 
         .clab-input { 
             width: 100%; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555; 
@@ -481,8 +494,8 @@ export function injectCSS() {
             padding: 6px 12px; font-size: 12px; color: #eee; cursor: pointer;
             transition: background 0.1s; white-space: nowrap;
         }
-        .clab-custom-select-item:hover { background: #4CAF50; color: #fff; }
-        .clab-custom-select-item.selected { color: #4CAF50; font-weight: bold; }
+        .clab-custom-select-item:hover { background: var(--clab-theme-card, #4CAF50); color: #fff; }
+        .clab-custom-select-item.selected { color: var(--clab-theme-card, #4CAF50); font-weight: bold; }
         .clab-custom-select-group-title {
             padding: 4px 12px; font-size: 10px; color: #aaa; font-weight: bold;
             background: rgba(255,255,255,0.05); margin-top: 4px; pointer-events: none;
@@ -509,10 +522,10 @@ export function injectCSS() {
             100% { opacity: 0.7; }
         }
 
-        .clab-dragging { opacity: 0.5; border-color: #4CAF50 !important; }
-        .clab-drag-over { border-top: 3px solid #4CAF50 !important; background: rgba(76, 175, 80, 0.1) !important;}
-        .clab-drag-over-list { background: rgba(76, 175, 80, 0.1) !important; border-radius: 8px; border: 2px dashed #4CAF50 !important; box-sizing: border-box;}
-        .clab-drag-over-card { border-left: 3px solid #4CAF50 !important; }
+        .clab-dragging { opacity: 0.5; border-color: var(--clab-theme-card, #4CAF50) !important; }
+        .clab-drag-over { border-top: 3px solid var(--clab-theme-card, #4CAF50) !important; background: var(--clab-theme-card-hover, rgba(76, 175, 80, 0.1)) !important;}
+        .clab-drag-over-list { background: var(--clab-theme-card-hover, rgba(76, 175, 80, 0.1)) !important; border-radius: 8px; border: 2px dashed var(--clab-theme-card, #4CAF50) !important; box-sizing: border-box;}
+        .clab-drag-over-card { border-left: 3px solid var(--clab-theme-card, #4CAF50) !important; }
 
         /* ========================================================================= */
         /* --- 右键菜单样式 (Context Menu) --- */
@@ -549,7 +562,7 @@ export function injectCSS() {
             display: flex;
             align-items: center;
         }
-        .clab-context-menu-item:hover { background: #2196F3; color: #fff; }
+        .clab-context-menu-item:hover { background: var(--clab-theme-module, #2196F3); color: #fff; }
         .clab-context-menu-item.clab-danger { color: #ff6b6b; }
         .clab-context-menu-item.clab-danger:hover { background: #f44336; color: #fff; }
         .clab-context-menu-divider {

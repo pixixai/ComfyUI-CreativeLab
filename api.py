@@ -171,6 +171,18 @@ async def clab_copy_temp_asset(request):
         # 【核心修复】：兼容前端传 type 还是 source_type。找不到 source_type 时回退到 type，彻底解决截胡报 404 错误
         source_type = data.get("source_type", data.get("type", "temp")) 
         
+        archive_dir = data.get("archive_dir", "CLab")
+        archive_dir = "".join(c for c in archive_dir if c.isalnum() or c in (' ', '.', '_', '-')).strip()
+        if not archive_dir:
+            archive_dir = "CLab"
+            
+        # 【新增】：接收并过滤自定义前缀和删除临时文件的开关
+        delete_temp = data.get("delete_temp", False)
+        file_prefix = data.get("file_prefix", "pix")
+        file_prefix = "".join(c for c in file_prefix if c.isalnum() or c in ('_', '-')).strip()
+        if not file_prefix:
+            file_prefix = "pix"
+        
         # 根据文件来源获取基础目录
         if source_type == "output":
             source_base_dir = folder_paths.get_output_directory()
@@ -187,12 +199,12 @@ async def clab_copy_temp_asset(request):
         if not os.path.exists(source_path):
             return web.json_response({"status": "error", "error": f"源文件不存在: {source_path}"})
 
-        # 确定目标目录 
+        # 确定目标目录 (应用自定义的文件夹名称)
         target_base_dir = folder_paths.get_output_directory()
         if asset_type == "image":
-            target_subfolder = "CLab"
+            target_subfolder = archive_dir
         else:
-            target_subfolder = f"CLab/{asset_type}"
+            target_subfolder = f"{archive_dir}/{asset_type}"
             
         target_dir = os.path.normpath(os.path.join(target_base_dir, target_subfolder))
         os.makedirs(target_dir, exist_ok=True)
@@ -200,19 +212,23 @@ async def clab_copy_temp_asset(request):
         # 提取扩展名
         ext = os.path.splitext(filename)[1]
         
-        # 【核心修改】：自动重命名逻辑修改为两位数 (例如: pix_01.mp4)
+        # 【核心修改】：应用用户设置的文件名前缀
         counter = 1
-        new_filename = f"pix_{counter:02}{ext}"
+        new_filename = f"{file_prefix}_{counter:02}{ext}"
         target_path = os.path.normpath(os.path.join(target_dir, new_filename))
         
         while os.path.exists(target_path):
             counter += 1
-            new_filename = f"pix_{counter:02}{ext}"
+            new_filename = f"{file_prefix}_{counter:02}{ext}"
             target_path = os.path.normpath(os.path.join(target_dir, new_filename))
             
-        # 执行复制操作 (保留原始文件，避免干涉其他正常节点逻辑)
-        shutil.copy2(source_path, target_path)
-        print(f"[CLab] 🎯 成功截胡资产: {filename} -> {target_subfolder}/{new_filename}")
+        # 【核心新增】：若用户开启清理缓存，且当前确实是 temp 文件，使用 move 斩草除根
+        if delete_temp and source_type == "temp":
+            shutil.move(source_path, target_path)
+            print(f"[CLab] 🎯 成功截胡并销毁原缓存: {filename} -> {target_subfolder}/{new_filename}")
+        else:
+            shutil.copy2(source_path, target_path)
+            print(f"[CLab] 🎯 成功截胡资产: {filename} -> {target_subfolder}/{new_filename}")
         
         return web.json_response({
             "status": "success", 
