@@ -1,7 +1,7 @@
 /**
  * 文件名: clab_settings.js
  * 职责: 注册与管理 CLab 插件在 ComfyUI 原生设置面板中的各项配置
- * 注意: ComfyUI 的设置项渲染逻辑是先进后出 (LIFO)，即在数组中越靠前，显示越靠下。
+ * 注意: ComfyUI 的设置项渲染逻辑是先进后出 (LIFO)，即在数组中越靠前，显示在 UI 上就越靠下。
  */
 import { app } from "../../scripts/app.js";
 
@@ -29,9 +29,9 @@ window._clabBgOpacity = 45;
 window._clabMaxHistory = 50;
 window._clabVideoAutoplay = true;
 window._clabVideoMuted = true;
-window._clabThumbPerfMode = false;
+window._clabThumbPerfMode = false; // 默认关闭高性能缩略图模式
 window._clabArchiveDir = 'CLab'; 
-window._clabDeleteTemp = false; // 内部变量仍叫 DeleteTemp，受外部 KeepTemp 控制
+window._clabDeleteTemp = false; 
 window._clabFilePrefix = 'pix';
 window._clabHaltOnError = true; 
 
@@ -82,58 +82,58 @@ window._clabApplyTheme = function() {
     root.style.setProperty('--clab-theme-module-glow', `${window._clabThemeModuleGlow}px`);
 };
 
-// LIFO 倒序数组：代码越靠前，UI 越靠下
+// LIFO 倒序数组：代码越靠前，UI 界面显示越靠下
 const clabSettings = [
     
     // =========================================================================
-    // 6. 模块选中态外观 (Module Appearance) - 最底部
+    // 6. 模块选中态外观 (Module Appearance) - 显示在最底部
     // =========================================================================
     {
-        id: "CLab.ModuleApp.Glow",
-        name: "发光强度 (Module Neon Glow)",
+        id: "CLab.6-ModuleApp.Glow",
+        name: "Neon Glow",
         type: "slider",
         defaultValue: 10,
         attrs: { min: 0, max: 30, step: 1 },
-        category: ["Creative Lab", "模块选中态外观", "Glow"],
-        tooltip: "模块被选中时的外发光模糊半径，设为 0 关闭发光。",
+        category: ["Creative Lab", "6-ModuleApp", "Glow"],
+        tooltip: "Outer glow blur radius when a module is selected. Set to 0 to disable.",
         onChange: (newVal) => {
             window._clabThemeModuleGlow = newVal;
             if (window._clabApplyTheme) window._clabApplyTheme();
         }
     },
     {
-        id: "CLab.ModuleApp.Fill",
-        name: "填充透明度 (Module Fill Opacity %)",
+        id: "CLab.6-ModuleApp.Fill",
+        name: "Fill Opacity (%)",
         type: "slider",
         defaultValue: 5,
         attrs: { min: 0, max: 100, step: 1 },
-        category: ["Creative Lab", "模块选中态外观", "Fill"],
-        tooltip: "模块被选中时内部高亮底色的浓度 (0 为完全透明)。",
+        category: ["Creative Lab", "6-ModuleApp", "Fill"],
+        tooltip: "Opacity of the highlight background when a module is selected (0 is fully transparent).",
         onChange: (newVal) => {
             window._clabThemeModuleFill = newVal;
             if (window._clabApplyTheme) window._clabApplyTheme();
         }
     },
     {
-        id: "CLab.ModuleApp.Border",
-        name: "描边粗细 (Module Border Width px)",
+        id: "CLab.6-ModuleApp.Border",
+        name: "Border Width (px)",
         type: "slider",
         defaultValue: 1,
         attrs: { min: 1, max: 4, step: 1 },
-        category: ["Creative Lab", "模块选中态外观", "Border"],
-        tooltip: "模块被选中时边界的线框厚度。",
+        category: ["Creative Lab", "6-ModuleApp", "Border"],
+        tooltip: "Border thickness when a module is selected.",
         onChange: (newVal) => {
             window._clabThemeModuleBorder = newVal;
             if (window._clabApplyTheme) window._clabApplyTheme();
         }
     },
     {
-        id: "CLab.ModuleApp.Color",
-        name: "高亮主题色 (Module Highlight Color)",
+        id: "CLab.6-ModuleApp.Color",
+        name: "Highlight Color",
         type: "color",
         defaultValue: "2196f3",
-        category: ["Creative Lab", "模块选中态外观", "Color"],
-        tooltip: "模块（输入/输出区）被点击选中时的主要区分色。默认: #2196F3 (亮蓝)",
+        category: ["Creative Lab", "6-ModuleApp", "Color"],
+        tooltip: "Primary color when a module (input/output area) is selected. Default: #2196F3 (Light Blue).",
         onChange: (newVal) => {
             window._clabThemeModuleColor = newVal;
             if (window._clabApplyTheme) window._clabApplyTheme();
@@ -144,51 +144,51 @@ const clabSettings = [
     // 5. 任务卡片选中态外观 (Card Appearance)
     // =========================================================================
     {
-        id: "CLab.CardApp.Glow",
-        name: "发光强度 (Card Neon Glow)",
+        id: "CLab.5-CardApp.Glow",
+        name: "Neon Glow",
         type: "slider",
         defaultValue: 15,
         attrs: { min: 0, max: 50, step: 1 },
-        category: ["Creative Lab", "任务卡片选中态外观", "Glow"],
-        tooltip: "任务卡片被选中时的外围光晕半径，拉满呈现赛博朋克风。",
+        category: ["Creative Lab", "5-CardApp", "Glow"],
+        tooltip: "Outer glow radius when a card is selected. Max out for cyberpunk style.",
         onChange: (newVal) => {
             window._clabThemeCardGlow = newVal;
             if (window._clabApplyTheme) window._clabApplyTheme();
         }
     },
     {
-        id: "CLab.CardApp.Fill",
-        name: "填充透明度 (Card Fill Opacity %)",
+        id: "CLab.5-CardApp.Fill",
+        name: "Fill Opacity (%)",
         type: "slider",
         defaultValue: 8,
         attrs: { min: 0, max: 100, step: 1 },
-        category: ["Creative Lab", "任务卡片选中态外观", "Fill"],
-        tooltip: "任务卡片被选中时内部高亮底色的浓度。",
+        category: ["Creative Lab", "5-CardApp", "Fill"],
+        tooltip: "Opacity of the highlight background when a card is selected.",
         onChange: (newVal) => {
             window._clabThemeCardFill = newVal;
             if (window._clabApplyTheme) window._clabApplyTheme();
         }
     },
     {
-        id: "CLab.CardApp.Border",
-        name: "描边粗细 (Card Border Width px)",
+        id: "CLab.5-CardApp.Border",
+        name: "Border Width (px)",
         type: "slider",
         defaultValue: 2,
         attrs: { min: 1, max: 6, step: 1 },
-        category: ["Creative Lab", "任务卡片选中态外观", "Border"],
-        tooltip: "任务卡片处于选中激活状态时的边框厚度。",
+        category: ["Creative Lab", "5-CardApp", "Border"],
+        tooltip: "Border thickness when a card is active.",
         onChange: (newVal) => {
             window._clabThemeCardBorder = newVal;
             if (window._clabApplyTheme) window._clabApplyTheme();
         }
     },
     {
-        id: "CLab.CardApp.Color",
-        name: "高亮主题色 (Card Highlight Color)",
+        id: "CLab.5-CardApp.Color",
+        name: "Highlight Color",
         type: "color",
         defaultValue: "4caf50",
-        category: ["Creative Lab", "任务卡片选中态外观", "Color"],
-        tooltip: "任务卡片被点击选中时的主题色及底部运行进度条颜色。默认: #4CAF50 (护眼绿)",
+        category: ["Creative Lab", "5-CardApp", "Color"],
+        tooltip: "Theme color and progress bar color when a card is selected. Default: #4CAF50 (Green).",
         onChange: (newVal) => {
             window._clabThemeCardColor = newVal;
             if (window._clabApplyTheme) window._clabApplyTheme();
@@ -199,12 +199,12 @@ const clabSettings = [
     // 4. 自动化行为 (Automation)
     // =========================================================================
     {
-        id: "CLab.Auto.HaltOnError",
-        name: "连续运行异常阻断 (Halt Batch on Error)",
+        id: "CLab.4-Automation.HaltOnError",
+        name: "Halt Batch on Error",
         type: "boolean",
         defaultValue: true,
-        category: ["Creative Lab", "自动化行为", "Halt"],
-        tooltip: "开启时，任一任务报错将立即清空所有排队任务。关闭后，系统会跳过错误任务继续执行后续生成。",
+        category: ["Creative Lab", "4-Automation", "Halt"],
+        tooltip: "When enabled, any error will clear the queue. When disabled, skips the errored task and continues.",
         onChange: (newVal) => { window._clabHaltOnError = newVal; }
     },
 
@@ -212,34 +212,34 @@ const clabSettings = [
     // 3. 文件与数据流转 (File & Data I/O)
     // =========================================================================
     {
-        id: "CLab.File.Prefix",
-        name: "生成文件名前缀 (Filename Prefix)",
+        id: "CLab.3-FileIO.Prefix",
+        name: "Filename Prefix",
         type: "text",
         defaultValue: "pix",
-        category: ["Creative Lab", "文件与数据流转", "Prefix"],
-        tooltip: "自定义截胡保存时的文件名前缀，默认是 pix (例如 pix_01.png)。",
+        category: ["Creative Lab", "3-FileIO", "Prefix"],
+        tooltip: "Custom filename prefix when intercepting and saving. Default: pix (e.g., pix_01.png).",
         onChange: (newVal) => {
             window._clabFilePrefix = (newVal || "").replace(/[\\/:"*?<>| ]/g, "").trim() || "pix";
         }
     },
     {
-        id: "CLab.File.KeepTemp",
-        name: "截胡时是否保留原临时文件 (Keep Original Temp Files)",
+        id: "CLab.3-FileIO.KeepTemp",
+        name: "Keep Original Temp Files",
         type: "boolean",
         defaultValue: true,
-        category: ["Creative Lab", "文件与数据流转", "KeepTemp"],
-        tooltip: "关闭此项后，在把临时文件转移进专属归档目录的同时，会彻底删除原临时文件以节省硬盘空间。",
+        category: ["Creative Lab", "3-FileIO", "KeepTemp"],
+        tooltip: "When disabled, original temp files will be completely deleted when moving them to the archive folder.",
         onChange: (newVal) => { 
-            window._clabDeleteTemp = !newVal; // 选中为保留，未选中则删除
+            window._clabDeleteTemp = !newVal; 
         }
     },
     {
-        id: "CLab.File.ArchiveDir",
-        name: "归档文件夹名称 (Archive Folder Name)",
+        id: "CLab.3-FileIO.ArchiveDir",
+        name: "Archive Folder Name",
         type: "text",
         defaultValue: "CLab",
-        category: ["Creative Lab", "文件与数据流转", "ArchiveDir"],
-        tooltip: "面板自动截胡媒体和整理文件的归档根目录。请不要包含斜杠等非法路径字符。",
+        category: ["Creative Lab", "3-FileIO", "ArchiveDir"],
+        tooltip: "Root folder name for auto-intercepted media and organized files. No slashes or illegal characters.",
         onChange: (newVal) => {
             window._clabArchiveDir = (newVal || "").replace(/[\\/:"*?<>|]/g, "").trim() || "CLab";
         }
@@ -249,54 +249,54 @@ const clabSettings = [
     // 2. 性能与媒体播放 (Performance & Media)
     // =========================================================================
     {
-        id: "CLab.Media.ThumbMode",
-        name: "高性能缩略图模式 (Thumb Performance Mode)",
+        id: "CLab.2-PerformanceMedia.ThumbMode",
+        name: "Thumb Performance Mode",
         type: "boolean",
         defaultValue: false,
-        category: ["Creative Lab", "性能与媒体播放", "ThumbMode"],
-        tooltip: "开启时，网格历史记录中的视频仅加载首帧，极大节省内存。关闭后，网格中的所有视频都会自动静音循环播放 (适合高配机器)。",
+        category: ["Creative Lab", "2-PerformanceMedia", "ThumbMode"],
+        tooltip: "When enabled, loads only the first frame of videos in the grid history to save memory. When disabled, loops videos silently.",
         onChange: (newVal) => { window._clabThumbPerfMode = newVal; }
     },
     {
-        id: "CLab.Media.Muted",
-        name: "视频默认静音 (Video Default Muted)",
+        id: "CLab.2-PerformanceMedia.Muted",
+        name: "Video Default Muted",
         type: "boolean",
         defaultValue: true,
-        category: ["Creative Lab", "性能与媒体播放", "Muted"],
-        tooltip: "开启后，所有主视频加载时默认静音。注意：如果关闭静音且同时开启自动播放，部分浏览器由于安全政策可能会拦截播放。",
+        category: ["Creative Lab", "2-PerformanceMedia", "Muted"],
+        tooltip: "When enabled, auto-mutes main videos on load. Note: browsers may block autoplay if not muted.",
         onChange: (newVal) => { window._clabVideoMuted = newVal; }
     },
     {
-        id: "CLab.Media.Autoplay",
-        name: "自动播放视频 (Video Autoplay)",
+        id: "CLab.2-PerformanceMedia.Autoplay",
+        name: "Video Autoplay",
         type: "boolean",
         defaultValue: true,
-        category: ["Creative Lab", "性能与媒体播放", "Autoplay"],
-        tooltip: "关闭时，主视频生成后仅显示首帧，点击画面才开始播放（可大幅节省多卡片并行生成时的 GPU 解码压力）。",
+        category: ["Creative Lab", "2-PerformanceMedia", "Autoplay"],
+        tooltip: "When disabled, main videos only show the first frame and play on click (saves GPU decoding).",
         onChange: (newVal) => { window._clabVideoAutoplay = newVal; }
     },
     {
-        id: "CLab.Media.MaxHistory",
-        name: "历史记录容量上限 (Max History Records)",
+        id: "CLab.2-PerformanceMedia.MaxHistory",
+        name: "Max History Records",
         type: "number",
         defaultValue: 50,
         attrs: { showButtons: true, min: 1, max: 1000, step: 1 },
-        category: ["Creative Lab", "性能与媒体播放", "MaxHistory"],
-        tooltip: "限制单个输出模块最多保存多少条生成记录，超出后会自动剔除最旧的记录以防止内存溢出。",
+        category: ["Creative Lab", "2-PerformanceMedia", "MaxHistory"],
+        tooltip: "Maximum number of history records per output module. Older records are automatically removed to prevent OOM.",
         onChange: (newVal) => { window._clabMaxHistory = newVal || 50; }
     },
 
     // =========================================================================
-    // 1. 常规 (General) - 最顶部
+    // 1. 常规 (General) - 显示在最顶部 (由于 LIFO 机制，倒序排列)
     // =========================================================================
     {
-        id: "CLab.General.BgOpacity",
-        name: "面板背景不透明度 (Panel Opacity %)",
+        id: "CLab.1-General.BgOpacity",
+        name: "Panel Opacity (%)",
         type: "slider",
         defaultValue: 45,
         attrs: { min: 0, max: 100, step: 5 },
-        category: ["Creative Lab", "常规", "BgOpacity"],
-        tooltip: "调节主面板背景的通透度 (0 = 全透，100 = 纯色)。",
+        category: ["Creative Lab", "1-General", "BgOpacity"],
+        tooltip: "Main panel background opacity (0 = fully transparent, 100 = solid color).",
         onChange: (newVal) => {
             window._clabBgOpacity = newVal;
             const panel = document.getElementById('clab-panel');
@@ -304,12 +304,12 @@ const clabSettings = [
         }
     },
     {
-        id: "CLab.General.BackdropBlur",
-        name: "启用背景毛玻璃效果 (Backdrop Blur)",
+        id: "CLab.1-General.BackdropBlur",
+        name: "Backdrop Blur",
         type: "boolean",
         defaultValue: true,
-        category: ["Creative Lab", "常规", "BackdropBlur"],
-        tooltip: "开启后增加高级感，但在低端显卡上可能会导致面板拖动掉帧。",
+        category: ["Creative Lab", "1-General", "BackdropBlur"],
+        tooltip: "Enables frosted glass effect behind the panel. May cause lag on low-end GPUs.",
         onChange: (newVal) => {
             window._clabBgBlur = newVal;
             const panel = document.getElementById('clab-panel');
@@ -320,51 +320,49 @@ const clabSettings = [
         }
     },
     {
-        id: "CLab.General.Shortcut",
-        name: "快捷键 (Panel Shortcut)",
+        id: "CLab.1-General.Shortcut",
+        name: "Panel Shortcut",
         type: "text",
         defaultValue: "C",
-        category: ["Creative Lab", "常规", "Shortcut"],
-        tooltip: "支持组合键，例如: C, Shift+C, Ctrl+M, Alt+X (不区分大小写)",
-        attrs: { placeholder: "例如: Shift+C" },
+        category: ["Creative Lab", "1-General", "Shortcut"],
+        tooltip: "Shortcut to toggle the panel (e.g., C, Shift+C, Ctrl+M, Alt+X). Case insensitive.",
+        attrs: { placeholder: "e.g.: Shift+C" },
         onChange: (newVal) => {
             const raw = newVal ? newVal.trim() : 'C';
             window._clabShortcutRaw = raw;
             window._clabShortcutParsed = parseShortcut(raw);
             const tabBtn = document.querySelector('[title*="打开 CLab 主面板"]');
-            if (tabBtn) tabBtn.title = `打开 CLab 主面板 (快捷键 ${raw.toUpperCase()})`;
+            if (tabBtn) tabBtn.title = `Open CLab Panel (Shortcut: ${raw.toUpperCase()})`;
         }
     }
 ];
 
-// 核心重置按钮引擎 (置于数组末尾，在 UI 中显示于最顶端)
+// 【核心恢复按钮引擎】: 使用独立的变量注册，通过 LIFO 机制使其在 UI 层面始终占据“常规”分组的最顶端！
 const resetSetting = {
-    id: "CLab.General.ResetAll",
-    name: "恢复全部默认设置 (Restore All Defaults)",
+    id: "CLab.1-General.ResetAll",
+    name: "Restore All Defaults",
     type: "boolean",
     defaultValue: false,
-    category: ["Creative Lab", "常规", "ResetAll"], 
-    tooltip: "⚠️ 警告：点击此开关将立即重置 CLab 的所有设置为出厂默认状态。",
+    category: ["Creative Lab", "1-General", "ResetAll"], 
+    tooltip: "⚠️ WARNING: Click to RESET all CLab settings to their factory defaults.",
     onChange: async (newVal) => {
         if (newVal === true) {
-            const confirmed = confirm("您确定要将 Creative Lab 的所有设置恢复为默认值吗？此操作不可撤销。");
+            const confirmed = confirm("Are you sure you want to reset all Creative Lab settings to default? This cannot be undone.");
 
             if (confirmed) {
-                // 遍历内部数组，将除了自身之外的所有设置恢复为 default
                 for (const setting of clabSettings) {
                     try {
                         if (setting.id && setting.defaultValue !== undefined) {
                             await app.extensionManager.setting.set(setting.id, setting.defaultValue);
                         }
                     } catch (e) {
-                        console.error(`[CLab] 恢复默认设置失败: ${setting.id}`, e);
+                        console.error(`[CLab] Failed to reset default settings: ${setting.id}`, e);
                     }
                 }
             }
-
-            // 执行完毕后，自动把复选框拨回 false 状态
+            
             setTimeout(() => {
-                app.extensionManager.setting.set("CLab.General.ResetAll", false);
+                app.extensionManager.setting.set("CLab.1-General.ResetAll", false);
             }, 100);
         }
     }
@@ -382,36 +380,39 @@ app.registerExtension({
                     return val !== undefined && val !== null ? val : defaultVal;
                 };
 
-                // 读取设置并应用至全局变量
-                const shortcut = getSet("CLab.General.Shortcut", "C");
+                // 读取常规设置
+                const shortcut = getSet("CLab.1-General.Shortcut", "C");
                 window._clabShortcutRaw = shortcut.trim();
                 window._clabShortcutParsed = parseShortcut(window._clabShortcutRaw);
 
-                window._clabBgOpacity = getSet("CLab.General.BgOpacity", 45);
-                window._clabBgBlur = getSet("CLab.General.BackdropBlur", true);
+                window._clabBgOpacity = getSet("CLab.1-General.BgOpacity", 45);
+                window._clabBgBlur = getSet("CLab.1-General.BackdropBlur", true);
                 
-                window._clabMaxHistory = getSet("CLab.Media.MaxHistory", 50);
-                window._clabVideoAutoplay = getSet("CLab.Media.Autoplay", true);
-                window._clabVideoMuted = getSet("CLab.Media.Muted", true);
-                window._clabThumbPerfMode = getSet("CLab.Media.ThumbMode", false);
+                // 读取性能与媒体
+                window._clabMaxHistory = getSet("CLab.2-PerformanceMedia.MaxHistory", 50);
+                window._clabVideoAutoplay = getSet("CLab.2-PerformanceMedia.Autoplay", true);
+                window._clabVideoMuted = getSet("CLab.2-PerformanceMedia.Muted", true);
+                window._clabThumbPerfMode = getSet("CLab.2-PerformanceMedia.ThumbMode", false);
                 
-                window._clabArchiveDir = getSet("CLab.File.ArchiveDir", "CLab").replace(/[\\/:"*?<>|]/g, "").trim() || "CLab";
-                window._clabDeleteTemp = !getSet("CLab.File.KeepTemp", true); // 反转 Keep 的逻辑供核心模块使用
-                window._clabFilePrefix = getSet("CLab.File.Prefix", "pix").replace(/[\\/:"*?<>| ]/g, "").trim() || "pix";
+                // 读取文件流转
+                window._clabArchiveDir = getSet("CLab.3-FileIO.ArchiveDir", "CLab").replace(/[\\/:"*?<>|]/g, "").trim() || "CLab";
+                window._clabDeleteTemp = !getSet("CLab.3-FileIO.KeepTemp", true); 
+                window._clabFilePrefix = getSet("CLab.3-FileIO.Prefix", "pix").replace(/[\\/:"*?<>| ]/g, "").trim() || "pix";
                 
-                window._clabHaltOnError = getSet("CLab.Auto.HaltOnError", true);
+                // 读取自动化行为
+                window._clabHaltOnError = getSet("CLab.4-Automation.HaltOnError", true);
 
-                window._clabThemeCardColor = getSet("CLab.CardApp.Color", "4caf50");
-                window._clabThemeCardBorder = getSet("CLab.CardApp.Border", 2);
-                window._clabThemeCardFill = getSet("CLab.CardApp.Fill", 8);
-                window._clabThemeCardGlow = getSet("CLab.CardApp.Glow", 15);
+                // 读取主题配置
+                window._clabThemeCardColor = getSet("CLab.5-CardApp.Color", "4caf50");
+                window._clabThemeCardBorder = getSet("CLab.5-CardApp.Border", 2);
+                window._clabThemeCardFill = getSet("CLab.5-CardApp.Fill", 8);
+                window._clabThemeCardGlow = getSet("CLab.5-CardApp.Glow", 15);
 
-                window._clabThemeModuleColor = getSet("CLab.ModuleApp.Color", "2196f3");
-                window._clabThemeModuleBorder = getSet("CLab.ModuleApp.Border", 1);
-                window._clabThemeModuleFill = getSet("CLab.ModuleApp.Fill", 5);
-                window._clabThemeModuleGlow = getSet("CLab.ModuleApp.Glow", 10);
+                window._clabThemeModuleColor = getSet("CLab.6-ModuleApp.Color", "2196f3");
+                window._clabThemeModuleBorder = getSet("CLab.6-ModuleApp.Border", 1);
+                window._clabThemeModuleFill = getSet("CLab.6-ModuleApp.Fill", 5);
+                window._clabThemeModuleGlow = getSet("CLab.6-ModuleApp.Glow", 10);
 
-                // 初始化时执行一次全量主题注入
                 if (window._clabApplyTheme) window._clabApplyTheme();
 
             } catch (e) {

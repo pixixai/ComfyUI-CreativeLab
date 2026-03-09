@@ -1,0 +1,11 @@
+{
+  "settingsCategories": {
+    "Creative Lab": "创意实验室",
+    "1-General": "常规",
+    "2-PerformanceMedia": "性能与媒体播放",
+    "3-FileIO": "文件与数据流转",
+    "4-Automation": "自动化行为",
+    "5-CardApp": "任务卡片选中态外观",
+    "6-ModuleApp": "模块选中态外观"
+  }
+}

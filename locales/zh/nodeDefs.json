@@ -1,0 +1,12 @@
+{
+  "CLab_SystemConfig": {
+    "display_name": "⚓ CLab 系统配置",
+    "description": "ComfyUI-Creative Lab 全局配置节点。作为一个无连线的“数据仓库”，专用于将前端 CLab 面板的布局和参数状态保存在工作流中。",
+    "inputs": {
+      "scenes_data": {
+        "name": "面板状态数据 (JSON)",
+        "tooltip": "用于存储 CLab 侧边栏所有卡片状态的 JSON 字符串。请勿手动修改此文本框，它由前端插件自动维护和同步。"
+      }
+    }
+  }
+}
