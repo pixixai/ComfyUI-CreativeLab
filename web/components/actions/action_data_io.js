@@ -524,8 +524,21 @@ export function attachDataIOEvents(panelContainer) {
             exportDropdown.style.display = 'none';
             let workflowName = "Unsaved_Workflow";
             const configNode = app.graph._nodes.find(n => n.type === "CLab_SystemConfig");
-            if (configNode && configNode.title && configNode.title !== "⚓ CLab System Config") workflowName = configNode.title;
-            else if (app?.extensionManager?.workflow?.activeWorkflow?.filename) workflowName = app.extensionManager.workflow.activeWorkflow.filename.replace(".json", "");
+            
+            // 【核心修复】：将中英文的默认节点名称（包含各种空格变体）都加入白名单，防止多语言翻译导致误判
+            const defaultTitles = [
+                "⚓ CLab System Config", 
+                "⚓ CLab系统配置", 
+                "⚓ CLab 系统配置", 
+                "CLab_SystemConfig"
+            ];
+            
+            if (configNode && configNode.title && !defaultTitles.includes(configNode.title.trim())) {
+                workflowName = configNode.title;
+            } else if (app?.extensionManager?.workflow?.activeWorkflow?.filename) {
+                workflowName = app.extensionManager.workflow.activeWorkflow.filename.replace(".json", "");
+            }
+            
             workflowName = workflowName.replace(/[\\/:"*?<>|]/g, "_").trim();
 
             const filesToProcess = [];
