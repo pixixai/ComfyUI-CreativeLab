@@ -2,8 +2,18 @@
 
 CLab (Creative Lab) 是一个为 ComfyUI 打造的沉浸式、卡片化任务管理面板。它通过完全解耦的架构，让你在不改变底层连线的情况下，像使用专业非编软件一样管理、克隆、批处理多个任务和参数组合。
 
-https://github.com/user-attachments/assets/12404a19-1435-4021-a61f-c1b081caa302
+[![图片描述](图片本地路径)](视频文件路径)
 
+![演示视频](https://github.com/pixixai/ComfyUI-CreativeLab/releases/download/CLab-Assets/1-overview.mp4)
+
+<video 
+  src="https://github.com/pixixai/ComfyUI-CreativeLab/releases/download/CLab-Assets/1-overview.mp4" 
+  poster="images/1-overview.png" 
+  controls 
+  preload="none" 
+  width="100%" 
+  style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+</video>
 ---
 ### 🏷️ 任务卡片
 
