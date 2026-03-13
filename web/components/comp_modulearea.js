@@ -6,6 +6,7 @@ import { state, dragState, saveAndRender } from "./ui_state.js";
 import { injectDnDCSS, bindComboSelectEvents } from "./ui_utils.js";
 import { generateInputHTML, attachInputEvents } from "./modules/module_input.js";
 import { generateOutputHTML, attachOutputEvents } from "./modules/module_output.js";
+import { updateSelectionUI } from "./ui_selection.js"; // 【新增】：引入更新选中状态的 UI 方法
 
 // 【核心解耦】：仅保存状态到后台节点，拒绝触发全局刷新
 export function justSave() {
@@ -306,7 +307,7 @@ export function attachAreaEvents(container) {
                 });
             }
             
-            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.effectAllowed = 'copyMove'; // 【修改】：允许拖拽呈现为复制
             e.dataTransfer.setData('text/plain', 'area');
             
             setTimeout(() => {
@@ -324,13 +325,21 @@ export function attachAreaEvents(container) {
                 el.classList.remove('clab-drag-over-area-top', 'clab-drag-over-area-bottom');
             });
             document.querySelectorAll('.clab-drag-over-list').forEach(el => el.classList.remove('clab-drag-over-list'));
-            dragState.type = null; dragState.cardId = null; dragState.anchorAreaId = null; dragState.areaIds = null; dragState.sourceInfo = null;
+            dragState.type = null; dragState.cardId = null; dragState.anchorAreaId = null; dragState.areaIds = null; dragState.sourceInfo = null; dragState.isClone = false;
         });
 
         areaEl.addEventListener('dragover', (e) => {
             if (e.dataTransfer.types.includes('Files')) return;
-            if (dragState.type === 'area' && dragState.areaIds && !dragState.areaIds.includes(areaEl.dataset.areaId)) {
+            if (dragState.type === 'area' && dragState.areaIds) {
+                const targetAreaId = areaEl.dataset.areaId;
+                const isClone = e.altKey; // 【注入】：检测是否按下了 Alt
+
+                // 【核心突破】：如果是移动模式，禁止降落到自己身上；如果是克隆模式，则允许原地降落并克隆
+                if (dragState.areaIds.includes(targetAreaId) && !isClone) return;
+
                 e.preventDefault(); e.stopPropagation();
+                e.dataTransfer.dropEffect = isClone ? 'copy' : 'move'; // 【注入】：改变光标特效
+
                 const rect = areaEl.getBoundingClientRect();
                 const midY = rect.top + rect.height / 2;
                 if (e.clientY < midY) {
@@ -354,7 +363,7 @@ export function attachAreaEvents(container) {
             }
         });
 
-        // 降落阶段 - 【全新绝对镜像平行拖拽引擎】
+        // 降落阶段 - 【全新绝对镜像平行拖拽引擎 + 克隆分裂支持】
         areaEl.addEventListener('drop', (e) => {
             if (e.dataTransfer.types.includes('Files')) return;
             if (dragState.type === 'area' && dragState.areaIds) {
@@ -365,26 +374,36 @@ export function attachAreaEvents(container) {
                 
                 const targetCardId = areaEl.dataset.cardId;
                 const targetAreaId = areaEl.dataset.areaId;
+                const isClone = e.altKey; // 【核心注入】：判断按键！进入 Alt 克隆模式
                 
-                if (dragState.areaIds.includes(targetAreaId)) return;
+                if (dragState.areaIds.includes(targetAreaId) && !isClone) return;
                 const isSameCard = (targetCardId === dragState.cardId);
 
                 const movedAreasByCard = {};
                 const allMovedAreas = []; 
                 
-                state.cards.forEach(c => {
+                state.cards.forEach((c, cIdx) => {
                     movedAreasByCard[c.id] = [];
                     if (!c.areas) return;
                     const remainingAreas = [];
-                    c.areas.forEach(a => {
+                    c.areas.forEach((a, aIdx) => {
                         if (dragState.areaIds.includes(a.id)) {
-                            movedAreasByCard[c.id].push(a);
-                            allMovedAreas.push(a);
+                            if (isClone) {
+                                // 深度拷贝生成全新克隆体（带无损历史记录）
+                                const cloned = JSON.parse(JSON.stringify(a));
+                                cloned.id = 'area_clone_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + '_' + cIdx + '_' + aIdx;
+                                movedAreasByCard[c.id].push(cloned);
+                                allMovedAreas.push(cloned);
+                                remainingAreas.push(a); // 留下原本的数据不剔除！
+                            } else {
+                                movedAreasByCard[c.id].push(a);
+                                allMovedAreas.push(a);
+                            }
                         } else {
                             remainingAreas.push(a);
                         }
                     });
-                    c.areas = remainingAreas;
+                    if (!isClone) c.areas = remainingAreas; // 仅在移动时抽走原件
                 });
 
                 const targetCard = state.cards.find(c => c.id === targetCardId);
@@ -408,6 +427,19 @@ export function attachAreaEvents(container) {
                                 let absoluteMirrorIdx = Math.max(0, Math.min(targetIdx, c.areas.length));
                                 c.areas.splice(absoluteMirrorIdx, 0, ...moved);
                                 
+                                // 【注入】：在克隆模式下为全新元素无缝铺设 DOM
+                                if (isClone) {
+                                    const listEl = document.querySelector(`.clab-card[data-card-id="${c.id}"] .clab-area-list`);
+                                    if (listEl) {
+                                        moved.forEach(a => {
+                                            const temp = document.createElement('div');
+                                            temp.innerHTML = generateAreaHTML(a, c);
+                                            listEl.appendChild(temp.firstElementChild);
+                                        });
+                                        attachAreaEvents(listEl);
+                                    }
+                                }
+
                                 syncAreaDOMOrder(c.id, c.areas);
                                 if (window._clabUpdateAreaDOMIdentity) moved.forEach(a => window._clabUpdateAreaDOMIdentity(a.id, c.id));
                             }
@@ -416,13 +448,32 @@ export function attachAreaEvents(container) {
                         targetCard.areas.splice(targetIdx, 0, ...allMovedAreas);
                         
                         state.cards.forEach(c => {
-                            if (movedAreasByCard[c.id] && movedAreasByCard[c.id].length > 0 && c.id !== targetCardId) {
+                            if (!isClone && movedAreasByCard[c.id] && movedAreasByCard[c.id].length > 0 && c.id !== targetCardId) {
                                 syncAreaDOMOrder(c.id, c.areas);
                             }
                         });
                         
+                        // 【注入】：在跨卡片克隆模式下为全新元素无缝铺设 DOM
+                        if (isClone) {
+                            const listEl = document.querySelector(`.clab-card[data-card-id="${targetCardId}"] .clab-area-list`);
+                            if (listEl) {
+                                allMovedAreas.forEach(a => {
+                                    const temp = document.createElement('div');
+                                    temp.innerHTML = generateAreaHTML(a, targetCard);
+                                    listEl.appendChild(temp.firstElementChild);
+                                });
+                                attachAreaEvents(listEl);
+                            }
+                        }
+
                         syncAreaDOMOrder(targetCardId, targetCard.areas);
                         if (window._clabUpdateAreaDOMIdentity) allMovedAreas.forEach(a => window._clabUpdateAreaDOMIdentity(a.id, targetCardId));
+                    }
+                    
+                    // 【新增】：克隆完成后，将选中状态自动转移到新生成的所有模块上
+                    if (isClone && allMovedAreas.length > 0) {
+                        state.selectedAreaIds = allMovedAreas.map(a => a.id);
+                        updateSelectionUI();
                     }
                     
                     justSave();

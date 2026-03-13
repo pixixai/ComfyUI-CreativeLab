@@ -3,7 +3,8 @@
  * 职责: 【组件】负责“任务卡片”列表的 HTML 生成、局部物理拖拽与单点重绘
  */
 import { state, dragState, appState } from "./ui_state.js";
-import { generateAreaHTML, syncAreaDOMOrder, justSave } from "./comp_modulearea.js";
+// 【注入】：引入 attachAreaEvents 以便克隆时对新生 DOM 原地施放事件绑定魔法
+import { generateAreaHTML, syncAreaDOMOrder, justSave, attachAreaEvents } from "./comp_modulearea.js";
 import { updateSelectionUI } from "./ui_selection.js";
 
 // 【全新动态布局引擎】：同步精确计算纯卡片宽度，控制自适应居中与左对齐
@@ -187,7 +188,7 @@ export function attachCardEvents(container) {
 
             dragState.type = 'card';
             dragState.cardIds = draggedIds; 
-            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.effectAllowed = 'copyMove'; // 【修改】：允许拖拽呈现为复制
             e.dataTransfer.setData('text/plain', 'card');
             
             setTimeout(() => {
@@ -203,12 +204,15 @@ export function attachCardEvents(container) {
             document.querySelectorAll('.clab-drag-over-card-left, .clab-drag-over-card-right').forEach(el => {
                 el.classList.remove('clab-drag-over-card-left', 'clab-drag-over-card-right');
             });
-            dragState.type = null; dragState.cardIds = null; dragState.areaIds = null;
+            dragState.type = null; dragState.cardIds = null; dragState.areaIds = null; dragState.isClone = false;
         });
 
         cardEl.addEventListener('dragover', (e) => {
-            if (dragState.type === 'card' && dragState.cardIds && !dragState.cardIds.includes(cardEl.dataset.cardId)) {
+            const isClone = e.altKey; // 【注入】：检测 Alt 键复制模式
+            if (dragState.type === 'card' && dragState.cardIds && (!dragState.cardIds.includes(cardEl.dataset.cardId) || isClone)) {
                 e.preventDefault();
+                e.dataTransfer.dropEffect = isClone ? 'copy' : 'move'; // 【注入】：让光标变成克隆的加号
+
                 const rect = cardEl.getBoundingClientRect();
                 const midX = rect.left + rect.width / 2; 
                 
@@ -240,15 +244,35 @@ export function attachCardEvents(container) {
                 delete cardEl.dataset.dropPosition;
                 
                 const targetCardId = cardEl.dataset.cardId;
-                if (targetCardId && !dragState.cardIds.includes(targetCardId)) {
+                const isClone = e.altKey; // 【核心注入】：判断是否为克隆模式
+
+                if (targetCardId && (!dragState.cardIds.includes(targetCardId) || isClone)) {
                     
                     const movedCards = [];
                     const remainingCards = [];
-                    state.cards.forEach(c => {
-                        if (dragState.cardIds.includes(c.id)) movedCards.push(c);
-                        else remainingCards.push(c);
+
+                    state.cards.forEach((c, cIdx) => {
+                        if (dragState.cardIds.includes(c.id)) {
+                            if (isClone) {
+                                // 深度拷贝生成全新克隆体（无损保留所有原图与设置）
+                                const cloned = JSON.parse(JSON.stringify(c));
+                                cloned.id = 'card_clone_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + '_' + cIdx;
+                                if (cloned.areas) {
+                                    cloned.areas.forEach((a, aIdx) => {
+                                        a.id = 'area_clone_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + '_' + cIdx + '_' + aIdx;
+                                    });
+                                }
+                                movedCards.push(cloned);
+                                remainingCards.push(c); // 原件不动！
+                            } else {
+                                movedCards.push(c);
+                            }
+                        } else {
+                            remainingCards.push(c);
+                        }
                     });
-                    state.cards = remainingCards;
+                    
+                    if (!isClone) state.cards = remainingCards;
                     
                     let targetIdx = state.cards.findIndex(c => c.id === targetCardId);
                     const wrapper = cardEl.parentElement;
@@ -260,13 +284,43 @@ export function attachCardEvents(container) {
                         state.cards.push(...movedCards);
                     }
 
+                    // 【核心逻辑】：克隆时，提前为您原地生成全新的 DOM！
+                    if (isClone) {
+                        movedCards.forEach(c => {
+                            const temp = document.createElement('div');
+                            temp.innerHTML = generateSingleCardHTML(c, state.cards.indexOf(c));
+                            wrapper.appendChild(temp.firstElementChild); // 先挂载到最后
+                        });
+                    }
+
+                    // 基于最新的状态索引安全排序并追加 DOM
                     state.cards.forEach(c => {
                         const el = wrapper.querySelector(`.clab-card[data-card-id="${c.id}"]`);
                         if (el) wrapper.appendChild(el);
                     });
+
+                    // 给克隆出的新生儿施加点击和交互魔法
+                    if (isClone) {
+                        attachCardEvents(wrapper);
+                        movedCards.forEach(c => {
+                            const el = wrapper.querySelector(`.clab-card[data-card-id="${c.id}"]`);
+                            if (el) attachAreaEvents(el);
+                        });
+                        
+                        // 【新增】：将选中状态与激活焦点转移到新克隆出的卡片上
+                        state.selectedCardIds = movedCards.map(c => c.id);
+                        if (state.selectedCardIds.length > 0) {
+                            state.activeCardId = state.selectedCardIds[state.selectedCardIds.length - 1];
+                        }
+                        updateSelectionUI();
+                    }
                     
                     justSave();
                     if (window._clabUpdateAllDefaultTitles) window._clabUpdateAllDefaultTitles();
+                    
+                    // 【居中偏移修正】：因为我们采用的是局部 DOM 注入，避开了全局刷新，
+                    // 所以必须在此刻手动呼叫布局排版引擎，重新计算卡片总数以更新容器的居中宽度！
+                    if (window._clabUpdateCardsLayout) window._clabUpdateCardsLayout();
                 }
             }
         });
@@ -279,6 +333,8 @@ export function attachCardEvents(container) {
         bodyEl.addEventListener('dragover', (e) => {
             if (dragState.type === 'area' && dragState.areaIds) {
                 e.preventDefault();
+                e.dataTransfer.dropEffect = e.altKey ? 'copy' : 'move'; // 【注入】：将外部悬浮的图标改成+号
+
                 if (!e.target.closest('.clab-area')) {
                     bodyEl.classList.add('clab-drag-over-list');
                 } else {
@@ -302,21 +358,48 @@ export function attachCardEvents(container) {
                     const targetCardId = bodyEl.dataset.cardId;
                     if (!targetCardId) return;
                     
+                    const isClone = e.altKey; // 【注入】：判断是否克隆
                     const movedAreas = [];
-                    state.cards.forEach(c => {
+
+                    state.cards.forEach((c, cIdx) => {
                         if (!c.areas) return;
                         const remaining = [];
-                        c.areas.forEach(a => {
-                            if (dragState.areaIds.includes(a.id)) movedAreas.push(a);
-                            else remaining.push(a);
+                        c.areas.forEach((a, aIdx) => {
+                            if (dragState.areaIds.includes(a.id)) {
+                                if (isClone) {
+                                    const cloned = JSON.parse(JSON.stringify(a));
+                                    cloned.id = 'area_clone_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + '_' + cIdx + '_' + aIdx;
+                                    movedAreas.push(cloned);
+                                    remaining.push(a); // 原件不动！
+                                } else {
+                                    movedAreas.push(a);
+                                }
+                            } else {
+                                remaining.push(a);
+                            }
                         });
-                        c.areas = remaining;
-                        syncAreaDOMOrder(c.id, c.areas);
+                        if (!isClone) c.areas = remaining;
+                        if (!isClone) syncAreaDOMOrder(c.id, c.areas);
                     });
                     
                     const targetCard = state.cards.find(c => c.id === targetCardId);
                     if (!targetCard.areas) targetCard.areas = [];
                     targetCard.areas.push(...movedAreas); 
+
+                    // 【注入】：克隆模块到空白卡片时生成全新的 DOM！
+                    if (isClone) {
+                        movedAreas.forEach(a => {
+                            const temp = document.createElement('div');
+                            temp.innerHTML = generateAreaHTML(a, targetCard);
+                            bodyEl.querySelector('.clab-area-list').appendChild(temp.firstElementChild);
+                        });
+                        attachAreaEvents(bodyEl.querySelector('.clab-area-list'));
+                        
+                        // 【新增】：将选中状态转移到新克隆出的模块上
+                        state.selectedAreaIds = movedAreas.map(a => a.id);
+                        updateSelectionUI();
+                    }
+
                     syncAreaDOMOrder(targetCardId, targetCard.areas);
                     
                     if (window._clabUpdateAreaDOMIdentity) movedAreas.forEach(a => window._clabUpdateAreaDOMIdentity(a.id, targetCardId));

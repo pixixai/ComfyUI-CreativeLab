@@ -16,7 +16,12 @@ export const state = {
 export const dragState = {
     type: null,
     cardId: null,
-    areaId: null
+    areaId: null,
+    cardIds: null,      // 【新增】：支持多选卡片拖拽
+    areaIds: null,      // 【新增】：支持多选模块拖拽
+    anchorAreaId: null, // 【新增】：拖拽原点模块锚点
+    sourceInfo: null,   // 【新增】：模块源头坐标记录
+    isClone: false      // 【新增】：是否触发了 Alt 键克隆模式
 };
 
 // 应用级 UI 状态
