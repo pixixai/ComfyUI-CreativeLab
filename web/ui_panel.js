@@ -172,43 +172,12 @@ export function setupUI() {
             });
         }
 
-        if (app.extensionManager && app.extensionManager.registerSidebarTab) {
-            // 尝试读取一下当前的快捷键，如果没有准备好则默认为 C
-            let currentShortcut = 'C';
-            try {
-                 currentShortcut = (app.extensionManager.setting.get("CLab.UI.Shortcut") || 'c').toUpperCase();
-            } catch(e) {}
+        // =====================================================================
+        // 【已清理】：旧版本的 app.extensionManager.registerSidebarTab 与 
+        // 全局事件点击劫持(globalSidebarHijacker) 已被安全移除。
+        // 现在触发点统一由 main.js 中的菜单系统接管。
+        // =====================================================================
 
-            app.extensionManager.registerSidebarTab({
-                id: "clabSidebar",
-                icon: "pi pi-sliders-v clab-sidebar-icon", 
-                title: "CLab",
-                tooltip: `打开 CLab 主面板 (快捷键 ${currentShortcut})`,
-                type: "custom",
-                render: (el) => {}
-            });
-            
-            const globalSidebarHijacker = (e) => {
-                let isOurTab = false;
-                const tabBtn = e.target.closest('.p-tabview-nav-link, [role="tab"], li');
-                const isOurIcon = e.target.classList && e.target.classList.contains('clab-sidebar-icon');
-                
-                if (isOurIcon || (tabBtn && tabBtn.querySelector('.clab-sidebar-icon'))) {
-                    isOurTab = true;
-                }
-
-                if (isOurTab) {
-                    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-                    if (e.type === 'click') togglePanel();
-                }
-            };
-
-            window.addEventListener('pointerdown', globalSidebarHijacker, true);
-            window.addEventListener('pointerup', globalSidebarHijacker, true);
-            window.addEventListener('mousedown', globalSidebarHijacker, true);
-            window.addEventListener('mouseup', globalSidebarHijacker, true);
-            window.addEventListener('click', globalSidebarHijacker, true);
-        }
     } catch (error) {
         console.error("[CLab] UI 面板初始化失败:", error);
     }
