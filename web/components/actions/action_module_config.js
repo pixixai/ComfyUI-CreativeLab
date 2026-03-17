@@ -15,8 +15,14 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
     const tb = toolbarHandleContainer.querySelector('#clab-module-toolbar');
     if (!tb || !separator) return;
 
-    const wasNodeOpen = tb.querySelector('#tb-node-select-custom')?.classList.contains('open');
-    const wasWidgetOpen = tb.querySelector('#tb-widget-select-custom')?.classList.contains('open');
+    const nodeSelect = tb.querySelector('#tb-node-select-custom');
+    const widgetSelect = tb.querySelector('#tb-widget-select-custom');
+
+    const wasNodeOpen = nodeSelect?.classList.contains('open');
+    const nodeScrollTop = nodeSelect?.querySelector('.clab-custom-select-dropdown')?.scrollTop || 0;
+
+    const wasWidgetOpen = widgetSelect?.classList.contains('open');
+    const widgetScrollTop = widgetSelect?.querySelector('.clab-custom-select-dropdown')?.scrollTop || 0;
 
     const isAnySelected = (state.selectedCardIds?.length > 0) || (state.selectedAreaIds?.length > 0);
     if (!isAnySelected) {
@@ -35,7 +41,7 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
     if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
         const selectedAreas = [];
         state.cards.forEach(c => {
-            c.areas?.forEach(a => { if (state.selectedAreaIds.includes(a.id)) selectedAreas.push({card: c, area: a}); });
+            c.areas?.forEach(a => { if (state.selectedAreaIds.includes(a.id)) selectedAreas.push({ card: c, area: a }); });
         });
 
         if (selectedAreas.length > 0) {
@@ -44,8 +50,8 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
 
             html += `
                 <div style="display:flex; border: 1px dashed rgba(255,255,255,0.3); border-radius: 20px; padding: 2px; gap: 2px;">
-                    <div class="clab-type-btn ${mainType==='edit'?'active':''}" data-type="edit" style="padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; transition: all 0.2s; ${mainType==='edit'?'background: rgba(255,255,255,0.2); color: #fff; font-weight: bold;':'color: #aaa;'}">输入</div>
-                    <div class="clab-type-btn ${mainType==='preview'?'active':''}" data-type="preview" style="padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; transition: all 0.2s; ${mainType==='preview'?'background: rgba(255,255,255,0.2); color: #fff; font-weight: bold;':'color: #aaa;'}">输出</div>
+                    <div class="clab-type-btn ${mainType === 'edit' ? 'active' : ''}" data-type="edit" style="padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; transition: all 0.2s; ${mainType === 'edit' ? 'background: rgba(255,255,255,0.2); color: #fff; font-weight: bold;' : 'color: #aaa;'}">输入</div>
+                    <div class="clab-type-btn ${mainType === 'preview' ? 'active' : ''}" data-type="preview" style="padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; transition: all 0.2s; ${mainType === 'preview' ? 'background: rgba(255,255,255,0.2); color: #fff; font-weight: bold;' : 'color: #aaa;'}">输出</div>
                 </div>
             `;
 
@@ -53,7 +59,7 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
                 let nodeName = '关联节点...';
                 if (mainArea.targetNodeId && app.graph) {
                     const n = app.graph.getNodeById(Number(mainArea.targetNodeId));
-                    if(n) nodeName = `[${n.id}] ${n.title||n.type}`;
+                    if (n) nodeName = `[${n.id}] ${n.title || n.type}`;
                 }
                 html += `
                     <div style="display:flex; align-items:center; gap:6px;">
@@ -65,17 +71,17 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
                 `;
 
                 const fillModes = ['显示全部', '填充', '拉伸'];
-                let fillItems = fillModes.map(m => `<div class="clab-custom-select-item ${mainArea.fillMode===m?'selected':''}" data-value="${m}">${m}</div>`).join('');
-                
+                let fillItems = fillModes.map(m => `<div class="clab-custom-select-item ${mainArea.fillMode === m ? 'selected' : ''}" data-value="${m}">${m}</div>`).join('');
+
                 const ratios = ['21:9', '16:9', '3:2', '4:3', '1:1', '3:4', '2:3', '9:16', '9:21', '自定义比例'];
-                let ratioItems = ratios.map(r => `<div class="clab-custom-select-item ${mainArea.ratio===r?'selected':''}" data-value="${r}">${r}</div>`).join('');
-                
+                let ratioItems = ratios.map(r => `<div class="clab-custom-select-item ${mainArea.ratio === r ? 'selected' : ''}" data-value="${r}">${r}</div>`).join('');
+
                 html += `
                     <div style="display:flex; align-items:center; gap:6px; margin-left: 8px;">
                         ${buildCustomSelect('tb-ratio-select-custom', '100px', mainArea.ratio || '16:9', ratioItems, mainArea.matchMedia)}
-                        <input id="tb-ratio-w" type="number" class="clab-input clab-capsule" style="width:75px; min-height:24px; font-size:12px;" placeholder="W" value="${mainArea.width||''}" ${mainArea.matchMedia ? 'disabled' : ''}>
+                        <input id="tb-ratio-w" type="number" class="clab-input clab-capsule" style="width:75px; min-height:24px; font-size:12px;" placeholder="W" value="${mainArea.width || ''}" ${mainArea.matchMedia ? 'disabled' : ''}>
                         <span style="color:#aaa;">:</span>
-                        <input id="tb-ratio-h" type="number" class="clab-input clab-capsule" style="width:75px; min-height:24px; font-size:12px;" placeholder="H" value="${mainArea.height||''}" ${mainArea.matchMedia ? 'disabled' : ''}>
+                        <input id="tb-ratio-h" type="number" class="clab-input clab-capsule" style="width:75px; min-height:24px; font-size:12px;" placeholder="H" value="${mainArea.height || ''}" ${mainArea.matchMedia ? 'disabled' : ''}>
                         <div style="width:1px; height:14px; background:rgba(255,255,255,0.2); margin:0 4px;"></div>
                         ${buildCustomSelect('tb-fill-select-custom', '100px', mainArea.fillMode || '显示全部', fillItems, mainArea.matchMedia)}
                         <label style="font-size:13px; color:#ccc; display:flex; align-items:center; gap:4px; margin-left:8px; cursor:pointer;">
@@ -127,7 +133,7 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
     }
 
     if (html !== '') html += `<div style="width:1px; height:16px; background:rgba(255,255,255,0.25); margin:0 2px;"></div>`;
-    
+
     html += `
         <div style="display:flex; align-items:center; gap:2px;">
             <button id="tb-clone-btn" class="clab-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;" title="原样克隆选中项" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">
@@ -151,8 +157,22 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
     }
 
     tb.innerHTML = html;
-    if (wasNodeOpen) tb.querySelector('#tb-node-select-custom')?.classList.add('open');
-    if (wasWidgetOpen) tb.querySelector('#tb-widget-select-custom')?.classList.add('open');
+    if (wasNodeOpen) {
+        const ns = tb.querySelector('#tb-node-select-custom');
+        if (ns) {
+            ns.classList.add('open');
+            const dp = ns.querySelector('.clab-custom-select-dropdown');
+            if (dp) dp.scrollTop = nodeScrollTop;
+        }
+    }
+    if (wasWidgetOpen) {
+        const ws = tb.querySelector('#tb-widget-select-custom');
+        if (ws) {
+            ws.classList.add('open');
+            const dp = ws.querySelector('.clab-custom-select-dropdown');
+            if (dp) dp.scrollTop = widgetScrollTop;
+        }
+    }
 }
 
 export function attachDynamicToolbarEvents(toolbarHandleContainer) {
@@ -161,15 +181,15 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
 
     if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
         const selectedAreas = [];
-        state.cards.forEach(c => c.areas?.forEach(a => { if (state.selectedAreaIds.includes(a.id)) selectedAreas.push({card: c, area: a}); }));
+        state.cards.forEach(c => c.areas?.forEach(a => { if (state.selectedAreaIds.includes(a.id)) selectedAreas.push({ card: c, area: a }); }));
         const mainType = selectedAreas[0]?.area.type;
         const mainArea = selectedAreas[0]?.area;
 
         const updateSelected = (updater, isSoftUpdate = false) => {
-            selectedAreas.forEach(sa => { 
+            selectedAreas.forEach(sa => {
                 if (sa.area.type === mainType) {
                     updater(sa.area);
-                    
+
                     if (isSoftUpdate) {
                         const areaEl = document.querySelector(`.clab-area[data-area-id="${sa.area.id}"]`);
                         if (areaEl) {
@@ -212,11 +232,11 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                     } else {
                         if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(sa.area.id);
                     }
-                } 
+                }
             });
-            
+
             if (window._clabJustSave) window._clabJustSave(); else saveAndRender();
-            
+
             renderDynamicToolbar(toolbarHandleContainer);
             attachDynamicToolbarEvents(toolbarHandleContainer);
 
@@ -225,7 +245,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
 
         tb.querySelector('#tb-manage-history')?.addEventListener('click', (e) => {
             e.stopPropagation();
-            if(!mainArea) return;
+            if (!mainArea) return;
             const targetState = !mainArea.isManageMode;
             updateSelected(a => { a.isManageMode = targetState; });
         });
@@ -235,7 +255,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                 e.stopPropagation();
                 const newType = btn.dataset.type;
                 if (newType === mainType) return;
-                
+
                 updateSelected(a => {
                     a.type = newType;
                     if (newType === 'preview') {
@@ -293,7 +313,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                 item.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const val = item.dataset.value;
-                    
+
                     if (el.id === 'tb-node-select-custom') {
                         if (mainType === 'edit') {
                             const targetNode = app.graph.getNodeById(Number(val));
@@ -361,9 +381,9 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                             let widgets = Array.isArray(a.targetWidgets) ? [...a.targetWidgets] : (a.targetWidget && a.targetNodeId ? [`${a.targetNodeId}||${a.targetWidget}`] : []);
                             if (widgets.includes(val)) widgets = widgets.filter(w => w !== val);
                             else widgets.push(val);
-                            
+
                             a.targetWidgets = widgets;
-                            
+
                             if (widgets.length > 0) {
                                 const [nId, wName] = widgets[0].split('||');
                                 a.targetNodeId = nId;
@@ -374,7 +394,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                                     if (Array.isArray(widgetDef.type) || widgetDef.type === "combo" || Array.isArray(widgetDef.options?.values)) isManual = false;
                                     if (widgetDef.type === "toggle" || typeof widgetDef.value === "boolean") isManual = false;
                                     const hasVal = (a.value !== undefined && a.value !== null && a.value !== '');
-                                    if (!isManual || !hasVal) a.value = widgetDef.value; 
+                                    if (!isManual || !hasVal) a.value = widgetDef.value;
                                     if (widgetDef.type === "toggle" || typeof widgetDef.value === "boolean") a.dataType = 'boolean';
                                     else if (typeof widgetDef.value === "number") a.dataType = 'number';
                                     else a.dataType = 'string';
@@ -407,9 +427,9 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
         tb.querySelector('#tb-reset-module')?.addEventListener('click', (e) => {
             e.stopPropagation();
             updateSelected(a => {
-                a.targetNodeId = null; a.targetWidget = null; a.targetNodeIds = []; a.targetWidgets = []; 
+                a.targetNodeId = null; a.targetWidget = null; a.targetNodeIds = []; a.targetWidgets = [];
                 if (a.type === 'preview') {
-                    a.matchMedia = true; a.ratio = '16:9'; a.fillMode = '显示全部'; a.width = ''; a.height = ''; 
+                    a.matchMedia = true; a.ratio = '16:9'; a.fillMode = '显示全部'; a.width = ''; a.height = '';
                     a.isManageMode = false;
                 } else {
                     a.dataType = 'string'; a.autoHeight = true;
@@ -430,19 +450,19 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
             const onDimKeydown = (e) => {
                 if (e.key === 'Enter') { updateSelected(a => { a.ratio = '自定义比例'; a.width = ratioW.value; a.height = ratioH.value; }, true); e.target.blur(); }
             };
-            if(ratioW) ratioW.onkeydown = onDimKeydown;
-            if(ratioH) ratioH.onkeydown = onDimKeydown;
+            if (ratioW) ratioW.onkeydown = onDimKeydown;
+            if (ratioH) ratioH.onkeydown = onDimKeydown;
             const matchCb = tb.querySelector('#tb-match-media');
-            if(matchCb) matchCb.onchange = e => updateSelected(a => a.matchMedia = e.target.checked, true);
+            if (matchCb) matchCb.onchange = e => updateSelected(a => a.matchMedia = e.target.checked, true);
         } else {
             const autoCb = tb.querySelector('#tb-auto-height');
-            if(autoCb) autoCb.onchange = e => updateSelected(a => a.autoHeight = e.target.checked);
+            if (autoCb) autoCb.onchange = e => updateSelected(a => a.autoHeight = e.target.checked);
         }
     }
 
     tb.querySelector('#tb-clone-btn')?.addEventListener('click', (e) => {
         e.stopPropagation();
-        
+
         if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
             let newSelectedAreaIds = [];
             const areasByCard = {};
@@ -459,11 +479,11 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
             for (const cardId in areasByCard) {
                 const card = state.cards.find(c => c.id === cardId);
                 if (!card || !card.areas) continue;
-                
+
                 const sortedAreaIdsToClone = areasByCard[cardId].sort((idA, idB) => {
                     return card.areas.findIndex(a => a.id === idA) - card.areas.findIndex(a => a.id === idB);
                 });
-                
+
                 const lastSrcIndex = card.areas.findIndex(a => a.id === sortedAreaIdsToClone[sortedAreaIdsToClone.length - 1]);
                 let insertBaseIndex = lastSrcIndex + 1;
 
@@ -478,10 +498,10 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                         newSelectedAreaIds.push(newArea.id);
                     }
                 });
-                
+
                 state.selectedAreaIds = newSelectedAreaIds;
                 appState.lastClickedAreaId = newSelectedAreaIds[newSelectedAreaIds.length - 1];
-                
+
                 card.areas.splice(insertBaseIndex, 0, ...clonedAreas);
 
                 const lastEl = document.querySelector(`.clab-area[data-area-id="${sortedAreaIdsToClone[sortedAreaIdsToClone.length - 1]}"]`);
@@ -489,14 +509,14 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                     const temp = document.createElement('div');
                     temp.innerHTML = clonedAreas.map(a => window._clabGenerateAreaHTML(a, card)).join('');
                     const frag = document.createDocumentFragment();
-                    while(temp.firstChild) frag.appendChild(temp.firstChild);
+                    while (temp.firstChild) frag.appendChild(temp.firstChild);
                     lastEl.parentNode.insertBefore(frag, lastEl.nextSibling);
                     window._clabAttachAreaEvents(lastEl.parentNode);
                 }
             }
-            
+
             if (window._clabJustSave) window._clabJustSave(); else saveAndRender();
-            
+
             renderDynamicToolbar(toolbarHandleContainer);
             attachDynamicToolbarEvents(toolbarHandleContainer);
             if (window._clabUpdateAllDefaultTitles) window._clabUpdateAllDefaultTitles();
@@ -505,8 +525,8 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
             }
 
             setTimeout(() => {
-                if(newSelectedAreaIds.length > 0) {
-                     document.querySelector(`.clab-area[data-area-id="${newSelectedAreaIds[newSelectedAreaIds.length - 1]}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                if (newSelectedAreaIds.length > 0) {
+                    document.querySelector(`.clab-area[data-area-id="${newSelectedAreaIds[newSelectedAreaIds.length - 1]}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 }
             }, 50);
 
@@ -515,10 +535,10 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
             const sortedCardIdsToClone = [...state.selectedCardIds].sort((idA, idB) => {
                 return state.cards.findIndex(c => c.id === idA) - state.cards.findIndex(c => c.id === idB);
             });
-            
+
             const lastSrcIndex = state.cards.findIndex(c => c.id === sortedCardIdsToClone[sortedCardIdsToClone.length - 1]);
             let insertBaseIndex = lastSrcIndex + 1;
-            
+
             const clonedCards = [];
             sortedCardIdsToClone.forEach((cardId, indexOffset) => {
                 const srcCard = state.cards.find(c => c.id === cardId);
@@ -538,9 +558,9 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
 
             document.querySelectorAll('.clab-card.active').forEach(el => {
                 el.classList.remove('active', 'selected');
-                el.style.borderColor = ''; 
+                el.style.borderColor = '';
             });
-            
+
             state.cards.splice(insertBaseIndex, 0, ...clonedCards);
             state.selectedCardIds = newSelectedCardIds;
             state.activeCardId = newSelectedCardIds[newSelectedCardIds.length - 1];
@@ -553,31 +573,31 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                     clonedCards.forEach((c, idx) => {
                         temp.innerHTML += taskcard.generateSingleCardHTML(c, insertBaseIndex + idx);
                     });
-                    
+
                     const frag = document.createDocumentFragment();
-                    while(temp.firstChild) frag.appendChild(temp.firstChild);
-                    
+                    while (temp.firstChild) frag.appendChild(temp.firstChild);
+
                     const lastSrcCardId = sortedCardIdsToClone[sortedCardIdsToClone.length - 1];
                     const lastSrcEl = wrapper.querySelector(`.clab-card[data-card-id="${lastSrcCardId}"]`);
-                    
+
                     if (lastSrcEl && lastSrcEl.nextSibling) {
                         wrapper.insertBefore(frag, lastSrcEl.nextSibling);
                     } else {
                         wrapper.appendChild(frag);
                     }
-                    
+
                     taskcard.attachCardEvents(wrapper);
                     if (window._clabAttachAreaEvents) window._clabAttachAreaEvents(wrapper);
                 }
-                
+
                 if (window._clabJustSave) window._clabJustSave();
                 if (window.CLab && window.CLab.updateSelectionUI) window.CLab.updateSelectionUI();
                 if (window._clabUpdateAllDefaultTitles) window._clabUpdateAllDefaultTitles();
                 if (window._clabUpdateCardsLayout) window._clabUpdateCardsLayout();
-                
+
                 setTimeout(() => {
-                    if(newSelectedCardIds.length > 0) {
-                         document.querySelector(`.clab-card[data-card-id="${newSelectedCardIds[newSelectedCardIds.length - 1]}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                    if (newSelectedCardIds.length > 0) {
+                        document.querySelector(`.clab-card[data-card-id="${newSelectedCardIds[newSelectedCardIds.length - 1]}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
                     }
                 }, 50);
             }).catch(err => {
@@ -586,7 +606,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
             });
         }
     });
-    
+
     tb.querySelector('#tb-format-painter')?.addEventListener('click', (e) => {
         e.stopPropagation();
         const panelContainer = document.getElementById('clab-panel');
@@ -599,7 +619,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
             if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
                 let srcArea = null;
                 state.cards.forEach(c => c.areas?.forEach(a => { if (a.id === state.selectedAreaIds[0]) srcArea = a; }));
-                
+
                 // 【格式刷修复】：在提取“源墨水”时，直接剥离并清空所有的历史记录与图库状态！
                 const clonedData = JSON.parse(JSON.stringify(srcArea));
                 if (clonedData && clonedData.type === 'preview') {
@@ -609,10 +629,10 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                     clonedData.selectedThumbIndices = [];
                 }
                 state.painterSource = { type: 'area', data: clonedData };
-                
+
             } else if (state.selectedCardIds && state.selectedCardIds.length > 0) {
                 const srcCard = state.cards.find(c => c.id === state.selectedCardIds[0]);
-                
+
                 // 【格式刷修复】：同理，提取卡片级的“源墨水”时，遍历剥离所有子模块的历史记录！
                 const clonedCard = JSON.parse(JSON.stringify(srcCard));
                 if (clonedCard && clonedCard.areas) {
