@@ -1,0 +1,240 @@
+{
+  "settingsCategories": {
+    "Creative Lab": "Creative Lab",
+    "1-General": "عام",
+    "2-PerformanceMedia": "الأداء والوسائط",
+    "3-FileIO": "الملفات وتدفق البيانات",
+    "4-Automation": "الأتمتة",
+    "5-CardApp": "مظهر البطاقة المحددة",
+    "6-ModuleApp": "مظهر الوحدة المحددة",
+    "Glow": "توهج",
+    "Fill": "تعبئة",
+    "Border": "حد",
+    "Color": "لون",
+    "Halt": "عند الخطأ",
+    "Prefix": "بادئة الملف",
+    "KeepTemp": "ملفات مؤقتة",
+    "ArchiveDir": "مجلد الأرشفة",
+    "ThumbMode": "مصغرات",
+    "Muted": "صامت",
+    "Autoplay": "تشغيل تلقائي",
+    "MaxHistory": "حجم السجل",
+    "BgOpacity": "عتامة الخلفية",
+    "BackdropBlur": "ضبابية الخلفية",
+    "Shortcut": "اختصار",
+    "ResetAll": "استعادة الافتراضي"
+  },
+  "clabUi": {
+    "toolbar": {
+      "addCard": "+ مهمة جديدة",
+      "addCardTitle": "إنشاء بطاقة مهمة فارغة",
+      "addModule": "+ وحدة جديدة",
+      "addModuleTitle": "إضافة وحدة في المهمة الحالية",
+      "run": "▶ تشغيل",
+      "runTitle": "تشغيل المهمة/المهام المحددة",
+      "runMenuTitle": "خيارات تشغيل إضافية",
+      "runAll": "تشغيل الكل",
+      "batchCountTitle": "عدد التشغيلات في الطابور",
+      "createAnchor": "⚓ عقدة إعدادات",
+      "createAnchorTitle": "إنشاء عقدة إعدادات على الرسم",
+      "widthResetTitle": "استعادة العرض الافتراضي",
+      "widthInputTitle": "عرض بالبكسل (إدخال)"
+    },
+    "config": {
+      "btnTitle": "إنشاء مرساة إعدادات (حفظ في سير العمل)",
+      "maintTitle": "صيانة البيانات",
+      "cleanDead": "حذف السجلات التالفة (404)",
+      "resync": "إعادة مزامنة السجلات (إجبار)"
+    },
+    "module": {
+      "unbound": "غير مربوط",
+      "unboundWithNode": "غير مربوط ({name})",
+      "nodeId": "معرف العقدة",
+      "nodeName": "اسم العقدة",
+      "boundWidget": "عنصر واجهة مربوط",
+      "batchBoundHeader": "ربط دفعة {count} عناصر:",
+      "unknownNode": "عقدة غير معروفة",
+      "placeholderValue": "قيمة المعلمة…",
+      "delInputTitle": "حذف الإدخال",
+      "uploadImage": "رفع صورة",
+      "uploadVideo": "رفع فيديو",
+      "uploadAudio": "رفع صوت",
+      "uploadFile": "رفع ملف",
+      "uploadHint": "انقر أو أفلت هنا للرفع إلى الخادم",
+      "fileBrokenTitle": "ملف مفقود / صيغة خاطئة",
+      "fileBrokenHint": "انقر لإعادة الرفع والاستبدال",
+      "uploading": "جاري الرفع…",
+      "uploadFail": "فشل الرفع: ",
+      "pickServerFile": "أو اختر ملفًا موجودًا…",
+      "pickPlaceholder": "اختر…",
+      "boolTrue": "تشغيل",
+      "boolFalse": "إيقاف"
+    },
+    "output": {
+      "waitOutput": "في انتظار خرج العقدة [{id}]…",
+      "noNode": "لا عقدة مرتبطة",
+      "delRecordTitle": "حذف العنصر",
+      "delAreaTitle": "حذف وحدة الخرج",
+      "historyHeader": "السجل ({count})",
+      "remove": "إزالة"
+    },
+    "menu": {
+      "openTitle": "فتح Creative Lab (اختصار: {key})",
+      "brand": "CLab"
+    },
+    "alerts": {
+      "selectCardFirst": "حدد بطاقة أو أكثر أو وحدة أولًا.",
+      "noMediaToSync": "لا سجل وسائط للمزامنة.",
+      "noRecordsToClean": "لا مخرجات للتنظيف."
+    },
+    "toasts": {
+      "resyncing": "جاري تحديث الأصول المحلية…",
+      "resyncDone": "المخزن المؤقت فارغ؛ أعيد تحميل المخرجات.",
+      "scanning": "جاري فحص الملفات التالفة…",
+      "scanClean": "كل الملفات المحلية سليمة.",
+      "cleaned": "حُذف {count} سجل مفقود.",
+      "nodeRunFailed": "❌ فشل التحقق أو التشغيل. راجع المعاملات والوصلات.",
+      "nodeValidateFailed": "❌ فشل التحقق من الرسم. راجع الوصلات.",
+      "workflowBackendError": "❌ خطأ سير العمل في الخادم. أغلق اللوحة وراجع الرسالة.",
+      "frontendValidateFailed": "❌ فشل التحقق في الواجهة. راجع الوصلات والمعاملات المطلوبة."
+    },
+    "run": {
+      "noOutputModules": "لا وحدات خرج قابلة للتشغيل للاختيار. أضف وحدة خرج.",
+      "noCards": "لا بطاقات مهام على اللوحة.",
+      "noOutputAnyCard": "لا بطاقة تحتوي وحدة خرج.",
+      "apiNotReady": "محقن API غير جاهز بعد. حاول لاحقًا."
+    },
+    "batch": {
+      "confirmSyncUnnamed": "الوحدة المحددة بلا عنوان (يظهر كـ {match}). مزامنة الربط/المعلمات إلى نفس المواضع في مهام أخرى؟",
+      "confirmDeleteSame": "⚠️ خطر:\nحذف كل وحدات {type} الموسومة [{match}] في كل المهام؟",
+      "typeInput": "إدخال",
+      "typeOutput": "إخراج"
+    },
+    "binding": {
+      "pickNodeToast": "🖱️ انقر عقدة على الرسم (يسار = استبدال، يمين = إضافة؛ الفراغ = إلغاء)…"
+    },
+    "settingsUi": {
+      "resetAllConfirm": "إعادة ضبط كل إعدادات Creative Lab؟ لا يمكن التراجع."
+    },
+    "media": {
+      "volumeSlider": "مستوى الصوت",
+      "muteToggle": "صامت / صوت",
+      "playbackSpeed": "سرعة التشغيل",
+      "pictureInPicture": "صورة داخل صورة",
+      "fullscreen": "ملء الشاشة",
+      "clickDownload": "تنزيل",
+      "unknownFile": "ملف غير معروف",
+      "unknownAudio": "صوت غير معروف"
+    },
+    "moduleToolbar": {
+      "input": "إدخال",
+      "output": "إخراج",
+      "linkNode": "ربط عقدة…",
+      "nodeBinding": "عقدة [{id}]",
+      "nodesSelected": "{count} عقد محددة",
+      "bindWidget": "ربط عنصر واجهة…",
+      "widgetsSelected": "{count} عناصر",
+      "pickNodeTitle": "اختر عقدة من الرسم",
+      "matchMedia": "مطابقة نسبة الوسائط",
+      "autoHeight": "ارتفاع تلقائي للحقل",
+      "resetModule": "إعادة الوحدة لحالة جديدة",
+      "syncParams": "مزامنة لنفس الفتحة في مهام أخرى",
+      "cloneTitle": "استنساخ الاختيار",
+      "formatPainterTitle": "نسخ التنسيق: انقر للتطبيق؛ ESC / زر أيمن للخروج",
+      "manageHistoryTitle": "إدارة المخرجات (شبكة وترتيب)"
+    },
+    "fillMode": {
+      "fit": "إظهار الكل",
+      "cover": "ملء",
+      "stretch": "تمديد"
+    },
+    "ratio": {
+      "custom": "نسبة مخصصة"
+    },
+    "tree": {
+      "ungroupedLabel": "بلا مجموعة",
+      "unnamedGroup": "مجموعة بلا اسم",
+      "uncategorizedLabel": "بلا تصنيف"
+    },
+    "select": {
+      "clearLink": "(مسح الربط)",
+      "clearBind": "(مسح الربط التفصيلي)",
+      "selectNodesFirst": "حدد العقد المرتبطة أولًا",
+      "noWidgets": "لا معلمات متاحة"
+    },
+    "context": {
+      "content": "محتوى",
+      "download": "تنزيل",
+      "downloadAll": "تنزيل كل المخرجات",
+      "remove": "إزالة",
+      "clearAll": "مسح كل المخرجات",
+      "cleanDead": "حذف التالف (404)",
+      "resync": "إعادة مزامنة",
+      "module": "وحدة",
+      "selectSame": "تحديد نفس الوحدات",
+      "deleteSame": "حذف نفس الوحدات",
+      "moveBack": "تحريك للخلف (دفعة)",
+      "moveFwd": "تحريك للأمام (دفعة)",
+      "ctxScanning": "جاري الفحص…",
+      "ctxNoToClean": "لا سجلات للتنظيف في الاختيار.",
+      "ctxScanClean": "ملفات الاختيار سليمة.",
+      "ctxCleaned": "حُذف {count} عنصر مفقود.",
+      "ctxResyncing": "جاري تحديث الأصول…",
+      "ctxNoMedia": "لا وسائط للمزامنة.",
+      "ctxResyncDone": "أعيد تحميل المخرجات."
+    },
+    "state": {
+      "configExists": "عقدة الإعدادات موجودة بالفعل على الرسم.",
+      "configCreated": "تم إنشاء عقدة الإعدادات."
+    },
+    "card": {
+      "deleteTaskTitle": "حذف هذه المهمة (دفعة عند تعدد الاختيار)"
+    },
+    "dataIo": {
+      "importJsonBtnTitle": "استيراد JSON دفعة",
+      "importFromClipboard": "استيراد JSON من الحافظة",
+      "importFromLocalFile": "استيراد JSON من ملف محلي",
+      "importCreateTask": "مهمة جديدة",
+      "importAppendModule": "إلحاق وحدات",
+      "importAppendToSelection": "إلحاق بالاختيار",
+      "importEmptyData": "البيانات المستوردة فارغة.",
+      "importAppendNeedCards": "فشل الإلحاق:\nحدد بطاقة مهمة أو أكثر أولًا (Ctrl/Cmd متعدد)، ثم «إلحاق بالاختيار».",
+      "importParseError": "فشل الاستيراد: JSON غير صالح.\n",
+      "clipboardEmpty": "الحافظة فارغة. انسخ JSON أولًا.",
+      "clipboardReadError": "تعذر قراءة الحافظة.\n",
+      "uploadNoFilename": "فشل الرفع: الخادم لم يُرجع اسم ملف.",
+      "exportBtnTitle": "تصدير وتنزيل",
+      "zipSectionTitle": "أرشيف ZIP",
+      "downloadAll": "تنزيل الكل",
+      "downloadSelected": "تنزيل المحدد",
+      "downloadAllHistory": "الكل (كل المخرجات)",
+      "downloadSelectedHistory": "المحدد (كل المخرجات)",
+      "organizeSectionTitle": "تنظيم الملفات",
+      "orgMoveSubfolder": "نقل إلى مجلد فرعي",
+      "orgCopySubfolder": "نسخ إلى مجلد فرعي",
+      "orgMoveSubfolderHistory": "نقل (كل المخرجات)",
+      "orgCopySubfolderHistory": "نسخ (كل المخرجات)",
+      "exportJsonTitle": "تصدير JSON",
+      "jsonActionCopyTitle": "الوضع: نسخ الصفوف أدناه",
+      "jsonActionDownloadTitle": "الوضع: تنزيل الصفوف أدناه كملفات",
+      "exportJsonInput": "وحدات الإدخال",
+      "exportJsonOutput": "وحدات الخرج",
+      "exportJsonAll": "كل الوحدات",
+      "exportJsonOutputHistory": "الخرج (كل المخرجات)",
+      "exportJsonAllHistory": "كل الوحدات (كل المخرجات)",
+      "selectForDownload": "حدد بطاقات أو وحدات خرج للتنزيل.",
+      "noMediaToDownload": "لا وسائط للتنزيل.",
+      "downloadFailed": "فشل التنزيل: ",
+      "zipPackingToast": "📦 جاري إنشاء ZIP…",
+      "zipFallbackAlert": "تعذر تحميل ZIP؛ جاري التنزيل واحدًا تلو الآخر…",
+      "jsonCopied": "✅ نُسخ JSON إلى الحافظة.",
+      "jsonCopyFailed": "❌ فشل النسخ.\n",
+      "noFilesToOrganize": "لا مخرجات لتنظيمها.",
+      "organizeSuccessMove": "✅ نُقلت وأُعيد تسمية {count} ملفًا إلى {path}!",
+      "organizeSuccessCopy": "✅ نُسخت وأُعيد تسمية {count} ملفًا إلى {path}!",
+      "organizeFailed": "❌ فشلت العملية: ",
+      "organizeErrorUnknown": "خطأ غير معروف",
+      "organizeRequestFailed": "❌ فشل طلب الخادم الخلفي.\n"
+    }
+  }
+}

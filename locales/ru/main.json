@@ -1,0 +1,240 @@
+{
+  "settingsCategories": {
+    "Creative Lab": "Creative Lab",
+    "1-General": "Общие",
+    "2-PerformanceMedia": "Производительность и медиа",
+    "3-FileIO": "Файлы и поток данных",
+    "4-Automation": "Автоматизация",
+    "5-CardApp": "Вид выбранной карточки",
+    "6-ModuleApp": "Вид выбранного модуля",
+    "Glow": "Свечение",
+    "Fill": "Заливка",
+    "Border": "Рамка",
+    "Color": "Цвет",
+    "Halt": "При ошибке",
+    "Prefix": "Префикс файла",
+    "KeepTemp": "Временные файлы",
+    "ArchiveDir": "Папка архива",
+    "ThumbMode": "Миниатюры",
+    "Muted": "Без звука",
+    "Autoplay": "Автовоспроизведение",
+    "MaxHistory": "Размер истории",
+    "BgOpacity": "Непрозрачность фона",
+    "BackdropBlur": "Размытие фона",
+    "Shortcut": "Сочетание",
+    "ResetAll": "Сбросить по умолчанию"
+  },
+  "clabUi": {
+    "toolbar": {
+      "addCard": "+ Новая задача",
+      "addCardTitle": "Создать пустую карточку",
+      "addModule": "+ Новый модуль",
+      "addModuleTitle": "Добавить модуль в текущую задачу",
+      "run": "▶ Запуск",
+      "runTitle": "Запустить выбранные задачи",
+      "runMenuTitle": "Другие варианты запуска",
+      "runAll": "Запустить все",
+      "batchCountTitle": "Число прогонов в очереди",
+      "createAnchor": "⚓ Узел настроек",
+      "createAnchorTitle": "Создать узел на графе",
+      "widthResetTitle": "Сбросить ширину",
+      "widthInputTitle": "Ширина, px (Enter)"
+    },
+    "config": {
+      "btnTitle": "Создать якорь (сохранить в workflow)",
+      "maintTitle": "Обслуживание данных",
+      "cleanDead": "Удалить битые записи (404)",
+      "resync": "Пересинхронизировать (принудительно)"
+    },
+    "module": {
+      "unbound": "Не привязано",
+      "unboundWithNode": "Не привязано ({name})",
+      "nodeId": "ID узла",
+      "nodeName": "Имя узла",
+      "boundWidget": "Привязанный виджет",
+      "batchBoundHeader": "Пакетно привязано виджетов: {count}",
+      "unknownNode": "Неизвестный узел",
+      "placeholderValue": "Значение параметра…",
+      "delInputTitle": "Удалить вход",
+      "uploadImage": "Загрузить изображение",
+      "uploadVideo": "Загрузить видео",
+      "uploadAudio": "Загрузить аудио",
+      "uploadFile": "Загрузить файл",
+      "uploadHint": "Щёлкните или перетащите для загрузки на сервер",
+      "fileBrokenTitle": "Файл отсутствует / неверный формат",
+      "fileBrokenHint": "Нажмите, чтобы загрузить заново",
+      "uploading": "Загрузка…",
+      "uploadFail": "Ошибка загрузки: ",
+      "pickServerFile": "Или выберите существующий файл…",
+      "pickPlaceholder": "Выбрать…",
+      "boolTrue": "Вкл",
+      "boolFalse": "Выкл"
+    },
+    "output": {
+      "waitOutput": "Ожидание выхода узла [{id}]…",
+      "noNode": "Узел не связан",
+      "delRecordTitle": "Удалить запись",
+      "delAreaTitle": "Удалить выходной модуль",
+      "historyHeader": "История ({count})",
+      "remove": "Убрать"
+    },
+    "menu": {
+      "openTitle": "Открыть Creative Lab (клавиша: {key})",
+      "brand": "CLab"
+    },
+    "alerts": {
+      "selectCardFirst": "Сначала выберите одну или несколько карточек/модулей.",
+      "noMediaToSync": "Нет медиа для синхронизации.",
+      "noRecordsToClean": "Нет записей для очистки."
+    },
+    "toasts": {
+      "resyncing": "Обновление локальных ресурсов…",
+      "resyncDone": "Кэш очищен; выходы перезагружены.",
+      "scanning": "Поиск битых файлов…",
+      "scanClean": "Локальные файлы в порядке.",
+      "cleaned": "Удалено отсутствующих записей: {count}.",
+      "nodeRunFailed": "❌ Ошибка проверки или запуска узла. Проверьте параметры и связи.",
+      "nodeValidateFailed": "❌ Ошибка проверки графа. Проверьте связи.",
+      "workflowBackendError": "❌ Ошибка workflow на сервере. Закройте панель и прочитайте сообщение.",
+      "frontendValidateFailed": "❌ Ошибка проверки на клиенте. Проверьте связи и обязательные параметры."
+    },
+    "run": {
+      "noOutputModules": "Для выбора нет запускаемых выходных модулей. Добавьте выходной модуль.",
+      "noCards": "На панели нет карточек задач.",
+      "noOutputAnyCard": "Ни у одной карточки нет выходного модуля.",
+      "apiNotReady": "API-инжектор ещё не готов. Повторите позже."
+    },
+    "batch": {
+      "confirmSyncUnnamed": "У модуля нет имени (показано как {match}). Синхронизировать с другими задачами в тех же слотах?",
+      "confirmDeleteSame": "⚠️ Опасно:\nУдалить все модули типа {type} с меткой [{match}] во всех задачах?",
+      "typeInput": "вход",
+      "typeOutput": "выход"
+    },
+    "binding": {
+      "pickNodeToast": "🖱️ Щёлкните узел на графе (слева — замена, справа — добавить; пустое место — отмена)…"
+    },
+    "settingsUi": {
+      "resetAllConfirm": "Сбросить все настройки Creative Lab? Это необратимо."
+    },
+    "media": {
+      "volumeSlider": "Громкость",
+      "muteToggle": "Без звука / со звуком",
+      "playbackSpeed": "Скорость",
+      "pictureInPicture": "Картинка в картинке",
+      "fullscreen": "Полный экран",
+      "clickDownload": "Скачать",
+      "unknownFile": "Неизвестный файл",
+      "unknownAudio": "Неизвестное аудио"
+    },
+    "moduleToolbar": {
+      "input": "Вход",
+      "output": "Выход",
+      "linkNode": "Связать узел…",
+      "nodeBinding": "Узел [{id}]",
+      "nodesSelected": "Выбрано узлов: {count}",
+      "bindWidget": "Привязать виджет…",
+      "widgetsSelected": "Виджетов: {count}",
+      "pickNodeTitle": "Выбрать узел на графе",
+      "matchMedia": "Под сторону медиа",
+      "autoHeight": "Автовысота поля ввода",
+      "resetModule": "Сбросить модуль",
+      "syncParams": "Синхронизировать с тем же слотом в других задачах",
+      "cloneTitle": "Клонировать выделение",
+      "formatPainterTitle": "Формат по образцу: щелчок — применить; ESC / ПКМ — выход",
+      "manageHistoryTitle": "История генераций (сетка и порядок)"
+    },
+    "fillMode": {
+      "fit": "Вписать",
+      "cover": "Заполнить",
+      "stretch": "Растянуть"
+    },
+    "ratio": {
+      "custom": "Свой формат"
+    },
+    "tree": {
+      "ungroupedLabel": "Без группы",
+      "unnamedGroup": "Без имени",
+      "uncategorizedLabel": "Без категории"
+    },
+    "select": {
+      "clearLink": "(снять связь)",
+      "clearBind": "(снять привязку)",
+      "selectNodesFirst": "Сначала выберите связанные узлы",
+      "noWidgets": "Нет доступных параметров"
+    },
+    "context": {
+      "content": "Содержимое",
+      "download": "Скачать",
+      "downloadAll": "Скачать все выходы",
+      "remove": "Убрать",
+      "clearAll": "Очистить все выходы",
+      "cleanDead": "Удалить битые (404)",
+      "resync": "Пересинхронизировать",
+      "module": "Модуль",
+      "selectSame": "Выбрать такие же",
+      "deleteSame": "Удалить такие же",
+      "moveBack": "Сдвиг назад (пакет)",
+      "moveFwd": "Сдвиг вперёд (пакет)",
+      "ctxScanning": "Сканирование…",
+      "ctxNoToClean": "В выборе нечего чистить.",
+      "ctxScanClean": "Для выбора файлы в порядке.",
+      "ctxCleaned": "Удалено отсутствующих: {count}.",
+      "ctxResyncing": "Обновление ресурсов…",
+      "ctxNoMedia": "Нет медиа для синхронизации.",
+      "ctxResyncDone": "Выходы перезагружены."
+    },
+    "state": {
+      "configExists": "Узел настроек уже есть на графе.",
+      "configCreated": "Узел настроек создан."
+    },
+    "card": {
+      "deleteTaskTitle": "Удалить задачу (пакет при множестве выбранных)"
+    },
+    "dataIo": {
+      "importJsonBtnTitle": "Импорт JSON (пакет)",
+      "importFromClipboard": "Импорт JSON из буфера",
+      "importFromLocalFile": "Импорт JSON из файла",
+      "importCreateTask": "Новая задача",
+      "importAppendModule": "Добавить модули",
+      "importAppendToSelection": "Добавить к выбранным",
+      "importEmptyData": "Импортированные данные пусты.",
+      "importAppendNeedCards": "Сбой добавления:\nСначала выберите карточки (Ctrl/Cmd для нескольких), затем «Добавить к выбранным».",
+      "importParseError": "Ошибка импорта: неверный JSON.\n",
+      "clipboardEmpty": "Буфер пуст. Скопируйте JSON.",
+      "clipboardReadError": "Не удалось прочитать буфер.\n",
+      "uploadNoFilename": "Загрузка не удалась: сервер не вернул имя файла.",
+      "exportBtnTitle": "Экспорт и загрузка",
+      "zipSectionTitle": "Архив ZIP",
+      "downloadAll": "Скачать всё",
+      "downloadSelected": "Скачать выбранное",
+      "downloadAllHistory": "Всё (вся история)",
+      "downloadSelectedHistory": "Выбранное (вся история)",
+      "organizeSectionTitle": "Организация файлов",
+      "orgMoveSubfolder": "Переместить в подпапку",
+      "orgCopySubfolder": "Копировать в подпапку",
+      "orgMoveSubfolderHistory": "Переместить (вся история)",
+      "orgCopySubfolderHistory": "Копировать (вся история)",
+      "exportJsonTitle": "Экспорт JSON",
+      "jsonActionCopyTitle": "Режим: копировать строки ниже",
+      "jsonActionDownloadTitle": "Режим: скачать строки ниже",
+      "exportJsonInput": "Входные модули",
+      "exportJsonOutput": "Выходные модули",
+      "exportJsonAll": "Все модули",
+      "exportJsonOutputHistory": "Выход (вся история)",
+      "exportJsonAllHistory": "Все модули (вся история)",
+      "selectForDownload": "Выберите карточки или выходные модули.",
+      "noMediaToDownload": "Нет медиа для скачивания.",
+      "downloadFailed": "Ошибка загрузки: ",
+      "zipPackingToast": "📦 Создание ZIP…",
+      "zipFallbackAlert": "Не удалось загрузить ZIP; скачиваю по одному…",
+      "jsonCopied": "✅ JSON скопирован в буфер.",
+      "jsonCopyFailed": "❌ Копирование не удалось.\n",
+      "noFilesToOrganize": "Нет выходных медиа для организации.",
+      "organizeSuccessMove": "✅ Перемещено и переименовано файлов: {count} в {path}!",
+      "organizeSuccessCopy": "✅ Скопировано и переименовано файлов: {count} в {path}!",
+      "organizeFailed": "❌ Ошибка: ",
+      "organizeErrorUnknown": "Неизвестная ошибка",
+      "organizeRequestFailed": "❌ Ошибка запроса к бэкенду.\n"
+    }
+  }
+}

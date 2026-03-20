@@ -11,6 +11,7 @@ import { app } from "../../../../scripts/app.js";
 import { generateSingleCardHTML, attachCardEvents } from "../comp_taskcard.js"; 
 import { generateAreaHTML, attachAreaEvents, justSave } from "../comp_modulearea.js"; 
 import { updateSelectionUI } from "../ui_selection.js";
+import { clabT, clabTf } from "../../clab_i18n.js";
 
 // =========================================================================
 // 核心网络请求：上传本地文件到服务器并返回文件名
@@ -24,7 +25,7 @@ export async function uploadImageToServer(file) {
     });
     if(!resp.ok) throw new Error(resp.statusText);
     const data = await resp.json();
-    if (!data.name) throw new Error(data.error || '上传失败，未返回文件名');
+    if (!data.name) throw new Error(data.error || clabT("dataIo.uploadNoFilename"));
     return data;
 }
 
@@ -36,21 +37,21 @@ export function attachDataIOEvents(panelContainer) {
     if (addModuleBtn && !panelContainer.querySelector("#clab-import-json-wrapper")) {
         addModuleBtn.insertAdjacentHTML('afterend', `
             <div id="clab-import-json-wrapper" style="position:relative; display:inline-flex; align-items:center;">
-                <button class="clab-btn" id="clab-import-json-btn" title="批量导入JSON快速构建" style="padding: 0; width: 34px; height: 34px; display:flex; align-items:center; justify-content:center;">
+                <button class="clab-btn" id="clab-import-json-btn" title="${clabT("dataIo.importJsonBtnTitle")}" style="padding: 0; width: 34px; height: 34px; display:flex; align-items:center; justify-content:center;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="6 9 12 15 18 9"></polyline>
                     </svg>
                 </button>
                 <div id="clab-import-json-dropdown" class="clab-custom-select-dropdown" style="display:none; top: calc(100% + 4px); left: 0; min-width: 170px; z-index: 10002;">
-                    <div class="clab-custom-select-group-title" style="padding: 6px 12px; font-size: 12px; margin-top: 0; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05);">从剪切板导入JSON数据</div>
-                    <div class="clab-custom-select-item" id="clab-import-new-clip">创建任务</div>
-                    <div class="clab-custom-select-item" id="clab-import-append-smart-clip">追加模块</div>
-                    <div class="clab-custom-select-item" id="clab-import-append-sel-clip">追加模块到选中</div>
+                    <div class="clab-custom-select-group-title" style="padding: 6px 12px; font-size: 12px; margin-top: 0; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05);">${clabT("dataIo.importFromClipboard")}</div>
+                    <div class="clab-custom-select-item" id="clab-import-new-clip">${clabT("dataIo.importCreateTask")}</div>
+                    <div class="clab-custom-select-item" id="clab-import-append-smart-clip">${clabT("dataIo.importAppendModule")}</div>
+                    <div class="clab-custom-select-item" id="clab-import-append-sel-clip">${clabT("dataIo.importAppendToSelection")}</div>
                     
-                    <div class="clab-custom-select-group-title" style="padding: 6px 12px; font-size: 12px; margin-top: 4px; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05);">从本地文件导入JSON数据</div>
-                    <div class="clab-custom-select-item" id="clab-import-new-local">创建任务</div>
-                    <div class="clab-custom-select-item" id="clab-import-append-smart-local">追加模块</div>
-                    <div class="clab-custom-select-item" id="clab-import-append-sel-local">追加模块到选中</div>
+                    <div class="clab-custom-select-group-title" style="padding: 6px 12px; font-size: 12px; margin-top: 4px; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05);">${clabT("dataIo.importFromLocalFile")}</div>
+                    <div class="clab-custom-select-item" id="clab-import-new-local">${clabT("dataIo.importCreateTask")}</div>
+                    <div class="clab-custom-select-item" id="clab-import-append-smart-local">${clabT("dataIo.importAppendModule")}</div>
+                    <div class="clab-custom-select-item" id="clab-import-append-sel-local">${clabT("dataIo.importAppendToSelection")}</div>
                 </div>
             </div>
         `);
@@ -70,7 +71,7 @@ export function attachDataIOEvents(panelContainer) {
             try {
                 const data = JSON.parse(jsonStr);
                 let dataArray = Array.isArray(data) ? data : [data];
-                if (dataArray.length === 0) return alert("导入的数据为空！");
+                if (dataArray.length === 0) return alert(clabT("dataIo.importEmptyData"));
 
                 let smartAppendStartIndex = 0;
                 let newCardsToDOM = []; // 暂存需要插入 DOM 的新卡片
@@ -156,7 +157,7 @@ export function attachDataIOEvents(panelContainer) {
                     });
                 } else if (mode === 'append_selected') {
                     if (!state.selectedCardIds || state.selectedCardIds.length === 0) {
-                        return alert("【追加失败】\n请先点击选中一个或多个任务卡片（支持 Ctrl 多选），然后再执行“追加模块到选中”！");
+                        return alert(clabT("dataIo.importAppendNeedCards"));
                     }
                     state.selectedCardIds.forEach((cardId, index) => {
                         const card = state.cards.find(c => c.id === cardId);
@@ -235,7 +236,7 @@ export function attachDataIOEvents(panelContainer) {
                 }, 50);
 
             } catch (e) {
-                alert("导入失败：无法解析 JSON 数据。\n" + e.message);
+                alert(clabT("dataIo.importParseError") + e.message);
             }
         };
 
@@ -243,10 +244,10 @@ export function attachDataIOEvents(panelContainer) {
             dropdown.style.display = 'none';
             try {
                 const text = await navigator.clipboard.readText();
-                if (!text) return alert("剪切板为空，请先复制 JSON 数据！");
+                if (!text) return alert(clabT("dataIo.clipboardEmpty"));
                 processImportedJSON(text, mode);
             } catch (err) {
-                alert("无法读取剪切板。\n" + err.message);
+                alert(clabT("dataIo.clipboardReadError") + err.message);
             }
         };
 
@@ -280,41 +281,41 @@ export function attachDataIOEvents(panelContainer) {
     if (configBtn && !panelContainer.querySelector("#clab-export-json-wrapper")) {
         configBtn.insertAdjacentHTML('beforebegin', `
             <div id="clab-export-json-wrapper" style="position:relative; display:inline-flex; align-items:center;">
-                <button class="clab-btn" id="clab-export-json-btn" title="导出与下载" style="padding: 0; width: 34px; height: 34px; display:flex; align-items:center; justify-content:center;">
+                <button class="clab-btn" id="clab-export-json-btn" title="${clabT("dataIo.exportBtnTitle")}" style="padding: 0; width: 34px; height: 34px; display:flex; align-items:center; justify-content:center;">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line>
                     </svg>
                 </button>
                 <div id="clab-export-json-dropdown" class="clab-custom-select-dropdown" style="display:none; top: calc(100% + 4px); right: 0; left: auto; min-width: 250px; z-index: 10002;">
                     
-                    <div class="clab-custom-select-group-title" style="padding: 6px 12px; font-size: 12px; margin-top: 0; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05); display: flex; align-items: center; white-space: nowrap; gap: 12px;">打包为ZIP</div>
-                    <div class="clab-custom-select-item" id="clab-export-media-all">下载全部</div>
-                    <div class="clab-custom-select-item" id="clab-export-media-sel">下载选中</div>
-                    <div class="clab-custom-select-item" id="clab-export-media-all-history">下载全部 (含所有生成记录)</div>
-                    <div class="clab-custom-select-item" id="clab-export-media-sel-history">下载选中 (含所有生成记录)</div>
+                    <div class="clab-custom-select-group-title" style="padding: 6px 12px; font-size: 12px; margin-top: 0; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05); display: flex; align-items: center; white-space: nowrap; gap: 12px;">${clabT("dataIo.zipSectionTitle")}</div>
+                    <div class="clab-custom-select-item" id="clab-export-media-all">${clabT("dataIo.downloadAll")}</div>
+                    <div class="clab-custom-select-item" id="clab-export-media-sel">${clabT("dataIo.downloadSelected")}</div>
+                    <div class="clab-custom-select-item" id="clab-export-media-all-history">${clabT("dataIo.downloadAllHistory")}</div>
+                    <div class="clab-custom-select-item" id="clab-export-media-sel-history">${clabT("dataIo.downloadSelectedHistory")}</div>
                     
-                    <div class="clab-custom-select-group-title" style="padding: 6px 12px; font-size: 12px; margin-top: 4px; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05);">收集整理</div>
-                    <div class="clab-custom-select-item" id="clab-export-org-move">移动到子文件夹</div>
-                    <div class="clab-custom-select-item" id="clab-export-org-copy">复制到子文件夹</div>
-                    <div class="clab-custom-select-item" id="clab-export-org-move-history">移动到子文件夹 (含所有生成记录)</div>
-                    <div class="clab-custom-select-item" id="clab-export-org-copy-history">复制到子文件夹 (含所有生成记录)</div>
+                    <div class="clab-custom-select-group-title" style="padding: 6px 12px; font-size: 12px; margin-top: 4px; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05);">${clabT("dataIo.organizeSectionTitle")}</div>
+                    <div class="clab-custom-select-item" id="clab-export-org-move">${clabT("dataIo.orgMoveSubfolder")}</div>
+                    <div class="clab-custom-select-item" id="clab-export-org-copy">${clabT("dataIo.orgCopySubfolder")}</div>
+                    <div class="clab-custom-select-item" id="clab-export-org-move-history">${clabT("dataIo.orgMoveSubfolderHistory")}</div>
+                    <div class="clab-custom-select-item" id="clab-export-org-copy-history">${clabT("dataIo.orgCopySubfolderHistory")}</div>
                     
                     <div class="clab-custom-select-group-title" style="padding: 0 0 0 12px; height: 28px; font-size: 12px; margin-top: 4px; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: space-between; white-space: nowrap;">
-                        <span>导出JSON数据</span>
+                        <span>${clabT("dataIo.exportJsonTitle")}</span>
                         <div style="display: flex; height: 100%; align-items: center; pointer-events: auto;">
-                            <div id="clab-json-action-copy" style="height: 100%; width: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: #2a2a2a; color: #fff; transition: all 0.2s;" title="点亮：点击下方项复制到剪切板">
+                            <div id="clab-json-action-copy" style="height: 100%; width: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: #2a2a2a; color: #fff; transition: all 0.2s;" title="${clabT("dataIo.jsonActionCopyTitle")}">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                             </div>
-                            <div id="clab-json-action-download" style="height: 100%; width: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: transparent; color: #888; transition: all 0.2s;" title="点亮：点击下方项下载到本地">
+                            <div id="clab-json-action-download" style="height: 100%; width: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: transparent; color: #888; transition: all 0.2s;" title="${clabT("dataIo.jsonActionDownloadTitle")}">
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                             </div>
                         </div>
                     </div>
-                    <div class="clab-custom-select-item" id="clab-export-json-input">输入模块</div>
-                    <div class="clab-custom-select-item" id="clab-export-json-output">输出模块</div>
-                    <div class="clab-custom-select-item" id="clab-export-json-all">全部模块</div>
-                    <div class="clab-custom-select-item" id="clab-export-json-output-history">输出模块 (含所有生成记录)</div>
-                    <div class="clab-custom-select-item" id="clab-export-json-all-history">全部模块 (含所有生成记录)</div>
+                    <div class="clab-custom-select-item" id="clab-export-json-input">${clabT("dataIo.exportJsonInput")}</div>
+                    <div class="clab-custom-select-item" id="clab-export-json-output">${clabT("dataIo.exportJsonOutput")}</div>
+                    <div class="clab-custom-select-item" id="clab-export-json-all">${clabT("dataIo.exportJsonAll")}</div>
+                    <div class="clab-custom-select-item" id="clab-export-json-output-history">${clabT("dataIo.exportJsonOutputHistory")}</div>
+                    <div class="clab-custom-select-item" id="clab-export-json-all-history">${clabT("dataIo.exportJsonAllHistory")}</div>
                 </div>
             </div>
         `);
@@ -353,13 +354,13 @@ export function attachDataIOEvents(panelContainer) {
                     state.cards.filter(c => state.selectedCardIds.includes(c.id)).forEach(c => {
                         c.areas?.forEach(a => extractUrlsFromArea(a));
                     });
-                } else return alert("请先选中需要下载的任务卡片或输出模块！");
+                } else return alert(clabT("dataIo.selectForDownload"));
             } else {
                 state.cards.forEach(c => c.areas?.forEach(a => extractUrlsFromArea(a)));
             }
 
             const uniqueUrls = [...new Set(urlsToDownload)];
-            if (uniqueUrls.length === 0) return alert("没有找到可下载的媒体文件！");
+            if (uniqueUrls.length === 0) return alert(clabT("dataIo.noMediaToDownload"));
 
             // 同步获取自定义的文件夹名称用于 Zip 命名
             const archiveBase = window._clabArchiveDir || "CLab";
@@ -376,9 +377,9 @@ export function attachDataIOEvents(panelContainer) {
                     a.href = blobUrl; a.download = filename; 
                     document.body.appendChild(a); a.click(); document.body.removeChild(a);
                     URL.revokeObjectURL(blobUrl);
-                } catch (err) { alert("下载失败: " + err.message); }
+                } catch (err) { alert(clabT("dataIo.downloadFailed") + err.message); }
             } else {
-                if (typeof showBindingToast === 'function') showBindingToast("📦 正在拉取文件并打包 ZIP，请稍候...", false);
+                if (typeof showBindingToast === 'function') showBindingToast(clabT("dataIo.zipPackingToast"), false);
                 try {
                     if (!window.JSZip) {
                         await new Promise((resolve, reject) => {
@@ -409,7 +410,7 @@ export function attachDataIOEvents(panelContainer) {
                     if (typeof hideBindingToast === 'function') hideBindingToast();
                 } catch (err) {
                     if (typeof hideBindingToast === 'function') hideBindingToast();
-                    alert("网络原因无法加载打包组件，将为您逐个下载...");
+                    alert(clabT("dataIo.zipFallbackAlert"));
                     for (let i = 0; i < uniqueUrls.length; i++) {
                         try {
                             const url = uniqueUrls[i];
@@ -500,8 +501,8 @@ export function attachDataIOEvents(panelContainer) {
             if (currentJsonAction === 'copy') {
                 try {
                     await navigator.clipboard.writeText(jsonStr);
-                    alert("✅ JSON 数据已成功复制到剪切板！");
-                } catch (err) { alert("❌ 复制失败。\n" + err.message); }
+                    alert(clabT("dataIo.jsonCopied"));
+                } catch (err) { alert(clabT("dataIo.jsonCopyFailed") + err.message); }
             } else if (currentJsonAction === 'download') {
                 const blob = new Blob([jsonStr], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
@@ -584,7 +585,7 @@ export function attachDataIOEvents(panelContainer) {
                 });
             });
 
-            if (filesToProcess.length === 0) return alert("当前面板没有找到任何可处理的输出媒体文件！");
+            if (filesToProcess.length === 0) return alert(clabT("dataIo.noFilesToOrganize"));
 
             try {
                 const response = await fetch('/clab/organize_files', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: action, files: filesToProcess }) });
@@ -631,9 +632,12 @@ export function attachDataIOEvents(panelContainer) {
                             if (window._clabJustSave) window._clabJustSave(); else saveAndRender();
                         }
                     }
-                    alert(`✅ 成功${action === 'move' ? '移动' : '复制'}并重命名了 ${res.results.length} 个文件到 ${archiveBase}/${workflowName} 文件夹！`);
-                } else alert("❌ 操作失败: " + (res.error || "未知错误"));
-            } catch (err) { alert("❌ 请求后端接口失败。\n" + err.message); }
+                    alert(clabTf(action === "move" ? "dataIo.organizeSuccessMove" : "dataIo.organizeSuccessCopy", {
+                        count: res.results.length,
+                        path: `${archiveBase}/${workflowName}`
+                    }));
+                } else alert(clabT("dataIo.organizeFailed") + (res.error || clabT("dataIo.organizeErrorUnknown")));
+            } catch (err) { alert(clabT("dataIo.organizeRequestFailed") + err.message); }
         };
 
         exportWrapper.querySelector("#clab-export-org-move").onclick = (e) => { e.stopPropagation(); organizeOutputFiles('move', false); };
@@ -641,4 +645,59 @@ export function attachDataIOEvents(panelContainer) {
         exportWrapper.querySelector("#clab-export-org-move-history").onclick = (e) => { e.stopPropagation(); organizeOutputFiles('move', true); };
         exportWrapper.querySelector("#clab-export-org-copy-history").onclick = (e) => { e.stopPropagation(); organizeOutputFiles('copy', true); };
     }
+}
+
+/** 语言切换或重绘后同步已插入面板的导入/导出下拉文案（事件仍绑在原 DOM 上） */
+export function refreshInjectedDataIoLabels(panelContainer) {
+    if (!panelContainer) return;
+
+    const impBtn = panelContainer.querySelector("#clab-import-json-btn");
+    if (impBtn) impBtn.title = clabT("dataIo.importJsonBtnTitle");
+    const impDrop = panelContainer.querySelector("#clab-import-json-dropdown");
+    if (impDrop) {
+        const gts = impDrop.querySelectorAll(":scope > .clab-custom-select-group-title");
+        if (gts[0]) gts[0].textContent = clabT("dataIo.importFromClipboard");
+        if (gts[1]) gts[1].textContent = clabT("dataIo.importFromLocalFile");
+    }
+    const setTxt = (sel, key) => {
+        const el = panelContainer.querySelector(sel);
+        if (el) el.textContent = clabT(key);
+    };
+    setTxt("#clab-import-new-clip", "dataIo.importCreateTask");
+    setTxt("#clab-import-append-smart-clip", "dataIo.importAppendModule");
+    setTxt("#clab-import-append-sel-clip", "dataIo.importAppendToSelection");
+    setTxt("#clab-import-new-local", "dataIo.importCreateTask");
+    setTxt("#clab-import-append-smart-local", "dataIo.importAppendModule");
+    setTxt("#clab-import-append-sel-local", "dataIo.importAppendToSelection");
+
+    const expBtn = panelContainer.querySelector("#clab-export-json-btn");
+    if (expBtn) expBtn.title = clabT("dataIo.exportBtnTitle");
+    const expDrop = panelContainer.querySelector("#clab-export-json-dropdown");
+    if (expDrop) {
+        const gts = expDrop.querySelectorAll(":scope > .clab-custom-select-group-title");
+        if (gts[0]) gts[0].textContent = clabT("dataIo.zipSectionTitle");
+        if (gts[1]) gts[1].textContent = clabT("dataIo.organizeSectionTitle");
+        if (gts[2]) {
+            const sp = gts[2].querySelector("span");
+            if (sp) sp.textContent = clabT("dataIo.exportJsonTitle");
+        }
+    }
+    setTxt("#clab-export-media-all", "dataIo.downloadAll");
+    setTxt("#clab-export-media-sel", "dataIo.downloadSelected");
+    setTxt("#clab-export-media-all-history", "dataIo.downloadAllHistory");
+    setTxt("#clab-export-media-sel-history", "dataIo.downloadSelectedHistory");
+    setTxt("#clab-export-org-move", "dataIo.orgMoveSubfolder");
+    setTxt("#clab-export-org-copy", "dataIo.orgCopySubfolder");
+    setTxt("#clab-export-org-move-history", "dataIo.orgMoveSubfolderHistory");
+    setTxt("#clab-export-org-copy-history", "dataIo.orgCopySubfolderHistory");
+    setTxt("#clab-export-json-input", "dataIo.exportJsonInput");
+    setTxt("#clab-export-json-output", "dataIo.exportJsonOutput");
+    setTxt("#clab-export-json-all", "dataIo.exportJsonAll");
+    setTxt("#clab-export-json-output-history", "dataIo.exportJsonOutputHistory");
+    setTxt("#clab-export-json-all-history", "dataIo.exportJsonAllHistory");
+
+    const jCopy = panelContainer.querySelector("#clab-json-action-copy");
+    if (jCopy) jCopy.setAttribute("title", clabT("dataIo.jsonActionCopyTitle"));
+    const jDown = panelContainer.querySelector("#clab-json-action-download");
+    if (jDown) jDown.setAttribute("title", clabT("dataIo.jsonActionDownloadTitle"));
 }

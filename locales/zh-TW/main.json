@@ -1,0 +1,240 @@
+{
+  "settingsCategories": {
+    "Creative Lab": "創意實驗室",
+    "1-General": "一般",
+    "2-PerformanceMedia": "效能與媒體播放",
+    "3-FileIO": "檔案與資料流",
+    "4-Automation": "自動化行為",
+    "5-CardApp": "任務卡片選取外觀",
+    "6-ModuleApp": "模組選取外觀",
+    "Glow": "光暈",
+    "Fill": "填滿",
+    "Border": "邊框",
+    "Color": "色彩",
+    "Halt": "發生錯誤時",
+    "Prefix": "檔名前綴",
+    "KeepTemp": "暫存檔",
+    "ArchiveDir": "封存資料夾",
+    "ThumbMode": "縮圖模式",
+    "Muted": "靜音",
+    "Autoplay": "自動播放",
+    "MaxHistory": "歷史筆數",
+    "BgOpacity": "背景不透明度",
+    "BackdropBlur": "背景模糊",
+    "Shortcut": "快速鍵",
+    "ResetAll": "還原預設"
+  },
+  "clabUi": {
+    "toolbar": {
+      "addCard": "+ 新增任務",
+      "addCardTitle": "新增空白任務卡片",
+      "addModule": "+ 新增模組",
+      "addModuleTitle": "在目前任務內新增模組",
+      "run": "▶ 執行",
+      "runTitle": "依規則執行選取任務（局部）",
+      "runMenuTitle": "展開更多執行選項",
+      "runAll": "全部執行",
+      "batchCountTitle": "迴圈執行次數（排隊執行）",
+      "createAnchor": "⚓ 建立設定節點",
+      "createAnchorTitle": "在畫布建立設定節點",
+      "widthResetTitle": "還原預設寬度",
+      "widthInputTitle": "手動輸入寬度（Enter 確認）"
+    },
+    "config": {
+      "btnTitle": "建立設定錨點（將資料存入工作流）",
+      "maintTitle": "資料維護中心",
+      "cleanDead": "清理失效紀錄 (404)",
+      "resync": "重新同步紀錄（強制重新整理）"
+    },
+    "module": {
+      "unbound": "未繫結參數",
+      "unboundWithNode": "未繫結參數 ({name})",
+      "nodeId": "節點 ID",
+      "nodeName": "節點名稱",
+      "boundWidget": "繫結參數",
+      "batchBoundHeader": "批次繫結了 {count} 個參數：",
+      "unknownNode": "未知節點",
+      "placeholderValue": "輸入參數值…",
+      "delInputTitle": "刪除輸入",
+      "uploadImage": "上傳圖片",
+      "uploadVideo": "上傳影片",
+      "uploadAudio": "上傳音訊",
+      "uploadFile": "上傳檔案",
+      "uploadHint": "點擊或拖曳至此上傳至伺服器",
+      "fileBrokenTitle": "檔案已失效／格式不符",
+      "fileBrokenHint": "點擊重新上傳覆蓋此參數",
+      "uploading": "正在加密上傳至伺服器…",
+      "uploadFail": "本機檔案上傳失敗：",
+      "pickServerFile": "或選擇伺服器既有檔案…",
+      "pickPlaceholder": "選擇…",
+      "boolTrue": "開",
+      "boolFalse": "關"
+    },
+    "output": {
+      "waitOutput": "等待節點 [{id}] 輸出…",
+      "noNode": "未關聯節點",
+      "delRecordTitle": "刪除此紀錄",
+      "delAreaTitle": "刪除輸出模組",
+      "historyHeader": "生成紀錄管理 ({count})",
+      "remove": "移除"
+    },
+    "menu": {
+      "openTitle": "開啟 Creative Lab（快速鍵 {key}）",
+      "brand": "CLab"
+    },
+    "alerts": {
+      "selectCardFirst": "請先選取一或多張任務卡片／模組，以確認新增位置！",
+      "noMediaToSync": "目前面板沒有任何媒體紀錄需要同步。",
+      "noRecordsToClean": "目前面板沒有任何有效生成紀錄需要清理。"
+    },
+    "toasts": {
+      "resyncing": "🔄 正在強制重新擷取本機資產…",
+      "resyncDone": "✅ 快取已清除，所有輸出模組已重新載入媒體！",
+      "scanning": "🔍 正在掃描失效紀錄，請稍候…",
+      "scanClean": "✨ 掃描完畢：所有本機資產均完好！",
+      "cleaned": "🧹 清理完成：已徹底剔除 {count} 筆遺失紀錄。",
+      "nodeRunFailed": "❌ 節點驗證或執行失敗！請檢查必填參數與連線。",
+      "nodeValidateFailed": "❌ 節點驗證失敗！請檢查工作流連線。",
+      "workflowBackendError": "❌ 工作流後台執行錯誤！請關閉面板並查看詳細錯誤提示。",
+      "frontendValidateFailed": "❌ 節點前端驗證失敗！請檢查工作流連線或必填參數。"
+    },
+    "run": {
+      "noOutputModules": "目前選取項目沒有可執行的輸出模組！請確認是否已新增輸出模組。",
+      "noCards": "面板中沒有任何任務卡片！",
+      "noOutputAnyCard": "所有卡片皆無輸出模組，無法執行。",
+      "apiNotReady": "API 攔截器尚未載入完成，請稍後再試！"
+    },
+    "batch": {
+      "confirmSyncUnnamed": "目前選取模組未命名（預設標記為 {match}）。確定要將參數同步到其他任務中對應位置的模組嗎？",
+      "confirmDeleteSame": "⚠️ 危險操作：\n確定要刪除所有任務中，標示為 [{match}] 的{type}模組嗎？",
+      "typeInput": "輸入",
+      "typeOutput": "輸出"
+    },
+    "binding": {
+      "pickNodeToast": "🖱️ 請在工作流中點擊節點（左鍵＝取代，右鍵＝附加，點擊空白處取消）…"
+    },
+    "settingsUi": {
+      "resetAllConfirm": "確定要將所有 Creative Lab 設定還原為預設值嗎？此動作無法復原。"
+    },
+    "media": {
+      "volumeSlider": "調整音量",
+      "muteToggle": "靜音／取消靜音",
+      "playbackSpeed": "播放速度",
+      "pictureInPicture": "子母畫面",
+      "fullscreen": "全螢幕",
+      "clickDownload": "點擊下載",
+      "unknownFile": "未知檔案",
+      "unknownAudio": "未知音訊檔"
+    },
+    "moduleToolbar": {
+      "input": "輸入",
+      "output": "輸出",
+      "linkNode": "關聯節點…",
+      "nodeBinding": "[{id}] 節點",
+      "nodesSelected": "已選 {count} 個節點",
+      "bindWidget": "繫結參數…",
+      "widgetsSelected": "已選 {count} 個參數",
+      "pickNodeTitle": "從畫布挑選節點",
+      "matchMedia": "符合媒體比例",
+      "autoHeight": "參數框高度自動調整",
+      "resetModule": "將模組參數重設為新建狀態",
+      "syncParams": "同步參數至其他任務相同位置",
+      "cloneTitle": "原樣複製選取項目",
+      "formatPainterTitle": "格式刷：連續點擊覆蓋參數或在空白處插入複本（ESC／右鍵／工具列點擊結束）",
+      "manageHistoryTitle": "管理生成紀錄（網格檢視與拖曳排序）"
+    },
+    "fillMode": {
+      "fit": "顯示全部",
+      "cover": "填滿",
+      "stretch": "拉伸"
+    },
+    "ratio": {
+      "custom": "自訂比例"
+    },
+    "tree": {
+      "ungroupedLabel": "未分組",
+      "unnamedGroup": "未命名群組",
+      "uncategorizedLabel": "未分類"
+    },
+    "select": {
+      "clearLink": "（清除關聯）",
+      "clearBind": "（清除繫結）",
+      "selectNodesFirst": "請先選取關聯節點",
+      "noWidgets": "無可用參數"
+    },
+    "context": {
+      "content": "內容",
+      "download": "下載",
+      "downloadAll": "下載全部生成紀錄",
+      "remove": "移除",
+      "clearAll": "清除所有生成紀錄",
+      "cleanDead": "清理失效紀錄 (404)",
+      "resync": "重新同步紀錄（強制重新整理）",
+      "module": "模組",
+      "selectSame": "選取相同模組",
+      "deleteSame": "刪除相同模組",
+      "moveBack": "批次向後移動",
+      "moveFwd": "批次向前移動",
+      "ctxScanning": "🔍 正在掃描失效紀錄，請稍候…",
+      "ctxNoToClean": "選取模組沒有任何有效生成紀錄需要清理。",
+      "ctxScanClean": "✨ 掃描完畢：選取模組的本機資產均完好！",
+      "ctxCleaned": "🧹 清理完成：已徹底剔除該模組 {count} 筆遺失紀錄。",
+      "ctxResyncing": "🔄 正在強制重新擷取選取模組的本機資產…",
+      "ctxNoMedia": "選取模組沒有任何媒體紀錄需要同步。",
+      "ctxResyncDone": "✅ 快取已清除，選取輸出模組已重新載入媒體！"
+    },
+    "state": {
+      "configExists": "⚠️ 設定節點已存在於畫布中！",
+      "configCreated": "✅ 設定節點已建立"
+    },
+    "card": {
+      "deleteTaskTitle": "刪除此任務（若多選則批次刪除）"
+    },
+    "dataIo": {
+      "importJsonBtnTitle": "批次匯入 JSON 快速建置",
+      "importFromClipboard": "從剪貼簿匯入 JSON 資料",
+      "importFromLocalFile": "從本機檔案匯入 JSON 資料",
+      "importCreateTask": "建立任務",
+      "importAppendModule": "附加模組",
+      "importAppendToSelection": "附加模組到選取項目",
+      "importEmptyData": "匯入的資料為空！",
+      "importAppendNeedCards": "【附加失敗】\n請先點選選取一或多張任務卡片（支援 Ctrl 多選），再執行「附加模組到選取」！",
+      "importParseError": "匯入失敗：無法解析 JSON 資料。\n",
+      "clipboardEmpty": "剪貼簿為空，請先複製 JSON 資料！",
+      "clipboardReadError": "無法讀取剪貼簿。\n",
+      "uploadNoFilename": "上傳失敗，未回傳檔名",
+      "exportBtnTitle": "匯出與下載",
+      "zipSectionTitle": "打包為 ZIP",
+      "downloadAll": "下載全部",
+      "downloadSelected": "下載選取",
+      "downloadAllHistory": "下載全部（含所有生成紀錄）",
+      "downloadSelectedHistory": "下載選取（含所有生成紀錄）",
+      "organizeSectionTitle": "收集整理",
+      "orgMoveSubfolder": "移動到子資料夾",
+      "orgCopySubfolder": "複製到子資料夾",
+      "orgMoveSubfolderHistory": "移動到子資料夾（含所有生成紀錄）",
+      "orgCopySubfolderHistory": "複製到子資料夾（含所有生成紀錄）",
+      "exportJsonTitle": "匯出 JSON 資料",
+      "jsonActionCopyTitle": "啟用：點下方項目複製到剪貼簿",
+      "jsonActionDownloadTitle": "啟用：點下方項目下載到本機",
+      "exportJsonInput": "輸入模組",
+      "exportJsonOutput": "輸出模組",
+      "exportJsonAll": "全部模組",
+      "exportJsonOutputHistory": "輸出模組（含所有生成紀錄）",
+      "exportJsonAllHistory": "全部模組（含所有生成紀錄）",
+      "selectForDownload": "請先選取要下載的任務卡片或輸出模組！",
+      "noMediaToDownload": "找不到可下載的媒體檔案！",
+      "downloadFailed": "下載失敗：",
+      "zipPackingToast": "📦 正在擷取檔案並打包 ZIP，請稍候…",
+      "zipFallbackAlert": "網路原因無法載入打包元件，將改為逐一下載…",
+      "jsonCopied": "✅ JSON 資料已成功複製到剪貼簿！",
+      "jsonCopyFailed": "❌ 複製失敗。\n",
+      "noFilesToOrganize": "目前面板找不到任何可處理的輸出媒體檔案！",
+      "organizeSuccessMove": "✅ 已成功移動並重新命名 {count} 個檔案到 {path} 資料夾！",
+      "organizeSuccessCopy": "✅ 已成功複製並重新命名 {count} 個檔案到 {path} 資料夾！",
+      "organizeFailed": "❌ 操作失敗：",
+      "organizeErrorUnknown": "未知錯誤",
+      "organizeRequestFailed": "❌ 請求後端介面失敗。\n"
+    }
+  }
+}

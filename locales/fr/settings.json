@@ -1,0 +1,82 @@
+{
+  "CLab_1-General_ResetAll": {
+    "name": "Réinitialiser tous les réglages",
+    "tooltip": "⚠️ Attention : activer cette option réinitialise immédiatement tous les réglages CLab aux valeurs d’usine."
+  },
+  "CLab_1-General_Shortcut": {
+    "name": "Raccourci clavier",
+    "tooltip": "Combinaisons possibles, ex. : C, Shift+C, Ctrl+M, Alt+X (insensible à la casse)"
+  },
+  "CLab_1-General_BackdropBlur": {
+    "name": "Activer le flou d’arrière-plan",
+    "tooltip": "Améliore le rendu ; sur GPU faible, le déplacement du panneau peut saccader."
+  },
+  "CLab_1-General_BgOpacity": {
+    "name": "Opacité du fond du panneau (%)",
+    "tooltip": "Transparence du fond du panneau principal (0 = transparent, 100 = opaque)."
+  },
+  "CLab_2-PerformanceMedia_MaxHistory": {
+    "name": "Taille max. de l’historique",
+    "tooltip": "Nombre maximal de générations conservées par module de sortie ; les plus anciennes sont supprimées pour limiter la mémoire."
+  },
+  "CLab_2-PerformanceMedia_Autoplay": {
+    "name": "Lecture automatique de la vidéo",
+    "tooltip": "Désactivé : seule la première image s’affiche jusqu’au clic (réduit la charge GPU avec plusieurs cartes)."
+  },
+  "CLab_2-PerformanceMedia_Muted": {
+    "name": "Vidéos muettes par défaut",
+    "tooltip": "Activé : les vidéos se chargent en muet. Lecture auto + son peut être bloquée par le navigateur."
+  },
+  "CLab_2-PerformanceMedia_ThumbMode": {
+    "name": "Mode miniatures haute performance",
+    "tooltip": "Activé : seule la première image des vidéos dans la grille. Désactivé : toutes les vidéos en boucle muette (machines puissantes)."
+  },
+  "CLab_3-FileIO_ArchiveDir": {
+    "name": "Nom du dossier d’archive",
+    "tooltip": "Racine où les médias interceptés et les fichiers organisés sont stockés. Pas de barres obliques ni caractères invalides."
+  },
+  "CLab_3-FileIO_KeepTemp": {
+    "name": "Conserver les fichiers temporaires d’origine",
+    "tooltip": "Désactivé : après déplacement vers l’archive, les fichiers temporaires sont supprimés pour économiser l’espace."
+  },
+  "CLab_3-FileIO_Prefix": {
+    "name": "Préfixe des noms de fichiers",
+    "tooltip": "Préfixe lors de la capture ; par défaut pix (ex. pix_01.png)."
+  },
+  "CLab_4-Automation_HaltOnError": {
+    "name": "Arrêter la file en cas d’erreur",
+    "tooltip": "Activé : une erreur vide toute la file. Désactivé : les tâches en échec sont ignorées, le reste continue."
+  },
+  "CLab_5-CardApp_Color": {
+    "name": "Couleur d’accent",
+    "tooltip": "Couleur du thème lorsqu’une carte est sélectionnée et barre de progression du bas. Par défaut : #4CAF50"
+  },
+  "CLab_5-CardApp_Border": {
+    "name": "Épaisseur de bordure (px)",
+    "tooltip": "Épaisseur du contour lorsqu’une carte est active."
+  },
+  "CLab_5-CardApp_Fill": {
+    "name": "Opacité de remplissage (%)",
+    "tooltip": "Intensité du surlignage lors de la sélection d’une carte."
+  },
+  "CLab_5-CardApp_Glow": {
+    "name": "Intensité de lueur",
+    "tooltip": "Rayon de lueur externe autour de la carte sélectionnée ; maximum pour un effet marqué."
+  },
+  "CLab_6-ModuleApp_Color": {
+    "name": "Couleur d’accent",
+    "tooltip": "Couleur principale quand une zone (entrée/sortie) est sélectionnée. Par défaut : #2196F3"
+  },
+  "CLab_6-ModuleApp_Border": {
+    "name": "Épaisseur de bordure (px)",
+    "tooltip": "Épaisseur du contour d’un module sélectionné."
+  },
+  "CLab_6-ModuleApp_Fill": {
+    "name": "Opacité de remplissage (%)",
+    "tooltip": "Force du surlignage du module (0 = totalement transparent)."
+  },
+  "CLab_6-ModuleApp_Glow": {
+    "name": "Intensité de lueur",
+    "tooltip": "Rayon de flou externe ; 0 désactive la lueur."
+  }
+}

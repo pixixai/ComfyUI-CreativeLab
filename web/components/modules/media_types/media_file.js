@@ -2,9 +2,10 @@
  * 文件名: media_file.js
  * 职责: 普通文件下载占位符渲染
  */
+import { clabT } from "../../../clab_i18n.js";
 
 export function renderFile(area, url) {
-    let filename = "未知文件";
+    let filename = clabT("media.unknownFile");
     try { 
         filename = new URL(url, window.location.origin).searchParams.get('filename') || filename; 
     } catch(e) {}
@@ -16,7 +17,7 @@ export function renderFile(area, url) {
                 <polyline points="13 2 13 9 20 9"></polyline>
             </svg>
             <div style="font-size: 12px; font-weight: bold; color: #eee; word-break: break-all;">${filename}</div>
-            <a href="${url}" download="${filename}" style="margin-top:10px; color:#2196F3; font-size:11px; text-decoration:none;">点击下载</a>
+            <a href="${url}" download="${filename}" style="margin-top:10px; color:#2196F3; font-size:11px; text-decoration:none;">${clabT("media.clickDownload")}</a>
         </div>
     `;
 }

@@ -7,6 +7,7 @@ import { state, saveAndRender } from "./ui_state.js";
 import { showBindingToast, hideBindingToast } from "./ui_utils.js";
 import { execSelectSameModules, execDeleteSameModules, execMoveBackward, execMoveForward } from "./actions/action_batch_sync.js";
 import { updateSelectionUI } from "./ui_selection.js";
+import { clabT, clabTf } from "../clab_i18n.js";
 
 // 辅助方法：触发定时消失的提示
 function showAutoToast(msg, isError = false) {
@@ -71,25 +72,25 @@ export function setupContextMenu(panelContainer) {
 
         if (showContentGroup) {
             menuHTML += `
-                <div class="clab-context-menu-title">内容</div>
-                <div class="clab-context-menu-item" id="clab-ctx-download">下载</div>
-                <div class="clab-context-menu-item" id="clab-ctx-download-all">下载全部生成记录</div>
+                <div class="clab-context-menu-title">${clabT("context.content")}</div>
+                <div class="clab-context-menu-item" id="clab-ctx-download">${clabT("context.download")}</div>
+                <div class="clab-context-menu-item" id="clab-ctx-download-all">${clabT("context.downloadAll")}</div>
                 <div class="clab-context-menu-divider"></div>
-                <div class="clab-context-menu-item" id="clab-ctx-remove">移除</div>
-                <div class="clab-context-menu-item" id="clab-ctx-clear">清除所有生成记录</div>
+                <div class="clab-context-menu-item" id="clab-ctx-remove">${clabT("context.remove")}</div>
+                <div class="clab-context-menu-item" id="clab-ctx-clear">${clabT("context.clearAll")}</div>
                 <div class="clab-context-menu-divider"></div>
-                <div class="clab-context-menu-item" id="clab-ctx-clean-dead">清理失效记录 (404)</div>
-                <div class="clab-context-menu-item" id="clab-ctx-resync">重新同步记录 (强制刷新)</div>
+                <div class="clab-context-menu-item" id="clab-ctx-clean-dead">${clabT("context.cleanDead")}</div>
+                <div class="clab-context-menu-item" id="clab-ctx-resync">${clabT("context.resync")}</div>
             `;
         }
 
         menuHTML += `
-            <div class="clab-context-menu-title">模块</div>
-            <div class="clab-context-menu-item" id="clab-ctx-select-same">选择相同模块</div>
-            <div class="clab-context-menu-item clab-danger" id="clab-ctx-del-same">删除相同模块</div>
+            <div class="clab-context-menu-title">${clabT("context.module")}</div>
+            <div class="clab-context-menu-item" id="clab-ctx-select-same">${clabT("context.selectSame")}</div>
+            <div class="clab-context-menu-item clab-danger" id="clab-ctx-del-same">${clabT("context.deleteSame")}</div>
             <div class="clab-context-menu-divider"></div>
-            <div class="clab-context-menu-item" id="clab-ctx-move-back">批量向后移动</div>
-            <div class="clab-context-menu-item" id="clab-ctx-move-fwd">批量向前移动</div>
+            <div class="clab-context-menu-item" id="clab-ctx-move-back">${clabT("context.moveBack")}</div>
+            <div class="clab-context-menu-item" id="clab-ctx-move-fwd">${clabT("context.moveFwd")}</div>
         `;
 
         menuEl.innerHTML = menuHTML;
@@ -171,7 +172,7 @@ export function setupContextMenu(panelContainer) {
             // 【彻底抛弃重绘】：清理失效记录 (纯前端试探，仅针对选中的模块局部刷新)
             menuEl.querySelector('#clab-ctx-clean-dead').onclick = async () => {
                 menuEl.style.display = 'none';
-                showAutoToast("🔍 正在扫描失效记录，请稍候...", false);
+                showAutoToast(clabT("context.ctxScanning"), false);
 
                 let totalChecked = 0;
                 const checkPromises = [];
@@ -194,7 +195,7 @@ export function setupContextMenu(panelContainer) {
                 });
 
                 if (totalChecked === 0) {
-                    showAutoToast("选中模块没有任何有效的生成记录需要清理。");
+                    showAutoToast(clabT("context.ctxNoToClean"));
                     return;
                 }
 
@@ -202,7 +203,7 @@ export function setupContextMenu(panelContainer) {
                 const deadItems = results.filter(item => item !== null);
 
                 if (deadItems.length === 0) {
-                    showAutoToast("✨ 扫描完毕：选中模块的本地资产均完好无损！");
+                    showAutoToast(clabT("context.ctxScanClean"));
                 } else {
                     deadItems.forEach(item => {
                         const area = item.area;
@@ -225,14 +226,14 @@ export function setupContextMenu(panelContainer) {
                     });
                     if (window._clabJustSave) window._clabJustSave(); else saveAndRender();
                     
-                    showAutoToast(`🧹 清理完成：已彻底剔除该模块 ${deadItems.length} 条丢失记录。`);
+                    showAutoToast(clabTf("context.ctxCleaned", { count: deadItems.length }));
                 }
             };
 
             // 【彻底抛弃重绘】：重新同步记录
             menuEl.querySelector('#clab-ctx-resync').onclick = () => {
                 menuEl.style.display = 'none';
-                showAutoToast("🔄 正在强制重新拉取选中模块的本地资产...", false);
+                showAutoToast(clabT("context.ctxResyncing"), false);
                 const now = Date.now();
                 let syncCount = 0;
 
@@ -260,12 +261,12 @@ export function setupContextMenu(panelContainer) {
                 });
 
                 if (syncCount === 0) {
-                    showAutoToast("选中模块没有任何媒体记录需要同步。");
+                    showAutoToast(clabT("context.ctxNoMedia"));
                     return;
                 }
 
                 if (window._clabJustSave) window._clabJustSave(); else saveAndRender();
-                showAutoToast("✅ 缓存已清理，选中输出模块已重新加载媒体！");
+                showAutoToast(clabT("context.ctxResyncDone"));
             };
         }
 

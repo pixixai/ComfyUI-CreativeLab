@@ -1,0 +1,240 @@
+{
+  "settingsCategories": {
+    "Creative Lab": "Creative Lab",
+    "1-General": "Général",
+    "2-PerformanceMedia": "Performance et média",
+    "3-FileIO": "Fichiers et flux de données",
+    "4-Automation": "Automatisation",
+    "5-CardApp": "Apparence carte sélectionnée",
+    "6-ModuleApp": "Apparence module sélectionné",
+    "Glow": "Lueur",
+    "Fill": "Remplissage",
+    "Border": "Bordure",
+    "Color": "Couleur",
+    "Halt": "En cas d’erreur",
+    "Prefix": "Préfixe fichier",
+    "KeepTemp": "Fichiers temporaires",
+    "ArchiveDir": "Dossier d’archive",
+    "ThumbMode": "Vignettes",
+    "Muted": "Muet",
+    "Autoplay": "Lecture auto",
+    "MaxHistory": "Taille historique",
+    "BgOpacity": "Opacité du fond",
+    "BackdropBlur": "Flou d’arrière-plan",
+    "Shortcut": "Raccourci",
+    "ResetAll": "Rétablir les défauts"
+  },
+  "clabUi": {
+    "toolbar": {
+      "addCard": "+ Nouvelle tâche",
+      "addCardTitle": "Créer une carte de tâche vide",
+      "addModule": "+ Nouveau module",
+      "addModuleTitle": "Ajouter un module à la tâche en cours",
+      "run": "▶ Exécuter",
+      "runTitle": "Exécuter la ou les tâches sélectionnées",
+      "runMenuTitle": "Plus d’options d’exécution",
+      "runAll": "Tout exécuter",
+      "batchCountTitle": "Nombre de passes (file)",
+      "createAnchor": "⚓ Nœud de config",
+      "createAnchorTitle": "Créer un nœud de configuration sur le graphe",
+      "widthResetTitle": "Rétablir la largeur par défaut",
+      "widthInputTitle": "Largeur en px (Entrée)"
+    },
+    "config": {
+      "btnTitle": "Créer une ancre (enregistrer dans le workflow)",
+      "maintTitle": "Maintenance des données",
+      "cleanDead": "Supprimer les enregistrements cassés (404)",
+      "resync": "Resynchroniser (forcer l’actualisation)"
+    },
+    "module": {
+      "unbound": "Non lié",
+      "unboundWithNode": "Non lié ({name})",
+      "nodeId": "ID du nœud",
+      "nodeName": "Nom du nœud",
+      "boundWidget": "Widget lié",
+      "batchBoundHeader": "Liaison groupée de {count} widgets :",
+      "unknownNode": "Nœud inconnu",
+      "placeholderValue": "Valeur du paramètre…",
+      "delInputTitle": "Supprimer l’entrée",
+      "uploadImage": "Téléverser une image",
+      "uploadVideo": "Téléverser une vidéo",
+      "uploadAudio": "Téléverser de l’audio",
+      "uploadFile": "Téléverser un fichier",
+      "uploadHint": "Cliquer ou déposer pour envoyer au serveur",
+      "fileBrokenTitle": "Fichier manquant / format incorrect",
+      "fileBrokenHint": "Cliquer pour téléverser à nouveau",
+      "uploading": "Téléversement…",
+      "uploadFail": "Échec du téléversement : ",
+      "pickServerFile": "Ou choisir un fichier existant…",
+      "pickPlaceholder": "Choisir…",
+      "boolTrue": "Activé",
+      "boolFalse": "Désactivé"
+    },
+    "output": {
+      "waitOutput": "En attente de la sortie du nœud [{id}]…",
+      "noNode": "Aucun nœud lié",
+      "delRecordTitle": "Supprimer l’élément",
+      "delAreaTitle": "Supprimer le module de sortie",
+      "historyHeader": "Historique ({count})",
+      "remove": "Retirer"
+    },
+    "menu": {
+      "openTitle": "Ouvrir Creative Lab (raccourci : {key})",
+      "brand": "CLab"
+    },
+    "alerts": {
+      "selectCardFirst": "Sélectionnez d’abord une ou plusieurs cartes ou modules.",
+      "noMediaToSync": "Aucun historique média à synchroniser.",
+      "noRecordsToClean": "Aucune génération à nettoyer."
+    },
+    "toasts": {
+      "resyncing": "Actualisation des ressources locales…",
+      "resyncDone": "Cache vidé ; sorties rechargées.",
+      "scanning": "Analyse des fichiers cassés…",
+      "scanClean": "Tous les fichiers locaux sont valides.",
+      "cleaned": "{count} enregistrement(s) manquant(s) supprimé(s).",
+      "nodeRunFailed": "❌ Échec de validation ou d’exécution du nœud. Vérifiez paramètres et liens.",
+      "nodeValidateFailed": "❌ Échec de validation du graphe. Vérifiez les liens.",
+      "workflowBackendError": "❌ Erreur workflow côté serveur. Fermez le panneau et consultez le message d’erreur.",
+      "frontendValidateFailed": "❌ Échec de validation côté client. Vérifiez liens et paramètres obligatoires."
+    },
+    "run": {
+      "noOutputModules": "Aucun module de sortie exécutable pour la sélection. Ajoutez-en un.",
+      "noCards": "Il n’y a aucune carte de tâche sur le panneau.",
+      "noOutputAnyCard": "Aucune carte n’a de module de sortie.",
+      "apiNotReady": "L’injecteur API n’est pas prêt. Réessayez dans un instant."
+    },
+    "batch": {
+      "confirmSyncUnnamed": "Le module sélectionné n’a pas de titre (affiché comme {match}). Synchroniser vers les mêmes emplacements sur d’autres tâches ?",
+      "confirmDeleteSame": "⚠️ Danger :\nSupprimer tous les modules {type} étiquetés [{match}] dans toutes les tâches ?",
+      "typeInput": "entrée",
+      "typeOutput": "sortie"
+    },
+    "binding": {
+      "pickNodeToast": "🖱️ Cliquez un nœud sur le graphe (gauche = remplacer, droite = ajouter ; fond = annuler)…"
+    },
+    "settingsUi": {
+      "resetAllConfirm": "Réinitialiser tous les réglages Creative Lab ? Irréversible."
+    },
+    "media": {
+      "volumeSlider": "Volume",
+      "muteToggle": "Muet / son",
+      "playbackSpeed": "Vitesse de lecture",
+      "pictureInPicture": "Image dans l’image",
+      "fullscreen": "Plein écran",
+      "clickDownload": "Télécharger",
+      "unknownFile": "Fichier inconnu",
+      "unknownAudio": "Audio inconnu"
+    },
+    "moduleToolbar": {
+      "input": "Entrée",
+      "output": "Sortie",
+      "linkNode": "Lier un nœud…",
+      "nodeBinding": "Nœud [{id}]",
+      "nodesSelected": "{count} nœuds sélectionnés",
+      "bindWidget": "Lier un widget…",
+      "widgetsSelected": "{count} widgets",
+      "pickNodeTitle": "Choisir un nœud sur le graphe",
+      "matchMedia": "Adapter au ratio média",
+      "autoHeight": "Hauteur auto du champ",
+      "resetModule": "Réinitialiser le module",
+      "syncParams": "Synchroniser vers le même emplacement sur d’autres tâches",
+      "cloneTitle": "Cloner la sélection",
+      "formatPainterTitle": "Reproduire le format : clic pour appliquer ; Échap / clic droit pour quitter",
+      "manageHistoryTitle": "Gérer les générations (grille et ordre)"
+    },
+    "fillMode": {
+      "fit": "Tout afficher",
+      "cover": "Remplir",
+      "stretch": "Étirer"
+    },
+    "ratio": {
+      "custom": "Ratio personnalisé"
+    },
+    "tree": {
+      "ungroupedLabel": "Sans groupe",
+      "unnamedGroup": "Groupe sans nom",
+      "uncategorizedLabel": "Sans catégorie"
+    },
+    "select": {
+      "clearLink": "(Effacer le lien)",
+      "clearBind": "(Effacer la liaison)",
+      "selectNodesFirst": "Sélectionnez d’abord les nœuds liés",
+      "noWidgets": "Aucun paramètre disponible"
+    },
+    "context": {
+      "content": "Contenu",
+      "download": "Télécharger",
+      "downloadAll": "Télécharger toutes les sorties",
+      "remove": "Retirer",
+      "clearAll": "Effacer toutes les sorties",
+      "cleanDead": "Supprimer les cassés (404)",
+      "resync": "Resynchroniser",
+      "module": "Module",
+      "selectSame": "Sélectionner les mêmes",
+      "deleteSame": "Supprimer les mêmes",
+      "moveBack": "Reculer (lot)",
+      "moveFwd": "Avancer (lot)",
+      "ctxScanning": "Analyse…",
+      "ctxNoToClean": "Rien à nettoyer dans la sélection.",
+      "ctxScanClean": "Fichiers de la sélection intacts.",
+      "ctxCleaned": "{count} élément(s) manquant(s) supprimé(s).",
+      "ctxResyncing": "Actualisation des ressources…",
+      "ctxNoMedia": "Aucun média à synchroniser.",
+      "ctxResyncDone": "Sorties rechargées."
+    },
+    "state": {
+      "configExists": "Le nœud de configuration existe déjà sur le graphe.",
+      "configCreated": "Nœud de configuration créé."
+    },
+    "card": {
+      "deleteTaskTitle": "Supprimer cette tâche (lot si plusieurs sélections)"
+    },
+    "dataIo": {
+      "importJsonBtnTitle": "Importer JSON (lot)",
+      "importFromClipboard": "Importer JSON depuis le presse-papiers",
+      "importFromLocalFile": "Importer JSON depuis un fichier local",
+      "importCreateTask": "Nouvelle tâche",
+      "importAppendModule": "Ajouter des modules",
+      "importAppendToSelection": "Ajouter à la sélection",
+      "importEmptyData": "Les données importées sont vides.",
+      "importAppendNeedCards": "Échec d’ajout :\nSélectionnez d’abord une ou plusieurs cartes (Ctrl/Cmd), puis « Ajouter à la sélection ».",
+      "importParseError": "Échec d’import : JSON invalide.\n",
+      "clipboardEmpty": "Presse-papiers vide. Copiez d’abord du JSON.",
+      "clipboardReadError": "Impossible de lire le presse-papiers.\n",
+      "uploadNoFilename": "Échec : le serveur n’a pas renvoyé de nom de fichier.",
+      "exportBtnTitle": "Exporter et télécharger",
+      "zipSectionTitle": "Archive ZIP",
+      "downloadAll": "Tout télécharger",
+      "downloadSelected": "Télécharger la sélection",
+      "downloadAllHistory": "Tout (toutes les générations)",
+      "downloadSelectedHistory": "Sélection (toutes les générations)",
+      "organizeSectionTitle": "Organiser les fichiers",
+      "orgMoveSubfolder": "Déplacer vers un sous-dossier",
+      "orgCopySubfolder": "Copier vers un sous-dossier",
+      "orgMoveSubfolderHistory": "Déplacer (toutes les générations)",
+      "orgCopySubfolderHistory": "Copier (toutes les générations)",
+      "exportJsonTitle": "Exporter JSON",
+      "jsonActionCopyTitle": "Mode : copier les lignes ci-dessous",
+      "jsonActionDownloadTitle": "Mode : télécharger les lignes ci-dessous",
+      "exportJsonInput": "Modules d’entrée",
+      "exportJsonOutput": "Modules de sortie",
+      "exportJsonAll": "Tous les modules",
+      "exportJsonOutputHistory": "Sortie (toutes les générations)",
+      "exportJsonAllHistory": "Tous les modules (toutes les générations)",
+      "selectForDownload": "Sélectionnez des cartes ou modules de sortie à télécharger.",
+      "noMediaToDownload": "Aucun média à télécharger.",
+      "downloadFailed": "Échec du téléchargement : ",
+      "zipPackingToast": "📦 Création du ZIP…",
+      "zipFallbackAlert": "Impossible de charger ZIP ; téléchargement un par un…",
+      "jsonCopied": "✅ JSON copié dans le presse-papiers.",
+      "jsonCopyFailed": "❌ Échec de la copie.\n",
+      "noFilesToOrganize": "Aucun média de sortie à organiser.",
+      "organizeSuccessMove": "✅ {count} fichier(s) déplacé(s) et renommé(s) vers {path} !",
+      "organizeSuccessCopy": "✅ {count} fichier(s) copié(s) et renommé(s) vers {path} !",
+      "organizeFailed": "❌ Échec : ",
+      "organizeErrorUnknown": "Erreur inconnue",
+      "organizeRequestFailed": "❌ Échec de la requête backend.\n"
+    }
+  }
+}

@@ -6,6 +6,7 @@ import { state, dragState, appState } from "./ui_state.js";
 // 【注入】：引入 attachAreaEvents 以便克隆时对新生 DOM 原地施放事件绑定魔法
 import { generateAreaHTML, syncAreaDOMOrder, justSave, attachAreaEvents } from "./comp_modulearea.js";
 import { updateSelectionUI } from "./ui_selection.js";
+import { clabT } from "../clab_i18n.js";
 
 // 【全新动态布局引擎】：同步精确计算纯卡片宽度，控制自适应居中与左对齐
 export function updateCardsLayout() {
@@ -73,7 +74,7 @@ export function generateSingleCardHTML(card, index) {
                     <div class="clab-card-progress-bar" style="height: 100%; width: 0%; background: var(--clab-theme-card, #4CAF50); transition: width 0.1s ease-out, background-color 0.2s; box-shadow: 0 0 5px var(--clab-theme-card-alpha, rgba(76,175,80,0.5));"></div>
                 </div>
             </div>
-            <button class="clab-del-card-btn" data-id="${card.id}" title="删除此任务(若多选则批量删除)">✖</button>
+            <button class="clab-del-card-btn" data-id="${card.id}" title="${clabT("card.deleteTaskTitle")}">✖</button>
             <div class="clab-card-body" data-card-id="${card.id}">
                 <div class="clab-area-list" data-card-id="${card.id}">${areasHtml}</div>
             </div>

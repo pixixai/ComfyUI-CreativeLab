@@ -4,6 +4,7 @@
  */
 import { state, dragState, saveAndRender } from "../ui_state.js";
 import { getRatioCSS, showBindingToast, hideBindingToast } from "../ui_utils.js";
+import { clabT, clabTf } from "../../clab_i18n.js";
 // 【完美保留】：继续使用你原本正确的媒体路由专员，绝不破坏底层架构！
 import { renderMedia, attachMediaEvents } from "./module_media.js";
 
@@ -63,7 +64,7 @@ export function generateOutputHTML(area, card) {
 
             const overlay = isSelected ? `<div style="position:absolute;inset:0;background:rgba(33,150,243,0.3);pointer-events:none;"></div>` : '';
             
-            const delBtn = `<div class="clab-thumb-delete" data-card="${card.id}" data-area="${area.id}" data-index="${idx}" style="position:absolute; top:3px; right:3px; width:18px; height:18px; background:rgba(255, 255, 255, 0.6); color:#333; font-weight:bold; border-radius:50%; font-size:10px; display:none; align-items:center; justify-content:center; cursor:pointer; z-index:10; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: all 0.2s;" title="删除此记录">✖</div>`;
+            const delBtn = `<div class="clab-thumb-delete" data-card="${card.id}" data-area="${area.id}" data-index="${idx}" style="position:absolute; top:3px; right:3px; width:18px; height:18px; background:rgba(255, 255, 255, 0.6); color:#333; font-weight:bold; border-radius:50%; font-size:10px; display:none; align-items:center; justify-content:center; cursor:pointer; z-index:10; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: all 0.2s;" title="${clabT("output.delRecordTitle")}">✖</div>`;
 
             gridHtml += `
                 <div class="clab-history-thumb" draggable="true" data-card="${card.id}" data-area="${area.id}" data-index="${idx}" style="aspect-ratio: 1/1; border: ${border}; border-radius: 4px; cursor: grab; overflow: hidden; position: relative; background: #000; transition: border-color 0.2s;">
@@ -88,12 +89,12 @@ export function generateOutputHTML(area, card) {
 
         return `
             <div class="clab-area ${isAreaSelected ? 'active' : ''}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="padding:0; overflow:hidden; position:relative; background: rgba(0,0,0,0.4); min-height: 100px;">
-                <button class="clab-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="删除输出模块" style="z-index: 30;">✖</button>
+                <button class="clab-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="${clabT("output.delAreaTitle")}" style="z-index: 30;">✖</button>
                 
                 <div style="padding: 8px 10px; font-size: 12px; font-weight: bold; color: #ccc; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3);">
-                    <span>生成记录管理 (${area.history.length})</span>
+                    <span>${clabTf("output.historyHeader", { count: area.history.length })}</span>
                     <div style="display:flex; gap: 6px; align-items: center;">
-                        <button class="clab-manage-remove-btn" data-card="${card.id}" data-area="${area.id}" style="${btnBaseStyle} ${btnRemoveStyle}" ${hasSelection ? '' : 'disabled'} onmouseover="if(!this.disabled) { this.style.background='rgba(255,255,255,0.25)'; this.style.color='#fff'; }" onmouseout="if(!this.disabled) { this.style.background='rgba(255,255,255,0.15)'; this.style.color='#eee'; }">移除</button>
+                        <button class="clab-manage-remove-btn" data-card="${card.id}" data-area="${area.id}" style="${btnBaseStyle} ${btnRemoveStyle}" ${hasSelection ? '' : 'disabled'} onmouseover="if(!this.disabled) { this.style.background='rgba(255,255,255,0.25)'; this.style.color='#fff'; }" onmouseout="if(!this.disabled) { this.style.background='rgba(255,255,255,0.15)'; this.style.color='#eee'; }">${clabT("output.remove")}</button>
                     </div>
                 </div>
                 
@@ -122,11 +123,11 @@ export function generateOutputHTML(area, card) {
 
     return `
         <div class="clab-area ${isAreaSelected ? 'active' : ''}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="padding:0; overflow:hidden; position:relative;">
-            <button class="clab-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="删除输出模块" style="z-index: 30;">✖</button>
+            <button class="clab-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="${clabT("output.delAreaTitle")}" style="z-index: 30;">✖</button>
             ${historyHtml}
             <div class="clab-preview-bg" style="${finalRatioCSS} position: relative;">
                 ${mediaHtml}
-                <span class="clab-preview-placeholder" style="display:${area.resultUrl ? 'none' : 'block'}; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; text-align: center;">${area.targetNodeId ? `等待节点 [${area.targetNodeId}] 输出...` : '未关联节点'}</span>
+                <span class="clab-preview-placeholder" style="display:${area.resultUrl ? 'none' : 'block'}; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; text-align: center;">${area.targetNodeId ? clabTf("output.waitOutput", { id: area.targetNodeId }) : clabT("output.noNode")}</span>
             </div>
         </div>
     `;

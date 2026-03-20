@@ -1,0 +1,12 @@
+{
+  "CLab_SystemConfig": {
+    "display_name": "⚓ CLab System Config",
+    "description": "Global configuration node for ComfyUI-Creative Lab. Acts as a wire-free “data store” that saves the CLab panel layout and parameter state inside the workflow.",
+    "inputs": {
+      "scenes_data": {
+        "name": "Panel state data (JSON)",
+        "tooltip": "JSON string holding all card states in the CLab sidebar. Do not edit this box manually—it is maintained and synced by the frontend extension."
+      }
+    }
+  }
+}

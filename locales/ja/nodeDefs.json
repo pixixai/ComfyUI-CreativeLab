@@ -1,0 +1,12 @@
+{
+  "CLab_SystemConfig": {
+    "display_name": "⚓ CLab システム設定",
+    "description": "ComfyUI Creative Lab 用のグローバル設定ノード。配線不要の「データストア」として、CLab サイドバーのレイアウトとパラメータ状態をワークフロー内に保存します。",
+    "inputs": {
+      "scenes_data": {
+        "name": "パネル状態データ (JSON)",
+        "tooltip": "サイドバー内のすべてのカード状態を保持する JSON 文字列。手動編集は不要です。フロントエンド拡張機能が更新・同期します。"
+      }
+    }
+  }
+}

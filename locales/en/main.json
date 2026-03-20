@@ -1,0 +1,240 @@
+{
+  "settingsCategories": {
+    "Creative Lab": "Creative Lab",
+    "1-General": "General",
+    "2-PerformanceMedia": "Performance & media",
+    "3-FileIO": "Files & data flow",
+    "4-Automation": "Automation",
+    "5-CardApp": "Task card selection look",
+    "6-ModuleApp": "Module selection look",
+    "Glow": "Glow",
+    "Fill": "Fill",
+    "Border": "Border",
+    "Color": "Color",
+    "Halt": "On error",
+    "Prefix": "Filename prefix",
+    "KeepTemp": "Temp files",
+    "ArchiveDir": "Archive folder",
+    "ThumbMode": "Thumbnails",
+    "Muted": "Muted",
+    "Autoplay": "Autoplay",
+    "MaxHistory": "History size",
+    "BgOpacity": "Background opacity",
+    "BackdropBlur": "Backdrop blur",
+    "Shortcut": "Shortcut",
+    "ResetAll": "Reset defaults"
+  },
+  "clabUi": {
+    "toolbar": {
+      "addCard": "+ New task",
+      "addCardTitle": "Create empty task card",
+      "addModule": "+ New module",
+      "addModuleTitle": "Add module in current task",
+      "run": "▶ Run",
+      "runTitle": "Run selected task(s)",
+      "runMenuTitle": "More run options",
+      "runAll": "Run all",
+      "batchCountTitle": "Batch run count (queued)",
+      "createAnchor": "⚓ Config node",
+      "createAnchorTitle": "Create config node on graph",
+      "widthResetTitle": "Reset default width",
+      "widthInputTitle": "Width in px (Enter)"
+    },
+    "config": {
+      "btnTitle": "Create config anchor (save to workflow)",
+      "maintTitle": "Data maintenance",
+      "cleanDead": "Remove broken records (404)",
+      "resync": "Resync records (force refresh)"
+    },
+    "module": {
+      "unbound": "Unbound",
+      "unboundWithNode": "Unbound ({name})",
+      "nodeId": "Node ID",
+      "nodeName": "Node title",
+      "boundWidget": "Bound widget",
+      "batchBoundHeader": "Batch-bound {count} widgets:",
+      "unknownNode": "Unknown node",
+      "placeholderValue": "Parameter value…",
+      "delInputTitle": "Remove input",
+      "uploadImage": "Upload image",
+      "uploadVideo": "Upload video",
+      "uploadAudio": "Upload audio",
+      "uploadFile": "Upload file",
+      "uploadHint": "Click or drop to upload",
+      "fileBrokenTitle": "File missing / wrong format",
+      "fileBrokenHint": "Click to upload and replace",
+      "uploading": "Uploading…",
+      "uploadFail": "Upload failed: ",
+      "pickServerFile": "Or pick existing file…",
+      "pickPlaceholder": "Choose…",
+      "boolTrue": "On",
+      "boolFalse": "Off"
+    },
+    "output": {
+      "waitOutput": "Waiting for node [{id}]…",
+      "noNode": "No target node",
+      "delRecordTitle": "Remove item",
+      "delAreaTitle": "Remove output module",
+      "historyHeader": "History ({count})",
+      "remove": "Remove"
+    },
+    "menu": {
+      "openTitle": "Open Creative Lab (shortcut: {key})",
+      "brand": "CLab"
+    },
+    "alerts": {
+      "selectCardFirst": "Select one or more cards or modules first.",
+      "noMediaToSync": "No media history to sync.",
+      "noRecordsToClean": "No generations to clean."
+    },
+    "toasts": {
+      "resyncing": "Refreshing local assets…",
+      "resyncDone": "Cache cleared; outputs reloaded.",
+      "scanning": "Scanning for broken files…",
+      "scanClean": "All local files OK.",
+      "cleaned": "Removed {count} missing record(s).",
+      "nodeRunFailed": "❌ Node validation or run failed. Check required parameters and links.",
+      "nodeValidateFailed": "❌ Graph validation failed. Check links.",
+      "workflowBackendError": "❌ Workflow error on the server. Close the panel and check the error message.",
+      "frontendValidateFailed": "❌ Front-end graph validation failed. Check links and required parameters."
+    },
+    "run": {
+      "noOutputModules": "No runnable output modules for the current selection. Add an output module first.",
+      "noCards": "There are no task cards on the panel.",
+      "noOutputAnyCard": "No card has an output module; nothing to run.",
+      "apiNotReady": "API injector is not ready yet. Try again in a moment."
+    },
+    "batch": {
+      "confirmSyncUnnamed": "The selected module has no title (shown as {match}). Sync binding/parameters to matching slots on other tasks?",
+      "confirmDeleteSame": "⚠️ Danger:\nDelete all {type} modules labeled [{match}] across every task?",
+      "typeInput": "input",
+      "typeOutput": "output"
+    },
+    "binding": {
+      "pickNodeToast": "🖱️ Click a node on the graph (left click = replace, right = append; click empty canvas to cancel)…"
+    },
+    "settingsUi": {
+      "resetAllConfirm": "Reset all Creative Lab settings to defaults? This cannot be undone."
+    },
+    "media": {
+      "volumeSlider": "Volume",
+      "muteToggle": "Mute / unmute",
+      "playbackSpeed": "Playback speed",
+      "pictureInPicture": "Picture-in-picture",
+      "fullscreen": "Fullscreen",
+      "clickDownload": "Download",
+      "unknownFile": "Unknown file",
+      "unknownAudio": "Unknown audio"
+    },
+    "moduleToolbar": {
+      "input": "Input",
+      "output": "Output",
+      "linkNode": "Link node…",
+      "nodeBinding": "[{id}] node",
+      "nodesSelected": "{count} nodes selected",
+      "bindWidget": "Bind widget…",
+      "widgetsSelected": "{count} widgets",
+      "pickNodeTitle": "Pick node from graph",
+      "matchMedia": "Match media aspect",
+      "autoHeight": "Auto-height input",
+      "resetModule": "Reset module to new",
+      "syncParams": "Sync to same slot on other tasks",
+      "cloneTitle": "Clone selection",
+      "formatPainterTitle": "Format painter: click to apply; ESC / right-click to exit",
+      "manageHistoryTitle": "Manage generations (grid & reorder)"
+    },
+    "fillMode": {
+      "fit": "Show all",
+      "cover": "Fill",
+      "stretch": "Stretch"
+    },
+    "ratio": {
+      "custom": "Custom ratio"
+    },
+    "tree": {
+      "ungroupedLabel": "Ungrouped",
+      "unnamedGroup": "Unnamed group",
+      "uncategorizedLabel": "Uncategorized"
+    },
+    "select": {
+      "clearLink": "(Clear link)",
+      "clearBind": "(Clear binding)",
+      "selectNodesFirst": "Select linked node(s) first",
+      "noWidgets": "No parameters available"
+    },
+    "context": {
+      "content": "Content",
+      "download": "Download",
+      "downloadAll": "Download all outputs",
+      "remove": "Remove",
+      "clearAll": "Clear all outputs",
+      "cleanDead": "Remove broken (404)",
+      "resync": "Resync records",
+      "module": "Module",
+      "selectSame": "Select same modules",
+      "deleteSame": "Delete same modules",
+      "moveBack": "Move backward (batch)",
+      "moveFwd": "Move forward (batch)",
+      "ctxScanning": "Scanning…",
+      "ctxNoToClean": "No records to clean in selection.",
+      "ctxScanClean": "All files OK for selection.",
+      "ctxCleaned": "Removed {count} missing item(s).",
+      "ctxResyncing": "Refreshing assets…",
+      "ctxNoMedia": "No media to sync.",
+      "ctxResyncDone": "Outputs reloaded."
+    },
+    "state": {
+      "configExists": "Config node already on graph.",
+      "configCreated": "Config node created."
+    },
+    "card": {
+      "deleteTaskTitle": "Delete this task (batch if multi-selected)"
+    },
+    "dataIo": {
+      "importJsonBtnTitle": "Import JSON (batch)",
+      "importFromClipboard": "Import JSON from clipboard",
+      "importFromLocalFile": "Import JSON from local file",
+      "importCreateTask": "New task",
+      "importAppendModule": "Append modules",
+      "importAppendToSelection": "Append to selected task(s)",
+      "importEmptyData": "Imported data is empty.",
+      "importAppendNeedCards": "Append failed:\nSelect one or more task cards first (Ctrl/Cmd multi-select), then use “Append to selected task(s)”.",
+      "importParseError": "Import failed: invalid JSON.\n",
+      "clipboardEmpty": "Clipboard is empty. Copy JSON first.",
+      "clipboardReadError": "Cannot read clipboard.\n",
+      "uploadNoFilename": "Upload failed: server did not return a filename.",
+      "exportBtnTitle": "Export & download",
+      "zipSectionTitle": "ZIP archive",
+      "downloadAll": "Download all",
+      "downloadSelected": "Download selected",
+      "downloadAllHistory": "Download all (all generations)",
+      "downloadSelectedHistory": "Download selected (all generations)",
+      "organizeSectionTitle": "Organize files",
+      "orgMoveSubfolder": "Move to subfolder",
+      "orgCopySubfolder": "Copy to subfolder",
+      "orgMoveSubfolderHistory": "Move to subfolder (all generations)",
+      "orgCopySubfolderHistory": "Copy to subfolder (all generations)",
+      "exportJsonTitle": "Export JSON",
+      "jsonActionCopyTitle": "Mode: copy rows below to clipboard",
+      "jsonActionDownloadTitle": "Mode: download rows below as files",
+      "exportJsonInput": "Input modules",
+      "exportJsonOutput": "Output modules",
+      "exportJsonAll": "All modules",
+      "exportJsonOutputHistory": "Output modules (all generations)",
+      "exportJsonAllHistory": "All modules (all generations)",
+      "selectForDownload": "Select task card(s) or output module(s) to download.",
+      "noMediaToDownload": "No media files to download.",
+      "downloadFailed": "Download failed: ",
+      "zipPackingToast": "📦 Building ZIP, please wait…",
+      "zipFallbackAlert": "ZIP library could not load; downloading files one by one…",
+      "jsonCopied": "✅ JSON copied to clipboard.",
+      "jsonCopyFailed": "❌ Copy failed.\n",
+      "noFilesToOrganize": "No output media on the current panel to organize.",
+      "organizeSuccessMove": "✅ Moved and renamed {count} file(s) to {path}!",
+      "organizeSuccessCopy": "✅ Copied and renamed {count} file(s) to {path}!",
+      "organizeFailed": "❌ Operation failed: ",
+      "organizeErrorUnknown": "Unknown error",
+      "organizeRequestFailed": "❌ Backend request failed.\n"
+    }
+  }
+}

@@ -6,6 +6,7 @@
 import { state, saveAndRender } from "../ui_state.js";
 import { updateSelectionUI } from "../ui_selection.js"; // 【修复】：直接引入纯净选择态引擎
 import { generateSingleCardHTML, attachCardEvents } from "../comp_taskcard.js"; // 【修复】：引入物理级卡片创建引擎
+import { clabT, clabTf } from "../../clab_i18n.js";
 
 // 获取模块比对的标题（如果未命名则根据类型计算默认的 ##1, ##2）
 export function getAreaDisplayTitle(card, area) {
@@ -20,7 +21,7 @@ export function getAreaDisplayTitle(card, area) {
 // =========================================================================
 export function execSyncParams(mainArea, mainCard) {
     const matchTitle = getAreaDisplayTitle(mainCard, mainArea);
-    if (!mainArea.title && !confirm(`当前选中模块未命名 (默认标记为 ${matchTitle})。确定要将参数同步给其它任务中对应位置的模块吗？`)) {
+    if (!mainArea.title && !confirm(clabTf("batch.confirmSyncUnnamed", { match: matchTitle }))) {
         return;
     }
     
@@ -57,8 +58,8 @@ export function execSyncParams(mainArea, mainCard) {
 // =========================================================================
 export function execDeleteSameModules(mainArea, mainCard) {
     const matchTitle = getAreaDisplayTitle(mainCard, mainArea);
-    const typeName = mainArea.type === 'edit' ? '输入' : '输出';
-    if (!confirm(`⚠️ 危险操作：\n确定要删除所有任务中，标识为 [${matchTitle}] 的${typeName}模块吗？`)) return;
+    const typeName = mainArea.type === "edit" ? clabT("batch.typeInput") : clabT("batch.typeOutput");
+    if (!confirm(clabTf("batch.confirmDeleteSame", { match: matchTitle, type: typeName }))) return;
 
     let deletedIds = [];
     state.cards.forEach(card => {

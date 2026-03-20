@@ -6,6 +6,7 @@ import { state, saveAndRender } from "../ui_state.js";
 import { buildCustomSelect, getWidgetDef, truncateString } from "../ui_utils.js";
 import { uploadImageToServer } from "../actions/action_data_io.js";
 import { app } from "../../../../scripts/app.js";
+import { clabT, clabTf } from "../../clab_i18n.js";
 
 export function generateInputHTML(area, card) {
     const isAreaSelected = state.selectedAreaIds.includes(area.id);
@@ -15,8 +16,8 @@ export function generateInputHTML(area, card) {
     const defaultTitle = `##${editIndex}`;
     const displayTitle = area.title ? area.title : defaultTitle;
 
-    let hintText = '未绑定参数';
-    let fullHintText = '未绑定参数'; 
+    let hintText = clabT("module.unbound");
+    let fullHintText = clabT("module.unbound");
     let primaryNodeId = area.targetNodeId;
     let primaryWidget = area.targetWidget;
     
@@ -37,7 +38,7 @@ export function generateInputHTML(area, card) {
         const node = app.graph ? app.graph.getNodeById(Number(t.nodeId)) : null;
         const nodeName = node ? (node.title || node.type) : `Node:${t.nodeId}`;
         hintText = `${truncateString(t.widget, 8)} (${truncateString(nodeName, 4)})`;
-        fullHintText = `节点ID: ${t.nodeId}\n节点名称: ${nodeName}\n绑定参数: ${t.widget}`;
+        fullHintText = `${clabT("module.nodeId")}: ${t.nodeId}\n${clabT("module.nodeName")}: ${nodeName}\n${clabT("module.boundWidget")}: ${t.widget}`;
     } else if (targets.length > 1) {
         const firstT = targets[0];
         primaryNodeId = firstT.nodeId;
@@ -46,15 +47,15 @@ export function generateInputHTML(area, card) {
         const nodeIdsStr = targets.map(t => `[${t.nodeId}]`).join('');
         hintText = `${truncateString(firstT.widget, 8)}${nodeIdsStr}`;
         
-        fullHintText = `批量绑定了 ${targets.length} 个参数:\n` + targets.map(t => {
+        fullHintText = clabTf("module.batchBoundHeader", { count: targets.length }) + "\n" + targets.map(t => {
             const n = app.graph ? app.graph.getNodeById(Number(t.nodeId)) : null;
-            return `[${t.nodeId}] ${n ? (n.title || n.type) : '未知节点'} : ${t.widget}`;
-        }).join('\n');
+            return `[${t.nodeId}] ${n ? (n.title || n.type) : clabT("module.unknownNode")} : ${t.widget}`;
+        }).join("\n");
     } else if (area.targetNodeId) {
         const node = app.graph ? app.graph.getNodeById(Number(area.targetNodeId)) : null;
         const nodeName = node ? (node.title || node.type) : `Node:${area.targetNodeId}`;
-        hintText = `未绑定参数 (${truncateString(nodeName, 4)})`;
-        fullHintText = `未绑定参数 (${nodeName})`;
+        hintText = clabTf("module.unboundWithNode", { name: truncateString(nodeName, 4) });
+        fullHintText = clabTf("module.unboundWithNode", { name: nodeName });
     } else if (area.targetWidget) {
         hintText = truncateString(area.targetWidget, 8);
         fullHintText = area.targetWidget;
@@ -144,8 +145,8 @@ export function generateInputHTML(area, card) {
                     <div style="margin-bottom: 8px; color: #ff5555;">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
                     </div>
-                    <div style="font-size: 11px; font-weight: bold; margin-bottom: 4px; color: #ccc;">文件已失效 / 格式不匹配</div>
-                    <div style="font-size: 10px; color: #888;">点击重新上传覆盖此参数</div>
+                    <div style="font-size: 11px; font-weight: bold; margin-bottom: 4px; color: #ccc;">${clabT("module.fileBrokenTitle")}</div>
+                    <div style="font-size: 10px; color: #888;">${clabT("module.fileBrokenHint")}</div>
                 </div>
             `;
 
@@ -188,38 +189,38 @@ export function generateInputHTML(area, card) {
                 <div class="clab-upload-zone" data-card="${card.id}" data-area="${area.id}" style="border: 1px dashed #666; border-radius: 6px; text-align: center; cursor: pointer; color: #999; background: rgba(0,0,0,0.1); transition: all 0.2s; box-sizing: border-box; ${emptyPadding} ${emptyFlex} ${ratioStyle}">
                     <input type="file" class="clab-file-input" accept="${acceptType}" style="display:none;" />
                     <div style="margin-bottom: 8px; color: #666;">${iconSvg}</div>
-                    <div style="font-size: 12px; font-weight: bold; margin-bottom: 4px; color: #ccc;">上传${uploadType === 'image' ? '图片' : uploadType === 'video' ? '视频' : uploadType === 'audio' ? '音频' : '文件'}</div>
-                    <div style="font-size: 10px; color: #666;">点击或拖拽至此处上传服务器</div>
+                    <div style="font-size: 12px; font-weight: bold; margin-bottom: 4px; color: #ccc;">${clabT(uploadType === "image" ? "module.uploadImage" : uploadType === "video" ? "module.uploadVideo" : uploadType === "audio" ? "module.uploadAudio" : "module.uploadFile")}</div>
+                    <div style="font-size: 10px; color: #666;">${clabT("module.uploadHint")}</div>
                 </div>
             `;
         }
 
         if (comboValues.length > 0) {
             let itemsHtml = comboValues.map(opt => `<div class="clab-custom-select-item ${area.value === opt ? 'selected' : ''}" data-value="${opt}">${opt}</div>`).join('');
-            let currentVal = area.value || comboValues[0] || '或选择服务器已有文件...';
+            let currentVal = area.value || comboValues[0] || clabT("module.pickServerFile");
             const comboHtml = buildCustomSelect(`area-select-${area.id}`, '100%', currentVal, itemsHtml, false, `data-card-id="${card.id}" data-area-id="${area.id}" data-type="module-combo"`);
             inputHtml += `<div style="margin-top: 6px; position:relative;">${comboHtml}</div>`;
         }
 
     } else if (comboValues.length > 0) {
         let itemsHtml = comboValues.map(opt => `<div class="clab-custom-select-item ${area.value === opt ? 'selected' : ''}" data-value="${opt}">${opt}</div>`).join('');
-        let currentVal = area.value || comboValues[0] || '选择...';
+        let currentVal = area.value || comboValues[0] || clabT("module.pickPlaceholder");
         inputHtml = buildCustomSelect(`area-select-${area.id}`, '100%', currentVal, itemsHtml, false, `data-card-id="${card.id}" data-area-id="${area.id}" data-type="module-combo"`);
     } else if (widgetDef && (widgetDef.type === "toggle" || typeof widgetDef.value === "boolean")) {
         let isChecked = (area.value === true || area.value === 'true');
         inputHtml = `
             <label class="clab-bool-label" style="display:flex; align-items:center; gap:8px; color:#fff; cursor:pointer; font-size:13px; background:rgba(0,0,0,0.5); padding:8px; border-radius:4px; border:1px solid #555; width: 100%; box-sizing: border-box; margin:0;">
                 <input type="checkbox" class="clab-edit-val-bool" data-card="${card.id}" data-area="${area.id}" ${isChecked ? 'checked' : ''} style="width:16px; height:16px; margin:0; cursor:pointer;"> 
-                <span>${isChecked ? 'True' : 'False'}</span>
+                <span class="clab-bool-label-text">${isChecked ? clabT("module.boolTrue") : clabT("module.boolFalse")}</span>
             </label>
         `;
     } else {
-        inputHtml = `<textarea class="clab-input clab-edit-val" data-card="${card.id}" data-area="${area.id}" placeholder="输入参数值..." style="display:block; margin:0; box-sizing:border-box; ${area.autoHeight ? 'height: auto; resize: none; overflow: hidden;' : ''}">${area.value || ''}</textarea>`;
+        inputHtml = `<textarea class="clab-input clab-edit-val" data-card="${card.id}" data-area="${area.id}" placeholder="${clabT("module.placeholderValue")}" style="display:block; margin:0; box-sizing:border-box; ${area.autoHeight ? 'height: auto; resize: none; overflow: hidden;' : ''}">${area.value || ''}</textarea>`;
     }
 
     return `
         <div class="clab-area ${isAreaSelected ? 'active' : ''}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="overflow: visible;">
-            <button class="clab-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="删除输入">✖</button>
+            <button class="clab-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="${clabT("module.delInputTitle")}">✖</button>
             
             <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:4px; padding: 8px 8px 0 8px;">
                 <input class="clab-area-title-input" data-card="${card.id}" data-area="${area.id}" type="text" value="${displayTitle}" placeholder="${defaultTitle}" size="${Math.max(displayTitle.length, 2)}" style="max-width:150px; min-width:15px; background:transparent; border:none; color:#ddd; font-weight:normal; font-size:12px; outline:none; font-family:sans-serif; padding:0; margin:0;" />
@@ -271,7 +272,7 @@ export function attachInputEvents(container) {
                         <line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line>
                         <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
                     </svg>
-                    正在加密上传至服务器...
+                    ${clabT("module.uploading")}
                 </div>
             `;
 
@@ -288,7 +289,7 @@ export function attachInputEvents(container) {
                     }
                 }
             } catch(err) {
-                alert('本地文件上传失败: ' + err.message);
+                alert(clabT("module.uploadFail") + err.message);
                 applySurgicalUpdate(areaId);
             }
         };
@@ -335,6 +336,8 @@ export function attachInputEvents(container) {
                 state.selectedCardIds = [];
                 applySurgicalUpdate(areaId);
             }
+            const span = e.target.closest('.clab-bool-label')?.querySelector('.clab-bool-label-text');
+            if (span) span.textContent = e.target.checked ? clabT("module.boolTrue") : clabT("module.boolFalse");
         };
     });
 

@@ -1,0 +1,12 @@
+{
+  "CLab_SystemConfig": {
+    "display_name": "⚓ CLab 系統設定",
+    "description": "ComfyUI Creative Lab 的全域設定節點。作為免接線的「資料存放區」，將 CLab 側欄版面與參數狀態存進工作流。",
+    "inputs": {
+      "scenes_data": {
+        "name": "面板狀態資料 (JSON)",
+        "tooltip": "保存側欄所有卡片狀態的 JSON 字串。請勿手動編輯—由前端擴充功能維護與同步。"
+      }
+    }
+  }
+}

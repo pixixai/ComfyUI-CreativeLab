@@ -1,0 +1,12 @@
+{
+  "CLab_SystemConfig": {
+    "display_name": "⚓ CLab 시스템 설정",
+    "description": "ComfyUI Creative Lab용 전역 설정 노드. 배선 없이 워크플로 안에 CLab 사이드바 레이아웃과 매개변수 상태를 저장하는 \"데이터 저장소\" 역할을 합니다.",
+    "inputs": {
+      "scenes_data": {
+        "name": "패널 상태 데이터 (JSON)",
+        "tooltip": "사이드바의 모든 카드 상태를 담는 JSON 문자열입니다. 수동으로 편집하지 마세요. 프론트엔드 확장이 유지·동기화합니다."
+      }
+    }
+  }
+}

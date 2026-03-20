@@ -1,0 +1,82 @@
+{
+  "CLab_1-General_ResetAll": {
+    "name": "모든 설정을 기본값으로 재설정",
+    "tooltip": "⚠️ 경고: 이 옵션을 켜면 CLab의 모든 설정이 즉시 공장 기본값으로 돌아갑니다."
+  },
+  "CLab_1-General_Shortcut": {
+    "name": "키보드 단축키",
+    "tooltip": "조합을 지원합니다. 예: C, Shift+C, Ctrl+M, Alt+X (대소문자 무관)"
+  },
+  "CLab_1-General_BackdropBlur": {
+    "name": "배경 블러(유리) 효과 사용",
+    "tooltip": "켜면 분위기가 좋아지지만, 약한 GPU에서는 패널 드래그가 버벅일 수 있습니다."
+  },
+  "CLab_1-General_BgOpacity": {
+    "name": "패널 배경 불투명도 (%)",
+    "tooltip": "메인 패널 배경 투명도(0 = 완전 투명, 100 = 불투명)."
+  },
+  "CLab_2-PerformanceMedia_MaxHistory": {
+    "name": "기록 최대 개수",
+    "tooltip": "출력 모듈당 보관할 생성 기록 상한. 넘치면 오래된 항목이 삭제되어 메모리를 제한합니다."
+  },
+  "CLab_2-PerformanceMedia_Autoplay": {
+    "name": "동영상 자동 재생",
+    "tooltip": "끄면 메인 동영상은 첫 프레임만 표시되고 클릭 시 재생됩니다(다중 카드 시 GPU 부하 감소)."
+  },
+  "CLab_2-PerformanceMedia_Muted": {
+    "name": "동영상 기본 음소거",
+    "tooltip": "켜면 메인 동영상이 음소거로 로드됩니다. 자동 재생과 소리를 함께 켜면 브라우저가 막을 수 있습니다."
+  },
+  "CLab_2-PerformanceMedia_ThumbMode": {
+    "name": "고성능 썸네일 모드",
+    "tooltip": "켜면 그리드 기록의 동영상은 첫 프레임만. 끄면 모든 그리드 동영상이 음소거 반복(고사양용)."
+  },
+  "CLab_3-FileIO_ArchiveDir": {
+    "name": "보관 폴더 이름",
+    "tooltip": "미디어 가로채기·정리 시 사용하는 루트 이름. 슬래시 등 잘못된 문자는 사용하지 마세요."
+  },
+  "CLab_3-FileIO_KeepTemp": {
+    "name": "가로채기 시 원본 임시 파일 유지",
+    "tooltip": "끄면 보관 폴더로 옮긴 뒤 원본 임시 파일을 삭제해 디스크를 절약합니다."
+  },
+  "CLab_3-FileIO_Prefix": {
+    "name": "출력 파일명 접두사",
+    "tooltip": "저장 시 파일명 접두사. 기본값 pix(예: pix_01.png)."
+  },
+  "CLab_4-Automation_HaltOnError": {
+    "name": "오류 시 대기열 중단",
+    "tooltip": "켜면 작업 중 하나라도 실패하면 전체 대기열이 비워집니다. 끄면 실패를 건너뛰고 계속합니다."
+  },
+  "CLab_5-CardApp_Color": {
+    "name": "강조색",
+    "tooltip": "작업 카드 선택 시 테마 색과 하단 진행 표시줄 색. 기본: #4CAF50"
+  },
+  "CLab_5-CardApp_Border": {
+    "name": "테두리 두께 (px)",
+    "tooltip": "작업 카드가 활성 선택일 때 테두리 두께."
+  },
+  "CLab_5-CardApp_Fill": {
+    "name": "채우기 불투명도 (%)",
+    "tooltip": "작업 카드 선택 시 하이라이트 채우기 강도."
+  },
+  "CLab_5-CardApp_Glow": {
+    "name": "글로우 강도",
+    "tooltip": "작업 카드 선택 시 외곽 글로우 반경. 최대로 사이버펑크 느낌."
+  },
+  "CLab_6-ModuleApp_Color": {
+    "name": "강조색",
+    "tooltip": "영역(입력/출력) 선택 시 주 색상. 기본: #2196F3"
+  },
+  "CLab_6-ModuleApp_Border": {
+    "name": "테두리 두께 (px)",
+    "tooltip": "모듈 선택 시 윤곽선 두께."
+  },
+  "CLab_6-ModuleApp_Fill": {
+    "name": "채우기 불투명도 (%)",
+    "tooltip": "모듈 선택 시 하이라이트 강도(0 = 완전 투명)."
+  },
+  "CLab_6-ModuleApp_Glow": {
+    "name": "글로우 강도",
+    "tooltip": "모듈 선택 시 외곽 흐림 반경. 0이면 글로우 없음."
+  }
+}

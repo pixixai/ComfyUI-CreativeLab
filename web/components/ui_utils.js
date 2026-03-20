@@ -3,7 +3,12 @@
  * 职责: UI 渲染辅助工具、ComfyUI 图谱解析、CSS 样式库
  */
 import { app } from "../../../scripts/app.js";
-import { appState } from "./ui_state.js"; 
+import { appState } from "./ui_state.js";
+import { clabT, clabTreeTitle } from "../clab_i18n.js";
+
+/** 未归入 LiteGraph 分组框的节点 — 仅作内部树键，勿与界面文案混用 */
+export const CLAB_NODE_MENU_UNGROUPED = "__CLAB_NODE_MENU_UNGROUPED__";
+const CLAB_NODE_CATEGORY_NONE = "__CLAB_NODE_CATEGORY_NONE__";
 
 // =========================================================================
 // --- DOM 辅助构建方法 ---
@@ -51,7 +56,7 @@ export function getCustomNodeMenuHTML(selectedNodeId) {
     const tree = { name: "Root", children: {}, nodes: [] };
     if (app.graph && app.graph._nodes) {
         app.graph._nodes.forEach(node => {
-            let groupPath = ["未分组"];
+            let groupPath = [CLAB_NODE_MENU_UNGROUPED];
             if (app.graph._groups) {
                 for (let g of app.graph._groups) {
                     if (node.pos[0] >= g.pos[0] && node.pos[0] <= g.pos[0] + g.size[0] &&
@@ -63,7 +68,7 @@ export function getCustomNodeMenuHTML(selectedNodeId) {
             }
             
             let currentLevel = tree;
-            if (groupPath[0] !== "未分组") {
+            if (groupPath[0] !== CLAB_NODE_MENU_UNGROUPED) {
                 groupPath.forEach(part => {
                     if (!currentLevel.children[part]) {
                         currentLevel.children[part] = { name: part, children: {}, nodes: [] };
@@ -83,26 +88,26 @@ export function getCustomNodeMenuHTML(selectedNodeId) {
             html += `<div class="clab-custom-select-item ${isSel?'selected':''}" data-value="${n.id}" style="padding-left:${indent + 12}px;">[${n.id}] ${n.title || n.type}</div>`;
         });
         for (let childName in nodeTree.children) {
-            html += `<div class="clab-custom-select-group-title" style="padding-left:${indent + 8}px;">${childName}</div>`;
+            html += `<div class="clab-custom-select-group-title" style="padding-left:${indent + 8}px;">${clabTreeTitle(childName)}</div>`;
             html += renderTree(nodeTree.children[childName], depth + 1);
         }
         return html;
     }
 
-    let finalHtml = `<div class="clab-custom-select-item" data-value="" style="color:#aaa;">(清除关联)</div>`;
+    let finalHtml = `<div class="clab-custom-select-item" data-value="" style="color:#aaa;">${clabT("select.clearLink")}</div>`;
     if (tree.nodes.length > 0) {
-        finalHtml += `<div class="clab-custom-select-group-title">未分组</div>`;
+        finalHtml += `<div class="clab-custom-select-group-title">${clabT("tree.ungroupedLabel")}</div>`;
         finalHtml += renderTree({nodes: tree.nodes, children: {}}, 0);
     }
     for (let childName in tree.children) {
-        finalHtml += `<div class="clab-custom-select-group-title">${childName}</div>`;
+        finalHtml += `<div class="clab-custom-select-group-title">${clabTreeTitle(childName)}</div>`;
         finalHtml += renderTree(tree.children[childName], 1);
     }
     return finalHtml;
 }
 
 export function getCustomWidgetMenuHTML(nodeId, selectedWidget) {
-    let html = `<div class="clab-custom-select-item" data-value="" style="color:#aaa;">(清除绑定)</div>`;
+    let html = `<div class="clab-custom-select-item" data-value="" style="color:#aaa;">${clabT("select.clearBind")}</div>`;
     if (nodeId && app.graph) {
         const node = app.graph.getNodeById(Number(nodeId));
         if (node && node.widgets) {
@@ -122,13 +127,14 @@ export function getMultiNodeMenuHTML(selectedIds) {
     
     const groups = {};
     nodes.forEach(n => {
-        const cat = n.category || '未分类';
+        const cat = n.category || CLAB_NODE_CATEGORY_NONE;
         if (!groups[cat]) groups[cat] = [];
         groups[cat].push(n);
     });
 
     for (const cat in groups) {
-        html += `<div class="clab-custom-select-group-title">${cat}</div>`;
+        const title = cat === CLAB_NODE_CATEGORY_NONE ? clabT("tree.uncategorizedLabel") : cat;
+        html += `<div class="clab-custom-select-group-title">${title}</div>`;
         groups[cat].forEach(n => {
             const isSelected = selectedIds.includes(String(n.id));
             html += `<div class="clab-custom-select-item ${isSelected ? 'selected' : ''}" data-value="${n.id}">[${n.id}] ${n.title || n.type}</div>`;
@@ -138,7 +144,7 @@ export function getMultiNodeMenuHTML(selectedIds) {
 }
 
 export function getMultiWidgetMenuHTML(nodeIds, selectedWidgets) {
-    if (!app.graph || !nodeIds || nodeIds.length === 0) return '<div class="clab-custom-select-item" data-value="">请先选择关联节点</div>';
+    if (!app.graph || !nodeIds || nodeIds.length === 0) return `<div class="clab-custom-select-item" data-value="">${clabT("select.selectNodesFirst")}</div>`;
     
     let html = '';
     nodeIds.forEach(nid => {
@@ -158,7 +164,7 @@ export function getMultiWidgetMenuHTML(nodeIds, selectedWidgets) {
             });
         }
         if (!hasWidget) {
-            html += `<div class="clab-custom-select-item disabled" style="color:#666; pointer-events:none;">无可用参数</div>`;
+            html += `<div class="clab-custom-select-item disabled" style="color:#666; pointer-events:none;">${clabT("select.noWidgets")}</div>`;
         }
     });
     return html;

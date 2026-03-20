@@ -1,0 +1,82 @@
+{
+  "CLab_1-General_ResetAll": {
+    "name": "Restablecer todos los ajustes",
+    "tooltip": "⚠️ Aviso: al activar esto se restablecen de inmediato todos los ajustes de CLab a los valores de fábrica."
+  },
+  "CLab_1-General_Shortcut": {
+    "name": "Atajo de teclado",
+    "tooltip": "Admite combinaciones, p. ej.: C, Shift+C, Ctrl+M, Alt+X (sin distinguir mayúsculas)"
+  },
+  "CLab_1-General_BackdropBlur": {
+    "name": "Activar desenfoque de fondo (cristal)",
+    "tooltip": "Mejora el aspecto; en GPU débiles, arrastrar el panel puede ir a tirones."
+  },
+  "CLab_1-General_BgOpacity": {
+    "name": "Opacidad del fondo del panel (%)",
+    "tooltip": "Transparencia del fondo del panel principal (0 = transparente, 100 = opaco)."
+  },
+  "CLab_2-PerformanceMedia_MaxHistory": {
+    "name": "Tamaño máximo del historial",
+    "tooltip": "Cuántas generaciones conservar por módulo de salida; las más antiguas se eliminan para limitar la memoria."
+  },
+  "CLab_2-PerformanceMedia_Autoplay": {
+    "name": "Reproducir vídeo automáticamente",
+    "tooltip": "Desactivado: el vídeo principal muestra solo el primer fotograma hasta que haga clic (menor carga de GPU con varias tarjetas)."
+  },
+  "CLab_2-PerformanceMedia_Muted": {
+    "name": "Vídeos silenciados por defecto",
+    "tooltip": "Activado: los vídeos se cargan en silencio. La reproducción automática con sonido puede bloquearse en el navegador."
+  },
+  "CLab_2-PerformanceMedia_ThumbMode": {
+    "name": "Modo miniaturas de alto rendimiento",
+    "tooltip": "Activado: en la cuadrícula solo el primer fotograma de cada vídeo. Desactivado: todos los vídeos en bucle silencioso (equipos potentes)."
+  },
+  "CLab_3-FileIO_ArchiveDir": {
+    "name": "Nombre de la carpeta de archivo",
+    "tooltip": "Carpeta raíz donde se guardan medios interceptados y archivos organizados. Sin barras ni caracteres no válidos."
+  },
+  "CLab_3-FileIO_KeepTemp": {
+    "name": "Conservar archivos temporales originales",
+    "tooltip": "Desactivado: tras mover al archivo, se eliminan los temporales originales para ahorrar espacio."
+  },
+  "CLab_3-FileIO_Prefix": {
+    "name": "Prefijo de nombres de archivo",
+    "tooltip": "Prefijo al guardar capturas; predeterminado pix (p. ej. pix_01.png)."
+  },
+  "CLab_4-Automation_HaltOnError": {
+    "name": "Detener la cola ante error",
+    "tooltip": "Activado: cualquier error vacía toda la cola. Desactivado: se omiten tareas fallidas y siguen las demás."
+  },
+  "CLab_5-CardApp_Color": {
+    "name": "Color de acento",
+    "tooltip": "Color del tema cuando se selecciona una tarjeta y barra de progreso inferior. Predeterminado: #4CAF50"
+  },
+  "CLab_5-CardApp_Border": {
+    "name": "Grosor del borde (px)",
+    "tooltip": "Grosor del contorno cuando la tarjeta está activa."
+  },
+  "CLab_5-CardApp_Fill": {
+    "name": "Opacidad de relleno (%)",
+    "tooltip": "Intensidad del resaltado al seleccionar la tarjeta."
+  },
+  "CLab_5-CardApp_Glow": {
+    "name": "Intensidad del resplandor",
+    "tooltip": "Radio del resplandor exterior de la tarjeta seleccionada; al máximo destaca más."
+  },
+  "CLab_6-ModuleApp_Color": {
+    "name": "Color de acento",
+    "tooltip": "Color principal al seleccionar un área (entrada/salida). Predeterminado: #2196F3"
+  },
+  "CLab_6-ModuleApp_Border": {
+    "name": "Grosor del borde (px)",
+    "tooltip": "Grosor del contorno del módulo seleccionado."
+  },
+  "CLab_6-ModuleApp_Fill": {
+    "name": "Opacidad de relleno (%)",
+    "tooltip": "Fuerza del resaltado del módulo (0 = totalmente transparente)."
+  },
+  "CLab_6-ModuleApp_Glow": {
+    "name": "Intensidad del resplandor",
+    "tooltip": "Radio de desenfoque exterior; 0 desactiva el resplandor."
+  }
+}

@@ -11,6 +11,8 @@ import { updateSelectionUI } from "./components/ui_selection.js";
 
 import { setupGlobalEvents } from "./components/events/event_global.js";
 import { setupExecutionEvents } from "./components/events/event_execution.js";
+import { applyClabPanelStaticI18n, initClabLocaleWatch, refreshClabMenuButtonTitle, clabT } from "./clab_i18n.js";
+import { refreshInjectedDataIoLabels } from "./components/actions/action_data_io.js";
 
 console.log("[CLab] UI 拆分重构版本已被成功导入 (极速响应安全版)");
 
@@ -165,6 +167,15 @@ export function setupUI() {
             setupGlobalEvents(panelContainer, backdropContainer, togglePanel, performRender);
             setupExecutionEvents();
 
+            applyClabPanelStaticI18n(panelContainer);
+            refreshInjectedDataIoLabels(panelContainer);
+            initClabLocaleWatch(() => {
+                applyClabPanelStaticI18n(panelContainer);
+                refreshInjectedDataIoLabels(panelContainer);
+                refreshClabMenuButtonTitle();
+                document.dispatchEvent(new CustomEvent("clab_render_ui"));
+            });
+
             import("./components/comp_contextmenu.js").then(module => {
                 module.setupContextMenu(panelContainer);
             }).catch(err => {
@@ -240,6 +251,8 @@ function performRender() {
     attachAreaEvents(cardsContainer);
     
     if (window._clabUpdateAllDefaultTitles) window._clabUpdateAllDefaultTitles();
+    applyClabPanelStaticI18n(panelContainer);
+    refreshInjectedDataIoLabels(panelContainer);
 }
 
 function createPanelDOM() {
@@ -255,8 +268,8 @@ function createPanelDOM() {
     panelContainer.innerHTML = `
         <div class="clab-toolbar" id="clab-toolbar-handle">
             <div style="display:flex; gap:10px; align-items:center;">
-                <button class="clab-btn" id="clab-global-add-card" title="新建空白任务卡片">+ 新建任务</button>
-                <button class="clab-btn" id="clab-global-add-module" title="在当前任务内添加新模块">+ 新建模块</button>
+                <button class="clab-btn" id="clab-global-add-card" title="${clabT("toolbar.addCardTitle")}">${clabT("toolbar.addCard")}</button>
+                <button class="clab-btn" id="clab-global-add-module" title="${clabT("toolbar.addModuleTitle")}">${clabT("toolbar.addModule")}</button>
                 <div id="clab-module-toolbar-separator" style="width:1px; height:20px; background:rgba(255,255,255,0.2); margin:0 5px; display:none;"></div>
                 <div id="clab-module-toolbar" style="display:none; align-items:center; gap:12px;"></div>
             </div>
@@ -265,9 +278,9 @@ function createPanelDOM() {
                 
                 <div style="display:inline-flex; align-items:stretch; height: 34px;">
                     <div id="clab-run-btn-wrapper" class="clab-run-wrapper" style="border-top-right-radius: 0; border-bottom-right-radius: 0; height: 100%;">
-                        <button class="clab-btn run-btn-main" id="clab-btn-run" title="按规则运行选中任务 (局部)" style="height: 100%;">▶ 运行</button>
+                        <button class="clab-btn run-btn-main" id="clab-btn-run" title="${clabT("toolbar.runTitle")}" style="height: 100%;">${clabT("toolbar.run")}</button>
                         <div style="width:1px; height:16px; background:rgba(255,255,255,0.4); margin: 0 4px; align-self: center;"></div>
-                        <button class="clab-btn run-btn-toggle" id="clab-run-dropdown-toggle" title="展开更多运行选项" style="height: 100%;">
+                        <button class="clab-btn run-btn-toggle" id="clab-run-dropdown-toggle" title="${clabT("toolbar.runMenuTitle")}" style="height: 100%;">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="6 9 12 15 18 9"></polyline>
                             </svg>
@@ -278,12 +291,12 @@ function createPanelDOM() {
                                     <path d="M19.26,6.77L11.55.23c-.63-.53-1.59-.09-1.59.74v13.07c0,.82.96,1.27,1.59.74l7.72-6.54c.46-.39.46-1.09,0-1.48Z"/>
                                     <path d="M9.31,6.77L1.59.23C.96-.3,0,.15,0,.97v13.07c0,.82.96,1.27,1.59.74l7.72-6.54c.46-.39.46-1.09,0-1.48Z"/>
                                 </svg>
-                                运行全部
+                                ${clabT("toolbar.runAll")}
                             </div>
                         </div>
                     </div>
                     
-                    <div style="display:flex; align-items:center; background: rgba(0,0,0,0.5); border: 1px solid #555; border-left: none; border-top-right-radius: 6px; border-bottom-right-radius: 6px; padding-left: 6px; height: 100%; box-sizing: border-box;" title="循环运行次数 (排队执行)">
+                    <div style="display:flex; align-items:center; background: rgba(0,0,0,0.5); border: 1px solid #555; border-left: none; border-top-right-radius: 6px; border-bottom-right-radius: 6px; padding-left: 6px; height: 100%; box-sizing: border-box;" title="${clabT("toolbar.batchCountTitle")}">
                         <input type="number" id="clab-run-batch-count" value="1" min="1" max="999" style="width: 24px; background: transparent; border: none; color: #eee; font-size: 14px; text-align: center; outline: none; font-family: sans-serif; -moz-appearance: textfield; padding: 0;">
                         <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; height: 100%; margin-left: 2px; gap: 2px;">
                             <div id="clab-run-count-up" style="cursor:pointer; display:flex; align-items:center; justify-content:center; padding: 2px 6px;" onmouseover="this.querySelector('svg').style.stroke='#fff'" onmouseout="this.querySelector('svg').style.stroke='#aaa'">
@@ -296,18 +309,18 @@ function createPanelDOM() {
                     </div>
                 </div>
 
-                <button class="clab-btn" id="clab-btn-config" title="在画布创建配置节点">⚓ 创建配置锚点</button>
+                <button class="clab-btn" id="clab-btn-config" title="${clabT("toolbar.createAnchorTitle")}">${clabT("toolbar.createAnchor")}</button>
             </div>
         </div>
         <div class="clab-cards-container" id="clab-cards-container"></div>
 
         <div id="clab-card-width-ctrl" style="position: absolute; bottom: 16px; left: 16px; z-index: 1000; display: flex; align-items: center; gap: 8px; transition: opacity 0.2s;">
-            <svg id="clab-card-width-reset" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" title="恢复默认宽度" style="cursor: pointer; transition: stroke 0.2s;" onmouseover="this.style.stroke='#fff'" onmouseout="this.style.stroke='#888'">
+            <svg id="clab-card-width-reset" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" title="${clabT("toolbar.widthResetTitle")}" style="cursor: pointer; transition: stroke 0.2s;" onmouseover="this.style.stroke='#fff'" onmouseout="this.style.stroke='#888'">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                 <line x1="9" y1="3" x2="9" y2="21"></line>
             </svg>
             <input type="range" id="clab-card-width-slider" min="260" max="600" value="320" style="width: 80px; accent-color: #888; cursor: pointer; height: 4px; background: rgba(255,255,255,0.2); outline: none; border-radius: 2px; -webkit-appearance: none;">
-            <input type="number" id="clab-card-width-input" title="手动输入宽度 (回车确认)" style="width: 36px; background: transparent; border: none; color: #888; font-size: 12px; outline: none; text-align: left; padding: 0; margin: 0; font-family: monospace; transition: color 0.2s;" onfocus="this.style.color='#fff'" onblur="this.style.color='#888'">
+            <input type="number" id="clab-card-width-input" title="${clabT("toolbar.widthInputTitle")}" style="width: 36px; background: transparent; border: none; color: #888; font-size: 12px; outline: none; text-align: left; padding: 0; margin: 0; font-family: monospace; transition: color 0.2s;" onfocus="this.style.color='#fff'" onblur="this.style.color='#888'">
         </div>
     `;
 

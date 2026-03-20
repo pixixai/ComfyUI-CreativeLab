@@ -6,6 +6,7 @@ import { state, appState, saveAndRender } from "../ui_state.js";
 import { buildCustomSelect, getCustomNodeMenuHTML, getMultiNodeMenuHTML, getMultiWidgetMenuHTML, getWidgetDef } from "../ui_utils.js";
 import { app } from "../../../../scripts/app.js";
 import { execSyncParams } from "./action_batch_sync.js";
+import { clabT, clabTf, clabFillModeLabel, clabRatioLabel } from "../../clab_i18n.js";
 
 // 引入无感卡片生成引擎
 import { generateSingleCardHTML, attachCardEvents } from "../comp_taskcard.js";
@@ -50,20 +51,20 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
 
             html += `
                 <div style="display:flex; border: 1px dashed rgba(255,255,255,0.3); border-radius: 20px; padding: 2px; gap: 2px;">
-                    <div class="clab-type-btn ${mainType === 'edit' ? 'active' : ''}" data-type="edit" style="padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; transition: all 0.2s; ${mainType === 'edit' ? 'background: rgba(255,255,255,0.2); color: #fff; font-weight: bold;' : 'color: #aaa;'}">输入</div>
-                    <div class="clab-type-btn ${mainType === 'preview' ? 'active' : ''}" data-type="preview" style="padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; transition: all 0.2s; ${mainType === 'preview' ? 'background: rgba(255,255,255,0.2); color: #fff; font-weight: bold;' : 'color: #aaa;'}">输出</div>
+                    <div class="clab-type-btn ${mainType === 'edit' ? 'active' : ''}" data-type="edit" style="padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; transition: all 0.2s; ${mainType === 'edit' ? 'background: rgba(255,255,255,0.2); color: #fff; font-weight: bold;' : 'color: #aaa;'}">${clabT("moduleToolbar.input")}</div>
+                    <div class="clab-type-btn ${mainType === 'preview' ? 'active' : ''}" data-type="preview" style="padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; transition: all 0.2s; ${mainType === 'preview' ? 'background: rgba(255,255,255,0.2); color: #fff; font-weight: bold;' : 'color: #aaa;'}">${clabT("moduleToolbar.output")}</div>
                 </div>
             `;
 
             if (mainType === 'preview') {
-                let nodeName = '关联节点...';
+                let nodeName = clabT("moduleToolbar.linkNode");
                 if (mainArea.targetNodeId && app.graph) {
                     const n = app.graph.getNodeById(Number(mainArea.targetNodeId));
                     if (n) nodeName = `[${n.id}] ${n.title || n.type}`;
                 }
                 html += `
                     <div style="display:flex; align-items:center; gap:6px;">
-                        <button id="tb-node-pick" data-type="${mainType}" style="background:transparent; border:none; color:#aaa; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; transition:color 0.2s; width: 30px; height: 30px;" title="拾取节点" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">
+                        <button id="tb-node-pick" data-type="${mainType}" style="background:transparent; border:none; color:#aaa; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; transition:color 0.2s; width: 30px; height: 30px;" title="${clabT("moduleToolbar.pickNodeTitle")}" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">
                             <svg width="18" height="18" viewBox="0 0 9.11 9.11" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M.37.02C.24-.04.08.03.02.17,0,.23,0,.31.02.37l1.62,3.94,1.87,4.54c.09.21.33.31.54.23.1-.04.18-.12.22-.21l1.41-3.13s.03-.04.05-.05l3.13-1.41c.21-.09.3-.34.21-.55-.04-.1-.12-.17-.22-.21L.37.02h0Z"/></svg>
                         </button>
                         ${buildCustomSelect('tb-node-select-custom', '120px', nodeName, getCustomNodeMenuHTML(mainArea.targetNodeId))}
@@ -71,33 +72,33 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
                 `;
 
                 const fillModes = ['显示全部', '填充', '拉伸'];
-                let fillItems = fillModes.map(m => `<div class="clab-custom-select-item ${mainArea.fillMode === m ? 'selected' : ''}" data-value="${m}">${m}</div>`).join('');
+                let fillItems = fillModes.map(m => `<div class="clab-custom-select-item ${mainArea.fillMode === m ? 'selected' : ''}" data-value="${m}">${clabFillModeLabel(m)}</div>`).join('');
 
                 const ratios = ['21:9', '16:9', '3:2', '4:3', '1:1', '3:4', '2:3', '9:16', '9:21', '自定义比例'];
-                let ratioItems = ratios.map(r => `<div class="clab-custom-select-item ${mainArea.ratio === r ? 'selected' : ''}" data-value="${r}">${r}</div>`).join('');
+                let ratioItems = ratios.map(r => `<div class="clab-custom-select-item ${mainArea.ratio === r ? 'selected' : ''}" data-value="${r}">${clabRatioLabel(r)}</div>`).join('');
 
                 html += `
                     <div style="display:flex; align-items:center; gap:6px; margin-left: 8px;">
-                        ${buildCustomSelect('tb-ratio-select-custom', '100px', mainArea.ratio || '16:9', ratioItems, mainArea.matchMedia)}
+                        ${buildCustomSelect('tb-ratio-select-custom', '100px', clabRatioLabel(mainArea.ratio || '16:9'), ratioItems, mainArea.matchMedia)}
                         <input id="tb-ratio-w" type="number" class="clab-input clab-capsule" style="width:75px; min-height:24px; font-size:12px;" placeholder="W" value="${mainArea.width || ''}" ${mainArea.matchMedia ? 'disabled' : ''}>
                         <span style="color:#aaa;">:</span>
                         <input id="tb-ratio-h" type="number" class="clab-input clab-capsule" style="width:75px; min-height:24px; font-size:12px;" placeholder="H" value="${mainArea.height || ''}" ${mainArea.matchMedia ? 'disabled' : ''}>
                         <div style="width:1px; height:14px; background:rgba(255,255,255,0.2); margin:0 4px;"></div>
-                        ${buildCustomSelect('tb-fill-select-custom', '100px', mainArea.fillMode || '显示全部', fillItems, mainArea.matchMedia)}
+                        ${buildCustomSelect('tb-fill-select-custom', '100px', clabFillModeLabel(mainArea.fillMode || '显示全部'), fillItems, mainArea.matchMedia)}
                         <label style="font-size:13px; color:#ccc; display:flex; align-items:center; gap:4px; margin-left:8px; cursor:pointer;">
-                            <input id="tb-match-media" type="checkbox" ${mainArea.matchMedia ? 'checked' : ''} style="margin:0; width:14px; height:14px;"> 匹配媒体比例
+                            <input id="tb-match-media" type="checkbox" ${mainArea.matchMedia ? 'checked' : ''} style="margin:0; width:14px; height:14px;"> ${clabT("moduleToolbar.matchMedia")}
                         </label>
                     </div>
                 `;
             } else if (mainType === 'edit') {
                 let nodeIds = Array.isArray(mainArea.targetNodeIds) ? mainArea.targetNodeIds : (mainArea.targetNodeId ? [String(mainArea.targetNodeId)] : []);
-                let nodeName = nodeIds.length === 0 ? '关联节点...' : (nodeIds.length === 1 ? `[${nodeIds[0]}] 节点` : `已选 ${nodeIds.length} 个节点`);
+                let nodeName = nodeIds.length === 0 ? clabT("moduleToolbar.linkNode") : (nodeIds.length === 1 ? clabTf("moduleToolbar.nodeBinding", { id: nodeIds[0] }) : clabTf("moduleToolbar.nodesSelected", { count: nodeIds.length }));
                 let targetWidgets = Array.isArray(mainArea.targetWidgets) ? mainArea.targetWidgets : (mainArea.targetWidget && mainArea.targetNodeId ? [`${mainArea.targetNodeId}||${mainArea.targetWidget}`] : []);
-                let widgetName = targetWidgets.length === 0 ? '绑定参数...' : (targetWidgets.length === 1 ? targetWidgets[0].split('||')[1] : `已选 ${targetWidgets.length} 个参数`);
+                let widgetName = targetWidgets.length === 0 ? clabT("moduleToolbar.bindWidget") : (targetWidgets.length === 1 ? targetWidgets[0].split('||')[1] : clabTf("moduleToolbar.widgetsSelected", { count: targetWidgets.length }));
 
                 html += `
                     <div style="display:flex; align-items:center; gap:6px;">
-                        <button id="tb-node-pick" data-type="${mainType}" style="background:transparent; border:none; color:#aaa; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; transition:color 0.2s; width: 30px; height: 30px;" title="拾取节点" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">
+                        <button id="tb-node-pick" data-type="${mainType}" style="background:transparent; border:none; color:#aaa; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; transition:color 0.2s; width: 30px; height: 30px;" title="${clabT("moduleToolbar.pickNodeTitle")}" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">
                             <svg width="18" height="18" viewBox="0 0 9.11 9.11" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M.37.02C.24-.04.08.03.02.17,0,.23,0,.31.02.37l1.62,3.94,1.87,4.54c.09.21.33.31.54.23.1-.04.18-.12.22-.21l1.41-3.13s.03-.04.05-.05l3.13-1.41c.21-.09.3-.34.21-.55-.04-.1-.12-.17-.22-.21L.37.02h0Z"/></svg>
                         </button>
                         ${buildCustomSelect('tb-node-select-custom', '120px', nodeName, getMultiNodeMenuHTML(nodeIds))}
@@ -107,7 +108,7 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
                     </div>
                     <div style="display:flex; align-items:center; gap:6px;">
                         <label style="font-size:13px; color:#ccc; display:flex; align-items:center; gap:4px; margin-left:8px; cursor:pointer;">
-                            <input id="tb-auto-height" type="checkbox" ${mainArea.autoHeight ? 'checked' : ''} style="margin:0; width:14px; height:14px;"> 参数框高度适配
+                            <input id="tb-auto-height" type="checkbox" ${mainArea.autoHeight ? 'checked' : ''} style="margin:0; width:14px; height:14px;"> ${clabT("moduleToolbar.autoHeight")}
                         </label>
                     </div>
                 `;
@@ -115,11 +116,11 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
 
             html += `
                 <div style="display:flex; align-items:center; margin-left: 4px; gap: 2px;">
-                    <button id="tb-reset-module" style="background:transparent; border:none; color:#aaa; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; transition:color 0.2s, transform 0.2s; width: 28px; height: 28px;" title="重置模块参数到新建状态" onmouseover="this.style.color='#fff'; this.style.transform='rotate(-45deg)'" onmouseout="this.style.color='#aaa'; this.style.transform='rotate(0deg)'">
+                    <button id="tb-reset-module" style="background:transparent; border:none; color:#aaa; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; transition:color 0.2s, transform 0.2s; width: 28px; height: 28px;" title="${clabT("moduleToolbar.resetModule")}" onmouseover="this.style.color='#fff'; this.style.transform='rotate(-45deg)'" onmouseout="this.style.color='#aaa'; this.style.transform='rotate(0deg)'">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
                     </button>
                     
-                    <button class="clab-btn" id="tb-btn-sync-params" title="同步参数至其它任务相同位置" style="padding: 0; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; color: #aaa; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">
+                    <button class="clab-btn" id="tb-btn-sync-params" title="${clabT("moduleToolbar.syncParams")}" style="padding: 0; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; color: #aaa; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M4 12v-2.5c0-1.93 1.57-3.5 3.5-3.5h11"/>
                             <polyline points="15 2 19 6 15 10"/>
@@ -136,10 +137,10 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
 
     html += `
         <div style="display:flex; align-items:center; gap:2px;">
-            <button id="tb-clone-btn" class="clab-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;" title="原样克隆选中项" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">
+            <button id="tb-clone-btn" class="clab-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;" title="${clabT("moduleToolbar.cloneTitle")}" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
             </button>
-            <button id="tb-format-painter" class="clab-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; ${state.painterMode ? 'background:#ff9800; border-color:#ff9800; color:#fff;' : 'background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;'}" title="格式刷：连续点击覆盖参数或在空白处插入克隆 (ESC/右键/工具栏点击退出)" onmouseover="if(!state.painterMode) this.style.color='#fff'" onmouseout="if(!state.painterMode) this.style.color='#aaa'">
+            <button id="tb-format-painter" class="clab-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; ${state.painterMode ? 'background:#ff9800; border-color:#ff9800; color:#fff;' : 'background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;'}" title="${clabT("moduleToolbar.formatPainterTitle")}" onmouseover="if(!state.painterMode) this.style.color='#fff'" onmouseout="if(!state.painterMode) this.style.color='#aaa'">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"></path><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"></path></svg>
             </button>
         </div>
@@ -149,7 +150,7 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
         html += `<div style="width:1px; height:16px; background:rgba(255,255,255,0.25); margin:0 2px;"></div>`;
         html += `
             <div style="display:flex; align-items:center; gap:2px;">
-                <button id="tb-manage-history" class="clab-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; ${mainArea?.isManageMode ? 'background:#4CAF50; border-color:#4CAF50; color:#fff;' : 'background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;'}" title="管理生成记录 (网格视图与拖拽排序)" onmouseover="if(!${mainArea?.isManageMode}) this.style.color='#fff'" onmouseout="if(!${mainArea?.isManageMode}) this.style.color='#aaa'">
+                <button id="tb-manage-history" class="clab-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; ${mainArea?.isManageMode ? 'background:#4CAF50; border-color:#4CAF50; color:#fff;' : 'background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;'}" title="${clabT("moduleToolbar.manageHistoryTitle")}" onmouseover="if(!${mainArea?.isManageMode}) this.style.color='#fff'" onmouseout="if(!${mainArea?.isManageMode}) this.style.color='#aaa'">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
                 </button>
             </div>
