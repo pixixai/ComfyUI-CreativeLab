@@ -1,0 +1,12 @@
+{
+  "CLab_SystemConfig": {
+    "display_name": "⚓ CLab — configuración del sistema",
+    "description": "Nodo de configuración global para ComfyUI Creative Lab. Actúa como un \"almacén de datos\" sin cables que guarda el diseño del panel lateral CLab y el estado de los parámetros dentro del flujo de trabajo.",
+    "inputs": {
+      "scenes_data": {
+        "name": "Datos de estado del panel (JSON)",
+        "tooltip": "Cadena JSON con el estado de todas las tarjetas del panel lateral. No la edite manualmente; la extensión front-end la mantiene y sincroniza."
+      }
+    }
+  }
+}

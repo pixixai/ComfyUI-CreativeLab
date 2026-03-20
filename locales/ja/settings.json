@@ -1,0 +1,82 @@
+{
+  "CLab_1-General_ResetAll": {
+    "name": "すべての設定を初期化",
+    "tooltip": "⚠️ 警告：これを有効にすると CLab の設定がすべて工場出荷時の既定値に戻ります。"
+  },
+  "CLab_1-General_Shortcut": {
+    "name": "キーボードショートカット",
+    "tooltip": "組み合わせ可能です。例: C、Shift+C、Ctrl+M、Alt+X（大文字・小文字は区別しません）"
+  },
+  "CLab_1-General_BackdropBlur": {
+    "name": "背景のすりガラス効果を有効化",
+    "tooltip": "見た目が向上しますが、低スペック GPU ではパネルのドラッグがカクつくことがあります。"
+  },
+  "CLab_1-General_BgOpacity": {
+    "name": "パネル背景の不透明度 (%)",
+    "tooltip": "メインパネル背景の透明度（0 = 完全透過、100 = 不透明）。"
+  },
+  "CLab_2-PerformanceMedia_MaxHistory": {
+    "name": "履歴の最大件数",
+    "tooltip": "出力モジュールごとに保持する生成履歴の上限。古いものから削除されメモリ使用量を抑えます。"
+  },
+  "CLab_2-PerformanceMedia_Autoplay": {
+    "name": "動画を自動再生",
+    "tooltip": "オフの場合、メイン動画は最初のフレームのみ表示され、クリックで再生（多カード並列時の GPU 負荷を軽減）。"
+  },
+  "CLab_2-PerformanceMedia_Muted": {
+    "name": "動画はデフォルトでミュート",
+    "tooltip": "オンにするとメイン動画はミュートで読み込まれます。自動再生＋音声オンはブラウザによりブロックされることがあります。"
+  },
+  "CLab_2-PerformanceMedia_ThumbMode": {
+    "name": "高性能サムネイルモード",
+    "tooltip": "オン: グリッド履歴の動画は先頭フレームのみ。オフ: すべてのグリッド動画がミュートループ（高スペック向け）。"
+  },
+  "CLab_3-FileIO_ArchiveDir": {
+    "name": "アーカイブフォルダ名",
+    "tooltip": "メディアの取り込みや整理時に使うルート名。スラッシュなど不正な文字は使わないでください。"
+  },
+  "CLab_3-FileIO_KeepTemp": {
+    "name": "取り込み時に元の一時ファイルを残す",
+    "tooltip": "オフの場合、アーカイブに移動後に元の一時ファイルを削除してディスクを節約します。"
+  },
+  "CLab_3-FileIO_Prefix": {
+    "name": "出力ファイル名プレフィックス",
+    "tooltip": "取り込み保存時のプレフィックス。既定は pix（例: pix_01.png）。"
+  },
+  "CLab_4-Automation_HaltOnError": {
+    "name": "エラー時にキューを停止",
+    "tooltip": "オン: いずれかのタスクが失敗するとキュー全体をクリア。オフ: 失敗をスキップして続行。"
+  },
+  "CLab_5-CardApp_Color": {
+    "name": "アクセントカラー",
+    "tooltip": "タスクカード選択時のテーマ色と下部プログレスバーの色。既定: #4CAF50"
+  },
+  "CLab_5-CardApp_Border": {
+    "name": "枠線の太さ (px)",
+    "tooltip": "タスクカードがアクティブ選択されているときの境界線の太さ。"
+  },
+  "CLab_5-CardApp_Fill": {
+    "name": "塗りの不透明度 (%)",
+    "tooltip": "タスクカード選択時のハイライト塗りの強さ。"
+  },
+  "CLab_5-CardApp_Glow": {
+    "name": "グロー強度",
+    "tooltip": "タスクカード選択時の外側グローの半径。最大でサイバーパンク風に。"
+  },
+  "CLab_6-ModuleApp_Color": {
+    "name": "アクセントカラー",
+    "tooltip": "領域（入力／出力）選択時の主色。既定: #2196F3"
+  },
+  "CLab_6-ModuleApp_Border": {
+    "name": "枠線の太さ (px)",
+    "tooltip": "モジュール選択時のアウトラインの太さ。"
+  },
+  "CLab_6-ModuleApp_Fill": {
+    "name": "塗りの不透明度 (%)",
+    "tooltip": "モジュール選択時のハイライトの強さ（0 で完全透明）。"
+  },
+  "CLab_6-ModuleApp_Glow": {
+    "name": "グロー強度",
+    "tooltip": "モジュール選択時の外側ぼかし半径。0 でグローなし。"
+  }
+}

@@ -1,0 +1,240 @@
+{
+  "settingsCategories": {
+    "Creative Lab": "Creative Lab",
+    "1-General": "General",
+    "2-PerformanceMedia": "Rendimiento y medios",
+    "3-FileIO": "Archivos y flujo de datos",
+    "4-Automation": "Automatización",
+    "5-CardApp": "Apariencia de tarjeta seleccionada",
+    "6-ModuleApp": "Apariencia de módulo seleccionado",
+    "Glow": "Resplandor",
+    "Fill": "Relleno",
+    "Border": "Borde",
+    "Color": "Color",
+    "Halt": "Ante error",
+    "Prefix": "Prefijo de archivo",
+    "KeepTemp": "Archivos temporales",
+    "ArchiveDir": "Carpeta de archivo",
+    "ThumbMode": "Miniaturas",
+    "Muted": "Silenciado",
+    "Autoplay": "Reproducción automática",
+    "MaxHistory": "Tamaño del historial",
+    "BgOpacity": "Opacidad de fondo",
+    "BackdropBlur": "Desenfoque de fondo",
+    "Shortcut": "Atajo",
+    "ResetAll": "Restaurar predeterminados"
+  },
+  "clabUi": {
+    "toolbar": {
+      "addCard": "+ Nueva tarea",
+      "addCardTitle": "Crear tarjeta de tarea vacía",
+      "addModule": "+ Nuevo módulo",
+      "addModuleTitle": "Añadir módulo en la tarea actual",
+      "run": "▶ Ejecutar",
+      "runTitle": "Ejecutar tarea(s) seleccionada(s)",
+      "runMenuTitle": "Más opciones de ejecución",
+      "runAll": "Ejecutar todo",
+      "batchCountTitle": "Ejecuciones en cola",
+      "createAnchor": "⚓ Nodo de configuración",
+      "createAnchorTitle": "Crear nodo de configuración en el grafo",
+      "widthResetTitle": "Restablecer ancho predeterminado",
+      "widthInputTitle": "Ancho en px (Intro)"
+    },
+    "config": {
+      "btnTitle": "Crear ancla de configuración (guardar en el flujo)",
+      "maintTitle": "Mantenimiento de datos",
+      "cleanDead": "Eliminar registros rotos (404)",
+      "resync": "Resincronizar registros (forzar)"
+    },
+    "module": {
+      "unbound": "Sin enlazar",
+      "unboundWithNode": "Sin enlazar ({name})",
+      "nodeId": "ID del nodo",
+      "nodeName": "Nombre del nodo",
+      "boundWidget": "Widget enlazado",
+      "batchBoundHeader": "Enlazados por lotes {count} widgets:",
+      "unknownNode": "Nodo desconocido",
+      "placeholderValue": "Valor del parámetro…",
+      "delInputTitle": "Eliminar entrada",
+      "uploadImage": "Subir imagen",
+      "uploadVideo": "Subir vídeo",
+      "uploadAudio": "Subir audio",
+      "uploadFile": "Subir archivo",
+      "uploadHint": "Haga clic o suelte aquí para subir al servidor",
+      "fileBrokenTitle": "Archivo ausente / formato incorrecto",
+      "fileBrokenHint": "Clic para volver a subir y reemplazar",
+      "uploading": "Subiendo…",
+      "uploadFail": "Error al subir: ",
+      "pickServerFile": "O elegir archivo existente…",
+      "pickPlaceholder": "Elegir…",
+      "boolTrue": "Sí",
+      "boolFalse": "No"
+    },
+    "output": {
+      "waitOutput": "Esperando salida del nodo [{id}]…",
+      "noNode": "Sin nodo enlazado",
+      "delRecordTitle": "Eliminar elemento",
+      "delAreaTitle": "Eliminar módulo de salida",
+      "historyHeader": "Historial ({count})",
+      "remove": "Quitar"
+    },
+    "menu": {
+      "openTitle": "Abrir Creative Lab (atajo: {key})",
+      "brand": "CLab"
+    },
+    "alerts": {
+      "selectCardFirst": "Seleccione primero una o más tarjetas o módulos.",
+      "noMediaToSync": "No hay historial de medios para sincronizar.",
+      "noRecordsToClean": "No hay generaciones para limpiar."
+    },
+    "toasts": {
+      "resyncing": "Actualizando recursos locales…",
+      "resyncDone": "Caché borrada; salidas recargadas.",
+      "scanning": "Buscando archivos rotos…",
+      "scanClean": "Todos los archivos locales están bien.",
+      "cleaned": "Eliminados {count} registros ausentes.",
+      "nodeRunFailed": "❌ Error de validación o ejecución del nodo. Revise parámetros y enlaces.",
+      "nodeValidateFailed": "❌ Error de validación del grafo. Revise enlaces.",
+      "workflowBackendError": "❌ Error del flujo en el servidor. Cierre el panel y revise el mensaje.",
+      "frontendValidateFailed": "❌ Error de validación en el cliente. Revise enlaces y parámetros obligatorios."
+    },
+    "run": {
+      "noOutputModules": "La selección no tiene módulos de salida ejecutables. Añada un módulo de salida.",
+      "noCards": "No hay tarjetas de tarea en el panel.",
+      "noOutputAnyCard": "Ninguna tarjeta tiene módulo de salida.",
+      "apiNotReady": "El inyector de API aún no está listo. Inténtelo de nuevo en un momento."
+    },
+    "batch": {
+      "confirmSyncUnnamed": "El módulo seleccionado no tiene título (se muestra como {match}). ¿Sincronizar parámetros/enlaces en la misma posición en otras tareas?",
+      "confirmDeleteSame": "⚠️ Peligro:\n¿Eliminar todos los módulos de {type} etiquetados [{match}] en todas las tareas?",
+      "typeInput": "entrada",
+      "typeOutput": "salida"
+    },
+    "binding": {
+      "pickNodeToast": "🖱️ Haga clic en un nodo del grafo (izq. = sustituir, dcha. = añadir; vacío = cancelar)…"
+    },
+    "settingsUi": {
+      "resetAllConfirm": "¿Restablecer todos los ajustes de Creative Lab? No se puede deshacer."
+    },
+    "media": {
+      "volumeSlider": "Volumen",
+      "muteToggle": "Silenciar / sonido",
+      "playbackSpeed": "Velocidad de reproducción",
+      "pictureInPicture": "Imagen en imagen",
+      "fullscreen": "Pantalla completa",
+      "clickDownload": "Descargar",
+      "unknownFile": "Archivo desconocido",
+      "unknownAudio": "Audio desconocido"
+    },
+    "moduleToolbar": {
+      "input": "Entrada",
+      "output": "Salida",
+      "linkNode": "Enlazar nodo…",
+      "nodeBinding": "Nodo [{id}]",
+      "nodesSelected": "{count} nodos seleccionados",
+      "bindWidget": "Enlazar widget…",
+      "widgetsSelected": "{count} widgets",
+      "pickNodeTitle": "Elegir nodo del grafo",
+      "matchMedia": "Coincidir relación de aspecto",
+      "autoHeight": "Altura automática del campo",
+      "resetModule": "Restablecer módulo",
+      "syncParams": "Sincronizar a la misma ranura en otras tareas",
+      "cloneTitle": "Clonar selección",
+      "formatPainterTitle": "Copiar formato: clic para aplicar; ESC / clic derecho para salir",
+      "manageHistoryTitle": "Gestionar generaciones (cuadrícula y orden)"
+    },
+    "fillMode": {
+      "fit": "Mostrar todo",
+      "cover": "Rellenar",
+      "stretch": "Estirar"
+    },
+    "ratio": {
+      "custom": "Relación personalizada"
+    },
+    "tree": {
+      "ungroupedLabel": "Sin grupo",
+      "unnamedGroup": "Grupo sin nombre",
+      "uncategorizedLabel": "Sin categoría"
+    },
+    "select": {
+      "clearLink": "(Quitar enlace)",
+      "clearBind": "(Quitar enlace de widget)",
+      "selectNodesFirst": "Seleccione primero los nodos enlazados",
+      "noWidgets": "No hay parámetros disponibles"
+    },
+    "context": {
+      "content": "Contenido",
+      "download": "Descargar",
+      "downloadAll": "Descargar todas las salidas",
+      "remove": "Quitar",
+      "clearAll": "Borrar todas las salidas",
+      "cleanDead": "Eliminar rotos (404)",
+      "resync": "Resincronizar",
+      "module": "Módulo",
+      "selectSame": "Seleccionar los mismos",
+      "deleteSame": "Eliminar los mismos",
+      "moveBack": "Mover atrás (lote)",
+      "moveFwd": "Mover adelante (lote)",
+      "ctxScanning": "Escaneando…",
+      "ctxNoToClean": "No hay registros que limpiar en la selección.",
+      "ctxScanClean": "Los archivos de la selección están bien.",
+      "ctxCleaned": "Eliminados {count} elementos ausentes.",
+      "ctxResyncing": "Actualizando recursos…",
+      "ctxNoMedia": "No hay medios que sincronizar.",
+      "ctxResyncDone": "Salidas recargadas."
+    },
+    "state": {
+      "configExists": "El nodo de configuración ya está en el grafo.",
+      "configCreated": "Nodo de configuración creado."
+    },
+    "card": {
+      "deleteTaskTitle": "Eliminar esta tarea (lote si hay varias seleccionadas)"
+    },
+    "dataIo": {
+      "importJsonBtnTitle": "Importar JSON por lotes",
+      "importFromClipboard": "Importar JSON del portapapeles",
+      "importFromLocalFile": "Importar JSON desde archivo local",
+      "importCreateTask": "Nueva tarea",
+      "importAppendModule": "Añadir módulos",
+      "importAppendToSelection": "Añadir a la selección",
+      "importEmptyData": "Los datos importados están vacíos.",
+      "importAppendNeedCards": "Fallo al añadir:\nSeleccione primero una o más tarjetas (Ctrl/Cmd multi), luego use «Añadir a la selección».",
+      "importParseError": "Error de importación: JSON no válido.\n",
+      "clipboardEmpty": "Portapapeles vacío. Copie JSON primero.",
+      "clipboardReadError": "No se puede leer el portapapeles.\n",
+      "uploadNoFilename": "Error de subida: el servidor no devolvió nombre de archivo.",
+      "exportBtnTitle": "Exportar y descargar",
+      "zipSectionTitle": "Archivo ZIP",
+      "downloadAll": "Descargar todo",
+      "downloadSelected": "Descargar selección",
+      "downloadAllHistory": "Todo (todas las generaciones)",
+      "downloadSelectedHistory": "Selección (todas las generaciones)",
+      "organizeSectionTitle": "Organizar archivos",
+      "orgMoveSubfolder": "Mover a subcarpeta",
+      "orgCopySubfolder": "Copiar a subcarpeta",
+      "orgMoveSubfolderHistory": "Mover a subcarpeta (todas las generaciones)",
+      "orgCopySubfolderHistory": "Copiar a subcarpeta (todas las generaciones)",
+      "exportJsonTitle": "Exportar JSON",
+      "jsonActionCopyTitle": "Modo: copiar filas de abajo al portapapeles",
+      "jsonActionDownloadTitle": "Modo: descargar filas de abajo como archivos",
+      "exportJsonInput": "Módulos de entrada",
+      "exportJsonOutput": "Módulos de salida",
+      "exportJsonAll": "Todos los módulos",
+      "exportJsonOutputHistory": "Salida (todas las generaciones)",
+      "exportJsonAllHistory": "Todos los módulos (todas las generaciones)",
+      "selectForDownload": "Seleccione tarjetas o módulos de salida para descargar.",
+      "noMediaToDownload": "No hay archivos multimedia para descargar.",
+      "downloadFailed": "Error de descarga: ",
+      "zipPackingToast": "📦 Creando ZIP, espere…",
+      "zipFallbackAlert": "No se pudo cargar ZIP; descargando uno a uno…",
+      "jsonCopied": "✅ JSON copiado al portapapeles.",
+      "jsonCopyFailed": "❌ Error al copiar.\n",
+      "noFilesToOrganize": "No hay medios de salida que organizar.",
+      "organizeSuccessMove": "✅ Se movieron y renombraron {count} archivos a {path}.",
+      "organizeSuccessCopy": "✅ Se copiaron y renombraron {count} archivos a {path}.",
+      "organizeFailed": "❌ Operación fallida: ",
+      "organizeErrorUnknown": "Error desconocido",
+      "organizeRequestFailed": "❌ Error en la solicitud al servidor.\n"
+    }
+  }
+}

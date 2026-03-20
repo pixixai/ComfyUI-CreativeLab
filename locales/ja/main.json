@@ -1,0 +1,240 @@
+{
+  "settingsCategories": {
+    "Creative Lab": "Creative Lab",
+    "1-General": "一般",
+    "2-PerformanceMedia": "パフォーマンスとメディア",
+    "3-FileIO": "ファイルとデータフロー",
+    "4-Automation": "自動化",
+    "5-CardApp": "タスクカードの選択表示",
+    "6-ModuleApp": "モジュールの選択表示",
+    "Glow": "グロー",
+    "Fill": "塗り",
+    "Border": "枠線",
+    "Color": "色",
+    "Halt": "エラー時",
+    "Prefix": "ファイル名プレフィックス",
+    "KeepTemp": "一時ファイル",
+    "ArchiveDir": "アーカイブフォルダ",
+    "ThumbMode": "サムネイル",
+    "Muted": "ミュート",
+    "Autoplay": "自動再生",
+    "MaxHistory": "履歴件数",
+    "BgOpacity": "背景の不透明度",
+    "BackdropBlur": "背景ぼかし",
+    "Shortcut": "ショートカット",
+    "ResetAll": "既定に戻す"
+  },
+  "clabUi": {
+    "toolbar": {
+      "addCard": "+ 新規タスク",
+      "addCardTitle": "空のタスクカードを作成",
+      "addModule": "+ 新規モジュール",
+      "addModuleTitle": "現在のタスクにモジュールを追加",
+      "run": "▶ 実行",
+      "runTitle": "選択したタスクを実行",
+      "runMenuTitle": "その他の実行オプション",
+      "runAll": "すべて実行",
+      "batchCountTitle": "バッチ実行回数（キュー）",
+      "createAnchor": "⚓ 設定ノード",
+      "createAnchorTitle": "グラフに設定ノードを作成",
+      "widthResetTitle": "既定幅に戻す",
+      "widthInputTitle": "幅を入力（Enter）"
+    },
+    "config": {
+      "btnTitle": "設定アンカーを作成（ワークフローに保存）",
+      "maintTitle": "データメンテナンス",
+      "cleanDead": "破損レコードを削除 (404)",
+      "resync": "レコードを再同期（強制更新）"
+    },
+    "module": {
+      "unbound": "未バインド",
+      "unboundWithNode": "未バインド ({name})",
+      "nodeId": "ノード ID",
+      "nodeName": "ノード名",
+      "boundWidget": "バインド済みウィジェット",
+      "batchBoundHeader": "{count} 個のウィジェットを一括バインド:",
+      "unknownNode": "不明なノード",
+      "placeholderValue": "パラメータ値…",
+      "delInputTitle": "入力を削除",
+      "uploadImage": "画像をアップロード",
+      "uploadVideo": "動画をアップロード",
+      "uploadAudio": "音声をアップロード",
+      "uploadFile": "ファイルをアップロード",
+      "uploadHint": "クリックまたはドロップでサーバーにアップロード",
+      "fileBrokenTitle": "ファイルなし／形式不一致",
+      "fileBrokenHint": "クリックして再アップロードで置換",
+      "uploading": "アップロード中…",
+      "uploadFail": "アップロード失敗: ",
+      "pickServerFile": "または既存ファイルを選択…",
+      "pickPlaceholder": "選択…",
+      "boolTrue": "オン",
+      "boolFalse": "オフ"
+    },
+    "output": {
+      "waitOutput": "ノード [{id}] の出力を待機中…",
+      "noNode": "ノード未リンク",
+      "delRecordTitle": "項目を削除",
+      "delAreaTitle": "出力モジュールを削除",
+      "historyHeader": "履歴 ({count})",
+      "remove": "削除"
+    },
+    "menu": {
+      "openTitle": "Creative Lab を開く（ショートカット: {key}）",
+      "brand": "CLab"
+    },
+    "alerts": {
+      "selectCardFirst": "カードまたはモジュールを 1 つ以上選択してください。",
+      "noMediaToSync": "同期するメディア履歴がありません。",
+      "noRecordsToClean": "クリーンアップする生成履歴がありません。"
+    },
+    "toasts": {
+      "resyncing": "ローカルアセットを再取得中…",
+      "resyncDone": "キャッシュをクリアし、出力を再読み込みしました。",
+      "scanning": "破損ファイルをスキャン中…",
+      "scanClean": "ローカルファイルはすべて正常です。",
+      "cleaned": "欠落したレコード {count} 件を削除しました。",
+      "nodeRunFailed": "❌ ノードの検証または実行に失敗しました。必須パラメータとリンクを確認してください。",
+      "nodeValidateFailed": "❌ グラフの検証に失敗しました。リンクを確認してください。",
+      "workflowBackendError": "❌ サーバー上でワークフローエラー。パネルを閉じてメッセージを確認してください。",
+      "frontendValidateFailed": "❌ フロントエンドのグラフ検証に失敗しました。リンクと必須パラメータを確認してください。"
+    },
+    "run": {
+      "noOutputModules": "選択範囲に実行可能な出力モジュールがありません。まず出力モジュールを追加してください。",
+      "noCards": "パネルにタスクカードがありません。",
+      "noOutputAnyCard": "いずれのカードにも出力モジュールがありません。",
+      "apiNotReady": "API インジェクタの準備がまだです。しばらくしてから再試行してください。"
+    },
+    "batch": {
+      "confirmSyncUnnamed": "選択モジュールにタイトルがありません（{match} と表示）。他タスクの同じスロットにバインド／パラメータを同期しますか？",
+      "confirmDeleteSame": "⚠️ 危険:\nすべてのタスクから [{match}] ラベルの{type}モジュールを削除しますか？",
+      "typeInput": "入力",
+      "typeOutput": "出力"
+    },
+    "binding": {
+      "pickNodeToast": "🖱️ グラフ上のノードをクリック（左クリック=置換、右=追加、空白=キャンセル）…"
+    },
+    "settingsUi": {
+      "resetAllConfirm": "すべての Creative Lab 設定を既定に戻しますか？元に戻せません。"
+    },
+    "media": {
+      "volumeSlider": "音量",
+      "muteToggle": "ミュート／解除",
+      "playbackSpeed": "再生速度",
+      "pictureInPicture": "ピクチャー・イン・ピクチャー",
+      "fullscreen": "全画面",
+      "clickDownload": "ダウンロード",
+      "unknownFile": "不明なファイル",
+      "unknownAudio": "不明な音声"
+    },
+    "moduleToolbar": {
+      "input": "入力",
+      "output": "出力",
+      "linkNode": "ノードをリンク…",
+      "nodeBinding": "[{id}] ノード",
+      "nodesSelected": "{count} ノード選択中",
+      "bindWidget": "ウィジェットをバインド…",
+      "widgetsSelected": "{count} ウィジェット",
+      "pickNodeTitle": "グラフからノードを選択",
+      "matchMedia": "メディアのアスペクトに合わせる",
+      "autoHeight": "入力の高さを自動調整",
+      "resetModule": "モジュールを新規状態にリセット",
+      "syncParams": "他タスクの同じスロットへ同期",
+      "cloneTitle": "選択をクローン",
+      "formatPainterTitle": "書式コピー: クリックで適用／ESC・右クリックで終了",
+      "manageHistoryTitle": "生成履歴の管理（グリッドと並べ替え）"
+    },
+    "fillMode": {
+      "fit": "全体表示",
+      "cover": "塗りつぶし",
+      "stretch": "伸縮"
+    },
+    "ratio": {
+      "custom": "カスタム比率"
+    },
+    "tree": {
+      "ungroupedLabel": "グループなし",
+      "unnamedGroup": "無名グループ",
+      "uncategorizedLabel": "未分類"
+    },
+    "select": {
+      "clearLink": "（リンク解除）",
+      "clearBind": "（バインド解除）",
+      "selectNodesFirst": "先にリンク済みノードを選択してください",
+      "noWidgets": "利用可能なパラメータがありません"
+    },
+    "context": {
+      "content": "コンテンツ",
+      "download": "ダウンロード",
+      "downloadAll": "すべての出力をダウンロード",
+      "remove": "削除",
+      "clearAll": "出力をすべて消去",
+      "cleanDead": "破損 (404) を削除",
+      "resync": "レコードを再同期",
+      "module": "モジュール",
+      "selectSame": "同じモジュールを選択",
+      "deleteSame": "同じモジュールを削除",
+      "moveBack": "後ろへ移動（一括）",
+      "moveFwd": "前へ移動（一括）",
+      "ctxScanning": "スキャン中…",
+      "ctxNoToClean": "選択にクリーンアップするレコードがありません。",
+      "ctxScanClean": "選択範囲のファイルはすべて正常です。",
+      "ctxCleaned": "欠落項目 {count} 件を削除しました。",
+      "ctxResyncing": "アセットを更新中…",
+      "ctxNoMedia": "同期するメディアがありません。",
+      "ctxResyncDone": "出力を再読み込みしました。"
+    },
+    "state": {
+      "configExists": "設定ノードはすでにグラフ上にあります。",
+      "configCreated": "設定ノードを作成しました。"
+    },
+    "card": {
+      "deleteTaskTitle": "このタスクを削除（複数選択時は一括）"
+    },
+    "dataIo": {
+      "importJsonBtnTitle": "JSON を一括インポート",
+      "importFromClipboard": "クリップボードから JSON をインポート",
+      "importFromLocalFile": "ローカルファイルから JSON をインポート",
+      "importCreateTask": "新規タスク",
+      "importAppendModule": "モジュールを追加",
+      "importAppendToSelection": "選択タスクに追加",
+      "importEmptyData": "インポートデータが空です。",
+      "importAppendNeedCards": "追加に失敗:\n先に 1 つ以上のタスクカードを選択し（Ctrl/Cmd で複数）、「選択に追加」を実行してください。",
+      "importParseError": "インポート失敗: JSON が無効です。\n",
+      "clipboardEmpty": "クリップボードが空です。先に JSON をコピーしてください。",
+      "clipboardReadError": "クリップボードを読めません。\n",
+      "uploadNoFilename": "アップロード失敗: サーバーがファイル名を返しませんでした。",
+      "exportBtnTitle": "エクスポートとダウンロード",
+      "zipSectionTitle": "ZIP アーカイブ",
+      "downloadAll": "すべてダウンロード",
+      "downloadSelected": "選択をダウンロード",
+      "downloadAllHistory": "すべて（全生成履歴）",
+      "downloadSelectedHistory": "選択（全生成履歴）",
+      "organizeSectionTitle": "ファイル整理",
+      "orgMoveSubfolder": "サブフォルダへ移動",
+      "orgCopySubfolder": "サブフォルダへコピー",
+      "orgMoveSubfolderHistory": "サブフォルダへ移動（全生成履歴）",
+      "orgCopySubfolderHistory": "サブフォルダへコピー（全生成履歴）",
+      "exportJsonTitle": "JSON をエクスポート",
+      "jsonActionCopyTitle": "モード: 下の行をクリップボードにコピー",
+      "jsonActionDownloadTitle": "モード: 下の行をファイルとしてダウンロード",
+      "exportJsonInput": "入力モジュール",
+      "exportJsonOutput": "出力モジュール",
+      "exportJsonAll": "すべてのモジュール",
+      "exportJsonOutputHistory": "出力モジュール（全生成履歴）",
+      "exportJsonAllHistory": "すべてのモジュール（全生成履歴）",
+      "selectForDownload": "ダウンロードするカードまたは出力モジュールを選択してください。",
+      "noMediaToDownload": "ダウンロード可能なメディアがありません。",
+      "downloadFailed": "ダウンロード失敗: ",
+      "zipPackingToast": "📦 ZIP を作成中…",
+      "zipFallbackAlert": "ZIP ライブラリを読み込めません。個別にダウンロードします…",
+      "jsonCopied": "✅ JSON をクリップボードにコピーしました。",
+      "jsonCopyFailed": "❌ コピーに失敗しました。\n",
+      "noFilesToOrganize": "整理できる出力メディアがありません。",
+      "organizeSuccessMove": "✅ {count} 個のファイルを {path} に移動して名前を変更しました！",
+      "organizeSuccessCopy": "✅ {count} 個のファイルを {path} にコピーして名前を変更しました！",
+      "organizeFailed": "❌ 操作に失敗: ",
+      "organizeErrorUnknown": "不明なエラー",
+      "organizeRequestFailed": "❌ バックエンド要求に失敗しました。\n"
+    }
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "CLab_1-General_ResetAll": {
+    "name": "重設所有設定為預設值",
+    "tooltip": "⚠️ 警告：切換此項將立即把所有 CLab 設定還原為出廠預設。"
+  },
+  "CLab_1-General_Shortcut": {
+    "name": "鍵盤快速鍵",
+    "tooltip": "支援組合鍵，例如：C、Shift+C、Ctrl+M、Alt+X（不分大小寫）"
+  },
+  "CLab_1-General_BackdropBlur": {
+    "name": "啟用背景毛玻璃效果",
+    "tooltip": "開啟後更有質感，但在較弱的顯示卡上拖曳面板可能卡頓。"
+  },
+  "CLab_1-General_BgOpacity": {
+    "name": "面板背景不透明度 (%)",
+    "tooltip": "調整主面板背景通透度（0 = 全透明，100 = 不透明）。"
+  },
+
+  "CLab_2-PerformanceMedia_MaxHistory": {
+    "name": "歷史紀錄數量上限",
+    "tooltip": "單一輸出模組最多保留幾筆生成紀錄；超過後會刪除最舊的以防記憶體爆滿。"
+  },
+  "CLab_2-PerformanceMedia_Autoplay": {
+    "name": "自動播放影片",
+    "tooltip": "關閉時，主影片僅顯示第一幀，需點擊才播放（多卡片並行時可明顯減輕 GPU 解碼負擔）。"
+  },
+  "CLab_2-PerformanceMedia_Muted": {
+    "name": "影片預設靜音",
+    "tooltip": "開啟後主影片載入時預設靜音。若關閉靜音且同時自動播放，部分瀏覽器可能依政策封鎖播放。"
+  },
+  "CLab_2-PerformanceMedia_ThumbMode": {
+    "name": "高效能縮圖模式",
+    "tooltip": "開啟時，網格歷史中的影片只載入第一幀以節省記憶體。關閉後網格內影片會靜音循環播放（適合高階機種）。"
+  },
+
+  "CLab_3-FileIO_ArchiveDir": {
+    "name": "封存資料夾名稱",
+    "tooltip": "面板自動攔截媒體與整理檔案時使用的根目錄名稱。請勿包含斜線等不合法路徑字元。"
+  },
+  "CLab_3-FileIO_KeepTemp": {
+    "name": "攔截時是否保留原暫存檔",
+    "tooltip": "關閉後，在暫存檔移入專用封存目錄的同時會刪除原檔以節省磁碟空間。"
+  },
+  "CLab_3-FileIO_Prefix": {
+    "name": "輸出檔名前綴",
+    "tooltip": "攔截儲存時自訂檔名前綴，預設為 pix（例如 pix_01.png）。"
+  },
+
+  "CLab_4-Automation_HaltOnError": {
+    "name": "連續執行時遇錯即停",
+    "tooltip": "開啟時，任一任務錯誤會立即清空佇列。關閉後會跳過錯誤任務並繼續後續生成。"
+  },
+
+  "CLab_5-CardApp_Color": {
+    "name": "強調主題色",
+    "tooltip": "任務卡片被選取時的主題色與底部進度條顏色。預設：#4CAF50"
+  },
+  "CLab_5-CardApp_Border": {
+    "name": "邊框粗細 (px)",
+    "tooltip": "任務卡片於選取啟用狀態時的邊框厚度。"
+  },
+  "CLab_5-CardApp_Fill": {
+    "name": "填滿不透明 (%)",
+    "tooltip": "任務卡片被選取時內部強調底色濃度。"
+  },
+  "CLab_5-CardApp_Glow": {
+    "name": "光暈強度",
+    "tooltip": "任務卡片被選取時的外圍光暈半徑；拉滿更有賽博龐克感。"
+  },
+
+  "CLab_6-ModuleApp_Color": {
+    "name": "強調主題色",
+    "tooltip": "模組（輸入／輸出區）被選取時的主要區分色。預設：#2196F3"
+  },
+  "CLab_6-ModuleApp_Border": {
+    "name": "邊框粗細 (px)",
+    "tooltip": "模組被選取時邊界的線寬。"
+  },
+  "CLab_6-ModuleApp_Fill": {
+    "name": "填滿不透明 (%)",
+    "tooltip": "模組被選取時內部強調底色濃度（0 為完全透明）。"
+  },
+  "CLab_6-ModuleApp_Glow": {
+    "name": "光暈強度",
+    "tooltip": "模組被選取時的外發光模糊半徑；設為 0 可關閉光暈。"
+  }
+}

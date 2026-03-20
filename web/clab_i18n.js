@@ -8,10 +8,19 @@ let _loadPromise = null;
 
 const I18N_PATHS = ["/i18n", "./i18n"];
 
+/** 与 Comfy 设置、`/i18n` 语言键对齐：en / zh / zh-TW / ja / ko / ru / fr / es / ar */
 function normalizeLocale(raw) {
     if (!raw || typeof raw !== "string") return "en";
     const c = raw.trim().toLowerCase().replace(/_/g, "-");
-    if (c.startsWith("zh")) return "zh";
+    if (c === "zh" || c === "zh-cn" || c === "zh-hans" || c.startsWith("zh-cn")) return "zh";
+    if (c === "zh-tw" || c === "zh-hant" || c.startsWith("zh-tw") || c === "zh-hk" || c === "zh-mo") return "zh-TW";
+    if (c === "ja" || c.startsWith("ja-")) return "ja";
+    if (c === "ko" || c.startsWith("ko-")) return "ko";
+    if (c === "ru" || c.startsWith("ru-")) return "ru";
+    if (c === "fr" || c.startsWith("fr-")) return "fr";
+    if (c === "es" || c.startsWith("es-")) return "es";
+    if (c === "ar" || c.startsWith("ar-")) return "ar";
+    if (c === "en" || c.startsWith("en-")) return "en";
     return "en";
 }
 
@@ -59,7 +68,15 @@ function pickLangEntry(bundle) {
         if (k.toLowerCase() === lower) return bundle[k];
     }
     if (lower.startsWith("zh")) {
-        for (const k of ["zh", "zh-CN", "zh-TW", "zh-Hans", "zh-Hant"]) {
+        const trad =
+            lower.includes("tw") ||
+            lower.includes("hant") ||
+            lower === "zh-hk" ||
+            lower === "zh-mo";
+        const order = trad
+            ? ["zh-TW", "zh-Hant", "zh", "zh-CN", "zh-Hans"]
+            : ["zh", "zh-CN", "zh-Hans", "zh-TW", "zh-Hant"];
+        for (const k of order) {
             if (bundle[k]) return bundle[k];
         }
     }
@@ -119,7 +136,11 @@ function dig(obj, path) {
 export function clabT(key) {
     const entry = _bundle ? pickLangEntry(_bundle) : null;
     let s = dig(entry?.clabUi, key);
-    if (typeof s !== "string" && getClabLocale() === "zh") {
+    const loc = getClabLocale();
+    if (typeof s !== "string" && loc === "zh-TW") {
+        s = dig(_bundle?.["zh-TW"]?.clabUi, key) || dig(_bundle?.zh?.clabUi, key);
+    }
+    if (typeof s !== "string" && loc === "zh") {
         s = dig(_bundle?.zh?.clabUi, key);
     }
     if (typeof s !== "string") s = dig(_bundle?.en?.clabUi, key);
