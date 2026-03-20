@@ -5,6 +5,7 @@
 import { app } from "../../../../scripts/app.js";
 import { state, appState, saveAndRender } from "../ui_state.js";
 import { showBindingToast, hideBindingToast, getWidgetDef } from "../ui_utils.js";
+import { clabT } from "../../clab_i18n.js";
 
 export function enterBindingModeForSelected(targetType, panelContainer, backdropContainer) {
     if (!state.selectedAreaIds || state.selectedAreaIds.length === 0) return;
@@ -13,7 +14,7 @@ export function enterBindingModeForSelected(targetType, panelContainer, backdrop
     if (panelContainer) panelContainer.classList.remove('visible');
     if (backdropContainer) backdropContainer.classList.remove('visible');
     
-    showBindingToast("🖱️ 请在工作流中点击节点 (左键=替换，右键=追加，点击空白处取消)...");
+    showBindingToast(clabT("binding.pickNodeToast"));
     
     if (app.canvas) {
         app.canvas.deselectAllNodes();

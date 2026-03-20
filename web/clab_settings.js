@@ -4,6 +4,7 @@
  * 注意: ComfyUI 的设置项渲染逻辑是先进后出 (LIFO)，即在数组中越靠前，显示在 UI 上就越靠下。
  */
 import { app } from "../../scripts/app.js";
+import { refreshClabMenuButtonTitle, clabT } from "./clab_i18n.js";
 
 // --- 全局配置默认值与解析引擎 ---
 function parseShortcut(shortcutStr) {
@@ -331,8 +332,7 @@ const clabSettings = [
             const raw = newVal ? newVal.trim() : 'C';
             window._clabShortcutRaw = raw;
             window._clabShortcutParsed = parseShortcut(raw);
-            const tabBtn = document.querySelector('[title*="打开 CLab 主面板"]');
-            if (tabBtn) tabBtn.title = `Open CLab Panel (Shortcut: ${raw.toUpperCase()})`;
+            refreshClabMenuButtonTitle();
         }
     }
 ];
@@ -347,7 +347,7 @@ const resetSetting = {
     tooltip: "⚠️ WARNING: Click to RESET all CLab settings to their factory defaults.",
     onChange: async (newVal) => {
         if (newVal === true) {
-            const confirmed = confirm("Are you sure you want to reset all Creative Lab settings to default? This cannot be undone.");
+            const confirmed = confirm(clabT("settingsUi.resetAllConfirm"));
 
             if (confirmed) {
                 for (const setting of clabSettings) {

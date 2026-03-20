@@ -6,6 +6,235 @@
     "3-FileIO": "文件与数据流转",
     "4-Automation": "自动化行为",
     "5-CardApp": "任务卡片选中态外观",
-    "6-ModuleApp": "模块选中态外观"
+    "6-ModuleApp": "模块选中态外观",
+    "Glow": "发光",
+    "Fill": "填充",
+    "Border": "描边",
+    "Color": "颜色",
+    "Halt": "异常时行为",
+    "Prefix": "文件名前缀",
+    "KeepTemp": "临时文件",
+    "ArchiveDir": "归档目录",
+    "ThumbMode": "缩略图模式",
+    "Muted": "静音",
+    "Autoplay": "自动播放",
+    "MaxHistory": "历史条数",
+    "BgOpacity": "背景不透明度",
+    "BackdropBlur": "背景模糊",
+    "Shortcut": "快捷键",
+    "ResetAll": "恢复默认"
+  },
+  "clabUi": {
+    "toolbar": {
+      "addCard": "+ 新建任务",
+      "addCardTitle": "新建空白任务卡片",
+      "addModule": "+ 新建模块",
+      "addModuleTitle": "在当前任务内添加新模块",
+      "run": "▶ 运行",
+      "runTitle": "按规则运行选中任务 (局部)",
+      "runMenuTitle": "展开更多运行选项",
+      "runAll": "运行全部",
+      "batchCountTitle": "循环运行次数 (排队执行)",
+      "createAnchor": "⚓ 创建配置锚点",
+      "createAnchorTitle": "在画布创建配置节点",
+      "widthResetTitle": "恢复默认宽度",
+      "widthInputTitle": "手动输入宽度 (回车确认)"
+    },
+    "config": {
+      "btnTitle": "创建配置锚点 (将数据保存至工作流)",
+      "maintTitle": "数据维护中心",
+      "cleanDead": "清理失效记录 (404)",
+      "resync": "重新同步记录 (强制刷新)"
+    },
+    "module": {
+      "unbound": "未绑定参数",
+      "unboundWithNode": "未绑定参数 ({name})",
+      "nodeId": "节点ID",
+      "nodeName": "节点名称",
+      "boundWidget": "绑定参数",
+      "batchBoundHeader": "批量绑定了 {count} 个参数:",
+      "unknownNode": "未知节点",
+      "placeholderValue": "输入参数值…",
+      "delInputTitle": "删除输入",
+      "uploadImage": "上传图片",
+      "uploadVideo": "上传视频",
+      "uploadAudio": "上传音频",
+      "uploadFile": "上传文件",
+      "uploadHint": "点击或拖拽至此处上传服务器",
+      "fileBrokenTitle": "文件已失效 / 格式不匹配",
+      "fileBrokenHint": "点击重新上传覆盖此参数",
+      "uploading": "正在加密上传至服务器...",
+      "uploadFail": "本地文件上传失败: ",
+      "pickServerFile": "或选择服务器已有文件...",
+      "pickPlaceholder": "选择...",
+      "boolTrue": "开",
+      "boolFalse": "关"
+    },
+    "output": {
+      "waitOutput": "等待节点 [{id}] 输出...",
+      "noNode": "未关联节点",
+      "delRecordTitle": "删除此记录",
+      "delAreaTitle": "删除输出模块",
+      "historyHeader": "生成记录管理 ({count})",
+      "remove": "移除"
+    },
+    "menu": {
+      "openTitle": "打开 Creative Lab （快捷键{key}）",
+      "brand": "CLab"
+    },
+    "alerts": {
+      "selectCardFirst": "请先选中一个或多个任务卡片/模块，以确定新建位置！",
+      "noMediaToSync": "当前面板没有任何媒体记录需要同步。",
+      "noRecordsToClean": "当前面板没有任何有效的生成记录需要清理。"
+    },
+    "toasts": {
+      "resyncing": "🔄 正在强制重新拉取本地资产...",
+      "resyncDone": "✅ 缓存已清理，所有输出模块已重新加载媒体！",
+      "scanning": "🔍 正在扫描失效记录，请稍候...",
+      "scanClean": "✨ 扫描完毕：所有本地资产均完好无损！",
+      "cleaned": "🧹 清理完成：已彻底剔除 {count} 条丢失记录。",
+      "nodeRunFailed": "❌ 节点校验或运行失败！请检查必填参数与连线。",
+      "nodeValidateFailed": "❌ 节点校验失败！请检查工作流连线。",
+      "workflowBackendError": "❌ 工作流后台运行报错！请关闭面板，查看详细错误提示。",
+      "frontendValidateFailed": "❌ 节点前端校验失败！请检查工作流连线或必填参数。"
+    },
+    "run": {
+      "noOutputModules": "当前选中项没有可执行的输出模块！请检查是否添加了输出模块。",
+      "noCards": "面板中没有任何任务卡片！",
+      "noOutputAnyCard": "所有卡片均无输出模块，无法执行。",
+      "apiNotReady": "API 拦截器尚未加载完毕，请稍后再试！"
+    },
+    "batch": {
+      "confirmSyncUnnamed": "当前选中模块未命名 (默认标记为 {match})。确定要将参数同步给其它任务中对应位置的模块吗？",
+      "confirmDeleteSame": "⚠️ 危险操作：\n确定要删除所有任务中，标识为 [{match}] 的{type}模块吗？",
+      "typeInput": "输入",
+      "typeOutput": "输出"
+    },
+    "binding": {
+      "pickNodeToast": "🖱️ 请在工作流中点击节点 (左键=替换，右键=追加，点击空白处取消)..."
+    },
+    "settingsUi": {
+      "resetAllConfirm": "确定要将所有 Creative Lab 设置恢复为默认值吗？此操作无法撤销。"
+    },
+    "media": {
+      "volumeSlider": "调节音量",
+      "muteToggle": "静音/取消静音",
+      "playbackSpeed": "播放速度",
+      "pictureInPicture": "画中画",
+      "fullscreen": "全屏",
+      "clickDownload": "点击下载",
+      "unknownFile": "未知文件",
+      "unknownAudio": "未知音频文件"
+    },
+    "moduleToolbar": {
+      "input": "输入",
+      "output": "输出",
+      "linkNode": "关联节点...",
+      "nodeBinding": "[{id}] 节点",
+      "nodesSelected": "已选 {count} 个节点",
+      "bindWidget": "绑定参数...",
+      "widgetsSelected": "已选 {count} 个参数",
+      "pickNodeTitle": "拾取节点",
+      "matchMedia": "匹配媒体比例",
+      "autoHeight": "参数框高度适配",
+      "resetModule": "重置模块参数到新建状态",
+      "syncParams": "同步参数至其它任务相同位置",
+      "cloneTitle": "原样克隆选中项",
+      "formatPainterTitle": "格式刷：连续点击覆盖参数或在空白处插入克隆 (ESC/右键/工具栏点击退出)",
+      "manageHistoryTitle": "管理生成记录 (网格视图与拖拽排序)"
+    },
+    "fillMode": {
+      "fit": "显示全部",
+      "cover": "填充",
+      "stretch": "拉伸"
+    },
+    "ratio": {
+      "custom": "自定义比例"
+    },
+    "tree": {
+      "ungroupedLabel": "未分组",
+      "unnamedGroup": "未命名组",
+      "uncategorizedLabel": "未分类"
+    },
+    "select": {
+      "clearLink": "(清除关联)",
+      "clearBind": "(清除绑定)",
+      "selectNodesFirst": "请先选择关联节点",
+      "noWidgets": "无可用参数"
+    },
+    "context": {
+      "content": "内容",
+      "download": "下载",
+      "downloadAll": "下载全部生成记录",
+      "remove": "移除",
+      "clearAll": "清除所有生成记录",
+      "cleanDead": "清理失效记录 (404)",
+      "resync": "重新同步记录 (强制刷新)",
+      "module": "模块",
+      "selectSame": "选择相同模块",
+      "deleteSame": "删除相同模块",
+      "moveBack": "批量向后移动",
+      "moveFwd": "批量向前移动",
+      "ctxScanning": "🔍 正在扫描失效记录，请稍候...",
+      "ctxNoToClean": "选中模块没有任何有效的生成记录需要清理。",
+      "ctxScanClean": "✨ 扫描完毕：选中模块的本地资产均完好无损！",
+      "ctxCleaned": "🧹 清理完成：已彻底剔除该模块 {count} 条丢失记录。",
+      "ctxResyncing": "🔄 正在强制重新拉取选中模块的本地资产...",
+      "ctxNoMedia": "选中模块没有任何媒体记录需要同步。",
+      "ctxResyncDone": "✅ 缓存已清理，选中输出模块已重新加载媒体！"
+    },
+    "state": {
+      "configExists": "⚠️ 配置节点已存在于画布中！",
+      "configCreated": "✅ 配置节点已创建"
+    },
+    "card": {
+      "deleteTaskTitle": "删除此任务(若多选则批量删除)"
+    },
+    "dataIo": {
+      "importJsonBtnTitle": "批量导入JSON快速构建",
+      "importFromClipboard": "从剪切板导入JSON数据",
+      "importFromLocalFile": "从本地文件导入JSON数据",
+      "importCreateTask": "创建任务",
+      "importAppendModule": "追加模块",
+      "importAppendToSelection": "追加模块到选中",
+      "importEmptyData": "导入的数据为空！",
+      "importAppendNeedCards": "【追加失败】\n请先点击选中一个或多个任务卡片（支持 Ctrl 多选），然后再执行“追加模块到选中”！",
+      "importParseError": "导入失败：无法解析 JSON 数据。\n",
+      "clipboardEmpty": "剪切板为空，请先复制 JSON 数据！",
+      "clipboardReadError": "无法读取剪切板。\n",
+      "uploadNoFilename": "上传失败，未返回文件名",
+      "exportBtnTitle": "导出与下载",
+      "zipSectionTitle": "打包为ZIP",
+      "downloadAll": "下载全部",
+      "downloadSelected": "下载选中",
+      "downloadAllHistory": "下载全部 (含所有生成记录)",
+      "downloadSelectedHistory": "下载选中 (含所有生成记录)",
+      "organizeSectionTitle": "收集整理",
+      "orgMoveSubfolder": "移动到子文件夹",
+      "orgCopySubfolder": "复制到子文件夹",
+      "orgMoveSubfolderHistory": "移动到子文件夹 (含所有生成记录)",
+      "orgCopySubfolderHistory": "复制到子文件夹 (含所有生成记录)",
+      "exportJsonTitle": "导出JSON数据",
+      "jsonActionCopyTitle": "点亮：点击下方项复制到剪切板",
+      "jsonActionDownloadTitle": "点亮：点击下方项下载到本地",
+      "exportJsonInput": "输入模块",
+      "exportJsonOutput": "输出模块",
+      "exportJsonAll": "全部模块",
+      "exportJsonOutputHistory": "输出模块 (含所有生成记录)",
+      "exportJsonAllHistory": "全部模块 (含所有生成记录)",
+      "selectForDownload": "请先选中需要下载的任务卡片或输出模块！",
+      "noMediaToDownload": "没有找到可下载的媒体文件！",
+      "downloadFailed": "下载失败: ",
+      "zipPackingToast": "📦 正在拉取文件并打包 ZIP，请稍候...",
+      "zipFallbackAlert": "网络原因无法加载打包组件，将为您逐个下载...",
+      "jsonCopied": "✅ JSON 数据已成功复制到剪切板！",
+      "jsonCopyFailed": "❌ 复制失败。\n",
+      "noFilesToOrganize": "当前面板没有找到任何可处理的输出媒体文件！",
+      "organizeSuccessMove": "✅ 成功移动并重命名了 {count} 个文件到 {path} 文件夹！",
+      "organizeSuccessCopy": "✅ 成功复制并重命名了 {count} 个文件到 {path} 文件夹！",
+      "organizeFailed": "❌ 操作失败: ",
+      "organizeErrorUnknown": "未知错误",
+      "organizeRequestFailed": "❌ 请求后端接口失败。\n"
+    }
   }
 }

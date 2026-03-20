@@ -7,6 +7,7 @@ import { attachDataIOEvents } from "./actions/action_data_io.js";
 import { attachRunEvents } from "./actions/action_run_executor.js";
 import { renderDynamicToolbar as renderDynamic, attachDynamicToolbarEvents as attachDynamic } from "./actions/action_module_config.js";
 import { showBindingToast, hideBindingToast } from "./ui_utils.js";
+import { clabT, clabTf } from "../clab_i18n.js";
 import { generateSingleCardHTML, attachCardEvents } from "./comp_taskcard.js";
 import { generateAreaHTML, attachAreaEvents, justSave } from "./comp_modulearea.js";
 import { updateSelectionUI } from "./ui_selection.js";
@@ -118,7 +119,7 @@ export function setupStaticToolbarEvents(panelContainer) {
             });
         }
 
-        if (insertionTasks.length === 0) return alert("请先选中一个或多个任务卡片/模块，以确定新建位置！");
+        if (insertionTasks.length === 0) return alert(clabT("alerts.selectCardFirst"));
 
         const newlyCreatedAreaIds = [];
         let lastCreatedAreaId = null;
@@ -176,16 +177,16 @@ export function setupStaticToolbarEvents(panelContainer) {
     if (configBtn && !panelContainer.querySelector("#clab-config-btn-wrapper")) {
         configBtn.outerHTML = `
             <div id="clab-config-btn-wrapper" class="clab-btn-group" style="position:relative; display:inline-flex; align-items:stretch; height: 34px;">
-                <button class="clab-btn" id="clab-btn-config" title="创建配置锚点 (将数据保存至工作流)" style="border-top-right-radius:0; border-bottom-right-radius:0; padding:0 10px; border-right:1px solid rgba(255,255,255,0.1); height: 100%; display: flex; align-items: center;">
-                    ⚓ 创建配置锚点
+                <button class="clab-btn" id="clab-btn-config" title="${clabT("config.btnTitle")}" style="border-top-right-radius:0; border-bottom-right-radius:0; padding:0 10px; border-right:1px solid rgba(255,255,255,0.1); height: 100%; display: flex; align-items: center;">
+                    ${clabT("toolbar.createAnchor")}
                 </button>
                 <button class="clab-btn" id="clab-config-dropdown-trigger" style="border-top-left-radius:0; border-bottom-left-radius:0; width:24px; padding:0; display:flex; align-items:center; justify-content:center; height: 100%;">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </button>
                 <div id="clab-config-dropdown" class="clab-custom-select-dropdown" style="display:none; top:calc(100% + 4px); right:0; min-width:180px; z-index:10002;">
-                    <div class="clab-custom-select-group-title" style="padding:6px 12px; font-size:11px; font-weight:bold; color:#888; background:rgba(255,255,255,0.03);">数据维护中心</div>
-                    <div class="clab-custom-select-item" id="clab-maint-clean-dead">清理失效记录 (404)</div>
-                    <div class="clab-custom-select-item" id="clab-maint-resync">重新同步记录 (强制刷新)</div>
+                    <div class="clab-custom-select-group-title" style="padding:6px 12px; font-size:11px; font-weight:bold; color:#888; background:rgba(255,255,255,0.03);">${clabT("config.maintTitle")}</div>
+                    <div class="clab-custom-select-item" id="clab-maint-clean-dead">${clabT("config.cleanDead")}</div>
+                    <div class="clab-custom-select-item" id="clab-maint-resync">${clabT("config.resync")}</div>
                 </div>
             </div>
         `;
@@ -218,7 +219,7 @@ export function setupStaticToolbarEvents(panelContainer) {
         // 清理缓存重置（此功能本就代表用户需要彻底刷新，所以保留全量重绘）
         wrapper.querySelector("#clab-maint-resync").onclick = () => {
             wrapper.querySelector("#clab-config-dropdown").style.display = 'none';
-            showBindingToast("🔄 正在强制重新拉取本地资产...", false);
+            showBindingToast(clabT("toasts.resyncing"), false);
             const now = Date.now();
             let syncCount = 0;
             state.cards.forEach(card => {
@@ -245,16 +246,16 @@ export function setupStaticToolbarEvents(panelContainer) {
             });
             if (syncCount === 0) {
                 hideBindingToast();
-                return alert("当前面板没有任何媒体记录需要同步。");
+                return alert(clabT("alerts.noMediaToSync"));
             }
             saveAndRender(); 
-            showBindingToast("✅ 缓存已清理，所有输出模块已重新加载媒体！");
+            showBindingToast(clabT("toasts.resyncDone"));
             setTimeout(hideBindingToast, 2000);
         };
 
         wrapper.querySelector("#clab-maint-clean-dead").onclick = async () => {
             wrapper.querySelector("#clab-config-dropdown").style.display = 'none';
-            showBindingToast("🔍 正在扫描失效记录，请稍候...", false);
+            showBindingToast(clabT("toasts.scanning"), false);
             const areaMap = []; 
             state.cards.forEach(card => {
                 card.areas?.filter(a => a.type === 'preview').forEach(area => {
@@ -268,7 +269,7 @@ export function setupStaticToolbarEvents(panelContainer) {
 
             if (areaMap.length === 0) {
                 hideBindingToast();
-                return alert("当前面板没有任何有效的生成记录需要清理。");
+                return alert(clabT("alerts.noRecordsToClean"));
             }
             const deadItems = [];
             const checkPromises = areaMap.map(async (item) => {
@@ -279,7 +280,7 @@ export function setupStaticToolbarEvents(panelContainer) {
             });
             await Promise.all(checkPromises);
             if (deadItems.length === 0) {
-                showBindingToast("✨ 扫描完毕：所有本地资产均完好无损！");
+                showBindingToast(clabT("toasts.scanClean"));
             } else {
                 deadItems.forEach(item => {
                     state.cards.forEach(c => {
@@ -315,7 +316,7 @@ export function setupStaticToolbarEvents(panelContainer) {
                 
                 // 进行状态保存
                 if (window._clabJustSave) window._clabJustSave(); else saveAndRender();
-                showBindingToast(`🧹 清理完成：已彻底剔除 ${deadItems.length} 条丢失记录。`);
+                showBindingToast(clabTf("toasts.cleaned", { count: deadItems.length }));
             }
             setTimeout(hideBindingToast, 3000);
         };

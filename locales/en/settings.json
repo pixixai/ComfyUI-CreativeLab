@@ -1,0 +1,87 @@
+{
+  "CLab_1-General_ResetAll": {
+    "name": "Reset all settings to defaults",
+    "tooltip": "⚠️ Warning: toggling this immediately resets all CLab settings to factory defaults."
+  },
+  "CLab_1-General_Shortcut": {
+    "name": "Keyboard shortcut",
+    "tooltip": "Supports combinations, e.g. C, Shift+C, Ctrl+M, Alt+X (case-insensitive)"
+  },
+  "CLab_1-General_BackdropBlur": {
+    "name": "Enable backdrop blur",
+    "tooltip": "Adds a glass-style backdrop; on weaker GPUs, dragging the panel may stutter."
+  },
+  "CLab_1-General_BgOpacity": {
+    "name": "Panel background opacity (%)",
+    "tooltip": "Main panel background transparency (0 = fully transparent, 100 = solid)."
+  },
+
+  "CLab_2-PerformanceMedia_MaxHistory": {
+    "name": "History size limit",
+    "tooltip": "Max number of generations kept per output module; oldest entries are removed to limit memory use."
+  },
+  "CLab_2-PerformanceMedia_Autoplay": {
+    "name": "Autoplay video",
+    "tooltip": "When off, the main video shows the first frame until you click to play (saves GPU decode when many cards run in parallel)."
+  },
+  "CLab_2-PerformanceMedia_Muted": {
+    "name": "Videos muted by default",
+    "tooltip": "When on, main videos load muted. Note: with autoplay on and sound on, some browsers may block playback per their policies."
+  },
+  "CLab_2-PerformanceMedia_ThumbMode": {
+    "name": "High-performance thumbnail mode",
+    "tooltip": "When on, grid history loads only the first frame per video to save memory. When off, all grid videos loop muted (better for powerful machines)."
+  },
+
+  "CLab_3-FileIO_ArchiveDir": {
+    "name": "Archive folder name",
+    "tooltip": "Root folder name where the panel archives captured media and organized files. Do not use slashes or other invalid path characters."
+  },
+  "CLab_3-FileIO_KeepTemp": {
+    "name": "Keep original temp files when capturing",
+    "tooltip": "When off, after moving temp files into the archive folder, the originals are deleted to save disk space."
+  },
+  "CLab_3-FileIO_Prefix": {
+    "name": "Output filename prefix",
+    "tooltip": "Prefix for filenames when saving captures; default is pix (e.g. pix_01.png)."
+  },
+
+  "CLab_4-Automation_HaltOnError": {
+    "name": "Stop queue on error",
+    "tooltip": "When on, any task error clears the entire queue. When off, failed tasks are skipped and later jobs still run."
+  },
+
+  "CLab_5-CardApp_Color": {
+    "name": "Accent color",
+    "tooltip": "Theme color when a task card is selected, and color of the bottom progress bar. Default: #4CAF50"
+  },
+  "CLab_5-CardApp_Border": {
+    "name": "Border width (px)",
+    "tooltip": "Border thickness when a task card is selected and active."
+  },
+  "CLab_5-CardApp_Fill": {
+    "name": "Fill opacity (%)",
+    "tooltip": "Strength of the highlight fill when a task card is selected."
+  },
+  "CLab_5-CardApp_Glow": {
+    "name": "Glow strength",
+    "tooltip": "Outer glow radius when a task card is selected; max for a strong accent."
+  },
+
+  "CLab_6-ModuleApp_Color": {
+    "name": "Accent color",
+    "tooltip": "Primary highlight when an area (input/output) is selected. Default: #2196F3"
+  },
+  "CLab_6-ModuleApp_Border": {
+    "name": "Border width (px)",
+    "tooltip": "Outline thickness when a module is selected."
+  },
+  "CLab_6-ModuleApp_Fill": {
+    "name": "Fill opacity (%)",
+    "tooltip": "Strength of the highlight fill when a module is selected (0 = fully transparent)."
+  },
+  "CLab_6-ModuleApp_Glow": {
+    "name": "Glow strength",
+    "tooltip": "Outer blur radius when a module is selected; set to 0 to disable glow."
+  }
+}

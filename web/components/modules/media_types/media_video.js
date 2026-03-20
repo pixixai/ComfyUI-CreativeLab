@@ -3,6 +3,7 @@
  * 职责: 视频组件的专属渲染与事件处理 (高精度滚轮寻道 + 点击跳转模式)
  */
 import { formatTime, formatTimeWithFrames } from "./media_utils.js";
+import { clabT } from "../../../clab_i18n.js";
 
 export function renderVideo(area, objectFit, url, errCall) {
     const autoplayAttr = window._clabVideoAutoplay !== false ? 'autoplay' : '';
@@ -23,13 +24,13 @@ export function renderVideo(area, objectFit, url, errCall) {
                         
                         <!-- 极简音量滑杆 -->
                         <div class="clab-volume-wrap clab-video-controls-interactive" style="background: transparent !important;">
-                            <div class="clab-volume-slider-container clab-vid-vol-slider" title="调节音量">
+                            <div class="clab-volume-slider-container clab-vid-vol-slider" title="${clabT("media.volumeSlider")}">
                                 <div class="clab-volume-slider-track">
                                     <div class="clab-volume-slider-fill"></div>
                                     <div class="clab-volume-slider-thumb"></div>
                                 </div>
                             </div>
-                            <button class="clab-media-opt-btn clab-opt-mute" title="静音/取消静音" style="padding: 4px 6px; background: transparent !important; color: #aaa; transition: color 0.2s;" onmouseover="if(this.style.pointerEvents !== 'none') this.style.color='#fff'" onmouseout="if(this.style.pointerEvents !== 'none') this.style.color='#aaa'">
+                            <button class="clab-media-opt-btn clab-opt-mute" title="${clabT("media.muteToggle")}" style="padding: 4px 6px; background: transparent !important; color: #aaa; transition: color 0.2s;" onmouseover="if(this.style.pointerEvents !== 'none') this.style.color='#fff'" onmouseout="if(this.style.pointerEvents !== 'none') this.style.color='#aaa'">
                                 <svg class="clab-vol-icon-high" style="display:${displayHigh};" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
                                 <svg class="clab-vol-icon-muted" style="display:${displayMuted};" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
                                 <svg class="clab-vol-icon-none" style="display:none;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon></svg>
@@ -40,7 +41,7 @@ export function renderVideo(area, objectFit, url, errCall) {
                             <button class="clab-media-opt-btn clab-more-toggle">⋮</button>
                             <div class="clab-media-dropdown clab-more-dropdown">
                                 <div style="padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                                    <span style="font-size: 11px; color: #aaa; font-family: sans-serif !important;">播放速度</span>
+                                    <span style="font-size: 11px; color: #aaa; font-family: sans-serif !important;">${clabT("media.playbackSpeed")}</span>
                                     <div style="display: flex; align-items: center; background: rgba(0,0,0,0.5); border: 1px solid #555; border-radius: 4px; padding: 0 4px;">
                                         <input type="number" class="clab-media-speed-input" value="1.0" step="0.1" min="0.1" max="5.0" style="width: 28px; background: transparent; border: none; color: #eee; font-size: 11px; text-align: center; outline: none; -moz-appearance: textfield;">
                                         <span style="font-size: 10px; color: #aaa; pointer-events: none;">x</span>
@@ -52,8 +53,8 @@ export function renderVideo(area, objectFit, url, errCall) {
                                     <span class="clab-vid-speed-opt" data-spd="1.5" style="cursor: pointer; font-size: 10px; color: #eee; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.1); transition: background 0.2s;">1.5</span>
                                     <span class="clab-vid-speed-opt" data-spd="2.0" style="cursor: pointer; font-size: 10px; color: #eee; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.1); transition: background 0.2s;">2.0</span>
                                 </div>
-                                <div class="clab-media-dropdown-item clab-opt-pip" style="margin-top: 4px;">画中画</div>
-                                <div class="clab-media-dropdown-item clab-opt-fullscreen">全屏</div>
+                                <div class="clab-media-dropdown-item clab-opt-pip" style="margin-top: 4px;">${clabT("media.pictureInPicture")}</div>
+                                <div class="clab-media-dropdown-item clab-opt-fullscreen">${clabT("media.fullscreen")}</div>
                             </div>
                         </div>
                     </div>

@@ -2,6 +2,7 @@
  * 状态管理器 (Model / Controller)
  * 负责管理面板的卡片数据，以及与画布上的 CLabSystemConfig 节点进行 JSON 同步
  */
+import { clabT } from "./clab_i18n.js";
 
 export const StateManager = {
     // 内存中的插件状态
@@ -192,7 +193,7 @@ export const StateManager = {
     createConfigNode(graph) {
         if (this.getConfigNode(graph)) {
             // 节点存在时，也顺便用这个好看的提示替换掉生硬的 alert
-            this.showToast("⚠️ 配置节点已存在于画布中！", "rgba(255, 152, 0, 0.95)");
+            this.showToast(clabT("state.configExists"), "rgba(255, 152, 0, 0.95)");
             return;
         }
         
@@ -212,7 +213,7 @@ export const StateManager = {
         console.log("[CLab] ⚓ 配置节点已成功创建并绑定当前数据！");
         
         // 弹出成功提示
-        this.showToast("✅ 配置节点已创建");
+        this.showToast(clabT("state.configCreated"));
     },
 
     /**

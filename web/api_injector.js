@@ -5,6 +5,7 @@
 import { api } from "../../scripts/api.js";
 import { StateManager } from "./state_manager.js";
 import { showBindingToast, hideBindingToast } from "./components/ui_utils.js";
+import { clabT } from "./clab_i18n.js";
 
 export function setupAPIInjector(app) {
     console.log("[CLab] 初始化 API 拦截、动态剪枝与回传系统...");
@@ -149,7 +150,7 @@ export function setupAPIInjector(app) {
     });
 
     api.addEventListener("execution_error", (e) => {
-        showBindingToast("❌ 工作流后台运行报错！请关闭面板，查看详细错误提示。", true);
+        showBindingToast(clabT("toasts.workflowBackendError"), true);
         setTimeout(() => hideBindingToast(), 6000);
         
         const pid = e.detail?.prompt_id;
@@ -206,7 +207,7 @@ export function setupAPIInjector(app) {
                 await app.queuePrompt(0, 1); 
             } catch (submitErr) {
                 console.warn("[CLab] 🚫 前端图谱校验未通过，触发阻断！", submitErr);
-                showBindingToast("❌ 节点前端校验失败！请检查工作流连线或必填参数。", true);
+                showBindingToast(clabT("toasts.frontendValidateFailed"), true);
                 setTimeout(() => hideBindingToast(), 6000);
                 
                 if (window._clabLastGeneratedTask) {

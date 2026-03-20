@@ -6,13 +6,16 @@ import { app } from "../../scripts/app.js";
 import { StateManager } from "./state_manager.js";
 import { setupAPIInjector } from "./api_injector.js";
 import { setupUI, togglePanel } from "./ui_panel.js"; // 【修改点】：引入 togglePanel 方法
+import { loadClabI18nBundle, clabTf, clabT, refreshClabMenuButtonTitle } from "./clab_i18n.js";
 
 app.registerExtension({
     name: "ComfyUI.CLab",
 
     async setup() {
         console.log("[CLab] 开始加载...");
+        await loadClabI18nBundle();
         setupUI();
+        refreshClabMenuButtonTitle();
         setupAPIInjector(app);
 
         // =========================================================================
@@ -27,17 +30,17 @@ app.registerExtension({
         clabBtn.style.cssText = "background: #262729; border: none; color: var(--fg-color, #fff); cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 32px; font-size: 13px; border-radius: 4px !important; transition: background 0.15s ease;";
         
         // 使用指定的 PrimeIcons 字体图标
-        clabBtn.innerHTML = `<i class="mdi mdi-tune clab-sidebar-icon" style="font-size: 14px;"></i> <span>CLab</span>`;
+        clabBtn.innerHTML = `<i class="mdi mdi-tune clab-sidebar-icon" style="font-size: 14px;"></i> <span>${clabT("menu.brand")}</span>`;
         
         // 初始化提示信息
         const initShortcut = window._clabShortcutRaw ? window._clabShortcutRaw.toUpperCase() : 'C';
-        clabBtn.title = `打开 Creative Lab （快捷键${initShortcut}）`;
+        clabBtn.title = clabTf("menu.openTitle", { key: initShortcut });
         
         // 悬停时动态获取最新快捷键，完美联动设置面板
         clabBtn.onmouseover = () => {
             clabBtn.style.background = "#3a3c3f";
             const currentShortcut = window._clabShortcutRaw ? window._clabShortcutRaw.toUpperCase() : 'C';
-            clabBtn.title = `打开 Creative Lab （快捷键${currentShortcut}）`;
+            clabBtn.title = clabTf("menu.openTitle", { key: currentShortcut });
         };
         clabBtn.onmouseout = () => clabBtn.style.background = "#262729";
         clabBtn.onmousedown = () => clabBtn.style.background = "#4a4d50";

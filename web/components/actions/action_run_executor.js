@@ -5,6 +5,7 @@
  */
 import { state } from "../ui_state.js";
 import { app } from "../../../../scripts/app.js";
+import { clabT } from "../../clab_i18n.js";
 
 // 【核心任务编译器】：根据用户的严格规则，将任意选中状态编译为单卡片执行的基础队列
 export function buildTasksQueue(isRunAll = false) {
@@ -90,7 +91,7 @@ export function attachRunEvents(panelContainer) {
         const baseQueue = buildTasksQueue(false);
 
         if (baseQueue.length === 0) {
-            return alert("当前选中项没有可执行的输出模块！请检查是否添加了输出模块。");
+            return alert(clabT("run.noOutputModules"));
         }
         
         // 【核心升级】：应用循环次数，将 1,2,3 复制拼接为 1,2,3, 1,2,3...
@@ -117,10 +118,10 @@ export function attachRunEvents(panelContainer) {
         const dropdown = panelContainer.querySelector("#clab-run-dropdown-menu");
         if (dropdown) dropdown.style.display = 'none';
 
-        if (!state.cards || state.cards.length === 0) return alert("面板中没有任何任务卡片！");
+        if (!state.cards || state.cards.length === 0) return alert(clabT("run.noCards"));
 
         const baseQueue = buildTasksQueue(true);
-        if (baseQueue.length === 0) return alert("所有卡片均无输出模块，无法执行。");
+        if (baseQueue.length === 0) return alert(clabT("run.noOutputAnyCard"));
         
         // 【核心升级】：同样对“运行全部”生效
         const batchCount = getBatchCount();
@@ -135,7 +136,7 @@ export function attachRunEvents(panelContainer) {
         if (window.CLab && window.CLab.executeTasks) {
             window.CLab.executeTasks(finalQueue);
         } else {
-            alert("API 拦截器尚未加载完毕，请稍后再试！");
+            alert(clabT("run.apiNotReady"));
         }
     };
 }

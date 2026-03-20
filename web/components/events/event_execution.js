@@ -6,6 +6,7 @@ import { api } from "../../../../scripts/api.js";
 import { state } from "../ui_state.js";
 // 引入咱们自己的全局 Toast 弹窗组件
 import { showBindingToast, hideBindingToast } from "../ui_utils.js";
+import { clabT } from "../../clab_i18n.js";
 
 // =====================================================================================
 // 🎯 核心 UI 进度条引擎
@@ -71,7 +72,7 @@ export function setupExecutionEvents() {
         const cardId = e.detail?.cardId;
         if (cardId) {
             setUIProgress(cardId, 100, false, true);
-            showBindingToast("❌ 节点校验或运行失败！请检查必填参数与连线。", true);
+            showBindingToast(clabT("toasts.nodeRunFailed"), true);
             
             if (!window._clabHideTimers) window._clabHideTimers = {};
             if (window._clabHideTimers[cardId]) clearTimeout(window._clabHideTimers[cardId]);
@@ -108,7 +109,7 @@ export function setupExecutionEvents() {
                     if (targetCardId) {
                         document.dispatchEvent(new CustomEvent('clab_execution_error', { detail: { cardId: targetCardId } }));
                     } else {
-                        showBindingToast("❌ 节点校验失败！请检查工作流连线。", true);
+                        showBindingToast(clabT("toasts.nodeValidateFailed"), true);
                         setTimeout(hideBindingToast, 6000);
                     }
                 }
@@ -245,7 +246,7 @@ export function setupExecutionEvents() {
     // =====================================================================================
     api.addEventListener("execution_error", (e) => {
         // 1. 弹出醒目的全局报错 Toast
-        showBindingToast("❌ 工作流后台运行报错！请关闭面板，查看详细错误提示。", true);
+        showBindingToast(clabT("toasts.workflowBackendError"), true);
         setTimeout(() => hideBindingToast(), 6000);
 
         const pid = e.detail?.prompt_id;
