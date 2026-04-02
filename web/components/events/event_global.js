@@ -100,12 +100,9 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
             }
 
             if (isTargetSelected && !e.ctrlKey && !e.shiftKey) {
-                // 【核心修复】：在掐断事件前，手动关闭所有打开的下拉菜单
-                document.querySelectorAll('.clab-custom-select-dropdown, .clab-select-dropdown').forEach(d => {
-                    d.style.display = 'none';
-                    if (d.parentElement && d.parentElement.classList) {
-                        d.parentElement.classList.remove('open');
-                    }
+                // 【终极修复核心】：拔除会导致菜单彻底消失的隐身符 (style.display = none)，只优雅地移除 .open 类
+                document.querySelectorAll('.clab-custom-select.open, .clab-select.open').forEach(el => {
+                    el.classList.remove('open');
                 });
 
                 if (e.type === 'click' && (e.target.tagName === 'VIDEO' || e.target.tagName === 'AUDIO')) {
