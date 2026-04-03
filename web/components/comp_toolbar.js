@@ -11,6 +11,38 @@ import { generateSingleCardHTML, attachCardEvents } from "./comp_taskcard.js";
 import { generateAreaHTML, attachAreaEvents, justSave } from "./comp_modulearea.js";
 import { updateSelectionUI } from "./ui_selection.js";
 
+function showMediaMissingFallback(areaId) {
+    const areaEl = document.querySelector(`.clab-area[data-area-id="${areaId}"]`);
+    if (!areaEl) return;
+
+    const mediaEl = areaEl.querySelector(".clab-preview-img, .clab-media-target, video, audio, img");
+    if (!mediaEl) return;
+
+    mediaEl.style.display = "none";
+    const parent = mediaEl.parentElement;
+    if (parent && !parent.querySelector(".clab-media-dead-fallback")) {
+        parent.insertAdjacentHTML("beforeend", `
+            <div class="clab-media-dead-fallback" style="position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; background:#1e1e1e; color:#ff5555; z-index:10; pointer-events:none;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                <span style="font-size:10px; margin-top:4px; color:#ccc;">Media Missing</span>
+            </div>
+        `);
+    }
+}
+
+async function probeMissingAndFallback(areaProbes) {
+    const checks = areaProbes.map(async (item) => {
+        if (!item || !item.url) return;
+        try {
+            const res = await fetch(item.url, { method: "HEAD", cache: "no-store" });
+            if (!res.ok && res.status === 404) showMediaMissingFallback(item.areaId);
+        } catch (_) {
+            // ignore transient network errors here
+        }
+    });
+    await Promise.all(checks);
+}
+
 // --- 初始化静态工具栏事件 ---
 export function setupStaticToolbarEvents(panelContainer) {
     if (!window._clabGlobalDropdownCatcher) {
@@ -216,11 +248,12 @@ export function setupStaticToolbarEvents(panelContainer) {
         };
 
         // 清理缓存重置（此功能本就代表用户需要彻底刷新，所以保留全量重绘）
-        wrapper.querySelector("#clab-maint-resync").onclick = () => {
+        wrapper.querySelector("#clab-maint-resync").onclick = async () => {
             wrapper.querySelector("#clab-config-dropdown").style.display = 'none';
             showBindingToast("🔄 正在强制重新拉取本地资产...", false);
             const now = Date.now();
             let syncCount = 0;
+            const areaProbes = [];
             state.cards.forEach(card => {
                 card.areas?.filter(a => a.type === 'preview').forEach(area => {
                     if (area.history && area.history.length > 0) {
@@ -239,6 +272,7 @@ export function setupStaticToolbarEvents(panelContainer) {
                             const urlObj = new URL(area.resultUrl, window.location.origin);
                             urlObj.searchParams.set('t', now);
                             area.resultUrl = urlObj.pathname + urlObj.search;
+                            areaProbes.push({ areaId: area.id, url: area.resultUrl });
                         } catch(e) {}
                     }
                 });
@@ -248,6 +282,10 @@ export function setupStaticToolbarEvents(panelContainer) {
                 return alert("当前面板没有任何媒体记录需要同步。");
             }
             saveAndRender(); 
+            if (areaProbes.length > 0) {
+                // Proactively probe refreshed URLs so deleted videos immediately show missing state.
+                await probeMissingAndFallback(areaProbes);
+            }
             showBindingToast("✅ 缓存已清理，所有输出模块已重新加载媒体！");
             setTimeout(hideBindingToast, 2000);
         };

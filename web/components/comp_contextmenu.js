@@ -18,6 +18,38 @@ function showAutoToast(msg, isError = false) {
     }
 }
 
+function showMediaMissingFallback(areaId) {
+    const areaEl = document.querySelector(`.clab-area[data-area-id="${areaId}"]`);
+    if (!areaEl) return;
+
+    const mediaEl = areaEl.querySelector(".clab-preview-img, .clab-media-target, video, audio, img");
+    if (!mediaEl) return;
+
+    mediaEl.style.display = "none";
+    const parent = mediaEl.parentElement;
+    if (parent && !parent.querySelector(".clab-media-dead-fallback")) {
+        parent.insertAdjacentHTML("beforeend", `
+            <div class="clab-media-dead-fallback" style="position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; background:#1e1e1e; color:#ff5555; z-index:10; pointer-events:none;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                <span style="font-size:10px; margin-top:4px; color:#ccc;">媒体丢失</span>
+            </div>
+        `);
+    }
+}
+
+async function probeMissingAndFallback(areaProbes) {
+    const checks = areaProbes.map(async (item) => {
+        if (!item || !item.url) return;
+        try {
+            const res = await fetch(item.url, { method: "HEAD", cache: "no-store" });
+            if (!res.ok && res.status === 404) showMediaMissingFallback(item.areaId);
+        } catch (_) {
+            // ignore transient network errors here
+        }
+    });
+    await Promise.all(checks);
+}
+
 // 辅助方法：触发浏览器下载
 function downloadFile(url) {
     if (!url) return;
@@ -230,11 +262,12 @@ export function setupContextMenu(panelContainer) {
             };
 
             // 【彻底抛弃重绘】：重新同步记录
-            menuEl.querySelector('#clab-ctx-resync').onclick = () => {
+            menuEl.querySelector('#clab-ctx-resync').onclick = async () => {
                 menuEl.style.display = 'none';
                 showAutoToast("🔄 正在强制重新拉取选中模块的本地资产...", false);
                 const now = Date.now();
                 let syncCount = 0;
+                const areaProbes = [];
 
                 selectedAreaObjs.forEach(o => {
                     if (o.area.history && o.area.history.length > 0) {
@@ -253,6 +286,7 @@ export function setupContextMenu(panelContainer) {
                             const urlObj = new URL(o.area.resultUrl, window.location.origin);
                             urlObj.searchParams.set('t', now);
                             o.area.resultUrl = urlObj.pathname + urlObj.search;
+                            areaProbes.push({ areaId: o.area.id, url: o.area.resultUrl });
                         } catch(e) {}
                     }
                     
@@ -265,6 +299,10 @@ export function setupContextMenu(panelContainer) {
                 }
 
                 if (window._clabJustSave) window._clabJustSave(); else saveAndRender();
+                if (areaProbes.length > 0) {
+                    // Proactively probe refreshed URLs so deleted videos can switch to missing state immediately.
+                    await probeMissingAndFallback(areaProbes);
+                }
                 showAutoToast("✅ 缓存已清理，选中输出模块已重新加载媒体！");
             };
         }
