@@ -432,7 +432,7 @@ export function injectCSS() {
         #clab-card-width-ctrl {
             position: absolute;
             right: 20px;
-            bottom: 60px;
+            bottom: 44px;
             background: transparent;
             padding: 0;
             border: none;
@@ -551,7 +551,7 @@ export function injectCSS() {
         
         .clab-card {
             background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; 
-            padding: 8px 8px 4px 8px; transition: border-color 0.2s, border-width 0.2s, box-shadow 0.2s, background 0.2s;
+            padding: 8px 0 4px 0; transition: border-color 0.2s, border-width 0.2s, box-shadow 0.2s, background 0.2s;
             flex: 0 0 340px; display: flex; flex-direction: column;
             max-height: 100%; overflow: hidden; position: relative;
         }
@@ -564,13 +564,14 @@ export function injectCSS() {
         }
         
         .clab-card-body {
-            flex: 1; overflow-y: auto; overflow-x: hidden; padding-right: 5px; padding-bottom: 10px;
+            flex: 1; overflow-y: auto; overflow-y: overlay; overflow-x: hidden; 
+            padding: 0 10px 10px 10px;
             display: flex; flex-direction: column;
             min-height: 50px; 
         }
 
         .clab-card-title-bar {
-            margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+            margin-bottom: 8px; padding: 0 10px 4px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.15);
             display: flex; align-items: center;
         }
         .clab-card-title-input {
