@@ -551,7 +551,7 @@ export function injectCSS() {
         
         .clab-card {
             background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; 
-            padding: 15px 15px 5px 15px; transition: border-color 0.2s, border-width 0.2s, box-shadow 0.2s, background 0.2s;
+            padding: 8px 8px 4px 8px; transition: border-color 0.2s, border-width 0.2s, box-shadow 0.2s, background 0.2s;
             flex: 0 0 340px; display: flex; flex-direction: column;
             max-height: 100%; overflow: hidden; position: relative;
         }
@@ -570,7 +570,7 @@ export function injectCSS() {
         }
 
         .clab-card-title-bar {
-            margin-bottom: 15px; padding-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+            margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.15);
             display: flex; align-items: center;
         }
         .clab-card-title-input {

@@ -155,6 +155,9 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
 
     document.addEventListener("keydown", (e) => {
         if (appState.isBindingMode) return; 
+
+        const tag = e.target.tagName;
+        const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable;
         
         if (e.key === 'Escape') {
             if (state.painterMode) {
@@ -168,8 +171,51 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
             return;
         }
 
+        if (e.key === 'Delete' && !isInput) {
+            e.preventDefault();
+            let changed = false;
+
+            // Delete selected modules
+            if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
+                const idsToDelete = [...state.selectedAreaIds];
+                state.cards.forEach(c => {
+                    if (c.areas) {
+                        const originalLen = c.areas.length;
+                        c.areas = c.areas.filter(a => !idsToDelete.includes(a.id));
+                        if (c.areas.length !== originalLen) changed = true;
+                    }
+                });
+                idsToDelete.forEach(id => {
+                    const el = document.querySelector(`.clab-area[data-area-id="${id}"]`);
+                    if (el) el.remove();
+                });
+                state.selectedAreaIds = [];
+            } 
+            // Delete selected cards
+            else if (state.selectedCardIds && state.selectedCardIds.length > 0) {
+                const idsToDelete = [...state.selectedCardIds];
+                state.cards = state.cards.filter(c => !idsToDelete.includes(c.id));
+                idsToDelete.forEach(id => {
+                    const el = document.querySelector(`.clab-card[data-card-id="${id}"]`);
+                    if (el) el.remove();
+                });
+                state.selectedCardIds = [];
+                state.activeCardId = (state.selectedCardIds && state.selectedCardIds.length > 0) ? state.selectedCardIds[state.selectedCardIds.length - 1] : null;
+                changed = true;
+                
+                if (window._clabUpdateCardsLayout) window._clabUpdateCardsLayout();
+            }
+
+            if (changed) {
+                if (window._clabJustSave) window._clabJustSave();
+                if (window._clabUpdateAllDefaultTitles) window._clabUpdateAllDefaultTitles();
+                updateSelectionUI();
+            }
+            return;
+        }
+
         if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && state.selectedAreaIds.length === 1) {
-            if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+            if (isInput) return;
             
             const areaId = state.selectedAreaIds[0];
             let targetArea = null;
@@ -200,8 +246,7 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
             }
         }
 
-        const tag = e.target.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+        if (isInput) return;
         
         // 【核心修复】：动态解析快捷键配置，执行严格的修饰键全量比对
         const sc = parseShortcut(window._clabShortcutRaw || 'C');
