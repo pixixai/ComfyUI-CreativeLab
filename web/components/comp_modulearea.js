@@ -4,7 +4,7 @@
  */
 import { state, dragState, saveAndRender } from "./ui_state.js";
 import { injectDnDCSS, bindComboSelectEvents } from "./ui_utils.js";
-import { generateInputHTML, attachInputEvents } from "./modules/module_input.js";
+import { generateInputHTML, attachInputEvents, refreshInputAreaInPlace } from "./modules/module_input.js";
 import { generateOutputHTML, attachOutputEvents } from "./modules/module_output.js";
 import { updateSelectionUI } from "./ui_selection.js"; // 銆愭柊澧炪€戯細寮曞叆鏇存柊閫変腑鐘舵€佺殑 UI 鏂规硶
 import { app } from "../../../scripts/app.js";
@@ -92,6 +92,47 @@ export function surgicallyUpdateArea(areaId) {
     }
 }
 
+export function refreshAreaForContext(areaId) {
+    const areaEl = document.querySelector(`.clab-area[data-area-id="${areaId}"]`);
+    if (!areaEl) return false;
+
+    let targetCard = null;
+    let targetArea = null;
+    state.cards.forEach((card) => {
+        const area = card.areas?.find((item) => item.id === areaId);
+        if (area) {
+            targetCard = card;
+            targetArea = area;
+        }
+    });
+    if (!targetCard || !targetArea) return false;
+
+    if (targetArea.type === "edit" && refreshInputAreaInPlace(areaEl, targetArea, targetCard)) {
+        return true;
+    }
+
+    if (targetArea.type === "preview") {
+        const temp = document.createElement("div");
+        temp.innerHTML = generateAreaHTML(targetArea, targetCard);
+        const nextAreaEl = temp.firstElementChild;
+        const hasCurrentMedia = !!areaEl.querySelector(".clab-media-target");
+        const hasNextMedia = !!nextAreaEl?.querySelector(".clab-media-target");
+
+        if (nextAreaEl && !hasCurrentMedia && !hasNextMedia) {
+            areaEl.className = nextAreaEl.className;
+            areaEl.dataset.cardId = targetCard.id;
+            areaEl.dataset.areaId = targetArea.id;
+            areaEl.style.cssText = nextAreaEl.style.cssText;
+            areaEl.innerHTML = nextAreaEl.innerHTML;
+            attachAreaEvents(areaEl);
+            return true;
+        }
+    }
+
+    surgicallyUpdateArea(areaId);
+    return true;
+}
+
 // 銆愰瓟娉曠籂鍋忋€戯細闈欓粯鎵弿鍏ㄥ満锛岀粰鎵€鏈夌殑鍗＄墖鍜屾ā鍧楃悊椤烘帓闃熷簭鍙?
 export function updateAllDefaultTitles() {
     document.querySelectorAll('.clab-card:not(.clab-add-card-inline)').forEach((cardEl) => {
@@ -162,6 +203,7 @@ window._clabUpdateAllDefaultTitles = updateAllDefaultTitles;
 window._clabUpdateAreaDOMIdentity = updateAreaDOMIdentity;
 window._clabGenerateAreaHTML = generateAreaHTML;
 window._clabAttachAreaEvents = attachAreaEvents;
+window._clabRefreshAreaForContext = refreshAreaForContext;
 
 export function syncAreaDOMOrder(cardId, newAreasArray) {
     const list = document.querySelector(`.clab-card[data-card-id="${cardId}"] .clab-area-list`);

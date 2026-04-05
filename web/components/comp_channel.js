@@ -13,6 +13,22 @@ import {
     deepClone,
 } from "./ui_state.js";
 
+function bindingsEqual(left = {}, right = {}) {
+    return JSON.stringify(left || {}) === JSON.stringify(right || {});
+}
+
+function collectChangedAreaIds(cards, currentBindings, targetBindings) {
+    const changed = [];
+    (cards || []).forEach((card) => {
+        (card.areas || []).forEach((area) => {
+            if (!bindingsEqual(currentBindings?.[area.id], targetBindings?.[area.id])) {
+                changed.push(area.id);
+            }
+        });
+    });
+    return changed;
+}
+
 function getChannelLabel(index) {
     return `通道 ${index + 1}`;
 }
@@ -83,14 +99,24 @@ function switchChannel(channelId) {
     const workspace = syncStateToActiveWorkspace();
     if (!workspace) return;
 
+    const currentChannel = (workspace.channels || []).find((channel) => channel.id === workspace.activeChannelId) || null;
     const target = (workspace.channels || []).find((channel) => channel.id === channelId);
     if (!target) {
-        saveAndRender();
+        if (window._clabRefreshContextView) window._clabRefreshContextView({ areaIds: [] });
+        else saveAndRender();
         return;
     }
 
+    if (currentChannel && currentChannel.id === channelId) {
+        if (window._clabRefreshContextView) window._clabRefreshContextView({ areaIds: [] });
+        else saveAndRender();
+        return;
+    }
+
+    const changedAreaIds = collectChangedAreaIds(state.cards, currentChannel?.bindings, target.bindings);
     applyChannelToState(channelId);
-    saveAndRender();
+    if (window._clabRefreshContextView) window._clabRefreshContextView({ areaIds: changedAreaIds });
+    else saveAndRender();
 }
 
 function addChannel(insertAfterId = null) {

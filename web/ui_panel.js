@@ -106,6 +106,104 @@ function setupPanelMediaVault() {
     };
 }
 
+function getRenderedCardsState(cardsContainer) {
+    const wrapper = cardsContainer?.querySelector(".clab-cards-wrapper");
+    if (!wrapper) return { wrapper: null, cardEls: [] };
+    const cardEls = Array.from(wrapper.querySelectorAll(":scope > .clab-card[data-card-id]"));
+    return { wrapper, cardEls };
+}
+
+function syncCardShellInPlace(cardEl, card, index) {
+    if (!cardEl || !card) return;
+
+    const isSelected = !!state.selectedCardIds?.includes(card.id);
+    const defaultTitle = `#${index + 1}`;
+    const displayTitle = card.title || defaultTitle;
+
+    cardEl.dataset.cardId = card.id;
+    cardEl.classList.toggle("active", isSelected);
+    cardEl.classList.toggle("selected", isSelected);
+    cardEl.style.borderColor = isSelected ? "var(--clab-theme-card, #4CAF50)" : "";
+
+    const titleInput = cardEl.querySelector(".clab-card-title-input");
+    if (titleInput) {
+        titleInput.dataset.id = card.id;
+        titleInput.dataset.default = defaultTitle;
+        titleInput.placeholder = defaultTitle;
+        if (document.activeElement !== titleInput) {
+            titleInput.value = displayTitle;
+            titleInput.size = Math.max(displayTitle.length, 2);
+        }
+    }
+
+    const deleteBtn = cardEl.querySelector(".clab-del-card-btn");
+    if (deleteBtn) deleteBtn.dataset.id = card.id;
+
+    const progressEl = cardEl.querySelector(".clab-card-progress-container");
+    if (progressEl) progressEl.dataset.cardProgId = card.id;
+
+    const bodyEl = cardEl.querySelector(".clab-card-body");
+    if (bodyEl) bodyEl.dataset.cardId = card.id;
+
+    const areaListEl = cardEl.querySelector(".clab-area-list");
+    if (areaListEl) areaListEl.dataset.cardId = card.id;
+}
+
+function canRefreshCardsInPlace(cardsContainer) {
+    if (!cardsContainer || !window._clabSurgicallyUpdateArea) return false;
+
+    const { cardEls } = getRenderedCardsState(cardsContainer);
+    if (cardEls.length !== state.cards.length) return false;
+
+    return state.cards.every((card, index) => {
+        const cardEl = cardEls[index];
+        if (!cardEl) return false;
+
+        const areaEls = Array.from(cardEl.querySelectorAll(".clab-area-list > .clab-area[data-area-id]"));
+        const stateAreas = Array.isArray(card.areas) ? card.areas : [];
+        return areaEls.length === stateAreas.length;
+    });
+}
+
+function refreshCardsInPlace(cardsContainer, areaIds = null) {
+    if (!canRefreshCardsInPlace(cardsContainer)) return false;
+
+    const panel = cardsContainer.closest("#clab-panel");
+    if (panel) {
+        panel.classList.toggle("clab-painter-active", !!state.painterMode);
+    }
+
+    const { cardEls } = getRenderedCardsState(cardsContainer);
+
+    state.cards.forEach((card, cardIndex) => {
+        const cardEl = cardEls[cardIndex];
+        syncCardShellInPlace(cardEl, card, cardIndex);
+
+        const areaEls = Array.from(cardEl.querySelectorAll(".clab-area-list > .clab-area[data-area-id]"));
+        areaEls.forEach((areaEl, areaIndex) => {
+            const area = card.areas?.[areaIndex];
+            if (!area) return;
+            areaEl.dataset.cardId = card.id;
+            areaEl.dataset.areaId = area.id;
+        });
+    });
+
+    const targetAreaIds = Array.isArray(areaIds) ? new Set(areaIds) : null;
+    if (!targetAreaIds || targetAreaIds.size > 0) {
+        state.cards.forEach((card) => {
+            (card.areas || []).forEach((area) => {
+                if (targetAreaIds && !targetAreaIds.has(area.id)) return;
+                if (window._clabRefreshAreaForContext) window._clabRefreshAreaForContext(area.id);
+                else window._clabSurgicallyUpdateArea(area.id);
+            });
+        });
+    }
+
+    if (window._clabUpdateCardsLayout) window._clabUpdateCardsLayout();
+    if (window._clabUpdateAllDefaultTitles) window._clabUpdateAllDefaultTitles();
+    return true;
+}
+
 function performPanelRender() {
     if (!panelContainer) return;
 
@@ -148,6 +246,38 @@ function performPanelRender() {
     attachWorkspaceEvents(workspaceBar);
 
     if (window._clabUpdateAllDefaultTitles) window._clabUpdateAllDefaultTitles();
+}
+
+function refreshContextView(options = {}) {
+    if (!panelContainer) return;
+
+    if (window.CLab && typeof window.CLab.saveState === "function") {
+        window.CLab.saveState(state);
+    } else if (window.StateManager && typeof window.StateManager.syncToNode === "function" && window.app?.graph) {
+        window.StateManager.syncToNode(window.app.graph);
+    }
+
+    const toolbarHandle = panelContainer.querySelector("#clab-toolbar-handle");
+    const channelBar = panelContainer.querySelector("#clab-channel-bar");
+    const cardsContainer = panelContainer.querySelector("#clab-cards-container");
+    const workspaceBar = panelContainer.querySelector("#clab-workspace-bar");
+
+    if (toolbarHandle) {
+        renderDynamicToolbar(toolbarHandle);
+        attachDynamicToolbarEvents(toolbarHandle);
+    }
+    if (channelBar) {
+        renderChannelBar(channelBar);
+        attachChannelEvents(channelBar);
+    }
+    if (workspaceBar) {
+        renderWorkspaceBar(workspaceBar);
+        attachWorkspaceEvents(workspaceBar);
+    }
+
+    if (refreshCardsInPlace(cardsContainer, options.areaIds)) return;
+
+    performPanelRender();
 }
 
 export function setupUI() {
@@ -347,6 +477,8 @@ export function togglePanel() {
 document.addEventListener("clab_render_ui", () => {
     performRender();
 });
+
+window._clabRefreshContextView = refreshContextView;
 
 function performRender() {
     performPanelRender();

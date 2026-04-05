@@ -221,19 +221,217 @@ export function generateInputHTML(area, card) {
         <div class="clab-area ${isAreaSelected ? 'active' : ''}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="overflow: visible;">
             <button class="clab-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="删除输入">✖</button>
             
-            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:4px; padding: 8px 8px 0 8px;">
+            <div class="clab-input-header" style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:4px; padding: 8px 8px 0 8px;">
                 <input class="clab-area-title-input" data-card="${card.id}" data-area="${area.id}" type="text" value="${displayTitle}" placeholder="${defaultTitle}" size="${Math.max(displayTitle.length, 2)}" style="max-width:150px; min-width:15px; background:transparent; border:none; color:#ddd; font-weight:normal; font-size:12px; outline:none; font-family:sans-serif; padding:0; margin:0;" />
                 
-                <div style="font-size:10px; color:#888; font-weight:normal; text-align:right; white-space:nowrap; pointer-events:none;" title="${fullHintText}">
+                <div class="clab-input-binding-hint" style="font-size:10px; color:#888; font-weight:normal; text-align:right; white-space:nowrap; pointer-events:none;" title="${fullHintText}">
                     ${hintText}
                 </div>
             </div>
 
-            <div style="padding: 0 8px 8px 8px;">
+            <div class="clab-input-body" style="padding: 0 8px 8px 8px;">
                 ${inputHtml}
             </div>
         </div>
     `;
+}
+
+function getInputRefreshSignature(root) {
+    if (!root) return "none";
+    const parts = [];
+    if (root.querySelector(".clab-upload-zone")) parts.push("upload");
+    if (root.querySelector('.clab-custom-select[data-type="module-combo"]')) parts.push("combo");
+    if (root.querySelector(".clab-edit-val-bool")) parts.push("bool");
+    if (root.querySelector(".clab-edit-val")) parts.push("text");
+    return parts.join("+") || "none";
+}
+
+function withFrozenAreaLayout(areaEl, updater) {
+    if (!areaEl || typeof updater !== "function") return false;
+
+    const bodyEl = areaEl.querySelector(".clab-input-body");
+    const areaHeight = areaEl.offsetHeight;
+    const bodyHeight = bodyEl?.offsetHeight || 0;
+    const prevAreaMinHeight = areaEl.style.minHeight;
+    const prevBodyMinHeight = bodyEl?.style.minHeight || "";
+
+    if (areaHeight > 0) areaEl.style.minHeight = `${areaHeight}px`;
+    if (bodyEl && bodyHeight > 0) bodyEl.style.minHeight = `${bodyHeight}px`;
+
+    let result = false;
+    try {
+        result = updater();
+    } finally {
+        window.requestAnimationFrame(() => {
+            areaEl.style.minHeight = prevAreaMinHeight;
+            if (bodyEl) bodyEl.style.minHeight = prevBodyMinHeight;
+        });
+    }
+    return result;
+}
+
+function refreshInputBody(areaEl, nextAreaEl) {
+    const body = areaEl.querySelector(".clab-input-body");
+    const nextBody = nextAreaEl.querySelector(".clab-input-body");
+    if (!body || !nextBody) return false;
+
+    return withFrozenAreaLayout(areaEl, () => {
+        body.innerHTML = nextBody.innerHTML;
+        if (window._clabAttachAreaEvents) window._clabAttachAreaEvents(areaEl);
+        return true;
+    });
+}
+
+export function refreshInputAreaInPlace(areaEl, area, card) {
+    if (!areaEl || !area || !card) return false;
+
+    const temp = document.createElement("div");
+    temp.innerHTML = generateInputHTML(area, card);
+    const nextAreaEl = temp.firstElementChild;
+    if (!nextAreaEl) return false;
+
+    areaEl.dataset.cardId = card.id;
+    areaEl.dataset.areaId = area.id;
+    areaEl.className = nextAreaEl.className;
+    areaEl.style.cssText = nextAreaEl.style.cssText;
+
+    const deleteBtn = areaEl.querySelector(".clab-del-area-btn");
+    const nextDeleteBtn = nextAreaEl.querySelector(".clab-del-area-btn");
+    if (deleteBtn && nextDeleteBtn) {
+        deleteBtn.dataset.card = nextDeleteBtn.dataset.card;
+        deleteBtn.dataset.area = nextDeleteBtn.dataset.area;
+        deleteBtn.title = nextDeleteBtn.title;
+        deleteBtn.style.cssText = nextDeleteBtn.style.cssText;
+    }
+
+    const titleInput = areaEl.querySelector(".clab-area-title-input");
+    const nextTitleInput = nextAreaEl.querySelector(".clab-area-title-input");
+    if (titleInput && nextTitleInput) {
+        titleInput.dataset.card = nextTitleInput.dataset.card;
+        titleInput.dataset.area = nextTitleInput.dataset.area;
+        titleInput.placeholder = nextTitleInput.placeholder;
+        if (document.activeElement !== titleInput) {
+            titleInput.value = nextTitleInput.value;
+            titleInput.size = Math.max(nextTitleInput.value.length, 2);
+        }
+    }
+
+    const hintEl = areaEl.querySelector(".clab-input-binding-hint");
+    const nextHintEl = nextAreaEl.querySelector(".clab-input-binding-hint");
+    if (hintEl && nextHintEl) {
+        hintEl.textContent = nextHintEl.textContent;
+        hintEl.title = nextHintEl.title;
+    }
+
+    const signature = getInputRefreshSignature(areaEl);
+    const nextSignature = getInputRefreshSignature(nextAreaEl);
+    if (signature !== nextSignature) {
+        return refreshInputBody(areaEl, nextAreaEl);
+    }
+
+    if (signature === "text") {
+        const textarea = areaEl.querySelector(".clab-edit-val");
+        const nextTextarea = nextAreaEl.querySelector(".clab-edit-val");
+        if (!textarea || !nextTextarea) return false;
+
+        textarea.dataset.card = nextTextarea.dataset.card;
+        textarea.dataset.area = nextTextarea.dataset.area;
+        textarea.placeholder = nextTextarea.placeholder;
+        textarea.style.cssText = nextTextarea.style.cssText;
+        if (document.activeElement !== textarea) {
+            textarea.value = nextTextarea.value;
+        }
+        return true;
+    }
+
+    if (signature === "bool") {
+        const checkbox = areaEl.querySelector(".clab-edit-val-bool");
+        const nextCheckbox = nextAreaEl.querySelector(".clab-edit-val-bool");
+        const labelText = checkbox?.closest(".clab-bool-label")?.querySelector("span");
+        const nextLabelText = nextCheckbox?.closest(".clab-bool-label")?.querySelector("span");
+        if (!checkbox || !nextCheckbox || !labelText || !nextLabelText) return false;
+
+        checkbox.dataset.card = nextCheckbox.dataset.card;
+        checkbox.dataset.area = nextCheckbox.dataset.area;
+        checkbox.checked = nextCheckbox.checked;
+        checkbox.style.cssText = nextCheckbox.style.cssText;
+        labelText.textContent = nextLabelText.textContent;
+        return true;
+    }
+
+    if (signature === "upload") {
+        const zone = areaEl.querySelector(".clab-upload-zone");
+        const nextZone = nextAreaEl.querySelector(".clab-upload-zone");
+        if (!zone || !nextZone) return false;
+
+        if (zone.innerHTML !== nextZone.innerHTML) {
+            return withFrozenAreaLayout(areaEl, () => {
+                zone.innerHTML = nextZone.innerHTML;
+                zone.className = nextZone.className;
+                zone.style.cssText = nextZone.style.cssText;
+                zone.dataset.card = nextZone.dataset.card;
+                zone.dataset.area = nextZone.dataset.area;
+                if (window._clabAttachAreaEvents) window._clabAttachAreaEvents(areaEl);
+                return true;
+            });
+        }
+
+        zone.dataset.card = nextZone.dataset.card;
+        zone.dataset.area = nextZone.dataset.area;
+        zone.className = nextZone.className;
+        zone.style.cssText = nextZone.style.cssText;
+
+        const fileInput = zone.querySelector(".clab-file-input");
+        const nextFileInput = nextZone.querySelector(".clab-file-input");
+        if (fileInput && nextFileInput) {
+            fileInput.accept = nextFileInput.accept;
+            fileInput.dataset.card = nextFileInput.dataset.card;
+            fileInput.dataset.area = nextFileInput.dataset.area;
+        }
+        return true;
+    }
+
+    if (signature === "combo") {
+        const select = areaEl.querySelector('.clab-custom-select[data-type="module-combo"]');
+        const nextSelect = nextAreaEl.querySelector('.clab-custom-select[data-type="module-combo"]');
+        if (!select || !nextSelect) return false;
+
+        return withFrozenAreaLayout(areaEl, () => {
+            select.id = nextSelect.id;
+            select.className = nextSelect.className;
+            select.style.cssText = nextSelect.style.cssText;
+            select.dataset.cardId = nextSelect.dataset.cardId;
+            select.dataset.areaId = nextSelect.dataset.areaId;
+            select.dataset.type = nextSelect.dataset.type;
+            select.classList.remove("open");
+            delete select.dataset.clabComboBound;
+
+            const valueInput = select.querySelector(".clab-custom-select-value");
+            const nextValueInput = nextSelect.querySelector(".clab-custom-select-value");
+            if (valueInput && nextValueInput) {
+                valueInput.value = nextValueInput.value;
+                valueInput.title = nextValueInput.title;
+                valueInput.disabled = nextValueInput.disabled;
+            }
+
+            const icon = select.querySelector(".clab-custom-select-icon");
+            const nextIcon = nextSelect.querySelector(".clab-custom-select-icon");
+            if (icon && nextIcon) {
+                icon.innerHTML = nextIcon.innerHTML;
+            }
+
+            const dropdown = select.querySelector(".clab-custom-select-dropdown");
+            const nextDropdown = nextSelect.querySelector(".clab-custom-select-dropdown");
+            if (dropdown && nextDropdown) {
+                dropdown.innerHTML = nextDropdown.innerHTML;
+            }
+
+            if (window._clabAttachAreaEvents) window._clabAttachAreaEvents(areaEl);
+            return true;
+        });
+    }
+
+    return refreshInputBody(areaEl, nextAreaEl);
 }
 
 export function attachInputEvents(container) {

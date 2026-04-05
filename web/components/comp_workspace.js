@@ -10,6 +10,24 @@ import {
     deepClone,
 } from "./ui_state.js";
 
+function workspaceStructureMatches(currentWorkspace, targetWorkspace) {
+    const currentCards = currentWorkspace?.cards || [];
+    const targetCards = targetWorkspace?.cards || [];
+    if (currentCards.length !== targetCards.length) return false;
+
+    return currentCards.every((card, cardIndex) => {
+        const targetCard = targetCards[cardIndex];
+        const currentAreas = card?.areas || [];
+        const targetAreas = targetCard?.areas || [];
+        if (currentAreas.length !== targetAreas.length) return false;
+        return currentAreas.every((area, areaIndex) => area?.type === targetAreas[areaIndex]?.type);
+    });
+}
+
+function collectAllAreaIds(cards) {
+    return (cards || []).flatMap((card) => (card.areas || []).map((area) => area.id));
+}
+
 function getWorkspaceLabel(index) {
     return `工作区 ${index + 1}`;
 }
@@ -83,12 +101,18 @@ function switchWorkspace(workspaceId, isMultiSelect = false) {
     const current = syncStateToActiveWorkspace();
     const target = (state.workspaces || []).find((workspace) => workspace.id === workspaceId);
     if (!target || target === current) {
-        saveAndRender(); 
+        if (window._clabRefreshContextView) window._clabRefreshContextView({ areaIds: [] });
+        else saveAndRender();
         return;
     }
 
+    const canRefreshInPlace = workspaceStructureMatches(current, target);
     applyWorkspaceToState(target);
-    saveAndRender();
+    if (window._clabRefreshContextView) {
+        if (canRefreshInPlace) window._clabRefreshContextView({ areaIds: collectAllAreaIds(state.cards) });
+        else window._clabRefreshContextView();
+    }
+    else saveAndRender();
 }
 
 function addWorkspace(insertAfterId = null) {

@@ -205,6 +205,8 @@ export function hideBindingToast() {
 
 export function bindComboSelectEvents(container, stateObj, saveAndRenderCallback) {
     container.querySelectorAll('.clab-custom-select[data-type="module-combo"]').forEach(el => {
+        if (el.dataset.clabComboBound === "1") return;
+        el.dataset.clabComboBound = "1";
         if (el.classList.contains('disabled')) return;
         const input = el.querySelector('.clab-custom-select-value');
         const items = el.querySelectorAll('.clab-custom-select-item');
@@ -365,7 +367,7 @@ export function injectCSS() {
         }
 
         .clab-toolbar {
-            padding: 15px 20px; background: rgba(0, 0, 0, 0.3); border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 15px 20px; background: rgba(0, 0, 0, 0.3); border-bottom: 1px solid rgb(8, 8, 8);
             display: flex; justify-content: space-between; align-items: center; gap: 10px;
             cursor: grab; user-select: none; flex-wrap: nowrap;
         }
