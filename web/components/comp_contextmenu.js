@@ -51,18 +51,199 @@ async function probeMissingAndFallback(areaProbes) {
     await Promise.all(checks);
 }
 
-// 辅助方法：触发浏览器下载
-function downloadFile(url) {
+function sanitizeDownloadNamePart(value) {
+    if (value == null) return "";
+    return String(value)
+        .replace(/[\\/:*?"<>|]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function toSnapshotValueString(value) {
+    if (value == null) return "";
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    try {
+        return JSON.stringify(value);
+    } catch (_) {
+        return String(value);
+    }
+}
+
+function trimSnapshotValue(value) {
+    const safe = sanitizeDownloadNamePart(toSnapshotValueString(value));
+    return safe.length > 10 ? safe.slice(0, 10) : safe;
+}
+
+function parseNumberedDefaultTitle(title) {
+    const text = (title || "").trim();
+    if (!text) return null;
+    const match = text.match(/^#+\s*(\d+)$/);
+    return match ? match[1] : null;
+}
+
+function normalizeHistoryUrl(urlStr) {
+    if (!urlStr) return "";
+    try {
+        const u = new URL(urlStr, window.location.origin);
+        const params = new URLSearchParams(u.search);
+        params.delete("t");
+        return `${u.pathname}?${params.toString()}`;
+    } catch (_) {
+        return String(urlStr).replace(/([?&])t=[^&]*/g, "").replace(/[?&]$/, "");
+    }
+}
+
+function getPreviewOrderInCard(card, areaId) {
+    if (!card || !Array.isArray(card.areas)) return 1;
+    let previewOrder = 0;
+    for (const area of card.areas) {
+        if (area?.type !== "preview") continue;
+        previewOrder += 1;
+        if (area.id === areaId) return previewOrder;
+    }
+    return Math.max(1, previewOrder);
+}
+
+function parseExtFromUrl(urlStr) {
+    try {
+        const urlObj = new URL(urlStr, window.location.origin);
+        const filename = urlObj.searchParams.get("filename") || "";
+        const match = filename.match(/(\.[^./\\]+)$/);
+        return match ? match[1] : "";
+    } catch (_) {
+        return "";
+    }
+}
+
+function buildParamTokensFromSnapshot(snapshotEntries) {
+    if (!Array.isArray(snapshotEntries) || snapshotEntries.length === 0) return [];
+    const tokens = [];
+
+    snapshotEntries.forEach((entry, entryIndex) => {
+        if (!entry || typeof entry !== "object") return;
+
+        const rawValue = trimSnapshotValue(entry.value);
+        const widgetNames = [];
+
+        if (Array.isArray(entry.targetWidgets) && entry.targetWidgets.length > 0) {
+            entry.targetWidgets.forEach((item) => {
+                const parts = String(item).split("||");
+                const widget = parts[1] == null ? "" : String(parts[1]).trim();
+                if (widget) widgetNames.push(widget);
+            });
+        }
+
+        if (widgetNames.length === 0 && entry.targetWidget) {
+            const singleWidget = String(entry.targetWidget).trim();
+            if (singleWidget) widgetNames.push(singleWidget);
+        }
+
+        if (widgetNames.length === 0 && entry.title) {
+            const titleName = String(entry.title).trim();
+            if (titleName) widgetNames.push(titleName);
+        }
+
+        const uniqueNames = [...new Set(widgetNames)];
+        if (uniqueNames.length === 0) return;
+
+        uniqueNames.forEach((name, nameIndex) => {
+            const safeName = sanitizeDownloadNamePart(name) || `param${entryIndex + 1}_${nameIndex + 1}`;
+            tokens.push(`[${safeName}-${rawValue}]`);
+        });
+    });
+
+    return tokens;
+}
+
+function resolveCardLabel(card) {
+    const cardIndex = state.cards.findIndex((c) => c.id === card?.id);
+    const fallback = String((cardIndex >= 0 ? cardIndex : 0) + 1);
+    const numbered = parseNumberedDefaultTitle(card?.title || "");
+    if (numbered) return numbered;
+    const safe = sanitizeDownloadNamePart(card?.title || "");
+    return safe || fallback;
+}
+
+function resolveOutputLabel(card, area) {
+    const previewOrder = getPreviewOrderInCard(card, area?.id);
+    const fallback = String(previewOrder);
+    const numbered = parseNumberedDefaultTitle(area?.title || "");
+    if (numbered) return numbered;
+    const safe = sanitizeDownloadNamePart(area?.title || "");
+    return safe || fallback;
+}
+
+function buildDownloadFilename({ card, area, historyIndex, url }) {
+    const cardPart = resolveCardLabel(card);
+    const outputPart = resolveOutputLabel(card, area);
+    const historyPart = String((historyIndex >= 0 ? historyIndex : 0) + 1);
+    const prefix = `${cardPart}_${outputPart}_${historyPart}`;
+
+    const snapshot = (Array.isArray(area?.inputHistorySnapshots) && historyIndex >= 0)
+        ? area.inputHistorySnapshots[historyIndex]
+        : null;
+    const tokens = buildParamTokensFromSnapshot(snapshot);
+    const ext = parseExtFromUrl(url);
+    const maxLength = 120;
+
+    let paramBlock = "";
+    for (const token of tokens) {
+        const candidateParamBlock = `${paramBlock}${token}`;
+        const candidateName = `${prefix}_${candidateParamBlock}`;
+        if ((candidateName + ext).length > maxLength) break;
+        paramBlock = candidateParamBlock;
+    }
+
+    let baseName = paramBlock ? `${prefix}_${paramBlock}` : prefix;
+    if ((baseName + ext).length > maxLength) {
+        const keepLen = Math.max(1, maxLength - ext.length);
+        baseName = baseName.slice(0, keepLen).replace(/[_\s]+$/g, "").trim();
+    }
+    if (!baseName) baseName = `media_${Date.now()}`;
+    return `${baseName}${ext}`;
+}
+
+function ensureUniqueDownloadName(filename, usedNames) {
+    const safe = filename || `media_${Date.now()}`;
+    const dotIndex = safe.lastIndexOf(".");
+    const hasExt = dotIndex > 0;
+    const base = hasExt ? safe.slice(0, dotIndex) : safe;
+    const ext = hasExt ? safe.slice(dotIndex) : "";
+    const keyOf = (name) => String(name).toLowerCase();
+
+    let candidate = safe;
+    let suffix = 2;
+    const maxLength = 120;
+    while (usedNames.has(keyOf(candidate))) {
+        const suffixText = `_${suffix++}`;
+        const keepLen = Math.max(1, maxLength - ext.length - suffixText.length);
+        const nextBase = base.slice(0, keepLen).replace(/[_\s]+$/g, "").trim() || "media";
+        candidate = `${nextBase}${suffixText}${ext}`;
+    }
+    usedNames.add(keyOf(candidate));
+    return candidate;
+}
+
+// 辅助方法：触发浏览器下载（通过 blob 强制使用自定义文件名）
+async function downloadFile(url, filename = "") {
     if (!url) return;
     try {
-        const urlObj = new URL(url, window.location.origin);
-        const filename = urlObj.searchParams.get('filename') || `image_${Date.now()}.png`;
+        const finalName = filename || (() => {
+            const urlObj = new URL(url, window.location.origin);
+            return urlObj.searchParams.get('filename') || `image_${Date.now()}.png`;
+        })();
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
+        a.href = blobUrl;
+        a.download = finalName;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
     } catch (e) { console.error("下载失败", e); }
 }
 
@@ -143,22 +324,63 @@ export function setupContextMenu(panelContainer) {
             const idx = getHistoryIdx(area);
             return area.resultUrl || (arr.length > 0 ? arr[idx] : null);
         };
+        const getHistoryIndexForUrl = (area, url, preferredIdx = -1) => {
+            const arr = getHistoryArr(area);
+            if (!Array.isArray(arr) || arr.length === 0 || !url) return -1;
+            if (preferredIdx >= 0 && preferredIdx < arr.length) return preferredIdx;
+            const normalized = normalizeHistoryUrl(url);
+            const foundIdx = arr.findIndex((item) => normalizeHistoryUrl(item) === normalized);
+            return foundIdx >= 0 ? foundIdx : -1;
+        };
 
         if (showContentGroup) {
             menuEl.querySelector('#clab-ctx-download').onclick = () => {
                 menuEl.style.display = 'none';
+                const usedNames = new Set();
                 selectedAreaObjs.forEach(o => {
                     const url = getCurrentUrl(o.area);
-                    if (url) downloadFile(url);
+                    if (!url) return;
+                    const guessedIdx = getHistoryIdx(o.area);
+                    const historyIdx = getHistoryIndexForUrl(o.area, url, guessedIdx);
+                    const baseName = buildDownloadFilename({
+                        card: o.card,
+                        area: o.area,
+                        historyIndex: historyIdx,
+                        url,
+                    });
+                    const finalName = ensureUniqueDownloadName(baseName, usedNames);
+                    downloadFile(url, finalName);
                 });
             };
 
             menuEl.querySelector('#clab-ctx-download-all').onclick = () => {
                 menuEl.style.display = 'none';
+                const usedNames = new Set();
                 selectedAreaObjs.forEach(o => {
                     const arr = getHistoryArr(o.area);
-                    if (arr.length > 0) arr.forEach(url => downloadFile(url));
-                    else if (o.area.resultUrl) downloadFile(o.area.resultUrl);
+                    if (arr.length > 0) {
+                        arr.forEach((url, idx) => {
+                            if (!url) return;
+                            const baseName = buildDownloadFilename({
+                                card: o.card,
+                                area: o.area,
+                                historyIndex: idx,
+                                url,
+                            });
+                            const finalName = ensureUniqueDownloadName(baseName, usedNames);
+                            downloadFile(url, finalName);
+                        });
+                    } else if (o.area.resultUrl) {
+                        const historyIdx = getHistoryIndexForUrl(o.area, o.area.resultUrl, getHistoryIdx(o.area));
+                        const baseName = buildDownloadFilename({
+                            card: o.card,
+                            area: o.area,
+                            historyIndex: historyIdx,
+                            url: o.area.resultUrl,
+                        });
+                        const finalName = ensureUniqueDownloadName(baseName, usedNames);
+                        downloadFile(o.area.resultUrl, finalName);
+                    }
                 });
             };
 

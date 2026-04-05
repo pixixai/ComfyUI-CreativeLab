@@ -330,50 +330,238 @@ export function attachDataIOEvents(panelContainer) {
             exportDropdown.style.display = isVisible ? 'none' : 'block';
         };
 
-        const downloadMediaFiles = async (mode, includeHistory = false) => {
-            exportDropdown.style.display = 'none';
-            const urlsToDownload = [];
-            
-            const extractUrlsFromArea = (a) => {
-                if (a.type === 'preview') {
-                    if (includeHistory && a.history && a.history.length > 0) {
-                        urlsToDownload.push(...a.history);
-                    } else if (a.resultUrl) {
-                        urlsToDownload.push(a.resultUrl);
-                    }
-                }
-            };
+        const sanitizeZipNamePart = (value) => {
+            if (value == null) return "";
+            return String(value)
+                .replace(/[\\/:*?"<>|]/g, " ")
+                .replace(/\s+/g, " ")
+                .trim();
+        };
 
-            if (mode === 'selected') {
-                if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
-                    state.cards.forEach(c => c.areas?.forEach(a => {
-                        if (state.selectedAreaIds.includes(a.id)) extractUrlsFromArea(a);
-                    }));
-                } else if (state.selectedCardIds && state.selectedCardIds.length > 0) {
-                    state.cards.filter(c => state.selectedCardIds.includes(c.id)).forEach(c => {
-                        c.areas?.forEach(a => extractUrlsFromArea(a));
+        const toSnapshotValueString = (value) => {
+            if (value == null) return "";
+            if (typeof value === "string") return value;
+            if (typeof value === "number" || typeof value === "boolean") return String(value);
+            try {
+                return JSON.stringify(value);
+            } catch (_) {
+                return String(value);
+            }
+        };
+
+        const trimSnapshotValue = (value) => {
+            const safe = sanitizeZipNamePart(toSnapshotValueString(value));
+            return safe.length > 10 ? safe.slice(0, 10) : safe;
+        };
+
+        const normalizeHistoryUrl = (urlStr) => {
+            if (!urlStr) return "";
+            try {
+                const u = new URL(urlStr, window.location.origin);
+                const params = new URLSearchParams(u.search);
+                params.delete("t");
+                const normalized = params.toString();
+                return `${u.pathname}?${normalized}`;
+            } catch (_) {
+                return String(urlStr).replace(/([?&])t=[^&]*/g, "").replace(/[?&]$/, "");
+            }
+        };
+
+        const parseNumberedDefaultTitle = (title) => {
+            const text = (title || "").trim();
+            if (!text) return null;
+            const match = text.match(/^#+\s*(\d+)$/);
+            return match ? match[1] : null;
+        };
+
+        const resolveCardLabel = (card, cardIndex) => {
+            const fallback = String(cardIndex + 1);
+            const numbered = parseNumberedDefaultTitle(card?.title || "");
+            if (numbered) return numbered;
+            const safe = sanitizeZipNamePart(card?.title || "");
+            return safe || fallback;
+        };
+
+        const resolveOutputLabel = (area, previewOrder) => {
+            const fallback = String(previewOrder);
+            const numbered = parseNumberedDefaultTitle(area?.title || "");
+            if (numbered) return numbered;
+            const safe = sanitizeZipNamePart(area?.title || "");
+            return safe || fallback;
+        };
+
+        const parseFilenameAndExt = (urlStr, fallbackIndex = 0) => {
+            try {
+                const urlObj = new URL(urlStr, window.location.origin);
+                const filename = urlObj.searchParams.get('filename') || `media_${Date.now()}_${fallbackIndex}`;
+                const extMatch = filename.match(/(\.[^./\\]+)$/);
+                return { filename, ext: extMatch ? extMatch[1] : "" };
+            } catch (_) {
+                return { filename: `media_${Date.now()}_${fallbackIndex}`, ext: "" };
+            }
+        };
+
+        const buildParamTokensFromSnapshot = (snapshotEntries) => {
+            if (!Array.isArray(snapshotEntries) || snapshotEntries.length === 0) return [];
+            const tokens = [];
+
+            snapshotEntries.forEach((entry, entryIndex) => {
+                if (!entry || typeof entry !== "object") return;
+
+                const rawValue = trimSnapshotValue(entry.value);
+                const widgetNames = [];
+
+                if (Array.isArray(entry.targetWidgets) && entry.targetWidgets.length > 0) {
+                    entry.targetWidgets.forEach((item) => {
+                        const parts = String(item).split("||");
+                        const widget = parts[1] == null ? "" : String(parts[1]).trim();
+                        if (widget) widgetNames.push(widget);
                     });
-                } else return alert("请先选中需要下载的任务卡片或输出模块！");
-            } else {
-                state.cards.forEach(c => c.areas?.forEach(a => extractUrlsFromArea(a)));
+                }
+
+                if (widgetNames.length === 0 && entry.targetWidget) {
+                    const singleWidget = String(entry.targetWidget).trim();
+                    if (singleWidget) widgetNames.push(singleWidget);
+                }
+
+                if (widgetNames.length === 0 && entry.title) {
+                    const titleName = String(entry.title).trim();
+                    if (titleName) widgetNames.push(titleName);
+                }
+
+                const uniqueNames = [...new Set(widgetNames)];
+                if (uniqueNames.length === 0) return;
+
+                uniqueNames.forEach((name, nameIndex) => {
+                    const safeName = sanitizeZipNamePart(name) || `param${entryIndex + 1}_${nameIndex + 1}`;
+                    tokens.push(`[${safeName}-${rawValue}]`);
+                });
+            });
+
+            return tokens;
+        };
+
+        const buildZipEntryFilename = (entry) => {
+            const cardPart = sanitizeZipNamePart(entry.cardLabel) || String(entry.cardOrder);
+            const outputPart = sanitizeZipNamePart(entry.outputLabel) || String(entry.outputOrder);
+            const historyPart = String(entry.historyOrder || 1);
+
+            const prefix = `${cardPart}_${outputPart}_${historyPart}`;
+            const paramTokens = buildParamTokensFromSnapshot(entry.snapshot);
+            const ext = entry.ext || "";
+            const maxLength = 120;
+
+            let paramBlock = "";
+            for (const token of paramTokens) {
+                const candidateParamBlock = `${paramBlock}${token}`;
+                const candidateName = `${prefix}_${candidateParamBlock}`;
+                if ((candidateName + ext).length > maxLength) break;
+                paramBlock = candidateParamBlock;
             }
 
-            const uniqueUrls = [...new Set(urlsToDownload)];
-            if (uniqueUrls.length === 0) return alert("没有找到可下载的媒体文件！");
+            let baseName = paramBlock ? `${prefix}_${paramBlock}` : prefix;
+            if ((baseName + ext).length > maxLength) {
+                const keepLen = Math.max(1, maxLength - ext.length);
+                baseName = baseName.slice(0, keepLen).replace(/[_\s]+$/g, "").trim();
+            }
+            if (!baseName) baseName = `media_${Date.now()}`;
+            return `${baseName}${ext}`;
+        };
+
+        const ensureUniqueFilename = (filename, usedNames) => {
+            const safe = filename || `media_${Date.now()}`;
+            const dotIndex = safe.lastIndexOf(".");
+            const hasExt = dotIndex > 0;
+            const base = hasExt ? safe.slice(0, dotIndex) : safe;
+            const ext = hasExt ? safe.slice(dotIndex) : "";
+            const keyOf = (name) => String(name).toLowerCase();
+
+            let candidate = safe;
+            let suffix = 2;
+            const maxLength = 120;
+            while (usedNames.has(keyOf(candidate))) {
+                const suffixText = `_${suffix++}`;
+                const keepLen = Math.max(1, maxLength - ext.length - suffixText.length);
+                const nextBase = base.slice(0, keepLen).replace(/[_\s]+$/g, "").trim() || "media";
+                candidate = `${nextBase}${suffixText}${ext}`;
+            }
+            usedNames.add(keyOf(candidate));
+            return candidate;
+        };
+
+        const downloadMediaFiles = async (mode, includeHistory = false) => {
+            exportDropdown.style.display = 'none';
+            const mediaEntries = [];
+            const selectedAreaIds = new Set(state.selectedAreaIds || []);
+            const selectedCardIds = new Set(state.selectedCardIds || []);
+
+            if (mode === 'selected' && selectedAreaIds.size === 0 && selectedCardIds.size === 0) {
+                return alert("请先选中需要下载的任务卡片或输出模块！");
+            }
+
+            const pushEntry = (card, cardIndex, area, previewOrder, urlStr, historyIndex) => {
+                if (!urlStr) return;
+                const { filename, ext } = parseFilenameAndExt(urlStr, mediaEntries.length);
+                const snapshot = (Array.isArray(area.inputHistorySnapshots) && historyIndex >= 0)
+                    ? area.inputHistorySnapshots[historyIndex]
+                    : null;
+
+                mediaEntries.push({
+                    url: urlStr,
+                    filename,
+                    ext,
+                    cardOrder: cardIndex + 1,
+                    outputOrder: previewOrder,
+                    historyOrder: historyIndex >= 0 ? historyIndex + 1 : 1,
+                    cardLabel: resolveCardLabel(card, cardIndex),
+                    outputLabel: resolveOutputLabel(area, previewOrder),
+                    snapshot,
+                });
+            };
+
+            state.cards.forEach((card, cardIndex) => {
+                const shouldByCard = mode === 'all' || (mode === 'selected' && selectedAreaIds.size === 0 && selectedCardIds.has(card.id));
+                let previewOrder = 0;
+
+                card.areas?.forEach((area) => {
+                    if (area.type !== 'preview') return;
+                    previewOrder += 1;
+
+                    const shouldByArea = mode === 'selected' && selectedAreaIds.size > 0 && selectedAreaIds.has(area.id);
+                    if (!shouldByCard && !shouldByArea) return;
+
+                    if (includeHistory && Array.isArray(area.history) && area.history.length > 0) {
+                        area.history.forEach((historyUrl, idx) => pushEntry(card, cardIndex, area, previewOrder, historyUrl, idx));
+                        return;
+                    }
+
+                    if (!area.resultUrl) return;
+                    let historyIndex = -1;
+                    if (Array.isArray(area.history) && area.history.length > 0) {
+                        const activeNorm = normalizeHistoryUrl(area.resultUrl);
+                        historyIndex = area.history.findIndex((historyUrl) => normalizeHistoryUrl(historyUrl) === activeNorm);
+                        if (historyIndex < 0 && Number.isInteger(area.historyIndex) && area.historyIndex >= 0 && area.historyIndex < area.history.length) {
+                            historyIndex = area.historyIndex;
+                        }
+                    }
+                    pushEntry(card, cardIndex, area, previewOrder, area.resultUrl, historyIndex);
+                });
+            });
+
+            if (mediaEntries.length === 0) return alert("没有找到可下载的媒体文件！");
 
             // 同步获取自定义的文件夹名称用于 Zip 命名
             const archiveBase = window._clabArchiveDir || "CLab";
 
-            if (uniqueUrls.length === 1) {
+            if (mediaEntries.length === 1) {
                 try {
-                    const url = uniqueUrls[0];
-                    const urlObj = new URL(url, window.location.origin);
-                    const filename = urlObj.searchParams.get('filename') || `media_${Date.now()}`;
-                    const response = await fetch(url);
+                    const entry = mediaEntries[0];
+                    const response = await fetch(entry.url);
                     const blob = await response.blob();
                     const blobUrl = URL.createObjectURL(blob);
                     const a = document.createElement('a');
-                    a.href = blobUrl; a.download = filename; 
+                    a.href = blobUrl;
+                    a.download = buildZipEntryFilename(entry);
                     document.body.appendChild(a); a.click(); document.body.removeChild(a);
                     URL.revokeObjectURL(blobUrl);
                 } catch (err) { alert("下载失败: " + err.message); }
@@ -390,14 +578,14 @@ export function attachDataIOEvents(panelContainer) {
                     }
                     const zip = new window.JSZip();
                     const folder = zip.folder(`${archiveBase}_Export`);
+                    const usedNames = new Set();
                     
-                    for (let i = 0; i < uniqueUrls.length; i++) {
-                        const url = uniqueUrls[i];
-                        const urlObj = new URL(url, window.location.origin);
-                        const filename = urlObj.searchParams.get('filename') || `media_${Date.now()}_${i}`;
-                        const response = await fetch(url);
+                    for (let i = 0; i < mediaEntries.length; i++) {
+                        const entry = mediaEntries[i];
+                        const response = await fetch(entry.url);
                         const blob = await response.blob();
-                        folder.file(filename, blob);
+                        const targetName = ensureUniqueFilename(buildZipEntryFilename(entry), usedNames);
+                        folder.file(targetName, blob);
                     }
                     
                     const zipBlob = await zip.generateAsync({ type: "blob" });
@@ -410,16 +598,16 @@ export function attachDataIOEvents(panelContainer) {
                 } catch (err) {
                     if (typeof hideBindingToast === 'function') hideBindingToast();
                     alert("网络原因无法加载打包组件，将为您逐个下载...");
-                    for (let i = 0; i < uniqueUrls.length; i++) {
+                    const usedNames = new Set();
+                    for (let i = 0; i < mediaEntries.length; i++) {
                         try {
-                            const url = uniqueUrls[i];
-                            const urlObj = new URL(url, window.location.origin);
-                            const filename = urlObj.searchParams.get('filename') || `media_${Date.now()}_${i}`;
-                            const response = await fetch(url);
+                            const entry = mediaEntries[i];
+                            const response = await fetch(entry.url);
                             const blob = await response.blob();
                             const blobUrl = URL.createObjectURL(blob);
                             const a = document.createElement('a');
-                            a.href = blobUrl; a.download = filename; 
+                            a.href = blobUrl;
+                            a.download = ensureUniqueFilename(buildZipEntryFilename(entry), usedNames);
                             document.body.appendChild(a); a.click(); document.body.removeChild(a);
                             URL.revokeObjectURL(blobUrl);
                             await new Promise(res => setTimeout(res, 300));
