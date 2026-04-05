@@ -5,7 +5,12 @@
 import { api } from "../../scripts/api.js";
 import { StateManager } from "./state_manager.js";
 import { showBindingToast, hideBindingToast } from "./components/ui_utils.js";
-import { pushPreviewHistoryEntry, syncTextContentWithSelection } from "./components/modules/media_types/media_utils.js";
+import {
+    captureCardInputSnapshot,
+    ensureInputSnapshotState,
+    pushPreviewHistoryEntry,
+    syncTextContentWithSelection,
+} from "./components/modules/media_types/media_utils.js";
 
 export function setupAPIInjector(app) {
     console.log("[CLab] 初始化 API 拦截、动态剪枝与回传系统...");
@@ -270,6 +275,8 @@ export function setupAPIInjector(app) {
 
         for (let task of tasks) {
             window._clabDoneTasks.delete(task.cardId); 
+            const cardAtQueueTime = StateManager.state.cards.find(c => c.id === task.cardId);
+            task.inputSnapshot = captureCardInputSnapshot(cardAtQueueTime);
             window._clabExecQueue.push(task);
             
             const bar = document.querySelector(`.clab-card-progress-container[data-card-prog-id="${task.cardId}"] .clab-card-progress-bar`);
@@ -461,6 +468,8 @@ export function setupAPIInjector(app) {
                 let newUrlFirst = null;
                 let isVideoFirst = false;
                 let isAudioFirst = false;
+                const inputSnapshot = Array.isArray(task.inputSnapshot) ? task.inputSnapshot : [];
+                ensureInputSnapshotState(area);
 
                 let targetItems = null;
                 if (outputData.videos && outputData.videos.length > 0) targetItems = outputData.videos;
@@ -530,22 +539,29 @@ export function setupAPIInjector(app) {
                         // 🔥 【核心状态回写】：强制纠正由于异步时间差被提前写进去的 temp 路径！
                         if (newUrl) {
                             if (!area.history) area.history = [];
+                            ensureInputSnapshotState(area);
                             
                             // 查找是否已经存在于 history 中（匹配完整路径或包含参数）
                             const foundIdx = area.history.findIndex(h => h === oldUrl || h.includes(oldUrlStr));
                             if (foundIdx !== -1) {
                                 // 替换为永久资产路径
                                 area.history[foundIdx] = newUrl;
+                                area.inputHistorySnapshots[foundIdx] = inputSnapshot;
                             } else {
                                 // 如果没被别处拦截写入，那么我们主动帮它存入历史记录里，防止丢失
                                 if (!area.history.includes(newUrl)) {
                                     area.history.push(newUrl);
+                                    area.inputHistorySnapshots.push(inputSnapshot);
                                     
                                     // 【核心注入】：应用历史容量上限
                                     const maxLimit = window._clabMaxHistory || 50;
                                     while (area.history.length > maxLimit) {
                                         area.history.shift();
+                                        area.inputHistorySnapshots.shift();
                                     }
+                                } else {
+                                    const existingIdx = area.history.indexOf(newUrl);
+                                    if (existingIdx !== -1) area.inputHistorySnapshots[existingIdx] = inputSnapshot;
                                 }
                             }
                         }
@@ -617,7 +633,7 @@ export function setupAPIInjector(app) {
                 } else if (textContent) {
                     try {
                         const textUrl = await saveTextAsset(textContent);
-                        pushPreviewHistoryEntry(area, textUrl, { kind: "text", text: textContent });
+                        pushPreviewHistoryEntry(area, textUrl, { kind: "text", text: textContent, inputSnapshot });
                         syncTextContentWithSelection(area);
                         StateManager.syncToNode(app.graph);
 

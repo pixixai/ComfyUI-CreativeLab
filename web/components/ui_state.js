@@ -445,6 +445,9 @@ export const removeUrlsGlobally = (urlsToRemove) => {
                 });
                 const originalLength = area.history.length;
                 area.history = keepIndices.map((index) => area.history[index]);
+                if (Array.isArray(area.inputHistorySnapshots) && area.inputHistorySnapshots.length > 0) {
+                    area.inputHistorySnapshots = keepIndices.map((index) => area.inputHistorySnapshots[index]);
+                }
                 if (Array.isArray(area.textHistory) && area.textHistory.length > 0) {
                     area.textHistory = keepIndices.map((index) => area.textHistory[index]);
                 }

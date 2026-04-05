@@ -5,7 +5,11 @@
 import { state, appState, createEmptyWorkspace, applyWorkspaceToState, saveAndRender } from "../ui_state.js";
 import { updateSelectionUI } from "../ui_selection.js";
 import { enterBindingModeForSelected } from "../actions/action_binding.js";
-import { loadSelectedTextContent, syncTextContentWithSelection } from "../modules/media_types/media_utils.js";
+import {
+    loadSelectedTextContent,
+    restoreCardInputsFromHistorySelection,
+    syncTextContentWithSelection,
+} from "../modules/media_types/media_utils.js";
 
 // 【核心新增】：快捷键解析引擎下沉至此，根据字符串动态计算修饰键和主键
 function parseShortcut(shortcutStr) {
@@ -220,9 +224,10 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
             
             const areaId = state.selectedAreaIds[0];
             let targetArea = null;
+            let targetCard = null;
             for (const c of state.cards) {
                 const a = c.areas?.find(x => x.id === areaId);
-                if (a) { targetArea = a; break; }
+                if (a) { targetArea = a; targetCard = c; break; }
             }
             
             if (targetArea && targetArea.type === 'preview' && targetArea.history && targetArea.history.length > 1) {
@@ -236,6 +241,23 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
                     targetArea.historyIndex = idx;
                     targetArea.resultUrl = targetArea.history[idx];
                     syncTextContentWithSelection(targetArea);
+
+                    const restored = restoreCardInputsFromHistorySelection(targetCard, targetArea);
+                    if (restored.changed) {
+                        if (restored.createdAreaIds.length > 0) {
+                            if (window._clabRefreshContextView) window._clabRefreshContextView();
+                            else saveAndRender();
+                            void loadSelectedTextContent(targetArea, { refresh: true });
+                            return;
+                        }
+
+                        if (window._clabRefreshAreaForContext) {
+                            restored.touchedAreaIds.forEach((areaToRefresh) => {
+                                if (areaToRefresh === targetArea.id) return;
+                                window._clabRefreshAreaForContext(areaToRefresh);
+                            });
+                        }
+                    }
 
                     if (window._clabSurgicallyUpdateArea) {
                         window._clabSurgicallyUpdateArea(targetArea.id);

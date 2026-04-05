@@ -144,6 +144,8 @@ export const StateManager = {
 
                     if (newUrls.length > 0) {
                         area.history = [...area.history, ...newUrls];
+                        if (!Array.isArray(area.inputHistorySnapshots)) area.inputHistorySnapshots = [];
+                        while (area.inputHistorySnapshots.length < area.history.length) area.inputHistorySnapshots.push(null);
                         if (!area.resultUrl && area.history.length > 0) {
                             area.historyIndex = area.history.length - 1;
                             area.resultUrl = area.history[area.historyIndex];

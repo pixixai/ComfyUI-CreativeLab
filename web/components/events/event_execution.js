@@ -6,6 +6,7 @@ import { api } from "../../../../scripts/api.js";
 import { state } from "../ui_state.js";
 // 引入咱们自己的全局 Toast 弹窗组件
 import { showBindingToast, hideBindingToast } from "../ui_utils.js";
+import { ensureInputSnapshotState } from "../modules/media_types/media_utils.js";
 
 // =====================================================================================
 // 🎯 核心 UI 进度条引擎
@@ -208,14 +209,20 @@ export function setupExecutionEvents() {
                 
                 if (newUrl) {
                     if (!area.history) area.history = [];
+                    ensureInputSnapshotState(area);
+                    const inputSnapshot = Array.isArray(task.inputSnapshot) ? task.inputSnapshot : [];
                     if (area.history.length === 0 || area.history[area.history.length - 1] !== newUrl) {
                         area.history.push(newUrl);
+                        area.inputHistorySnapshots.push(inputSnapshot);
                         
                         // 【核心注入】：应用历史容量上限
                         const maxLimit = window._clabMaxHistory || 50;
                         while (area.history.length > maxLimit) {
                             area.history.shift();
+                            area.inputHistorySnapshots.shift();
                         }
+                    } else if (area.history.length > 0) {
+                        area.inputHistorySnapshots[area.history.length - 1] = inputSnapshot;
                     }
                     area.historyIndex = area.history.length - 1;
                 }

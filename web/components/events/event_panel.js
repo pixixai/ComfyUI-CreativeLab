@@ -189,6 +189,9 @@ function setupMediaErrorHandler() {
 
             if (idx !== -1) {
                 area.history.splice(idx, 1);
+                if (Array.isArray(area.inputHistorySnapshots) && area.inputHistorySnapshots.length > 0) {
+                    area.inputHistorySnapshots.splice(idx, 1);
+                }
                 if (area.history.length === 0) {
                     area.resultUrl = "";
                     area.historyIndex = 0;

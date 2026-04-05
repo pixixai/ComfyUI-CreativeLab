@@ -6,7 +6,13 @@ import { state, dragState, saveAndRender } from "../ui_state.js";
 import { getRatioCSS, showBindingToast, hideBindingToast } from "../ui_utils.js";
 // 【完美保留】：继续使用你原本正确的媒体路由专员，绝不破坏底层架构！
 import { renderMedia, attachMediaEvents } from "./module_media.js";
-import { getAreaResultType, getMediaType, loadSelectedTextContent, syncTextContentWithSelection } from "./media_types/media_utils.js";
+import {
+    getAreaResultType,
+    getMediaType,
+    loadSelectedTextContent,
+    restoreCardInputsFromHistorySelection,
+    syncTextContentWithSelection,
+} from "./media_types/media_utils.js";
 
 // 【防裂图引擎】：解析并强制刷新 ComfyUI 原生 /view URL 的访问时间戳
 function getValidMediaUrl(urlStr) {
@@ -190,6 +196,26 @@ export function attachOutputEvents(container) {
         }
     };
 
+    const applyInputSnapshotForSelection = (card, area) => {
+        if (!card || !area) return false;
+        const restored = restoreCardInputsFromHistorySelection(card, area);
+        if (!restored.changed) return false;
+
+        if (restored.createdAreaIds.length > 0) {
+            if (window._clabRefreshContextView) window._clabRefreshContextView();
+            else saveAndRender();
+            return true;
+        }
+
+        if (window._clabRefreshAreaForContext) {
+            restored.touchedAreaIds.forEach((areaId) => {
+                if (areaId === area.id) return;
+                window._clabRefreshAreaForContext(areaId);
+            });
+        }
+        return false;
+    };
+
     // 【功能1】：网格视图下“仅移除” (仅限当前模块，不删文件)
     container.querySelectorAll('.clab-manage-remove-btn').forEach(btn => {
         btn.onclick = (e) => {
@@ -214,6 +240,9 @@ export function attachOutputEvents(container) {
                 if (targetIndices.length > 0) {
                     const activeUrl = area.resultUrl;
                     area.history = area.history.filter((_, i) => !targetIndices.includes(i));
+                    if (Array.isArray(area.inputHistorySnapshots) && area.inputHistorySnapshots.length > 0) {
+                        area.inputHistorySnapshots = area.inputHistorySnapshots.filter((_, i) => !targetIndices.includes(i));
+                    }
                     if (Array.isArray(area.textHistory) && area.textHistory.length > 0) {
                         area.textHistory = area.textHistory.filter((_, i) => !targetIndices.includes(i));
                     }
@@ -272,6 +301,9 @@ export function attachOutputEvents(container) {
                 
                 const activeUrl = area.resultUrl;
                 area.history = area.history.filter((_, i) => !toDelete.includes(i));
+                if (Array.isArray(area.inputHistorySnapshots) && area.inputHistorySnapshots.length > 0) {
+                    area.inputHistorySnapshots = area.inputHistorySnapshots.filter((_, i) => !toDelete.includes(i));
+                }
                 if (Array.isArray(area.textHistory) && area.textHistory.length > 0) {
                     area.textHistory = area.textHistory.filter((_, i) => !toDelete.includes(i));
                 }
@@ -338,6 +370,9 @@ export function attachOutputEvents(container) {
                     area.lastClickedThumbIdx = idx;
                     syncTextContentWithSelection(area);
                     void loadSelectedTextContent(area, { refresh: true });
+
+                    const didFullRefresh = applyInputSnapshotForSelection(card, area);
+                    if (didFullRefresh) return;
                 }
                 applySurgicalUpdate(area);
             }
@@ -422,9 +457,15 @@ export function attachOutputEvents(container) {
                     const targetUrl = area.history[targetIdx];
 
                     const movedItems = draggedIndices.map(i => area.history[i]);
+                    const movedInputSnapshots = Array.isArray(area.inputHistorySnapshots)
+                        ? draggedIndices.map(i => area.inputHistorySnapshots[i])
+                        : null;
                     const movedTextItems = Array.isArray(area.textHistory) ? draggedIndices.map(i => area.textHistory[i]) : null;
                     const movedTextStatuses = Array.isArray(area.textHistoryStatus) ? draggedIndices.map(i => area.textHistoryStatus[i]) : null;
                     let newHistory = area.history.filter((_, i) => !draggedIndices.includes(i));
+                    let newInputSnapshots = Array.isArray(area.inputHistorySnapshots)
+                        ? area.inputHistorySnapshots.filter((_, i) => !draggedIndices.includes(i))
+                        : null;
                     let newTextHistory = Array.isArray(area.textHistory)
                         ? area.textHistory.filter((_, i) => !draggedIndices.includes(i))
                         : null;
@@ -438,6 +479,10 @@ export function attachOutputEvents(container) {
                     
                     newHistory.splice(newTargetIdx, 0, ...movedItems);
                     area.history = newHistory;
+                    if (newInputSnapshots && movedInputSnapshots) {
+                        newInputSnapshots.splice(newTargetIdx, 0, ...movedInputSnapshots);
+                        area.inputHistorySnapshots = newInputSnapshots;
+                    }
                     if (newTextHistory && movedTextItems) {
                         newTextHistory.splice(newTargetIdx, 0, ...movedTextItems);
                         area.textHistory = newTextHistory;
