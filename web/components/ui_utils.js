@@ -1,12 +1,12 @@
-/**
- * 文件名: ui_utils.js
- * 职责: UI 渲染辅助工具、ComfyUI 图谱解析、CSS 样式库
+﻿﻿/**
+ * 鏂囦欢鍚? ui_utils.js
+ * 鑱岃矗: UI 娓叉煋杈呭姪宸ュ叿銆丆omfyUI 鍥捐氨瑙ｆ瀽銆丆SS 鏍峰紡搴?
  */
 import { app } from "../../../scripts/app.js";
 import { appState } from "./ui_state.js";
 
 // =========================================================================
-// --- DOM 辅助构建方法 ---
+// --- DOM 杈呭姪鏋勫缓鏂规硶 ---
 // =========================================================================
 
 export function buildCustomSelect(id, width, valueText, itemsHtml, disabled = false, dataAttrs = '') {
@@ -37,7 +37,7 @@ export function truncateString(str, maxLength) {
 }
 
 // =========================================================================
-// --- ComfyUI 底层数据解析与菜单构建 ---
+// --- ComfyUI 搴曞眰鏁版嵁瑙ｆ瀽涓庤彍鍗曟瀯寤?---
 // =========================================================================
 
 export function getWidgetDef(nodeId, widgetName) {
@@ -51,7 +51,7 @@ export function getCustomNodeMenuHTML(selectedNodeId) {
     const tree = { name: "Root", children: {}, nodes: [] };
     if (app.graph && app.graph._nodes) {
         app.graph._nodes.forEach(node => {
-            let groupPath = ["未分组"];
+            let groupPath = ["Ungrouped"];
             if (app.graph._groups) {
                 for (let g of app.graph._groups) {
                     if (node.pos[0] >= g.pos[0] && node.pos[0] <= g.pos[0] + g.size[0] &&
@@ -63,7 +63,7 @@ export function getCustomNodeMenuHTML(selectedNodeId) {
             }
 
             let currentLevel = tree;
-            if (groupPath[0] !== "未分组") {
+            if (groupPath[0] !== "Ungrouped") {
                 groupPath.forEach(part => {
                     if (!currentLevel.children[part]) {
                         currentLevel.children[part] = { name: part, children: {}, nodes: [] };
@@ -91,7 +91,7 @@ export function getCustomNodeMenuHTML(selectedNodeId) {
 
     let finalHtml = `<div class="clab-custom-select-item" data-value="" style="color:#aaa;">(清除关联)</div>`;
     if (tree.nodes.length > 0) {
-        finalHtml += `<div class="clab-custom-select-group-title">未分组</div>`;
+        finalHtml += `<div class="clab-custom-select-group-title">Ungrouped</div>`;
         finalHtml += renderTree({ nodes: tree.nodes, children: {} }, 0);
     }
     for (let childName in tree.children) {
@@ -158,14 +158,14 @@ export function getMultiWidgetMenuHTML(nodeIds, selectedWidgets) {
             });
         }
         if (!hasWidget) {
-            html += `<div class="clab-custom-select-item disabled" style="color:#666; pointer-events:none;">无可用参数</div>`;
+            html += `<div class="clab-custom-select-item disabled" style="color:#666; pointer-events:none;">No available parameters</div>`;
         }
     });
     return html;
 }
 
 // =========================================================================
-// --- 沉浸式提示 Toast ---
+// --- 娌夋蹈寮忔彁绀?Toast ---
 // =========================================================================
 
 export function showBindingToast(msg, isError = false) {
@@ -200,7 +200,7 @@ export function hideBindingToast() {
 }
 
 // =========================================================================
-// --- 通用交互绑定 ---
+// --- 閫氱敤浜や簰缁戝畾 ---
 // =========================================================================
 
 export function bindComboSelectEvents(container, stateObj, saveAndRenderCallback) {
@@ -317,14 +317,14 @@ export function bindComboSelectEvents(container, stateObj, saveAndRenderCallback
 }
 
 // =========================================================================
-// --- CSS 全局样式注入 ---
+// --- CSS 鍏ㄥ眬鏍峰紡娉ㄥ叆 ---
 // =========================================================================
 
 export function injectDnDCSS() {
     if (!document.getElementById('clab-area-dnd-styles')) {
         const style = document.createElement('style');
         style.id = 'clab-area-dnd-styles';
-        // 【主题引擎】：拖拽样式实时关联 CSS 变量
+        // 銆愪富棰樺紩鎿庛€戯細鎷栨嫿鏍峰紡瀹炴椂鍏宠仈 CSS 鍙橀噺
         style.innerHTML = `
             .clab-drag-over-area-top { border-top: 3px solid var(--clab-theme-card, #4CAF50) !important; background: var(--clab-theme-card-hover, rgba(76, 175, 80, 0.1)) !important; }
             .clab-drag-over-area-bottom { border-bottom: 3px solid var(--clab-theme-card, #4CAF50) !important; background: var(--clab-theme-card-hover, rgba(76, 175, 80, 0.1)) !important; }
@@ -340,7 +340,7 @@ export function injectDnDCSS() {
 
 export function injectCSS() {
     const style = document.createElement("style");
-    // 【主题引擎】：全面抛弃硬编码颜色，全线启用 CSS 变量！
+    // 銆愪富棰樺紩鎿庛€戯細鍏ㄩ潰鎶涘純纭紪鐮侀鑹诧紝鍏ㄧ嚎鍚敤 CSS 鍙橀噺锛?
     style.innerHTML = `
         #clab-backdrop {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -700,7 +700,7 @@ export function injectCSS() {
         .clab-drag-over-tab-right { border-right: 2px solid var(--clab-theme-card, #4CAF50) !important; background: var(--clab-theme-card-hover, rgba(76, 175, 80, 0.1)) !important; }
 
         /* ========================================================================= */
-        /* --- 右键菜单样式 (Context Menu) --- */
+        /* --- 鍙抽敭鑿滃崟鏍峰紡 (Context Menu) --- */
         /* ========================================================================= */
         .clab-context-menu {
             position: fixed;
@@ -741,6 +741,466 @@ export function injectCSS() {
             height: 1px;
             background: rgba(255, 255, 255, 0.1);
             margin: 4px 0;
+        }
+
+        .clab-preview-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 10020;
+            display: none;
+        }
+        .clab-preview-modal.visible {
+            display: block;
+        }
+        .clab-preview-modal-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.62);
+            backdrop-filter: blur(6px);
+        }
+        .clab-preview-modal-panel {
+            position: absolute;
+            inset: 4vh 4vw;
+            display: flex;
+            flex-direction: column;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            background: linear-gradient(180deg, rgba(28, 28, 28, 0.96), rgba(20, 20, 20, 0.96));
+            box-shadow: 0 28px 60px rgba(0, 0, 0, 0.55);
+            overflow: hidden;
+        }
+        .clab-preview-modal-head {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(10, 10, 10, 0.35);
+        }
+        .clab-preview-modal-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #f2f2f2;
+            letter-spacing: 0.2px;
+        }
+        .clab-preview-modal-close {
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(255,255,255,0.08);
+            color: #f0f0f0;
+            border-radius: 8px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .clab-preview-modal-close:hover {
+            background: rgba(255,255,255,0.16);
+        }
+        .clab-preview-modal-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: grid;
+            grid-template-columns: 240px minmax(320px, 1fr) 360px;
+            gap: 0;
+        }
+        .clab-preview-modal-left,
+        .clab-preview-modal-center,
+        .clab-preview-modal-right {
+            min-height: 0;
+        }
+        .clab-preview-modal-left {
+            border-right: 1px solid rgba(255,255,255,0.08);
+            background: rgba(12, 12, 12, 0.35);
+            overflow-y: auto;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .clab-preview-modal-center {
+            background: rgba(0,0,0,0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 10px;
+        }
+        .clab-preview-modal-right {
+            border-left: 1px solid rgba(255,255,255,0.08);
+            background: rgba(16, 16, 16, 0.45);
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            font-family: sans-serif;
+        }
+        .clab-preview-modal-thumb {
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            background: rgba(255,255,255,0.04);
+            color: #e8e8e8;
+            cursor: pointer;
+            text-align: left;
+            padding: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .clab-preview-modal-thumb.active {
+            border-color: var(--clab-theme-module, #2196F3);
+            box-shadow: 0 0 0 1px rgba(33, 150, 243, 0.35) inset;
+            background: rgba(33,150,243,0.14);
+        }
+        .clab-preview-modal-thumb:hover {
+            background: rgba(255,255,255,0.11);
+        }
+        .clab-preview-modal-thumb-media {
+            width: 100%;
+            aspect-ratio: 16/10;
+            border-radius: 8px;
+            overflow: hidden;
+            background: rgba(0,0,0,0.42);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .clab-preview-modal-thumb-media img,
+        .clab-preview-modal-thumb-media video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            pointer-events: none;
+        }
+        .clab-preview-modal-thumb-badge {
+            font-size: 12px;
+            color: #ddd;
+            letter-spacing: 0.6px;
+        }
+        .clab-preview-modal-thumb-name {
+            font-size: 12px;
+            color: #ddd;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .clab-preview-modal-image-stage {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+            cursor: zoom-in;
+        }
+        .clab-preview-modal-image-stage.hand-ready {
+            cursor: grab;
+        }
+        .clab-preview-modal-image-stage.dragging {
+            cursor: grabbing;
+        }
+        .clab-preview-modal-main-image,
+        .clab-preview-modal-main-video {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 10px;
+            box-shadow: 0 8px 26px rgba(0, 0, 0, 0.45);
+            background: #000;
+        }
+        .clab-preview-modal-main-image {
+            transform-origin: center center;
+            transition: transform 0.04s linear;
+            user-select: none;
+            -webkit-user-select: none;
+            pointer-events: none;
+            will-change: transform;
+        }
+        .clab-preview-modal-main-video {
+            width: 100%;
+            max-width: 100%;
+            height: auto;
+        }
+        .clab-preview-modal-main-audio {
+            width: min(560px, 92%);
+            margin-top: 16px;
+        }
+        .clab-preview-modal-audio-wrap,
+        .clab-preview-modal-file-wrap {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: #f3f3f3;
+            text-align: center;
+        }
+        .clab-preview-modal-audio-wave-wrap {
+            width: min(860px, 94%);
+            height: 120px;
+            border-radius: 0;
+            border: none;
+            background: transparent;
+            box-shadow: none;
+            padding: 0;
+            box-sizing: border-box;
+            display: flex;
+            align-items: stretch;
+        }
+        .clab-preview-modal-audio-name {
+            width: min(860px, 94%);
+            text-align: left;
+            font-family: sans-serif;
+            font-size: 12px;
+            color: rgba(240, 245, 250, 0.92);
+            letter-spacing: 0.1px;
+        }
+        .clab-preview-modal-audio-wave {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: pointer;
+        }
+        .clab-preview-modal-file-link {
+            color: #8ecbff;
+            text-decoration: none;
+            border-bottom: 1px solid rgba(142, 203, 255, 0.5);
+        }
+        .clab-preview-modal-file-link:hover {
+            color: #b8ddff;
+            border-bottom-color: #b8ddff;
+        }
+        .clab-preview-modal-main-text {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 12px;
+            overflow: auto;
+            box-sizing: border-box;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(8,8,8,0.78);
+            color: #f2f2f2;
+            font-size: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .clab-preview-modal-text-editor {
+            width: min(980px, 98%);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            color: #eef3f8;
+            font-family: sans-serif;
+        }
+        .clab-preview-modal-text-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            font-family: sans-serif;
+        }
+        .clab-preview-modal-text-option {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: rgba(235, 242, 250, 0.9);
+            font-size: 12px;
+            font-family: sans-serif;
+            user-select: none;
+            cursor: pointer;
+        }
+        .clab-preview-modal-text-option input {
+            width: 14px;
+            height: 14px;
+            margin: 0;
+            cursor: pointer;
+        }
+        .clab-preview-modal-text-copy,
+        .clab-preview-modal-text-save {
+            border: 1px solid rgba(255,255,255,0.16);
+            border-radius: 6px;
+            background: rgba(255,255,255,0.08);
+            color: #eef3f8;
+            font: 12px/1 sans-serif;
+            padding: 6px 10px;
+            cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+        }
+        .clab-preview-modal-text-copy:hover,
+        .clab-preview-modal-text-save:hover {
+            background: rgba(255,255,255,0.14);
+            border-color: rgba(255,255,255,0.24);
+        }
+        .clab-preview-modal-text-copy:disabled,
+        .clab-preview-modal-text-save:disabled {
+            opacity: 0.72;
+            cursor: default;
+        }
+        .clab-preview-modal-text-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 8px;
+            background: rgba(8,8,8,0.78);
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        .clab-preview-modal-text-editor-host {
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+        }
+        .clab-preview-modal-text-editor-host.hidden,
+        .clab-preview-modal-text-editor-input.hidden {
+            display: none;
+        }
+        .clab-preview-modal-text-editor-host .cm-editor {
+            height: 100%;
+            background: transparent;
+        }
+        .clab-preview-modal-text-editor-host .cm-scroller {
+            font-family: sans-serif;
+            font-size: 13px;
+            line-height: 1.62;
+        }
+        .clab-preview-modal-text-editor-host .cm-content {
+            caret-color: #f2f2f2;
+        }
+        .clab-preview-modal-text-editor-host .cm-gutters {
+            background: rgba(255,255,255,0.03);
+            border-right: 1px solid rgba(255,255,255,0.08);
+        }
+        .clab-preview-modal-text-editor-host .toastui-editor-defaultUI {
+            border: none;
+            background: transparent;
+            height: 100%;
+        }
+        .clab-preview-modal-text-editor-host .toastui-editor-main-container {
+            background: transparent;
+        }
+        .clab-preview-modal-text-editor-host .toastui-editor-contents {
+            font-family: sans-serif;
+            font-size: 13px;
+            line-height: 1.62;
+        }
+        .clab-preview-modal-text-editor-input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            outline: none;
+            margin: 0;
+            resize: none;
+            box-sizing: border-box;
+            background: transparent;
+            color: #f2f2f2;
+            font: 13px/1.62 sans-serif;
+            padding: 12px 14px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow: auto;
+        }
+        .clab-preview-modal-text-preview {
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            overflow: auto;
+            padding: 12px 14px;
+            font-family: sans-serif;
+            line-height: 1.6;
+            color: #eef3f8;
+        }
+        .clab-preview-modal-text-preview .clab-text-plain,
+        .clab-preview-modal-text-preview .clab-text-code-pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: sans-serif;
+            font-size: 13px;
+            line-height: 1.62;
+        }
+        .clab-preview-modal-text-preview .clab-text-inline-code {
+            padding: 0.12em 0.32em;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.08);
+        }
+        .clab-preview-modal-text-preview .clab-text-token-string { color: #f7b267; }
+        .clab-preview-modal-text-preview .clab-text-token-number { color: #7fd8be; }
+        .clab-preview-modal-text-preview .clab-text-token-boolean { color: #ff7aa2; }
+        .clab-preview-modal-text-preview .clab-text-token-keyword { color: #7cb7ff; font-weight: 600; }
+        .clab-preview-modal-text-preview .clab-text-token-comment { color: #7f8da1; font-style: italic; }
+        .clab-preview-modal-text-preview .clab-text-token-function { color: #e5c07b; }
+        .clab-preview-modal-text-preview .clab-text-token-operator { color: #d39df8; }
+        .clab-preview-modal-text-preview .clab-text-token-bracket { color: #9bd8ff; }
+        .clab-preview-modal-text-preview .clab-text-token-punctuation { color: #9fb3c8; }
+        .clab-preview-modal-param {
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.03);
+            border-radius: 10px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-family: sans-serif;
+        }
+        .clab-preview-modal-param-key {
+            font-size: 12px;
+            font-weight: 700;
+            color: #f1f1f1;
+        }
+        .clab-preview-modal-param-meta {
+            font-size: 11px;
+            color: #9fa6ad;
+        }
+        .clab-preview-modal-param-value {
+            margin: 0;
+            font-size: 12px;
+            color: #ececec;
+            background: rgba(0,0,0,0.35);
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 8px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 200px;
+            overflow: auto;
+            font-family: sans-serif;
+        }
+        .clab-preview-modal-empty,
+        .clab-preview-modal-loading,
+        .clab-preview-modal-error {
+            color: #cfd6dd;
+            font-size: 13px;
+            text-align: center;
+            margin: auto;
+        }
+        @media (max-width: 1200px) {
+            .clab-preview-modal-body {
+                grid-template-columns: 200px minmax(260px, 1fr) 300px;
+            }
+        }
+        @media (max-width: 900px) {
+            .clab-preview-modal-panel {
+                inset: 2vh 2vw;
+            }
+            .clab-preview-modal-body {
+                grid-template-columns: 1fr;
+                grid-template-rows: 180px minmax(260px, 1fr) 220px;
+            }
+            .clab-preview-modal-left,
+            .clab-preview-modal-right {
+                border: none;
+            }
+            .clab-preview-modal-left {
+                border-bottom: 1px solid rgba(255,255,255,0.08);
+            }
+            .clab-preview-modal-right {
+                border-top: 1px solid rgba(255,255,255,0.08);
+            }
         }
     `;
     document.head.appendChild(style);

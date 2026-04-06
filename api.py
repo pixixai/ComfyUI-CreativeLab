@@ -6,8 +6,11 @@ import nodes
 import json
 import numpy as np
 import shutil
+import subprocess
+import sys
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
+from urllib.parse import parse_qs, urlparse
 
 try:
     from comfy.cli_args import args
@@ -299,4 +302,140 @@ async def clab_save_text(request):
 
     except Exception as e:
         print(f"[CLab] Save text failed: {str(e)}")
+        return web.json_response({"status": "error", "error": str(e)})
+
+
+_CLAB_TEXT_EXTENSIONS = {
+    ".txt",
+    ".md",
+    ".markdown",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".xml",
+    ".csv",
+    ".log",
+}
+
+
+@server.PromptServer.instance.routes.post("/clab/update_text_asset")
+async def clab_update_text_asset(request):
+    try:
+        data = await request.json()
+        target_path = _clab_resolve_asset_path(data)
+        if not os.path.exists(target_path):
+            return web.json_response({"status": "error", "error": "File not found"})
+
+        ext = os.path.splitext(target_path)[1].lower()
+        if ext not in _CLAB_TEXT_EXTENSIONS:
+            return web.json_response({"status": "error", "error": f"Unsupported text file type: {ext or 'unknown'}"})
+
+        text = data.get("text", "")
+        with open(target_path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write("" if text is None else str(text))
+
+        return web.json_response({"status": "success", "path": target_path})
+    except Exception as e:
+        print(f"[CLab] Update text asset failed: {str(e)}")
+        return web.json_response({"status": "error", "error": str(e)})
+
+
+def _clab_base_dir_by_type(type_dir):
+    if type_dir == "input":
+        return folder_paths.get_input_directory()
+    if type_dir == "temp":
+        return folder_paths.get_temp_directory()
+    return folder_paths.get_output_directory()
+
+
+def _clab_safe_join(base_dir, subfolder, filename):
+    full_path = os.path.normpath(os.path.join(base_dir, subfolder, filename))
+    base_abs = os.path.abspath(base_dir)
+    full_abs = os.path.abspath(full_path)
+    if os.path.commonpath([base_abs, full_abs]) != base_abs:
+        raise ValueError("Illegal path")
+    return full_abs
+
+
+def _clab_resolve_asset_path(data):
+    filename = (data.get("filename") or "").strip()
+    subfolder = (data.get("subfolder") or "").strip()
+    type_dir = (data.get("type") or "output").strip().lower()
+
+    if not filename:
+        media_url = data.get("media_url") or data.get("url") or ""
+        parsed = urlparse(media_url)
+        query = parse_qs(parsed.query)
+        filename = ((query.get("filename") or [""])[0] or "").strip()
+        subfolder = ((query.get("subfolder") or [""])[0] or "").strip()
+        type_dir = (((query.get("type") or ["output"])[0] or "output")).strip().lower()
+
+    if not filename:
+        raise ValueError("Missing filename")
+
+    base_dir = _clab_base_dir_by_type(type_dir)
+    return _clab_safe_join(base_dir, subfolder, filename)
+
+
+@server.PromptServer.instance.routes.post("/clab/open_asset")
+@server.PromptServer.instance.routes.get("/clab/open_asset")
+async def clab_open_asset(request):
+    try:
+        if request.method == "GET":
+            query = request.rel_url.query
+            data = {
+                "action": query.get("action", "open"),
+                "media_url": query.get("media_url", ""),
+                "filename": query.get("filename", ""),
+                "subfolder": query.get("subfolder", ""),
+                "type": query.get("type", "output"),
+            }
+        else:
+            data = await request.json()
+        action = (data.get("action") or "open").strip().lower()
+        target_path = _clab_resolve_asset_path(data)
+
+        if not os.path.exists(target_path):
+            return web.json_response({"status": "error", "error": "File not found"})
+
+        if action == "reveal":
+            if os.name == "nt":
+                subprocess.Popen(["explorer", "/select,", target_path])
+                folder_path = os.path.dirname(target_path)
+                ps_target = target_path.replace("'", "''")
+                ps_folder = folder_path.replace("'", "''")
+                ps_script = (
+                    "$target='{0}';"
+                    "$folder='{1}';"
+                    "Start-Sleep -Milliseconds 260;"
+                    "Add-Type -Namespace CLab -Name Native -MemberDefinition '[DllImport(\"user32.dll\")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow); [DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(IntPtr hWnd);';"
+                    "$shell=New-Object -ComObject Shell.Application;"
+                    "$wins=@($shell.Windows()) | Where-Object {{ $_.Document -and $_.Document.Folder -and $_.Document.Folder.Self.Path -eq $folder }};"
+                    "if(-not $wins -or $wins.Count -eq 0){{ $wins=@($shell.Windows()) }};"
+                    "if($wins.Count -gt 0){{"
+                    "  $h=[IntPtr]([int]$wins[0].HWND);"
+                    "  [CLab.Native]::ShowWindowAsync($h, 9) | Out-Null;"
+                    "  [CLab.Native]::SetForegroundWindow($h) | Out-Null;"
+                    "}}"
+                ).format(ps_target, ps_folder)
+                subprocess.Popen(
+                    ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_script],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", "-R", target_path])
+            else:
+                subprocess.Popen(["xdg-open", os.path.dirname(target_path)])
+        else:
+            if os.name == "nt":
+                os.startfile(target_path)
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", target_path])
+            else:
+                subprocess.Popen(["xdg-open", target_path])
+
+        return web.json_response({"status": "success", "path": target_path})
+    except Exception as e:
+        print(f"[CLab] Open asset failed: {str(e)}")
         return web.json_response({"status": "error", "error": str(e)})
