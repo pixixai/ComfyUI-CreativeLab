@@ -69,9 +69,9 @@ window._clabApplyVideoAutoplaySetting = function() {
 // 全新主题专属变量 
 // =========================================================================
 window._clabThemeCardColor = '4caf50';
-window._clabThemeCardBorder = 2;
-window._clabThemeCardFill = 8;
-window._clabThemeCardGlow = 15;
+window._clabThemeCardBorder = 1;
+window._clabThemeCardFill = 0;
+window._clabThemeCardGlow = 10;
 
 window._clabThemeModuleColor = '2196f3';
 window._clabThemeModuleBorder = 1;
@@ -201,7 +201,7 @@ const clabSettings = [
         id: "CLab.5-CardApp.Glow",
         name: "Neon Glow",
         type: "slider",
-        defaultValue: 15,
+        defaultValue: 10,
         attrs: { min: 0, max: 50, step: 1 },
         category: ["Creative Lab", "5-CardApp", "Glow"],
         tooltip: "Outer glow radius when a card is selected. Max out for cyberpunk style.",
@@ -214,7 +214,7 @@ const clabSettings = [
         id: "CLab.5-CardApp.Fill",
         name: "Fill Opacity (%)",
         type: "slider",
-        defaultValue: 8,
+        defaultValue: 0,
         attrs: { min: 0, max: 100, step: 1 },
         category: ["Creative Lab", "5-CardApp", "Fill"],
         tooltip: "Opacity of the highlight background when a card is selected.",
@@ -227,7 +227,7 @@ const clabSettings = [
         id: "CLab.5-CardApp.Border",
         name: "Border Width (px)",
         type: "slider",
-        defaultValue: 2,
+        defaultValue: 1,
         attrs: { min: 1, max: 6, step: 1 },
         category: ["Creative Lab", "5-CardApp", "Border"],
         tooltip: "Border thickness when a card is active.",
@@ -500,9 +500,9 @@ app.registerExtension({
 
                 // 读取主题配置
                 window._clabThemeCardColor = getSet("CLab.5-CardApp.Color", "4caf50");
-                window._clabThemeCardBorder = getSet("CLab.5-CardApp.Border", 2);
-                window._clabThemeCardFill = getSet("CLab.5-CardApp.Fill", 8);
-                window._clabThemeCardGlow = getSet("CLab.5-CardApp.Glow", 15);
+                window._clabThemeCardBorder = getSet("CLab.5-CardApp.Border", 1);
+                window._clabThemeCardFill = getSet("CLab.5-CardApp.Fill", 0);
+                window._clabThemeCardGlow = getSet("CLab.5-CardApp.Glow", 10);
 
                 window._clabThemeModuleColor = getSet("CLab.6-ModuleApp.Color", "2196f3");
                 window._clabThemeModuleBorder = getSet("CLab.6-ModuleApp.Border", 1);

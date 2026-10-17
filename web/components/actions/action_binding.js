@@ -6,50 +6,81 @@ import { app } from "../../../../scripts/app.js";
 import { state, appState, saveAndRender } from "../ui_state.js";
 import { showBindingToast, hideBindingToast, getWidgetDef } from "../ui_utils.js";
 
+function getBindingTarget(e) {
+    const canvas = app.canvas;
+    const graph = canvas?.graph;
+    if (!graph) return {};
+
+    for (const node of graph._nodes) {
+        const widget = node.widgets?.find(w => (w.element || w.inputEl)?.contains(e.target));
+        if (widget) return { node, widget };
+    }
+
+    const nodeElement = e.target.closest?.('.lg-node[data-node-id]');
+    if (nodeElement) {
+        const node = graph.getNodeById(nodeElement.dataset.nodeId);
+        const row = e.target.closest('.lg-node-widget');
+        let widget;
+        if (node && row) {
+            const names = Array.from(row.querySelectorAll('[aria-label]'), el => el.getAttribute('aria-label'));
+            const label = row.querySelector('label, [data-testid="widget-layout-field-label"]');
+            if (label) names.push(label.textContent.trim());
+            widget = node.widgets?.find(w => names.includes(w.name))
+                || node.widgets?.find(w => w.label && names.includes(w.label));
+        }
+        return { node, widget };
+    }
+
+    if (e.target !== canvas.canvas) return {};
+    const [x, y] = canvas.convertEventToCanvasOffset(e);
+    const node = graph.getNodeOnPos(x, y);
+    return { node, widget: node?.flags.collapsed ? undefined : node?.getWidgetOnPos(x, y, true) };
+}
+
 export function enterBindingModeForSelected(targetType, panelContainer, backdropContainer) {
     if (!state.selectedAreaIds || state.selectedAreaIds.length === 0) return;
+    if (appState.isBindingMode) return;
 
     appState.isBindingMode = true;
     if (panelContainer) panelContainer.classList.remove('visible');
     if (backdropContainer) backdropContainer.classList.remove('visible');
     
-    showBindingToast("🖱️ 请在工作流中点击节点 (左键=替换，右键=追加，点击空白处取消)...");
+    showBindingToast(targetType === 'edit'
+        ? "🖱️ 点击节点绑定节点，点击参数同时绑定参数 (左键=替换，右键=追加，空白处取消)"
+        : "🖱️ 请在工作流中点击节点 (左键=替换，右键=追加，点击空白处取消)...");
     
-    if (app.canvas) {
-        app.canvas.deselectAllNodes();
-        
-        if (!app.canvas._clabHijackedContextMenu) {
-            const origProcessContextMenu = app.canvas.processContextMenu;
-            app.canvas.processContextMenu = function() {
-                if (appState.isBindingMode) return; 
-                return origProcessContextMenu.apply(this, arguments);
-            };
-            app.canvas._clabHijackedContextMenu = true;
-        }
-    }
+    if (app.canvas) app.canvas.deselectAllNodes();
 
-    const onPointerUp = (e) => {
+    let pickedTarget;
+    let finishing = false;
+    const shieldEvents = ['mousedown', 'mouseup', 'click', 'dblclick', 'contextmenu'];
+    const shieldEvent = (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+    };
+    const onPointerDown = (e) => {
         if (e.button !== 0 && e.button !== 2) return;
+        shieldEvent(e);
+        if (pickedTarget || finishing) return;
+        pickedTarget = { ...getBindingTarget(e), button: e.button, pointerId: e.pointerId };
+    };
+    const onPointerUp = (e) => {
+        if (!pickedTarget || e.pointerId !== pickedTarget.pointerId || e.button !== pickedTarget.button) return;
+        shieldEvent(e);
+        if (finishing) return;
+        finishing = true;
 
-        const isAppend = (e.button === 2);
+        const isAppend = (pickedTarget.button === 2);
+        const { node: targetNode, widget: targetWidget } = pickedTarget;
 
         setTimeout(() => {
+            window.removeEventListener('pointerdown', onPointerDown, true);
+            window.removeEventListener('pointerup', onPointerUp, true);
+            shieldEvents.forEach(type => window.removeEventListener(type, shieldEvent, true));
             hideBindingToast();
             appState.isBindingMode = false;
             if (panelContainer) panelContainer.classList.add('visible');
             if (backdropContainer) backdropContainer.classList.add('visible');
-
-            let targetNode = null;
-            if (app.canvas && app.canvas.graph) {
-                const selectedNodes = Object.values(app.canvas.selected_nodes || {});
-                if (!isAppend && selectedNodes.length > 0) {
-                    targetNode = selectedNodes[0];
-                } else {
-                    const mx = app.canvas.graph_mouse[0];
-                    const my = app.canvas.graph_mouse[1];
-                    targetNode = app.canvas.graph.getNodeOnPos(mx, my);
-                }
-            }
 
             if (targetNode) {
                 let resolvedTargets = [];
@@ -71,7 +102,7 @@ export function enterBindingModeForSelected(targetType, panelContainer, backdrop
                 if (resolvedTargets.length === 0) {
                     resolvedTargets.push({
                         nodeIdStr: String(targetNode.id),
-                        widgetName: null
+                        widgetName: targetWidget && targetWidget.type !== 'button' ? targetWidget.name : null
                     });
                 }
 
@@ -139,12 +170,12 @@ export function enterBindingModeForSelected(targetType, panelContainer, backdrop
                 });
                 saveAndRender();
             }
-        }, 150); 
-        
-        window.removeEventListener("pointerup", onPointerUp, true);
+        }, 150);
     };
     
     setTimeout(() => {
+        window.addEventListener('pointerdown', onPointerDown, true);
         window.addEventListener("pointerup", onPointerUp, true);
+        shieldEvents.forEach(type => window.addEventListener(type, shieldEvent, true));
     }, 100);
 }

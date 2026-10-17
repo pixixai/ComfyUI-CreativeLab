@@ -599,10 +599,10 @@ export function injectCSS() {
         }
         .clab-card.active { 
             border-color: var(--clab-theme-card, #4CAF50) !important;
-            border-width: var(--clab-theme-card-border, 2px) !important;
+            border-width: var(--clab-theme-card-border, 1px) !important;
             border-style: solid !important;
-            box-shadow: 0 0 var(--clab-theme-card-glow, 15px) var(--clab-theme-card-alpha, rgba(76, 175, 80, 0.3)); 
-            background: var(--clab-theme-card-bg, rgba(76, 175, 80, 0.08)); 
+            box-shadow: 0 0 var(--clab-theme-card-glow, 10px) var(--clab-theme-card-alpha, rgba(76, 175, 80, 0.3));
+            background: var(--clab-theme-card-bg, rgba(76, 175, 80, 0));
         }
         
         .clab-card-body {
