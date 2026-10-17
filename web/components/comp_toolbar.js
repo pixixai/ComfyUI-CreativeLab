@@ -11,6 +11,7 @@ import { generateSingleCardHTML, attachCardEvents } from "./comp_taskcard.js";
 import { generateAreaHTML, attachAreaEvents, justSave } from "./comp_modulearea.js";
 import { updateSelectionUI } from "./ui_selection.js";
 import { getMediaType, loadAllTextHistory, loadSelectedTextContent, loadTextHistoryEntry, removePreviewHistoryIndex, syncTextContentWithSelection } from "./modules/media_types/media_utils.js";
+import { setupResponsiveToolbar } from "./toolbar_layout.js";
 
 function showMediaMissingFallback(areaId) {
     const areaEl = document.querySelector(`.clab-area[data-area-id="${areaId}"]`);
@@ -376,6 +377,7 @@ export function setupStaticToolbarEvents(panelContainer) {
             setTimeout(hideBindingToast, 3000);
         };
     }
+    setupResponsiveToolbar(panelContainer.querySelector('#clab-toolbar-handle'));
 }
 
 export function renderDynamicToolbar(container) { renderDynamic(container); }
