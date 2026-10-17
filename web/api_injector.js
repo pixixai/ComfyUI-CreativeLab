@@ -7,7 +7,6 @@ import { StateManager } from "./state_manager.js";
 import { showBindingToast, hideBindingToast } from "./components/ui_utils.js";
 import {
     captureCardInputSnapshot,
-    ensureInputSnapshotState,
     pushPreviewHistoryEntry,
     syncTextContentWithSelection,
 } from "./components/modules/media_types/media_utils.js";
@@ -19,10 +18,43 @@ export function setupAPIInjector(app) {
     window._clabExecQueue = window._clabExecQueue || []; 
     window._clabTaskMap = window._clabTaskMap || {};     
     window._clabLastGeneratedTask = null;              
-    window._clabCurrentBatchPromptIds = [];            
     window._clabCardProgress = window._clabCardProgress || {}; 
     window._clabHideTimers = window._clabHideTimers || {};     
     window._clabDoneTasks = window._clabDoneTasks || new Set();
+    let submitting = false;
+    let currentTask = null;
+
+    const getTaskCard = (task) => {
+        const workspace = task.workspaceRef.deref();
+        if (!StateManager.state.workspaces.includes(workspace)) return null;
+        const cards = StateManager.state.activeWorkspaceId === task.workspaceId
+            ? StateManager.state.cards
+            : workspace.cards;
+        return cards.find((card) => card.id === task.cardId);
+    };
+
+    const cancelBatch = (task) => {
+        const batch = task.batch;
+        if (batch.cancelled) return;
+        batch.cancelled = true;
+        window._clabExecQueue = window._clabExecQueue.filter((queuedTask) => {
+            if (queuedTask.batch !== batch) return true;
+            setUIProgress(queuedTask.cardId, 0, true);
+            return false;
+        });
+        const toDelete = batch.promptIds.filter((id) => id !== task.promptId);
+        if (toDelete.length > 0) {
+            api.fetchApi('/queue', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ delete: toDelete }),
+            }).catch((err) => console.error("[CLab] 无法删除后续队列", err));
+            toDelete.forEach((id) => {
+                const skippedTask = window._clabTaskMap[id];
+                if (skippedTask) setUIProgress(skippedTask.cardId, 0, true);
+            });
+        }
+    };
 
     const normalizeTextResult = (value) => {
         if (Array.isArray(value)) return value.map((item) => String(item ?? "")).join("\n\n");
@@ -140,11 +172,10 @@ export function setupAPIInjector(app) {
         return [...nodeIds];
     };
 
-    const applyTemporaryNodeBypass = (card) => {
+    const applyTemporaryNodeBypass = (targetNodeIds) => {
         const graph = app?.graph;
         if (!graph || typeof graph.getNodeById !== "function") return () => {};
 
-        const targetNodeIds = collectBypassedNodeIdsFromCard(card);
         if (targetNodeIds.length === 0) return () => {};
 
         const rollbackList = [];
@@ -313,21 +344,7 @@ export function setupAPIInjector(app) {
 
             // 【核心】：根据 HaltOnError 设置决定是否清空后续队列
             if (window._clabHaltOnError !== false) {
-                if (window._clabCurrentBatchPromptIds && window._clabCurrentBatchPromptIds.length > 0) {
-                    const toDelete = window._clabCurrentBatchPromptIds.filter(id => id !== pid);
-                    if (toDelete.length > 0) {
-                        api.fetchApi('/queue', {
-                            method: 'POST',
-                            body: JSON.stringify({ delete: toDelete })
-                        }).catch(err => console.error("[CLab] 无法删除后续队列", err));
-
-                        toDelete.forEach(delPid => {
-                            const delTask = window._clabTaskMap[delPid];
-                            if (delTask) setUIProgress(delTask.cardId, 0, true);
-                        });
-                    }
-                    window._clabCurrentBatchPromptIds = [];
-                }
+                cancelBatch(task);
             }
         }
     });
@@ -336,65 +353,94 @@ export function setupAPIInjector(app) {
     // 1. 坚如磐石的异步执行队列
     // =========================================================================
     window.CLab.executeTasks = async function(tasks) {
-        window._clabCurrentBatchPromptIds = []; 
-        window._clabDoneTasks = window._clabDoneTasks || new Set(); 
+        const workspace = StateManager.state.workspaces.find((item) => item.id === StateManager.state.activeWorkspaceId);
+        const batch = { cancelled: false, promptIds: [] };
 
-        for (let task of tasks) {
-            window._clabDoneTasks.delete(task.cardId); 
-            const cardAtQueueTime = StateManager.state.cards.find(c => c.id === task.cardId);
-            task.inputSnapshot = captureCardInputSnapshot(cardAtQueueTime);
-            window._clabExecQueue.push(task);
+        for (const task of tasks) {
+            const card = StateManager.state.cards.find((item) => item.id === task.cardId);
+            if (!workspace || !card) continue;
+            window._clabDoneTasks.delete(task.cardId);
+            window._clabExecQueue.push({
+                cardId: task.cardId,
+                workspaceRef: new WeakRef(workspace),
+                workspaceId: workspace.id,
+                batch,
+                inputSnapshot: captureCardInputSnapshot(card),
+                previewTargets: card.areas.filter((area) => area.type === 'preview' && task.previewAreaIds.includes(area.id))
+                    .map((area) => ({ areaId: area.id, nodeId: area.targetNodeId })),
+                bypassedNodeIds: collectBypassedNodeIdsFromCard(card),
+            });
             
             const bar = document.querySelector(`.clab-card-progress-container[data-card-prog-id="${task.cardId}"] .clab-card-progress-bar`);
             if (bar) bar.classList.remove('error'); 
             setUIProgress(task.cardId, 5);
         }
 
-        const count = tasks.length;
-        for (let i = 0; i < count; i++) {
-            try {
-                await app.queuePrompt(0, 1); 
-            } catch (submitErr) {
-                console.warn("[CLab] 🚫 前端图谱校验未通过，触发阻断！", submitErr);
-                showBindingToast("❌ 节点前端校验失败！请检查工作流连线或必填参数。", true);
-                setTimeout(() => hideBindingToast(), 6000);
-                
-                if (window._clabLastGeneratedTask) {
-                    const errorCardId = window._clabLastGeneratedTask.cardId;
-                    setUIProgress(errorCardId, 100, false, true);
-                    
-                    if (window._clabHideTimers[errorCardId]) clearTimeout(window._clabHideTimers[errorCardId]);
-                    window._clabHideTimers[errorCardId] = setTimeout(() => {
-                        setUIProgress(errorCardId, 0, true);
-                    }, 6000);
-
-                    window._clabLastGeneratedTask = null;
+        if (submitting) return;
+        submitting = true;
+        try {
+            while (window._clabExecQueue.length > 0) {
+                const task = window._clabExecQueue.shift();
+                while (app.processingQueue && !task.batch.cancelled) {
+                    await new Promise((resolve) => setTimeout(resolve, 50));
                 }
-
-                // 【核心】：根据 HaltOnError 设置决定是否清空前端排队任务
-                if (window._clabHaltOnError !== false) {
-                    while (window._clabExecQueue.length > 0) {
-                        let skippedTask = window._clabExecQueue.shift();
-                        setUIProgress(skippedTask.cardId, 0, true);
-                    }
-                    break;
-                } else {
-                    // 若关闭了异常阻断，则跳过当前报错任务，继续执行队列里的下一个任务
+                if (task.batch.cancelled) {
+                    setUIProgress(task.cardId, 0, true);
                     continue;
                 }
+                currentTask = task;
+                try {
+                    await app.queuePrompt(0, 1);
+                    if (task.submissionError || !task.promptId) {
+                        throw task.submissionError || new Error("Task was not submitted");
+                    }
+                } catch (submitErr) {
+                    console.warn("[CLab] 任务提交失败:", submitErr);
+                    showBindingToast("❌ 任务提交失败，请检查工作流连线或必填参数。", true);
+                    setTimeout(() => hideBindingToast(), 6000);
+                    setUIProgress(task.cardId, 100, false, true);
+                    if (window._clabHideTimers[task.cardId]) clearTimeout(window._clabHideTimers[task.cardId]);
+                    window._clabHideTimers[task.cardId] = setTimeout(() => setUIProgress(task.cardId, 0, true), 6000);
+                    if (window._clabHaltOnError !== false) cancelBatch(task);
+                } finally {
+                    currentTask = null;
+                    window._clabLastGeneratedTask = null;
+                }
             }
+        } finally {
+            submitting = false;
         }
     };
 
     const origQueuePrompt = api.queuePrompt;
     api.queuePrompt = async function() {
-        const res = await origQueuePrompt.apply(this, arguments);
-        if (res && res.prompt_id && window._clabLastGeneratedTask) {
-            window._clabTaskMap[res.prompt_id] = window._clabLastGeneratedTask;
-            window._clabCurrentBatchPromptIds.push(res.prompt_id); 
-            window._clabLastGeneratedTask = null; 
+        const task = window._clabLastGeneratedTask;
+        try {
+            if (task?.batch.cancelled) throw new Error("Batch cancelled");
+            const res = await origQueuePrompt.apply(this, arguments);
+            if (task) {
+                if (res?.prompt_id) {
+                    task.promptId = res.prompt_id;
+                    window._clabTaskMap[res.prompt_id] = task;
+                    task.batch.promptIds.push(res.prompt_id);
+                    window._clabLastGeneratedTask = null;
+                    if (task.batch.cancelled) {
+                        await api.fetchApi('/queue', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ delete: [res.prompt_id] }),
+                        });
+                    }
+                }
+                if (!res?.prompt_id || res.error || Object.keys(res.node_errors || {}).length > 0) {
+                    task.submissionError = new Error("Workflow validation failed");
+                }
+            }
+            return res;
+        } catch (err) {
+            if (task) task.submissionError = err;
+            throw err;
         }
-        return res;
     };
 
     // =========================================================================
@@ -402,11 +448,12 @@ export function setupAPIInjector(app) {
     // =========================================================================
     const originalGraphToPrompt = app.graphToPrompt;
     app.graphToPrompt = async function () {
-        const pendingTask = window._clabExecQueue.length > 0 ? window._clabExecQueue[0] : null;
-        const pendingCard = pendingTask
-            ? StateManager.state.cards.find((card) => card.id === pendingTask.cardId)
-            : null;
-        const rollbackTemporaryBypass = pendingCard ? applyTemporaryNodeBypass(pendingCard) : (() => {});
+        const execTask = currentTask;
+        if (!execTask || execTask.promptGenerated) return originalGraphToPrompt.apply(this, arguments);
+        execTask.promptGenerated = true;
+        window._clabLastGeneratedTask = execTask;
+        if (execTask.batch.cancelled || !getTaskCard(execTask)) throw new Error("Task is no longer available");
+        const rollbackTemporaryBypass = applyTemporaryNodeBypass(execTask.bypassedNodeIds);
 
         let result;
         try {
@@ -415,69 +462,61 @@ export function setupAPIInjector(app) {
             rollbackTemporaryBypass();
         }
         
-        let execTask = window._clabExecQueue.shift();
-        if (!execTask) return result; 
-
-        window._clabLastGeneratedTask = execTask;
-        const activeCard = StateManager.state.cards.find(c => c.id === execTask.cardId);
-        if (!activeCard) return result;
+        if (execTask.batch.cancelled || !getTaskCard(execTask)) throw new Error("Task is no longer available");
 
         const promptOutput = JSON.parse(JSON.stringify(result.output));
         result.output = promptOutput;
 
         // --- 阶段 A: 参数注入 ---
-        if (activeCard.areas && activeCard.areas.length > 0) {
-            activeCard.areas.filter(a => a.type === 'edit').forEach(area => {
-                let targets = [];
-                if (Array.isArray(area.targetWidgets) && area.targetWidgets.length > 0) {
-                    targets = area.targetWidgets.map(tw => {
-                        const [nId, wName] = tw.split('||');
-                        return { nodeId: nId, widget: wName };
-                    });
-                } else if (area.targetNodeId && area.targetWidget) {
-                    targets = [{ nodeId: area.targetNodeId, widget: area.targetWidget }];
-                }
-
-                targets.forEach(t => {
-                    const nodeData = promptOutput[t.nodeId];
-                    if (nodeData && nodeData.inputs) {
-                        let injectValue = area.value;
-                        if (area.dataType === 'number') injectValue = Number(injectValue);
-                        else if (area.dataType === 'boolean') injectValue = (injectValue === 'true' || injectValue === true);
-                        else if (area.dataType === 'json') {
-                            try { injectValue = JSON.parse(injectValue); } catch (e) {}
-                        }
-                        nodeData.inputs[t.widget] = injectValue;
-                    }
+        execTask.inputSnapshot.forEach(area => {
+            let targets = [];
+            if (Array.isArray(area.targetWidgets) && area.targetWidgets.length > 0) {
+                targets = area.targetWidgets.map(tw => {
+                    const [nId, wName] = tw.split('||');
+                    return { nodeId: nId, widget: wName };
                 });
+            } else if (area.targetNodeId && area.targetWidget) {
+                targets = [{ nodeId: area.targetNodeId, widget: area.targetWidget }];
+            }
+
+            targets.forEach(t => {
+                const nodeData = promptOutput[t.nodeId];
+                if (nodeData && nodeData.inputs) {
+                    let injectValue = area.value;
+                    if (area.dataType === 'number') injectValue = Number(injectValue);
+                    else if (area.dataType === 'boolean') injectValue = (injectValue === 'true' || injectValue === true);
+                    else if (area.dataType === 'json') {
+                        try { injectValue = JSON.parse(injectValue); } catch (e) {}
+                    }
+                    nodeData.inputs[t.widget] = injectValue;
+                }
             });
-        }
+        });
 
         // --- 阶段 B: 动态剪枝 ---
-        const targetPreviewAreas = activeCard.areas?.filter(a => a.type === 'preview' && a.targetNodeId && execTask.previewAreaIds.includes(a.id)) || [];
+        const targetPreviewAreas = execTask.previewTargets.filter((target) => target.nodeId);
+        if (targetPreviewAreas.length === 0) throw new Error("No output nodes are bound to this task");
         
-        if (targetPreviewAreas.length > 0) {
-            const keepNodes = new Set();
-            function traceDependencies(nodeId) {
-                const strId = String(nodeId);
-                if (keepNodes.has(strId)) return;
-                const nodeData = promptOutput[strId];
-                if (!nodeData) return; 
-                keepNodes.add(strId);
-                if (nodeData.inputs) {
-                    for (const key in nodeData.inputs) {
-                        const val = nodeData.inputs[key];
-                        if (Array.isArray(val) && val.length > 0) traceDependencies(val[0]); 
-                    }
+        const keepNodes = new Set();
+        function traceDependencies(nodeId) {
+            const strId = String(nodeId);
+            if (keepNodes.has(strId)) return;
+            const nodeData = promptOutput[strId];
+            if (!nodeData) return;
+            keepNodes.add(strId);
+            if (nodeData.inputs) {
+                for (const key in nodeData.inputs) {
+                    const val = nodeData.inputs[key];
+                    if (Array.isArray(val) && val.length > 0) traceDependencies(val[0]);
                 }
             }
-            targetPreviewAreas.forEach(area => traceDependencies(area.targetNodeId));
-            
-            const allNodeIds = Object.keys(promptOutput);
-            allNodeIds.forEach(id => {
-                if (!keepNodes.has(id)) delete promptOutput[id];
-            });
         }
+        targetPreviewAreas.forEach(target => traceDependencies(target.nodeId));
+
+        const allNodeIds = Object.keys(promptOutput);
+        allNodeIds.forEach(id => {
+            if (!keepNodes.has(id)) delete promptOutput[id];
+        });
         return result;
     };
 
@@ -525,202 +564,125 @@ export function setupAPIInjector(app) {
     // 4. 监听引擎执行完成事件 (增强版：截胡转存与状态回写闭环)
     // =========================================================================
     api.addEventListener("executed", async (event) => {
-        const detail = event.detail;
-        const executedNodeId = detail.node;     
-        const outputData = detail.output;       
-        const prompt_id = detail.prompt_id; 
-
-        const task = (window._clabTaskMap && prompt_id) ? window._clabTaskMap[prompt_id] : null;
+        const { node: executedNodeId, output: outputData, prompt_id } = event.detail;
+        const task = window._clabTaskMap[prompt_id];
         if (!task) return;
+        const card = getTaskCard(task);
+        if (!card?.areas) return;
 
-        const card = StateManager.state.cards.find(c => c.id === task.cardId);
-        if (!card || !card.areas) return;
+        const targetItems = [outputData.videos, outputData.audio, outputData.gifs, outputData.images]
+            .find((items) => items?.length > 0);
+        const archivedMedia = new Map();
+        for (const target of task.previewTargets) {
+            if (String(target.nodeId) !== String(executedNodeId)) continue;
+            const area = card.areas.find((item) => item.id === target.areaId && item.type === 'preview');
+            if (!area) continue;
 
-        card.areas.filter(a => a.type === 'preview').forEach(async area => {
-            if (task.previewAreaIds && task.previewAreaIds.length > 0) {
-                if (!task.previewAreaIds.includes(area.id)) return;
-            }
+            const persistAndRefresh = () => {
+                if (getTaskCard(task) !== card || !card.areas.includes(area)) return;
+                StateManager.syncToNode(app.graph);
+                if (StateManager.state.activeWorkspaceId !== task.workspaceId) return;
+                if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(area.id);
+                else document.dispatchEvent(new CustomEvent("clab_render_ui"));
+            };
 
-            if (String(area.targetNodeId) === String(executedNodeId)) {
-                let newUrlFirst = null;
-                let isVideoFirst = false;
-                let isAudioFirst = false;
-                const inputSnapshot = Array.isArray(task.inputSnapshot) ? task.inputSnapshot : [];
-                ensureInputSnapshotState(area);
+            if (targetItems?.length > 0) {
+                let firstUrl = null;
+                let firstKind = null;
+                for (const sourceMedia of targetItems) {
+                    const sourceKey = JSON.stringify([sourceMedia.type, sourceMedia.subfolder, sourceMedia.filename]);
+                    let media = archivedMedia.get(sourceKey);
+                    const ext = sourceMedia.filename.split('.').pop().toLowerCase();
+                    const kind = ['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext) || sourceMedia.format?.startsWith('video/')
+                        ? 'video'
+                        : ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'].includes(ext) || sourceMedia.format?.startsWith('audio/')
+                            ? 'audio' : 'image';
 
-                let targetItems = null;
-                if (outputData.videos && outputData.videos.length > 0) targetItems = outputData.videos;
-                else if (outputData.audio && outputData.audio.length > 0) targetItems = outputData.audio;
-                else if (outputData.gifs && outputData.gifs.length > 0) targetItems = outputData.gifs;
-                else if (outputData.images && outputData.images.length > 0) targetItems = outputData.images;
-                const targetNode = app.graph?.getNodeById(Number(executedNodeId));
-                const textFromOutput = extractTextFromOutputData(outputData);
-                const textFromWidgets = extractTextFromNodeWidgets(targetNode);
-                const textContent = (textFromOutput || textFromWidgets || "").trim();
-
-                if (targetItems && targetItems.length > 0) {
-                    
-                    // 🔥【优化】：遍历所有的生成资产（处理多图批次出图），彻底消灭漏网之鱼
-                    for (let i = 0; i < targetItems.length; i++) {
-                        let media = targetItems[i];
-                        
-                        const ext = media.filename.split('.').pop().toLowerCase();
-                        let isVideo = false;
-                        let isAudio = false;
-                        if (['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext) || (media.format && media.format.startsWith('video/'))) {
-                            isVideo = true;
-                        } else if (['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'].includes(ext) || (media.format && media.format.startsWith('audio/'))) {
-                            isAudio = true;
-                        }
-
-                        // 记录原始的临时路径，等会要去 history 里面“抓人”
-                        const oldParams = new URLSearchParams({ filename: media.filename, type: media.type, subfolder: media.subfolder || "" });
-                        const oldUrlStr = `/view?${oldParams.toString()}`;
-                        const oldUrl = api.apiURL(oldUrlStr);
-
-                        // 🛡️ 截胡归档系统
-                        if (media.type === "temp" || media.type === "output") {
+                    if (!media) {
+                        media = { ...sourceMedia };
+                        if (media.type === 'temp' || media.type === 'output') {
                             try {
-                                const asset_type = isVideo ? "video" : (isAudio ? "audio" : "image");
-                                const res = await fetch('/clab/copy_temp_asset', {
+                                const response = await fetch('/clab/copy_temp_asset', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({
                                         filename: media.filename,
-                                        subfolder: media.subfolder || "",
-                                        asset_type: asset_type,
+                                        subfolder: media.subfolder || '',
+                                        asset_type: kind,
                                         source_type: media.type,
-                                        archive_dir: window._clabArchiveDir || "CLab",
+                                        archive_dir: window._clabArchiveDir || 'CLab',
                                         delete_temp: window._clabDeleteTemp === true,
-                                        file_prefix: window._clabFilePrefix || "pix"
-                                    })
+                                        file_prefix: window._clabFilePrefix || 'pix',
+                                    }),
                                 });
-                                
-                                const data = await res.json();
-                                if (data.status === "success") {
-                                    media.filename = data.new_filename;
-                                    media.subfolder = data.new_subfolder;
-                                    media.type = data.new_type; 
+                                const data = await response.json();
+                                if (data.status === 'success') {
+                                    media = { filename: data.new_filename, subfolder: data.new_subfolder, type: data.new_type };
                                 } else {
-                                    console.error("[CLab] 截胡资产失败:", data.error);
+                                    console.error('[CLab] 截胡资产失败:', data.error);
                                 }
                             } catch (err) {
-                                console.error("[CLab] 截胡资产网络请求失败:", err);
+                                console.error('[CLab] 截胡资产网络请求失败:', err);
                             }
                         }
-
-                        // 构造后端复制完毕后的永久物理路径
-                        const newParams = new URLSearchParams({ filename: media.filename, type: media.type, subfolder: media.subfolder || "" });
-                        const newUrl = api.apiURL(`/view?${newParams.toString()}`);
-
-                        // 🔥 【核心状态回写】：强制纠正由于异步时间差被提前写进去的 temp 路径！
-                        if (newUrl) {
-                            if (!area.history) area.history = [];
-                            ensureInputSnapshotState(area);
-                            
-                            // 查找是否已经存在于 history 中（匹配完整路径或包含参数）
-                            const foundIdx = area.history.findIndex(h => h === oldUrl || h.includes(oldUrlStr));
-                            if (foundIdx !== -1) {
-                                // 替换为永久资产路径
-                                area.history[foundIdx] = newUrl;
-                                area.inputHistorySnapshots[foundIdx] = inputSnapshot;
-                            } else {
-                                // 如果没被别处拦截写入，那么我们主动帮它存入历史记录里，防止丢失
-                                if (!area.history.includes(newUrl)) {
-                                    area.history.push(newUrl);
-                                    area.inputHistorySnapshots.push(inputSnapshot);
-                                    
-                                    // 【核心注入】：应用历史容量上限
-                                    const maxLimit = window._clabMaxHistory || 50;
-                                    while (area.history.length > maxLimit) {
-                                        area.history.shift();
-                                        area.inputHistorySnapshots.shift();
-                                    }
-                                } else {
-                                    const existingIdx = area.history.indexOf(newUrl);
-                                    if (existingIdx !== -1) area.inputHistorySnapshots[existingIdx] = inputSnapshot;
-                                }
-                            }
-                        }
-
-                        // 记录第一项结果用于设置封面和触发排版
-                        if (i === 0 && newUrl) {
-                            newUrlFirst = newUrl;
-                            isVideoFirst = isVideo;
-                            isAudioFirst = isAudio;
-                        }
+                        archivedMedia.set(sourceKey, media);
                     }
-
-                    if (newUrlFirst) {
-                        area.resultUrl = newUrlFirst;
-                        area.resultKind = isVideoFirst ? 'video' : (isAudioFirst ? 'audio' : 'image');
-
-                        // 🔥 状态变更后，立即序列化同步到 ComfyUI 图谱内保存配置！
-                        StateManager.syncToNode(app.graph);
-
-                        if (area.matchMedia) {
-                            if (isVideoFirst) {
-                                const tempVid = document.createElement('video');
-                                tempVid.muted = true;
-                                tempVid.playsInline = true;
-                                tempVid.onloadeddata = () => {
-                                    area.ratio = '自定义比例';
-                                    area.width = tempVid.videoWidth;
-                                    area.height = tempVid.videoHeight;
-                                    StateManager.syncToNode(app.graph);
-                                    
-                                    // 【点穴修复】：读取完视频尺寸后进行点穴更新
-                                    if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(area.id);
-                                    else document.dispatchEvent(new CustomEvent("clab_render_ui"));
-                                };
-                                tempVid.onerror = (e) => console.error("[CLab] 读取视频尺寸失败", e);
-                                tempVid.src = newUrlFirst;
-                                tempVid.load();
-                            } else if (isAudioFirst) {
-                                area.ratio = 'auto';
-                                StateManager.syncToNode(app.graph);
-                                
-                                // 【点穴修复】：音频文件不需要获取高宽，直接点穴更新
-                                if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(area.id);
-                                else document.dispatchEvent(new CustomEvent("clab_render_ui"));
-                            } else {
-                                const tempImg = new Image();
-                                tempImg.onload = () => {
-                                    area.ratio = '自定义比例';
-                                    area.width = tempImg.naturalWidth;
-                                    area.height = tempImg.naturalHeight;
-                                    StateManager.syncToNode(app.graph);
-                                    
-                                    // 【点穴修复】：读取完图片尺寸后进行点穴更新
-                                    if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(area.id);
-                                    else document.dispatchEvent(new CustomEvent("clab_render_ui"));
-                                };
-                                tempImg.src = newUrlFirst; 
-                            }
-                        } else {
-                            // 【核心修复】：取消通过派发 clab_update_preview 处理，直接统一进行原生手术级更新
-                            if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(area.id);
-                            else {
-                                document.dispatchEvent(new CustomEvent("clab_update_preview", {
-                                    detail: { cardId: card.id, areaId: area.id, url: newUrlFirst }
-                                }));
-                            }
-                        }
-                    }
-                } else if (textContent) {
-                    try {
-                        const textUrl = await saveTextAsset(textContent);
-                        pushPreviewHistoryEntry(area, textUrl, { kind: "text", text: textContent, inputSnapshot });
-                        syncTextContentWithSelection(area);
-                        StateManager.syncToNode(app.graph);
-
-                        if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(area.id);
-                        else document.dispatchEvent(new CustomEvent("clab_render_ui"));
-                    } catch (textErr) {
-                        console.error("[CLab] Text capture failed:", textErr);
+                    const params = new URLSearchParams({ filename: media.filename, type: media.type, subfolder: media.subfolder || '' });
+                    const url = api.apiURL(`/view?${params.toString()}`);
+                    pushPreviewHistoryEntry(area, url, { kind, inputSnapshot: task.inputSnapshot });
+                    if (!firstUrl) {
+                        firstUrl = url;
+                        firstKind = kind;
                     }
                 }
+
+                const firstIndex = area.history.indexOf(firstUrl);
+                if (firstIndex !== -1) {
+                    area.historyIndex = firstIndex;
+                    area.resultUrl = firstUrl;
+                    area.resultKind = firstKind;
+                }
+                persistAndRefresh();
+                if (area.matchMedia) {
+                    if (firstKind === 'video') {
+                        const video = document.createElement('video');
+                        video.muted = true;
+                        video.playsInline = true;
+                        video.onloadeddata = () => {
+                            area.ratio = '自定义比例';
+                            area.width = video.videoWidth;
+                            area.height = video.videoHeight;
+                            persistAndRefresh();
+                        };
+                        video.src = area.resultUrl;
+                        video.load();
+                    } else if (firstKind === 'audio') {
+                        area.ratio = 'auto';
+                        persistAndRefresh();
+                    } else {
+                        const image = new Image();
+                        image.onload = () => {
+                            area.ratio = '自定义比例';
+                            area.width = image.naturalWidth;
+                            area.height = image.naturalHeight;
+                            persistAndRefresh();
+                        };
+                        image.src = area.resultUrl;
+                    }
+                }
+            } else {
+                const node = app.graph?.getNodeById(Number(executedNodeId));
+                const text = (extractTextFromOutputData(outputData) || extractTextFromNodeWidgets(node) || '').trim();
+                if (!text) continue;
+                try {
+                    const url = await saveTextAsset(text);
+                    pushPreviewHistoryEntry(area, url, { kind: 'text', text, inputSnapshot: task.inputSnapshot });
+                    syncTextContentWithSelection(area);
+                    persistAndRefresh();
+                } catch (err) {
+                    console.error('[CLab] Text capture failed:', err);
+                }
             }
-        });
+        }
     });
 }

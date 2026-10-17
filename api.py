@@ -108,37 +108,30 @@ async def clab_organize_files(request):
             file_type = f.get("type", "output")
             target_subfolder = f.get("target_subfolder", "")
             target_filename = f.get("target_filename", "")
+            if not target_filename or any(c in target_filename for c in ("/", "\\", ":")) or target_filename in (".", ".."):
+                raise ValueError("Invalid target filename")
 
             if file_type == "input": base_dir = folder_paths.get_input_directory()
             elif file_type == "temp": base_dir = folder_paths.get_temp_directory()
             else: base_dir = folder_paths.get_output_directory()
             
-            source_path = os.path.normpath(os.path.join(base_dir, subfolder, filename))
-            base_dir_norm = os.path.abspath(base_dir)
-
-            # 【安全补丁】：防御源文件目录穿越
-            if os.path.commonpath([base_dir_norm, os.path.abspath(source_path)]) != base_dir_norm:
-                continue
+            source_path = _clab_safe_join(base_dir, subfolder, filename)
 
             target_base_dir = folder_paths.get_output_directory()
-            target_dir = os.path.normpath(os.path.join(target_base_dir, target_subfolder))
-
-            # 【安全补丁】：防御目标子文件夹越界
-            if os.path.commonpath([os.path.abspath(target_base_dir), os.path.abspath(target_dir)]) != os.path.abspath(target_base_dir):
-                continue
+            target_dir = _clab_safe_join(target_base_dir, target_subfolder, "")
 
             if not os.path.exists(target_dir):
                 os.makedirs(target_dir, exist_ok=True)
 
             ext = os.path.splitext(filename)[1]
             new_filename = f"{target_filename}{ext}"
-            target_path = os.path.normpath(os.path.join(target_dir, new_filename))
+            target_path = _clab_safe_join(target_base_dir, target_subfolder, new_filename)
 
             counter = 1
             base_target_filename = target_filename
             while os.path.exists(target_path) and (action == 'copy' or source_path != target_path):
                 new_filename = f"{base_target_filename}_{counter}{ext}"
-                target_path = os.path.normpath(os.path.join(target_dir, new_filename))
+                target_path = _clab_safe_join(target_base_dir, target_subfolder, new_filename)
                 counter += 1
 
             if os.path.exists(source_path):
@@ -171,6 +164,8 @@ async def clab_copy_temp_asset(request):
         subfolder = data.get("subfolder", "")
         # 目标类型：video, audio, image, file
         asset_type = data.get("asset_type", "file") 
+        if asset_type not in ("image", "video", "audio", "file"):
+            raise ValueError("Invalid asset type")
         
         # 【核心修复】：兼容前端传 type 还是 source_type。找不到 source_type 时回退到 type，彻底解决截胡报 404 错误
         source_type = data.get("source_type", data.get("type", "temp")) 
@@ -193,12 +188,7 @@ async def clab_copy_temp_asset(request):
         else:
             source_base_dir = folder_paths.get_temp_directory()
             
-        source_path = os.path.normpath(os.path.join(source_base_dir, subfolder, filename))
-        source_base_norm = os.path.abspath(source_base_dir)
-
-        # 【安全补丁】：防御源文件目录穿越
-        if os.path.commonpath([source_base_norm, os.path.abspath(source_path)]) != source_base_norm:
-            return web.json_response({"status": "error", "error": "非法的源文件路径！"})
+        source_path = _clab_safe_join(source_base_dir, subfolder, filename)
         
         if not os.path.exists(source_path):
             return web.json_response({"status": "error", "error": f"源文件不存在: {source_path}"})
@@ -210,7 +200,7 @@ async def clab_copy_temp_asset(request):
         else:
             target_subfolder = f"{archive_dir}/{asset_type}"
             
-        target_dir = os.path.normpath(os.path.join(target_base_dir, target_subfolder))
+        target_dir = _clab_safe_join(target_base_dir, target_subfolder, "")
         os.makedirs(target_dir, exist_ok=True)
         
         # 提取扩展名
@@ -219,12 +209,12 @@ async def clab_copy_temp_asset(request):
         # 【核心修改】：应用用户设置的文件名前缀
         counter = 1
         new_filename = f"{file_prefix}_{counter:02}{ext}"
-        target_path = os.path.normpath(os.path.join(target_dir, new_filename))
+        target_path = _clab_safe_join(target_base_dir, target_subfolder, new_filename)
         
         while os.path.exists(target_path):
             counter += 1
             new_filename = f"{file_prefix}_{counter:02}{ext}"
-            target_path = os.path.normpath(os.path.join(target_dir, new_filename))
+            target_path = _clab_safe_join(target_base_dir, target_subfolder, new_filename)
             
         # 【核心新增】：若用户开启清理缓存，且当前确实是 temp 文件，使用 move 斩草除根
         if delete_temp and source_type == "temp":
@@ -349,10 +339,9 @@ def _clab_base_dir_by_type(type_dir):
 
 
 def _clab_safe_join(base_dir, subfolder, filename):
-    full_path = os.path.normpath(os.path.join(base_dir, subfolder, filename))
-    base_abs = os.path.abspath(base_dir)
-    full_abs = os.path.abspath(full_path)
-    if os.path.commonpath([base_abs, full_abs]) != base_abs:
+    base_abs = os.path.realpath(base_dir)
+    full_abs = os.path.realpath(os.path.join(base_dir, subfolder, filename))
+    if os.path.normcase(os.path.commonpath([base_abs, full_abs])) != os.path.normcase(base_abs):
         raise ValueError("Illegal path")
     return full_abs
 
