@@ -155,24 +155,6 @@ function injectMediaCSS() {
             margin: 0;
             cursor: pointer;
         }
-        .clab-text-copy-btn {
-            border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 6px;
-            background: rgba(255,255,255,0.08);
-            color: #eef3f8;
-            font: 11px/1 sans-serif;
-            padding: 6px 10px;
-            cursor: pointer;
-            transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
-        }
-        .clab-text-copy-btn:hover {
-            background: rgba(255,255,255,0.14);
-            border-color: rgba(255,255,255,0.2);
-        }
-        .clab-text-copy-btn:disabled {
-            cursor: default;
-            opacity: 0.75;
-        }
         .clab-text-body-scroll {
             width: 100%;
             overflow-x: hidden;

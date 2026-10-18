@@ -40,7 +40,6 @@ import { setupAudioWaveform } from "./content/audio_waveform.js";
 const {
     bindPreviewTextEditor,
     getPreviewTextState,
-    renderPreviewTextHtml,
 } = createEditorLogic({
     state,
     saveAndRender,
@@ -53,7 +52,6 @@ const previewModalApi = createPreviewModalApi({
     setupAudioWaveform,
     bindPreviewTextEditor,
     getPreviewTextState,
-    renderPreviewTextHtml,
 });
 
 export function renderContentGroup(showContentGroup) {

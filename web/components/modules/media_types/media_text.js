@@ -23,48 +23,42 @@ function sanitizeHref(url) {
 }
 
 function highlightCodeHtml(source) {
-    const tokens = [];
-    let html = escapeHtml(source);
-
-    const stash = (regex, className) => {
-        html = html.replace(regex, (match) => {
-            tokens.push(`<span class="${className}">${match}</span>`);
-            return `__CLAB_TOKEN_${tokens.length - 1}__`;
-        });
-    };
-
-    stash(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/g, "clab-text-token-string");
-    stash(/(#.*$|\/\/.*$)/gm, "clab-text-token-comment");
-
-    html = html
-        .replace(/\b(true|false|null|undefined)\b/g, '<span class="clab-text-token-boolean">$1</span>')
-        .replace(/\b(-?\d+(?:\.\d+)?)\b/g, '<span class="clab-text-token-number">$1</span>')
-        .replace(/\b(function|return|const|let|var|if|else|for|while|class|import|export|from|async|await|try|catch|def|lambda)\b/g, '<span class="clab-text-token-keyword">$1</span>');
-
-    html = html.replace(/__CLAB_TOKEN_(\d+)__/g, (_match, index) => tokens[Number(index)] || "");
-    return html;
+    const text = String(source ?? "");
+    const pattern = /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)|(\/\*[\s\S]*?(?:\*\/|$)|#[^\n]*|\/\/[^\n]*)|\b(true|false|null|undefined|True|False|None)\b|\b(\d+(?:\.\d+)?)\b|\b(function|return|const|let|var|if|else|for|while|class|import|export|from|async|await|try|catch|def|lambda)\b/g;
+    let html = "";
+    let offset = 0;
+    for (const match of text.matchAll(pattern)) {
+        const kind = match[1] ? "string" : match[2] ? "comment" : match[3] ? "boolean" : match[4] ? "number" : "keyword";
+        html += escapeHtml(text.slice(offset, match.index));
+        html += `<span class="clab-text-token-${kind}">${escapeHtml(match[0])}</span>`;
+        offset = match.index + match[0].length;
+    }
+    return html + escapeHtml(text.slice(offset));
 }
 
 function renderInlineMarkup(text, syntaxHighlight = false) {
     const codeTokens = [];
-    let html = escapeHtml(text).replace(/`([^`]+)`/g, (_match, code) => {
+    const source = String(text ?? "").replace(/`([^`]+)`/g, (_match, code) => {
         const inner = syntaxHighlight ? highlightCodeHtml(code) : escapeHtml(code);
         codeTokens.push(`<code class="clab-text-inline-code">${inner}</code>`);
-        return `__CLAB_INLINE_CODE_${codeTokens.length - 1}__`;
+        return `\u0000${codeTokens.length - 1}\u0000`;
     });
-
-    html = html
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label, href) => {
+    const parts = source.split(/(\[[^\]]+\]\([^)]+\))/g);
+    let html = parts.map((part, index) => {
+        if (index % 2) {
+            const [, label, href] = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
             const safeHref = sanitizeHref(href);
             const safeLabel = escapeHtml(label);
             if (!safeHref) return safeLabel;
             return `<a class="clab-text-link" href="${escapeAttr(safeHref)}" target="_blank" rel="noopener noreferrer">${safeLabel}</a>`;
-        })
-        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-        .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-        .replace(/~~([^~]+)~~/g, "<del>$1</del>");
+        }
+        return escapeHtml(part)
+            .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+            .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+            .replace(/~~([^~]+)~~/g, "<del>$1</del>");
+    }).join("");
 
-    html = html.replace(/__CLAB_INLINE_CODE_(\d+)__/g, (_match, index) => codeTokens[Number(index)] || "");
+    html = html.replace(/\u0000(\d+)\u0000/g, (_match, index) => codeTokens[Number(index)] || "");
     return html;
 }
 
@@ -76,58 +70,50 @@ function renderInlineWithBreaks(text, syntaxHighlight = false) {
 }
 
 function renderMarkdownHtml(source, syntaxHighlight = false) {
-    const blockTokens = [];
-    let text = String(source ?? "").replace(/\r\n/g, "\n");
-
-    text = text.replace(/```([^\n`]*)\n([\s\S]*?)```/g, (_match, language, code) => {
-        const codeHtml = syntaxHighlight ? highlightCodeHtml(code) : escapeHtml(code);
-        const langLabel = String(language || "").trim();
-        const langHtml = langLabel ? `<div class="clab-text-code-lang">${escapeHtml(langLabel)}</div>` : "";
-        blockTokens.push(`
-            <div class="clab-text-code-block">
-                ${langHtml}
-                <pre class="clab-text-code-pre"><code>${codeHtml}</code></pre>
-            </div>
-        `);
-        return `\n__CLAB_BLOCK_${blockTokens.length - 1}__\n`;
-    });
-
-    const blocks = text.split(/\n{2,}/).map((item) => item.trim()).filter(Boolean);
-    const htmlBlocks = blocks.map((block) => {
-        const blockTokenMatch = block.match(/^__CLAB_BLOCK_(\d+)__$/);
-        if (blockTokenMatch) return blockTokens[Number(blockTokenMatch[1])] || "";
-
-        if (/^#{1,6}\s/.test(block)) {
-            const level = Math.min(6, block.match(/^#+/)[0].length);
-            return `<h${level} class="clab-text-heading h${level}">${renderInlineMarkup(block.replace(/^#{1,6}\s+/, ""), syntaxHighlight)}</h${level}>`;
+    const lines = String(source ?? "").replace(/\r\n?/g, "\n").split("\n");
+    const htmlBlocks = [];
+    const startsBlock = (line) => /^\s*(?:`{3,}|#{1,6}\s|>\s?|[-*+]\s+|\d+\.\s+)/.test(line);
+    let i = 0;
+    while (i < lines.length) {
+        const line = lines[i++];
+        if (!line.trim()) continue;
+        const fence = line.match(/^\s*(`{3,})([^`]*)$/);
+        if (fence) {
+            const codeLines = [];
+            const closingFence = new RegExp("^\\s*`{" + fence[1].length + ",}\\s*$");
+            while (i < lines.length && !closingFence.test(lines[i])) codeLines.push(lines[i++]);
+            const code = codeLines.join("\n") + (codeLines.length && i < lines.length ? "\n" : "");
+            if (i < lines.length) i++;
+            const codeHtml = syntaxHighlight ? highlightCodeHtml(code) : escapeHtml(code);
+            const language = fence[2].trim();
+            const langHtml = language ? `<div class="clab-text-code-lang">${escapeHtml(language)}</div>` : "";
+            htmlBlocks.push(`<div class="clab-text-code-block">${langHtml}<pre class="clab-text-code-pre"><code>${codeHtml}</code></pre></div>`);
+            continue;
         }
-
-        if (block.startsWith(">")) {
-            const quote = block
-                .split("\n")
-                .map((line) => line.replace(/^>\s?/, ""))
-                .join("\n");
-            return `<blockquote class="clab-text-quote">${renderInlineWithBreaks(quote, syntaxHighlight)}</blockquote>`;
+        const heading = line.match(/^\s*(#{1,6})\s+(.*)$/);
+        if (heading) {
+            const level = heading[1].length;
+            htmlBlocks.push(`<h${level} class="clab-text-heading h${level}">${renderInlineMarkup(heading[2], syntaxHighlight)}</h${level}>`);
+            continue;
         }
-
-        const listLines = block.split("\n");
-        if (listLines.every((line) => /^[-*+]\s+/.test(line))) {
-            const items = listLines
-                .map((line) => `<li>${renderInlineMarkup(line.replace(/^[-*+]\s+/, ""), syntaxHighlight)}</li>`)
-                .join("");
-            return `<ul class="clab-text-list">${items}</ul>`;
+        if (/^\s*>/.test(line)) {
+            const quote = [line.replace(/^\s*>\s?/, "")];
+            while (i < lines.length && /^\s*>/.test(lines[i])) quote.push(lines[i++].replace(/^\s*>\s?/, ""));
+            htmlBlocks.push(`<blockquote class="clab-text-quote">${renderInlineWithBreaks(quote.join("\n"), syntaxHighlight)}</blockquote>`);
+            continue;
         }
-
-        if (listLines.every((line) => /^\d+\.\s+/.test(line))) {
-            const items = listLines
-                .map((line) => `<li>${renderInlineMarkup(line.replace(/^\d+\.\s+/, ""), syntaxHighlight)}</li>`)
-                .join("");
-            return `<ol class="clab-text-list">${items}</ol>`;
+        const listMarker = /^\s*\d+\.\s+/.test(line) ? /^\s*\d+\.\s+/ : /^\s*[-*+]\s+/;
+        if (listMarker.test(line)) {
+            const tag = /^\s*\d/.test(line) ? "ol" : "ul";
+            const items = [line.replace(listMarker, "")];
+            while (i < lines.length && listMarker.test(lines[i])) items.push(lines[i++].replace(listMarker, ""));
+            htmlBlocks.push(`<${tag} class="clab-text-list">${items.map(item => `<li>${renderInlineMarkup(item, syntaxHighlight)}</li>`).join("")}</${tag}>`);
+            continue;
         }
-
-        return `<p class="clab-text-paragraph">${renderInlineWithBreaks(block, syntaxHighlight)}</p>`;
-    });
-
+        const paragraph = [line];
+        while (i < lines.length && lines[i].trim() && !startsBlock(lines[i])) paragraph.push(lines[i++]);
+        htmlBlocks.push(`<p class="clab-text-paragraph">${renderInlineWithBreaks(paragraph.join("\n"), syntaxHighlight)}</p>`);
+    }
     return htmlBlocks.join("");
 }
 
@@ -178,7 +164,7 @@ async function copyAreaText(areaId, button) {
     const text = String(area.textContent || "");
     if (!text) return;
 
-    const originalLabel = button?.textContent || "复制";
+    const originalLabel = "复制";
     const markCopied = () => {
         if (!button) return;
         button.textContent = "已复制";
@@ -186,6 +172,13 @@ async function copyAreaText(areaId, button) {
         setTimeout(() => {
             button.textContent = originalLabel;
             button.disabled = false;
+        }, 1200);
+    };
+    const markFailed = () => {
+        if (!button) return;
+        button.textContent = "复制失败";
+        setTimeout(() => {
+            if (button.textContent === "复制失败") button.textContent = originalLabel;
         }, 1200);
     };
 
@@ -198,11 +191,19 @@ async function copyAreaText(areaId, button) {
         textarea.setAttribute("readonly", "true");
         textarea.style.position = "fixed";
         textarea.style.left = "-9999px";
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-        markCopied();
+        try {
+            document.body.appendChild(textarea);
+            textarea.select();
+            if (document.execCommand("copy")) {
+                markCopied();
+            } else {
+                markFailed();
+            }
+        } catch (_) {
+            markFailed();
+        } finally {
+            textarea.remove();
+        }
     }
 }
 
@@ -269,15 +270,6 @@ function bindTextShell(shell) {
         });
     });
 
-    const copyBtn = shell.querySelector(".clab-text-copy-btn");
-    if (copyBtn) {
-        copyBtn.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            void copyAreaText(areaId, copyBtn);
-        });
-    }
-
     updateTextPreviewLayout(shell);
 
     if (!window._clabTextPreviewResizeObserver) {
@@ -305,7 +297,6 @@ export function renderText(area) {
                     <input type="checkbox" data-option="markdown" ${area.textPreviewMarkdown ? "checked" : ""}>
                     <span>预览Markdown</span>
                 </label>
-                <button type="button" class="clab-text-copy-btn">复制</button>
             </div>
         </div>
     `;
@@ -315,5 +306,14 @@ export function attachTextEvents(container) {
     container.querySelectorAll(".clab-text-preview-shell").forEach((shell) => {
         bindTextShell(shell);
         updateTextPreviewLayout(shell);
+    });
+    container.querySelectorAll(".clab-text-copy-btn").forEach((button) => {
+        if (button.dataset.clabTextCopyBound === "1") return;
+        button.dataset.clabTextCopyBound = "1";
+        button.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            void copyAreaText(button.dataset.area, button);
+        });
     });
 }

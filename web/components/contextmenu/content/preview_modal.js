@@ -17,7 +17,6 @@ export function createPreviewModalApi({
     setupAudioWaveform,
     bindPreviewTextEditor,
     getPreviewTextState,
-    renderPreviewTextHtml,
 } = {}) {
     const safeSetupAudioWaveform = typeof setupAudioWaveform === "function" ? setupAudioWaveform : () => { };
     const safeBindPreviewTextEditor = typeof bindPreviewTextEditor === "function" ? bindPreviewTextEditor : () => { };
@@ -29,9 +28,6 @@ export function createPreviewModalApi({
             previewMarkdown: false,
             dirty: false,
         });
-    const safeRenderPreviewTextHtml = typeof renderPreviewTextHtml === "function"
-        ? renderPreviewTextHtml
-        : (text) => `<pre class="clab-text-plain"><code>${escapeHtml(String(text ?? ""))}</code></pre>`;
 
     function getActivePreviewEntry() {
         if (!Array.isArray(previewModalStore.entries) || previewModalStore.entries.length === 0) return null;

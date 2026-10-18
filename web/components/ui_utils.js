@@ -501,9 +501,12 @@ export function injectCSS() {
         .clab-output-controls::before { content:""; position:absolute; inset:-2px -3px; border:1px solid rgba(255,255,255,0.12); border-radius:6px; background:rgba(0,0,0,0.35); pointer-events:none; z-index:-1; }
         .clab-area:hover .clab-output-controls, .clab-output-controls:has([aria-expanded="true"]) { opacity:1; pointer-events:auto; }
         .clab-output-binding { position:relative; min-width:0; max-width:100px; }
-        .clab-output-binding::before { content:""; position:absolute; top:-1px; bottom:-1px; left:-1px; border-left:1px solid rgba(255,255,255,0.12); pointer-events:none; }
+        .clab-text-copy-btn + .clab-output-settings-trigger { position:relative; }
+        .clab-output-binding::before, .clab-text-copy-btn + .clab-output-settings-trigger::before { content:""; position:absolute; top:-1px; bottom:-1px; left:-1px; border-left:1px solid rgba(255,255,255,0.12); pointer-events:none; }
         .clab-output-binding button { max-width:100px; border:0; background:transparent; color:rgba(255,255,255,0.8); transition:color 0.15s, background-color 0.15s; }
-        .clab-output-controls .clab-output-settings-trigger { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:20px; height:20px; padding:0; border:0; border-radius:3px; background:transparent; color:rgba(255,255,255,0.8); cursor:pointer; transition:color 0.15s, background-color 0.15s; }
+        .clab-output-controls .clab-output-settings-trigger, .clab-output-controls .clab-text-copy-btn { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:20px; height:20px; padding:0; border:0; border-radius:3px; background:transparent; color:rgba(255,255,255,0.8); cursor:pointer; transition:color 0.15s, background-color 0.15s; }
+        .clab-output-controls .clab-text-copy-btn { width:auto; min-width:42px; padding:0 4px; font:11px/1 sans-serif; }
+        .clab-output-controls .clab-text-copy-btn:disabled { cursor:default; opacity:0.75; }
         .clab-output-controls button:hover, .clab-output-controls button[aria-expanded="true"] { background:rgba(255,255,255,0.1); color:#fff; }
         .clab-output-manage-head .clab-output-controls { position:relative; top:auto; right:auto; max-width:114px; flex-shrink:0; }
         .clab-input-header > .clab-area-title-input { flex:0 1 auto; min-width:15px; }

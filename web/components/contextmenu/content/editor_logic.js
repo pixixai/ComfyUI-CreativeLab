@@ -2,7 +2,7 @@
  * 文件名: editor_logic.js
  * 路径: web/components/contextmenu/content/editor_logic.js
  * 职责: 提供代码与文本的预览、编辑的核心渲染控制及交互逻辑；
- * 内容：CodeMirror/ToastUI 加载与切换、复制/保存/Ctrl+S、dirty 状态
+ * 内容：CodeMirror/Vditor 加载与切换、复制/保存/Ctrl+S、dirty 状态
  */
 import { previewModalStore, externalEditorStore } from "./state.js";
 import {
@@ -10,7 +10,6 @@ import {
     parseAssetMetaFromUrl,
     escapeHtml,
     getCodeMirrorLanguageExtension,
-    sanitizeHref,
 } from "./shared.js";
 
 export function createEditorLogic({
@@ -136,230 +135,6 @@ export function createEditorLogic({
     }
 
 
-    function highlightCodeHtml(source) {
-        const text = String(source ?? "");
-        const keywordSet = new Set([
-            "break", "case", "catch", "class", "const", "continue", "debugger", "default", "def", "delete",
-            "do", "elif", "else", "enum", "export", "extends", "finally", "for", "from", "function", "if",
-            "import", "in", "instanceof", "interface", "lambda", "let", "new", "of", "return", "switch",
-            "throw", "try", "type", "typeof", "var", "void", "while", "with", "yield", "async", "await"
-        ]);
-        const booleanSet = new Set(["true", "false", "null", "undefined", "none"]);
-        const operatorChars = new Set(["+", "-", "*", "/", "%", "=", "<", ">", "!", "&", "|", "^", "~", "?", ":"]);
-        const punctuationChars = new Set([",", ".", ";"]);
-        const bracketChars = new Set(["(", ")", "[", "]", "{", "}"]);
-
-        const out = [];
-        const len = text.length;
-        let i = 0;
-
-        const wrap = (className, token) => `<span class="${className}">${escapeHtml(token)}</span>`;
-        const isWordStart = (ch) => /[A-Za-z_$]/.test(ch);
-        const isWordPart = (ch) => /[A-Za-z0-9_$]/.test(ch);
-        const isDigit = (ch) => /[0-9]/.test(ch);
-        const readUntilLineEnd = (start) => {
-            let end = start;
-            while (end < len && text[end] !== "\n") end += 1;
-            return end;
-        };
-
-        while (i < len) {
-            const ch = text[i];
-            const next = i + 1 < len ? text[i + 1] : "";
-
-            if (ch === "/" && next === "/") {
-                const end = readUntilLineEnd(i);
-                out.push(wrap("clab-text-token-comment", text.slice(i, end)));
-                i = end;
-                continue;
-            }
-            if (ch === "/" && next === "*") {
-                let end = i + 2;
-                while (end < len && !(text[end] === "*" && text[end + 1] === "/")) end += 1;
-                end = Math.min(len, end + 2);
-                out.push(wrap("clab-text-token-comment", text.slice(i, end)));
-                i = end;
-                continue;
-            }
-            if (ch === "#") {
-                const end = readUntilLineEnd(i);
-                out.push(wrap("clab-text-token-comment", text.slice(i, end)));
-                i = end;
-                continue;
-            }
-            if (ch === "\"" || ch === "'" || ch === "`") {
-                const quote = ch;
-                let end = i + 1;
-                while (end < len) {
-                    const cur = text[end];
-                    if (cur === "\\") {
-                        end += 2;
-                        continue;
-                    }
-                    end += 1;
-                    if (cur === quote) break;
-                }
-                out.push(wrap("clab-text-token-string", text.slice(i, end)));
-                i = end;
-                continue;
-            }
-            if (isDigit(ch) || (ch === "." && isDigit(next))) {
-                let end = i + 1;
-                while (end < len && /[0-9A-Fa-fxXoObBeE._]/.test(text[end])) end += 1;
-                out.push(wrap("clab-text-token-number", text.slice(i, end)));
-                i = end;
-                continue;
-            }
-            if (isWordStart(ch)) {
-                let end = i + 1;
-                while (end < len && isWordPart(text[end])) end += 1;
-                const word = text.slice(i, end);
-                const lower = word.toLowerCase();
-
-                if (booleanSet.has(lower)) {
-                    out.push(wrap("clab-text-token-boolean", word));
-                    i = end;
-                    continue;
-                }
-                if (keywordSet.has(word)) {
-                    out.push(wrap("clab-text-token-keyword", word));
-                    i = end;
-                    continue;
-                }
-
-                let lookahead = end;
-                while (lookahead < len && (text[lookahead] === " " || text[lookahead] === "\t")) lookahead += 1;
-                if (text[lookahead] === "(") {
-                    out.push(wrap("clab-text-token-function", word));
-                } else {
-                    out.push(escapeHtml(word));
-                }
-                i = end;
-                continue;
-            }
-            if (operatorChars.has(ch)) {
-                let end = i + 1;
-                while (end < len && operatorChars.has(text[end])) end += 1;
-                out.push(wrap("clab-text-token-operator", text.slice(i, end)));
-                i = end;
-                continue;
-            }
-            if (bracketChars.has(ch)) {
-                out.push(wrap("clab-text-token-bracket", ch));
-                i += 1;
-                continue;
-            }
-            if (punctuationChars.has(ch)) {
-                out.push(wrap("clab-text-token-punctuation", ch));
-                i += 1;
-                continue;
-            }
-
-            out.push(escapeHtml(ch));
-            i += 1;
-        }
-
-        return out.join("");
-    }
-
-    function renderInlineMarkup(text, syntaxHighlight = false) {
-        const codeTokens = [];
-        let html = escapeHtml(text).replace(/`([^`]+)`/g, (_match, code) => {
-            const inner = syntaxHighlight ? highlightCodeHtml(code) : escapeHtml(code);
-            codeTokens.push(`<code class="clab-text-inline-code">${inner}</code>`);
-            return `__CLAB_PREVIEW_INLINE_${codeTokens.length - 1}__`;
-        });
-
-        html = html
-            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label, href) => {
-                const safeHref = sanitizeHref(href);
-                const safeLabel = escapeHtml(label);
-                if (!safeHref) return safeLabel;
-                return `<a class="clab-text-link" href="${safeHref}" target="_blank" rel="noopener noreferrer">${safeLabel}</a>`;
-            })
-            .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-            .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-            .replace(/~~([^~]+)~~/g, "<del>$1</del>");
-
-        html = html.replace(/__CLAB_PREVIEW_INLINE_(\d+)__/g, (_match, index) => codeTokens[Number(index)] || "");
-        return html;
-    }
-
-    function renderInlineWithBreaks(text, syntaxHighlight = false) {
-        return String(text ?? "")
-            .split("\n")
-            .map((line) => renderInlineMarkup(line, syntaxHighlight))
-            .join("<br>");
-    }
-
-    function renderMarkdownHtml(source, syntaxHighlight = false) {
-        const blockTokens = [];
-        let text = String(source ?? "").replace(/\r\n/g, "\n");
-
-        text = text.replace(/```([^\n`]*)\n([\s\S]*?)```/g, (_match, language, code) => {
-            const codeHtml = syntaxHighlight ? highlightCodeHtml(code) : escapeHtml(code);
-            const langLabel = String(language || "").trim();
-            const langHtml = langLabel ? `<div class="clab-text-code-lang">${escapeHtml(langLabel)}</div>` : "";
-            blockTokens.push(`
-                <div class="clab-text-code-block">
-                    ${langHtml}
-                    <pre class="clab-text-code-pre"><code>${codeHtml}</code></pre>
-                </div>
-            `);
-            return `\n__CLAB_PREVIEW_BLOCK_${blockTokens.length - 1}__\n`;
-        });
-
-        const blocks = text.split(/\n{2,}/).map((item) => item.trim()).filter(Boolean);
-        const htmlBlocks = blocks.map((block) => {
-            const blockTokenMatch = block.match(/^__CLAB_PREVIEW_BLOCK_(\d+)__$/);
-            if (blockTokenMatch) return blockTokens[Number(blockTokenMatch[1])] || "";
-
-            if (/^#{1,6}\s/.test(block)) {
-                const level = Math.min(6, block.match(/^#+/)[0].length);
-                return `<h${level} class="clab-text-heading h${level}">${renderInlineMarkup(block.replace(/^#{1,6}\s+/, ""), syntaxHighlight)}</h${level}>`;
-            }
-
-            if (block.startsWith(">")) {
-                const quote = block
-                    .split("\n")
-                    .map((line) => line.replace(/^>\s?/, ""))
-                    .join("\n");
-                return `<blockquote class="clab-text-quote">${renderInlineWithBreaks(quote, syntaxHighlight)}</blockquote>`;
-            }
-
-            const listLines = block.split("\n");
-            if (listLines.every((line) => /^[-*+]\s+/.test(line))) {
-                const items = listLines
-                    .map((line) => `<li>${renderInlineMarkup(line.replace(/^[-*+]\s+/, ""), syntaxHighlight)}</li>`)
-                    .join("");
-                return `<ul class="clab-text-list">${items}</ul>`;
-            }
-
-            if (listLines.every((line) => /^\d+\.\s+/.test(line))) {
-                const items = listLines
-                    .map((line) => `<li>${renderInlineMarkup(line.replace(/^\d+\.\s+/, ""), syntaxHighlight)}</li>`)
-                    .join("");
-                return `<ol class="clab-text-list">${items}</ol>`;
-            }
-
-            return `<p class="clab-text-paragraph">${renderInlineWithBreaks(block, syntaxHighlight)}</p>`;
-        });
-
-        return htmlBlocks.join("");
-    }
-
-    function renderPlainTextHtml(text, syntaxHighlight = false) {
-        const body = syntaxHighlight ? highlightCodeHtml(text) : escapeHtml(text);
-        return `<pre class="clab-text-plain"><code>${body}</code></pre>`;
-    }
-
-    function renderPreviewTextHtml(source, syntaxHighlight = false, markdownPreview = false) {
-        if (markdownPreview) {
-            return renderMarkdownHtml(source, syntaxHighlight);
-        }
-        return renderPlainTextHtml(source, syntaxHighlight);
-    }
-
     function findAreaById(areaId) {
         if (!areaId) return null;
         for (const card of state.cards) {
@@ -398,8 +173,8 @@ export function createEditorLogic({
             editorState.text = safeText;
             editorState.lastLoadedText = safeText;
         }
-        if (typeof editorState.syntaxHighlight !== "boolean") editorState.syntaxHighlight = defaults.syntaxHighlight;
-        if (typeof editorState.previewMarkdown !== "boolean") editorState.previewMarkdown = defaults.previewMarkdown;
+        if (hasFallback || typeof editorState.syntaxHighlight !== "boolean") editorState.syntaxHighlight = defaults.syntaxHighlight;
+        if (hasFallback || typeof editorState.previewMarkdown !== "boolean") editorState.previewMarkdown = defaults.previewMarkdown;
         return editorState;
     }
 
@@ -410,19 +185,19 @@ export function createEditorLogic({
             await navigator.clipboard.writeText(safe);
             return true;
         } catch (_) {
+            const textarea = document.createElement("textarea");
             try {
-                const textarea = document.createElement("textarea");
                 textarea.value = safe;
                 textarea.setAttribute("readonly", "true");
                 textarea.style.position = "fixed";
                 textarea.style.left = "-9999px";
                 document.body.appendChild(textarea);
                 textarea.select();
-                const copied = document.execCommand("copy");
-                document.body.removeChild(textarea);
-                return !!copied;
+                return !!document.execCommand("copy");
             } catch (_) {
                 return false;
+            } finally {
+                textarea.remove();
             }
         }
     }
@@ -468,7 +243,7 @@ export function createEditorLogic({
     async function savePreviewTextEntry(entry, buttonEl) {
         if (!entry || entry.type !== "text") return false;
         const cacheKey = normalizeHistoryUrl(entry.url || "");
-        const editorState = getPreviewTextState(cacheKey, "");
+        const editorState = getPreviewTextState(cacheKey);
         const nextText = String(editorState.text ?? "");
         const oldLabel = buttonEl?.textContent || "保存";
         if (!editorState.dirty) {
@@ -571,6 +346,12 @@ export function createEditorLogic({
                     background-color: rgb(30, 30, 30) !important;
                     color: #d1d1d1 !important;
                 }
+                .clab-preview-modal-text-no-highlight .hljs,
+                .clab-preview-modal-text-no-highlight .hljs * {
+                    color: #d1d1d1 !important;
+                    font-weight: normal !important;
+                    font-style: normal !important;
+                }
             `;
             document.head.appendChild(style);
         }
@@ -607,6 +388,9 @@ export function createEditorLogic({
             cmLanguageCompartment: null,
             markdownCtor: null,
             markdownEditor: null,
+            markdownReady: null,
+            markdownValue: null,
+            syncing: false,
             markdownSaveKeyHandler: null,
         };
 
@@ -624,17 +408,16 @@ export function createEditorLogic({
         };
 
         const getCurrentEditorText = () => {
+            // Vditor 会规范化 Markdown；没有实际编辑时仍保留原文和换行。
             if (runtime.mode === "markdown" && runtime.markdownEditor) {
                 try {
-                    return String(runtime.markdownEditor.getValue() ?? "");
+                    const value = String(runtime.markdownEditor.getValue() ?? "");
+                    if (value !== runtime.markdownValue) {
+                        runtime.markdownValue = value;
+                        return value;
+                    }
                 } catch (_) { }
             }
-            if (runtime.mode === "code" && runtime.cmView) {
-                try {
-                    return String(runtime.cmView.state.doc.toString() ?? "");
-                } catch (_) { }
-            }
-            if (fallbackInput) return String(fallbackInput.value ?? "");
             return String(editorState.text ?? "");
         };
 
@@ -649,6 +432,7 @@ export function createEditorLogic({
             if (area) {
                 area.textSyntaxHighlight = editorState.syntaxHighlight;
                 area.textPreviewMarkdown = editorState.previewMarkdown;
+                if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(area.id);
             }
             if (window._clabJustSave) window._clabJustSave();
         };
@@ -658,9 +442,12 @@ export function createEditorLogic({
             const view = runtime.cmView;
             const current = view.state.doc.toString();
             if (current === nextText) return;
-            view.dispatch({
-                changes: { from: 0, to: current.length, insert: nextText },
-            });
+            runtime.syncing = true;
+            try {
+                view.dispatch({ changes: { from: 0, to: current.length, insert: nextText } });
+            } finally {
+                runtime.syncing = false;
+            }
         };
 
         const configureCodeMirrorLanguage = () => {
@@ -682,6 +469,11 @@ export function createEditorLogic({
             }
             const cmLib = runtime.cmLib || await loadCodeMirror6Lib();
             if (runtime.disposed || !shell.isConnected) return false;
+            if (runtime.cmView) {
+                replaceCodeMirrorDoc(String(editorState.text ?? ""));
+                configureCodeMirrorLanguage();
+                return true;
+            }
 
             runtime.cmLib = cmLib;
             runtime.cmLanguageCompartment = new cmLib.Compartment();
@@ -703,7 +495,7 @@ export function createEditorLogic({
                         },
                     }]),
                     cmLib.EditorView.updateListener.of((update) => {
-                        if (!update.docChanged || runtime.disposed) return;
+                        if (!update.docChanged || runtime.disposed || runtime.syncing) return;
                         applyDirtyByText(update.state.doc.toString());
                         if (fallbackInput) fallbackInput.value = editorState.text;
                     }),
@@ -715,53 +507,66 @@ export function createEditorLogic({
 
         const ensureMarkdownEditor = async () => {
             if (!markdownHost) return false;
-            if (runtime.markdownEditor) {
-                runtime.markdownEditor.setValue(String(editorState.text ?? ""));
-                return true;
-            }
             const EditorCtor = runtime.markdownCtor || await loadVditorLib();
             if (runtime.disposed || !shell.isConnected) return false;
 
-            runtime.markdownCtor = EditorCtor;
-            markdownHost.innerHTML = "";
-            const container = document.createElement("div");
-            container.id = "clab-vditor-" + Math.random().toString(36).slice(2, 9);
-            container.className = "clab-preview-modal-markdown-editor-root";
+            if (!runtime.markdownReady) {
+                runtime.markdownCtor = EditorCtor;
+                markdownHost.innerHTML = "";
+                const container = document.createElement("div");
+                container.id = "clab-vditor-" + Math.random().toString(36).slice(2, 9);
+                container.className = "clab-preview-modal-markdown-editor-root";
 
-            const style = document.createElement("style");
-            style.textContent = `
-                .clab-preview-modal-markdown-editor-root { height: 100%; display: flex; flex-direction: column; }
-                .clab-preview-modal-markdown-editor-root .vditor-toolbar { display: none !important; }
-                .clab-preview-modal-markdown-editor-root .vditor { border: none !important; margin: 0; box-shadow: none !important; }
-            `;
-            markdownHost.appendChild(style);
-            markdownHost.appendChild(container);
+                const style = document.createElement("style");
+                style.textContent = `
+                    .clab-preview-modal-markdown-editor-root { height: 100%; display: flex; flex-direction: column; }
+                    .clab-preview-modal-markdown-editor-root .vditor-toolbar { display: none !important; }
+                    .clab-preview-modal-markdown-editor-root .vditor { border: none !important; margin: 0; box-shadow: none !important; }
+                `;
+                markdownHost.appendChild(style);
+                markdownHost.appendChild(container);
 
-            const editor = new EditorCtor(container.id, {
-                height: "100%",
-                mode: "wysiwyg",
-                theme: "dark",
-                icon: "material",
-                toolbar: [],
-                value: String(editorState.text ?? ""),
-                preview: { theme: { current: "dark" } },
-                cache: { enable: false },
-                input: (val) => {
-                    if (runtime.disposed) return;
-                    applyDirtyByText(val);
-                    if (fallbackInput) fallbackInput.value = editorState.text;
-                }
-            });
+                let ready;
+                runtime.markdownReady = new Promise(resolve => { ready = resolve; });
+                runtime.markdownEditor = new EditorCtor(container.id, {
+                    height: "100%",
+                    mode: "wysiwyg",
+                    theme: "dark",
+                    icon: "material",
+                    toolbar: [],
+                    value: String(editorState.text ?? ""),
+                    preview: { theme: { current: "dark" } },
+                    cache: { enable: false },
+                    after: () => {
+                        if (!runtime.disposed) runtime.markdownValue = String(runtime.markdownEditor.getValue() ?? "");
+                        ready();
+                    },
+                    input: (val) => {
+                        if (runtime.disposed || runtime.mode !== "markdown" || runtime.syncing || runtime.markdownValue === null || val === runtime.markdownValue) return;
+                        runtime.markdownValue = val;
+                        applyDirtyByText(val);
+                        if (fallbackInput) fallbackInput.value = editorState.text;
+                    }
+                });
 
-            runtime.markdownSaveKeyHandler = (event) => {
-                if (!(event.ctrlKey || event.metaKey)) return;
-                if (String(event.key || "").toLowerCase() !== "s") return;
-                event.preventDefault();
-                event.stopPropagation();
-                if (saveBtn && !saveBtn.disabled) saveBtn.click();
-            };
-            markdownHost.addEventListener("keydown", runtime.markdownSaveKeyHandler, true);
-            runtime.markdownEditor = editor;
+                runtime.markdownSaveKeyHandler = (event) => {
+                    if (!(event.ctrlKey || event.metaKey)) return;
+                    if (String(event.key || "").toLowerCase() !== "s") return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (saveBtn && !saveBtn.disabled) saveBtn.click();
+                };
+                markdownHost.addEventListener("keydown", runtime.markdownSaveKeyHandler, true);
+            }
+            await runtime.markdownReady;
+            if (runtime.disposed || !shell.isConnected) return false;
+            runtime.syncing = true;
+            try {
+                runtime.markdownEditor.setValue(String(editorState.text ?? ""));
+                runtime.markdownValue = String(runtime.markdownEditor.getValue() ?? "");
+            } finally {
+                runtime.syncing = false;
+            }
             return true;
         };
 
@@ -779,6 +584,7 @@ export function createEditorLogic({
                         return;
                     }
                 } catch (error) {
+                    if (runtime.disposed || !shell.isConnected || myTicket !== switchTicket) return;
                     showAutoToast(`Markdown editor unavailable: ${error?.message || error}`, true);
                 }
                 setHostMode("fallback");
@@ -795,6 +601,7 @@ export function createEditorLogic({
                         return;
                     }
                 } catch (error) {
+                    if (runtime.disposed || !shell.isConnected || myTicket !== switchTicket) return;
                     showAutoToast(`Code editor unavailable: ${error?.message || error}`, true);
                 }
             }
@@ -821,6 +628,7 @@ export function createEditorLogic({
         if (syntaxInput) {
             syntaxInput.addEventListener("change", () => {
                 editorState.syntaxHighlight = !!syntaxInput.checked;
+                shell.classList.toggle("clab-preview-modal-text-no-highlight", !editorState.syntaxHighlight);
                 syncOptionToArea();
                 if (!editorState.previewMarkdown) {
                     void switchEditorMode();
@@ -875,6 +683,7 @@ export function createEditorLogic({
         }
 
         setHostMode("fallback");
+        shell.classList.toggle("clab-preview-modal-text-no-highlight", !editorState.syntaxHighlight);
         void switchEditorMode();
     }
 
@@ -882,6 +691,5 @@ export function createEditorLogic({
     return {
         bindPreviewTextEditor,
         getPreviewTextState,
-        renderPreviewTextHtml,
     };
 }
