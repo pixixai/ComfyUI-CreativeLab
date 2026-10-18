@@ -156,20 +156,20 @@ function showBindingPanel(areaEl) {
         const bindings = selectedAreas.map(getBindings);
         const nodes = [...(app.graph?._nodes || [])];
         for (const id of ids) if (!nodes.some(n => String(n.id) === id)) nodes.push({ id, title: '节点已失效', widgets: [] });
-        nodes.sort((a, b) => Number(ids.includes(String(b.id))) - Number(ids.includes(String(a.id))));
+        if (!isOutput) nodes.sort((a, b) => Number(ids.includes(String(b.id))) - Number(ids.includes(String(a.id))));
         const query = search.value.trim().toLowerCase();
         if (isOutput) {
             const mixed = new Set(selectedAreas.map(a => String(a.targetNodeId ?? ''))).size > 1;
             popup.querySelector('.clab-binding-panel-foot').textContent = selectedAreas.length > 1
-                ? `应用到 ${selectedAreas.length} 个已选输出模块 · ${mixed ? '当前绑定不同 · ' : ''}单选节点绑定`
-                : '单选节点绑定 · 可清除绑定';
-            nodeList.innerHTML = [{ id: '', title: '未绑定（清除绑定）' }, ...nodes.filter(n => `${n.id} ${n.title || n.type}`.toLowerCase().includes(query))].map(n => {
+                ? `应用到 ${selectedAreas.length} 个已选输出模块 · ${mixed ? '当前绑定不同 · ' : ''}再次点击已选节点取消`
+                : '单选节点绑定 · 再次点击已选节点取消';
+            nodeList.innerHTML = nodes.filter(n => `${n.id} ${n.title || n.type}`.toLowerCase().includes(query)).map(n => {
                 const id = String(n.id);
                 const checked = selectedAreas.every(a => String(a.targetNodeId ?? '') === id);
                 return `<div class="clab-binding-node-row ${checked ? 'is-current' : ''}">
-                    <input type="radio" name="clab-output-node" data-node="${escapeHTML(id)}" ${checked ? 'checked' : ''} aria-label="${id ? `绑定节点 ${escapeHTML(id)}` : '清除输出绑定'}">
-                    <button type="button" data-focus-node="${escapeHTML(id)}" aria-pressed="${checked}" title="${escapeHTML(id ? `[${id}] ${n.title || n.type}` : n.title)}">${id ? `<span>[${escapeHTML(id)}]</span>` : ''}<span>${escapeHTML(n.title || n.type)}</span></button></div>`;
-            }).join('');
+                    <input type="radio" name="clab-output-node" data-node="${escapeHTML(id)}" ${checked ? 'checked' : ''} aria-label="${checked ? '取消绑定节点' : '绑定节点'} ${escapeHTML(id)}">
+                    <button type="button" data-focus-node="${escapeHTML(id)}" aria-pressed="${checked}" title="${escapeHTML(`[${id}] ${n.title || n.type}`)}"><span>[${escapeHTML(id)}]</span><span>${escapeHTML(n.title || n.type)}</span></button></div>`;
+            }).join('') || '<div class="clab-binding-empty">没有匹配节点</div>';
             nodeList.scrollTop = scrollTop;
             return;
         }
@@ -241,9 +241,10 @@ function showBindingPanel(areaEl) {
     const bindOutputNode = id => {
         const focusInput = document.activeElement?.matches('input[data-node]');
         const node = app.graph?.getNodeById(id);
-        const targets = id ? resolveBindingTargets(node || { id }).slice(0, 1) : [];
+        const selected = selectedAreas.every(a => String(a.targetNodeId ?? '') === id);
+        const targets = selected ? [] : resolveBindingTargets(node || { id }).slice(0, 1);
         apply(targets, true, false);
-        const selectedId = targets[0]?.nodeIdStr || '';
+        const selectedId = targets[0]?.nodeIdStr || id;
         for (const next of popup.querySelectorAll(focusInput ? 'input[data-node]' : '[data-focus-node]')) {
             if ((focusInput ? next.dataset.node : next.dataset.focusNode) === selectedId) next.focus({ preventScroll: true });
         }
@@ -251,12 +252,21 @@ function showBindingPanel(areaEl) {
     for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click', 'contextmenu', 'dragstart']) popup.addEventListener(type, e => e.stopPropagation());
     popup.addEventListener('keydown', e => {
         e.stopPropagation();
+        if (isOutput && e.key === ' ' && e.target.matches('input[data-node]')) {
+            e.preventDefault();
+            if (!e.repeat) bindOutputNode(e.target.dataset.node);
+        }
         if (e.key === 'Escape') { e.preventDefault(); close(); trigger.focus({ preventScroll: true }); }
     });
     popup.addEventListener('click', e => {
         const button = e.target.closest('[data-focus-node]');
+        const input = e.target.closest('input[data-node]');
+        if (isOutput && (button || input)) {
+            e.preventDefault();
+            bindOutputNode(button ? button.dataset.focusNode : input.dataset.node);
+            return;
+        }
         if (!button) return;
-        if (isOutput) { bindOutputNode(button.dataset.focusNode); return; }
         focusedId = button.dataset.focusNode;
         refresh();
         for (const row of nodeList.querySelectorAll('[data-focus-node]')) if (row.dataset.focusNode === focusedId) row.focus({ preventScroll: true });
@@ -297,6 +307,13 @@ function showBindingPanel(areaEl) {
     trigger.setAttribute('aria-expanded', 'true');
     position();
     search.focus({ preventScroll: true });
+    if (isOutput) {
+        const current = [...nodeList.querySelectorAll('input[data-node]')]
+            .find(input => input.dataset.node === String(area.targetNodeId ?? ''));
+        const row = current?.closest('.clab-binding-node-row');
+        if (row) nodeList.scrollTop += row.getBoundingClientRect().top - nodeList.getBoundingClientRect().top
+            - (nodeList.clientHeight - row.offsetHeight) / 2;
+    }
 }
 
 export function attachModulePickEvents(container) {
