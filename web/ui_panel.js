@@ -7,6 +7,7 @@ import { setupStaticToolbarEvents } from "./components/comp_toolbar.js";
 import { renderDynamicToolbar, attachDynamicToolbarEvents } from "./components/comp_toolbar.js";
 import { renderCardsList, attachCardEvents } from "./components/comp_taskcard.js";
 import { attachAreaEvents } from "./components/comp_modulearea.js";
+import { observeModuleRemoval } from "./components/modules/module_lifecycle.js";
 import { renderWorkspaceBar, attachWorkspaceEvents } from "./components/comp_workspace.js";
 import { renderChannelBar, attachChannelEvents } from "./components/comp_channel.js";
 
@@ -75,21 +76,13 @@ function setupPanelMediaVault() {
                         const oldUrl = new URL(info.src, window.location.origin);
                         const newUrl = new URL(newSrc, window.location.origin);
 
-                        const oldIsView = oldUrl.pathname === "/view" && !!oldUrl.searchParams.get("filename");
-                        const newIsView = newUrl.pathname === "/view" && !!newUrl.searchParams.get("filename");
-
-                        if (oldIsView && newIsView) {
-                            const oldFilename = oldUrl.searchParams.get("filename");
-                            const newFilename = newUrl.searchParams.get("filename");
-                            const oldT = oldUrl.searchParams.get("t") || "";
-                            const newT = newUrl.searchParams.get("t") || "";
-                            return oldFilename === newFilename && oldT === newT;
-                        }
-                    } catch (_) {}
-
-                    const oldBase = info.src.split("&t=")[0].split("?t=")[0];
-                    const newBase = newSrc.split("&t=")[0].split("?t=")[0];
-                    return oldBase === newBase && oldBase !== "";
+                        oldUrl.hash = newUrl.hash = '';
+                        oldUrl.searchParams.sort();
+                        newUrl.searchParams.sort();
+                        return oldUrl.href === newUrl.href;
+                    } catch (_) {
+                        return info.src === newSrc;
+                    }
                 })();
 
                 if (shouldRestoreStashed) {
@@ -173,11 +166,11 @@ function canRefreshCardsInPlace(cardsContainer) {
 
     return state.cards.every((card, index) => {
         const cardEl = cardEls[index];
-        if (!cardEl) return false;
+        if (!cardEl || cardEl.dataset.cardId !== card.id) return false;
 
         const areaEls = Array.from(cardEl.querySelectorAll(".clab-area-list > .clab-area[data-area-id]"));
         const stateAreas = Array.isArray(card.areas) ? card.areas : [];
-        return areaEls.length === stateAreas.length;
+        return areaEls.length === stateAreas.length && areaEls.every((el, i) => el.dataset.areaId === stateAreas[i].id);
     });
 }
 
@@ -238,11 +231,13 @@ function performPanelRender() {
         });
     }
 
-    if (window.CLab && window.CLab.stashMedia) window.CLab.stashMedia();
+    const canReuse = canRefreshCardsInPlace(cardsContainer);
+    if (!canReuse && window.CLab?.stashMedia) window.CLab.stashMedia();
 
     renderDynamicToolbar(toolbarHandle);
     renderChannelBar(channelBar);
-    renderCardsList(cardsContainer);
+    const reused = canReuse && refreshCardsInPlace(cardsContainer);
+    if (!reused) renderCardsList(cardsContainer);
     renderWorkspaceBar(workspaceBar);
 
     if (cardsContainer) {
@@ -253,13 +248,14 @@ function performPanelRender() {
         });
     }
 
-    if (window.CLab && window.CLab.restoreMedia) window.CLab.restoreMedia();
-    if (window._clabApplyVideoAutoplaySetting) window._clabApplyVideoAutoplaySetting();
+    if (!reused && window.CLab?.restoreMedia) window.CLab.restoreMedia();
 
     attachDynamicToolbarEvents(toolbarHandle);
     attachChannelEvents(channelBar);
-    attachCardEvents(cardsContainer);
-    attachAreaEvents(cardsContainer);
+    if (!reused) {
+        attachCardEvents(cardsContainer);
+        attachAreaEvents(cardsContainer);
+    }
     attachWorkspaceEvents(workspaceBar);
 
     if (window._clabUpdateAllDefaultTitles) window._clabUpdateAllDefaultTitles();
@@ -411,6 +407,7 @@ export function setupUI() {
             createPanelDOM();
             if (backdropContainer) document.body.appendChild(backdropContainer);
             document.body.appendChild(panelContainer);
+            observeModuleRemoval(panelContainer);
             if (window._clabApplyPanelLayout) window._clabApplyPanelLayout();
 
             setupGlobalEvents(panelContainer, backdropContainer, togglePanel, performRender);

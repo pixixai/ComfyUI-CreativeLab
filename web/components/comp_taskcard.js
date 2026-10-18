@@ -7,6 +7,7 @@ import { state, dragState, appState } from "./ui_state.js";
 // 【注入】：引入 attachAreaEvents 以便克隆时对新生 DOM 原地施放事件绑定魔法
 import { generateAreaHTML, syncAreaDOMOrder, justSave, attachAreaEvents } from "./comp_modulearea.js";
 import { updateSelectionUI } from "./ui_selection.js";
+import { moveModuleDOM } from "./modules/module_lifecycle.js";
 
 // 【全新动态布局引擎】：同步精确计算纯卡片宽度，控制自适应居中与左对齐
 export function updateCardsLayout() {
@@ -298,10 +299,12 @@ export function attachCardEvents(container) {
                         });
                     }
 
-                    // 基于最新的状态索引安全排序并追加 DOM
+                    let cursor = wrapper.firstElementChild;
                     state.cards.forEach(c => {
                         const el = wrapper.querySelector(`.clab-card[data-card-id="${c.id}"]`);
-                        if (el) wrapper.appendChild(el);
+                        if (!el) return;
+                        if (el !== cursor) moveModuleDOM(wrapper, el, cursor);
+                        cursor = el.nextElementSibling;
                     });
 
                     // 给克隆出的新生儿施加点击和交互魔法

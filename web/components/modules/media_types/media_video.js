@@ -75,8 +75,8 @@ export function renderVideo(area, objectFit, url, errCall) {
     `;
 }
 
-export function updateVideoProgress() {
-    document.querySelectorAll('.clab-video-player').forEach(player => {
+export function updateVideoProgress(players = document.querySelectorAll('.clab-video-player')) {
+    players.forEach(player => {
         const vid = player.querySelector('video');
         if (!vid) return;
 
@@ -121,7 +121,8 @@ export function updateVideoProgress() {
         if (bar && tc && vid.duration) {
             bar.style.width = `${(vid.currentTime / vid.duration) * 100}%`;
             // 正常播放时显示标准格式
-            tc.textContent = `${formatTime(vid.currentTime)} / ${formatTime(vid.duration)}`;
+            const label = `${formatTime(vid.currentTime)} / ${formatTime(vid.duration)}`;
+            if (tc.textContent !== label) tc.textContent = label;
         }
     });
 }
@@ -235,7 +236,8 @@ export function attachVideoEvents(container) {
                 // 让时间码瞬间刷新，不用等下一次 timeupdate
                 const tc = player.querySelector('.clab-timecode');
                 if (tc) {
-                    tc.textContent = `${formatTime(vid.currentTime)} / ${formatTime(vid.duration)}`;
+                    const label = `${formatTime(vid.currentTime)} / ${formatTime(vid.duration)}`;
+                    if (tc.textContent !== label) tc.textContent = label;
                 }
             });
         }

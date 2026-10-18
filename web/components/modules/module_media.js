@@ -2,6 +2,7 @@
  * 文件名: module_media.js
  * 职责: 通用媒体引擎 (Router)，负责根据媒体类型向下级子组件分发渲染与交互请求
  */
+import { onModuleRemoved } from "./module_lifecycle.js";
 import { getAreaResultType, getMediaType } from "./media_types/media_utils.js";
 import { renderVideo, attachVideoEvents, updateVideoProgress } from "./media_types/media_video.js";
 import { renderAudio, attachAudioEvents, updateAudioProgress } from "./media_types/media_audio.js";
@@ -326,18 +327,109 @@ export function renderMedia(area, objectFit) {
     return renderImage(area, objectFit, url, errCall);
 }
 
-// =========================================================================
-// 3. 全局唯一 RAF 轮询引擎 (中心化的高性能状态更新)
-// =========================================================================
-if (!window._clabMediaLoopRunning) {
-    window._clabMediaLoopRunning = true;
-    const mediaLoop = () => {
-        // 调用子组件提供的方法，统一更新进度
-        updateVideoProgress();
-        updateAudioProgress();
-        requestAnimationFrame(mediaLoop);
-    };
-    mediaLoop();
+const players = new Set();
+const activePlayers = new Set();
+const visiblePlayers = new WeakSet();
+const thumbnails = new Set();
+const visibleThumbnails = new WeakSet();
+let mediaFrame = 0;
+let visibilityObserver = null;
+let thumbnailObserver = null;
+let panelObserver = null;
+
+function panelVisible(element) {
+    return !document.hidden && !!element.closest('#clab-panel.visible');
+}
+
+function updatePlayer(player) {
+    if (!panelVisible(player) || !visiblePlayers.has(player)) return;
+    if (player.classList.contains('clab-video-player')) updateVideoProgress([player]);
+    else updateAudioProgress([player]);
+}
+
+function scheduleMediaLoop() {
+    if (mediaFrame || activePlayers.size === 0) return;
+    mediaFrame = requestAnimationFrame(() => {
+        mediaFrame = 0;
+        activePlayers.forEach(updatePlayer);
+        scheduleMediaLoop();
+    });
+}
+
+function syncPlayer(player) {
+    const media = player.querySelector('video, audio');
+    if (media && !media.paused && !media.ended && panelVisible(player) && visiblePlayers.has(player)) activePlayers.add(player);
+    else activePlayers.delete(player);
+    updatePlayer(player);
+    if (!activePlayers.size) { cancelAnimationFrame(mediaFrame); mediaFrame = 0; }
+    else scheduleMediaLoop();
+}
+
+function syncThumbnail(media) {
+    const visible = panelVisible(media) && visibleThumbnails.has(media);
+    if (visible && media.dataset.clabSrc) {
+        media.src = media.dataset.clabSrc;
+        delete media.dataset.clabSrc;
+    }
+    if (media.tagName === 'VIDEO') {
+        if (!visible) media.pause();
+        else if (media.autoplay && media.getAttribute('src')) media.play().catch(() => {});
+    }
+}
+
+function attachMediaVisibility(container) {
+    if (!visibilityObserver) {
+        visibilityObserver = new IntersectionObserver(entries => entries.forEach(({ target, isIntersecting }) => {
+            if (isIntersecting) visiblePlayers.add(target);
+            else visiblePlayers.delete(target);
+            syncPlayer(target);
+        }));
+        thumbnailObserver = new IntersectionObserver(entries => entries.forEach(({ target, isIntersecting }) => {
+            if (isIntersecting) visibleThumbnails.add(target);
+            else visibleThumbnails.delete(target);
+            syncThumbnail(target);
+        }), { rootMargin: '160px' });
+        const syncVisibility = () => {
+            players.forEach(syncPlayer);
+            thumbnails.forEach(syncThumbnail);
+        };
+        document.addEventListener('visibilitychange', syncVisibility);
+        for (const type of ['play', 'pause', 'ended', 'timeupdate', 'seeked', 'volumechange', 'loadeddata', 'durationchange']) {
+            document.addEventListener(type, event => {
+                const player = event.target.closest?.('.clab-video-player, .clab-audio-player');
+                if (player && players.has(player)) syncPlayer(player);
+            }, true);
+        }
+        const panel = container.closest('#clab-panel');
+        if (panel) {
+            panelObserver = new MutationObserver(syncVisibility);
+            panelObserver.observe(panel, { attributes: true, attributeFilter: ['class', 'style'] });
+        }
+    }
+    container.querySelectorAll('.clab-video-player, .clab-audio-player').forEach(player => {
+        if (players.has(player)) return;
+        players.add(player);
+        visibilityObserver.observe(player);
+        onModuleRemoved(player, () => {
+            players.delete(player);
+            activePlayers.delete(player);
+            visibilityObserver.unobserve(player);
+            const media = player.querySelector('video, audio');
+            clearTimeout(media?._scrubTimer);
+            media?.pause();
+            if (!activePlayers.size) { cancelAnimationFrame(mediaFrame); mediaFrame = 0; }
+        });
+    });
+    container.querySelectorAll('.clab-history-thumb [data-clab-src]').forEach(media => {
+        if (thumbnails.has(media)) return;
+        thumbnails.add(media);
+        thumbnailObserver.observe(media);
+        onModuleRemoved(media, () => {
+            thumbnails.delete(media);
+            thumbnailObserver.unobserve(media);
+            if (media.tagName === 'VIDEO') { media.pause(); media.removeAttribute('src'); media.load(); }
+        });
+    });
 }
 
 // =========================================================================
@@ -364,4 +456,5 @@ export function attachMediaEvents(container) {
     attachVideoEvents(container);
     attachAudioEvents(container);
     attachTextEvents(container);
+    attachMediaVisibility(container);
 }

@@ -14,6 +14,12 @@ app.registerExtension({
         console.log("[CLab] 开始加载...");
         setupUI();
         setupAPIInjector(app);
+        const originalSerialize = app.graph.serialize;
+        app.graph.serialize = function() {
+            StateManager.flushPendingSave(this);
+            return originalSerialize.apply(this, arguments);
+        };
+        window.addEventListener('pagehide', () => StateManager.flushPendingSave(app.graph));
 
         // =========================================================================
         // 【修改点】：使用 V3 新版原生组件库，为 CLab 创建独立的按钮组
@@ -115,5 +121,8 @@ window.CLab = {
     saveState(newState) {
         Object.assign(StateManager.state, newState);
         StateManager.syncToNode(app.graph);
+    },
+    scheduleSave() {
+        StateManager.scheduleSyncToNode(app.graph);
     }
 };

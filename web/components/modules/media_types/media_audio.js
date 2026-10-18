@@ -79,8 +79,8 @@ export function renderAudio(area, url, errCall) {
     `;
 }
 
-export function updateAudioProgress() {
-    document.querySelectorAll('.clab-audio-player').forEach(player => {
+export function updateAudioProgress(players = document.querySelectorAll('.clab-audio-player')) {
+    players.forEach(player => {
         const aud = player.querySelector('audio');
         if (!aud) return;
 
@@ -106,8 +106,8 @@ export function updateAudioProgress() {
         
         if (aud.duration) {
             if (bar) bar.style.width = `${(aud.currentTime / aud.duration) * 100}%`;
-            if (tcCurr) tcCurr.textContent = formatTime(aud.currentTime);
-            if (tcTot) tcTot.textContent = formatTime(aud.duration);
+            if (tcCurr && tcCurr.textContent !== formatTime(aud.currentTime)) tcCurr.textContent = formatTime(aud.currentTime);
+            if (tcTot && tcTot.textContent !== formatTime(aud.duration)) tcTot.textContent = formatTime(aud.duration);
         }
         
         if (btn) {

@@ -6,10 +6,11 @@ import { remapHistoryModuleIds } from "./modules/media_types/media_utils.js";
 import { state, appState, dragState, saveAndRender } from "./ui_state.js";
 import { injectDnDCSS, bindComboSelectEvents } from "./ui_utils.js";
 import { generateInputHTML, attachInputEvents, refreshInputAreaInPlace } from "./modules/module_input.js";
-import { generateOutputHTML, attachOutputEvents } from "./modules/module_output.js";
+import { generateOutputHTML, attachOutputEvents, refreshOutputAreaInPlace } from "./modules/module_output.js";
 import { attachModulePickEvents } from "./modules/module_binding.js";
 import { updateSelectionUI } from "./ui_selection.js"; // [新增] 引入更新选中状态的 UI 方法
 import { app } from "../../../scripts/app.js";
+import { moveModuleDOM } from "./modules/module_lifecycle.js";
 
 // 核心解耦：仅保存状态到后端节点，不触发整页刷新
 export function justSave() {
@@ -42,6 +43,8 @@ export function surgicallyUpdateArea(areaId) {
         if (a) { targetCard = c; targetArea = a; }
     });
     if (targetCard && targetArea) {
+        if (targetArea.type === 'edit' && areaEl.querySelector('.clab-input-body') && refreshInputAreaInPlace(areaEl, targetArea, targetCard)) return;
+        if (targetArea.type === 'preview' && refreshOutputAreaInPlace(areaEl, targetArea, targetCard)) return;
         const mediaEl = areaEl.querySelector('.clab-media-target');
         let stashedMedia = null, stashedSrc = null, stashedTime = 0, stashedPaused = true;
 
@@ -76,9 +79,10 @@ export function surgicallyUpdateArea(areaId) {
                 try {
                     const oU = new URL(stashedSrc, window.location.origin);
                     const nU = new URL(newSrc, window.location.origin);
-                    isSame = (oU.pathname === nU.pathname && 
-                              oU.searchParams.get('filename') === nU.searchParams.get('filename') && 
-                              oU.searchParams.get('t') === nU.searchParams.get('t'));
+                    oU.hash = nU.hash = '';
+                    oU.searchParams.sort();
+                    nU.searchParams.sort();
+                    isSame = oU.href === nU.href;
                 } catch(e) {
                     isSame = (stashedSrc === newSrc);
                 }
@@ -111,45 +115,23 @@ export function surgicallyUpdateArea(areaId) {
 }
 
 export function refreshAreaForContext(areaId) {
-    const areaEl = document.querySelector(`.clab-area[data-area-id="${areaId}"]`);
-    if (!areaEl) return false;
-
-    let targetCard = null;
-    let targetArea = null;
-    state.cards.forEach((card) => {
-        const area = card.areas?.find((item) => item.id === areaId);
-        if (area) {
-            targetCard = card;
-            targetArea = area;
-        }
-    });
-    if (!targetCard || !targetArea) return false;
-
-    if (targetArea.type === "edit" && refreshInputAreaInPlace(areaEl, targetArea, targetCard)) {
-        return true;
-    }
-
-    if (targetArea.type === "preview") {
-        const temp = document.createElement("div");
-        temp.innerHTML = generateAreaHTML(targetArea, targetCard);
-        const nextAreaEl = temp.firstElementChild;
-        const hasCurrentMedia = !!areaEl.querySelector(".clab-media-target");
-        const hasNextMedia = !!nextAreaEl?.querySelector(".clab-media-target");
-
-        if (nextAreaEl && !hasCurrentMedia && !hasNextMedia) {
-            areaEl.className = nextAreaEl.className;
-            areaEl.dataset.cardId = targetCard.id;
-            areaEl.dataset.areaId = targetArea.id;
-            areaEl.style.cssText = nextAreaEl.style.cssText;
-            areaEl.innerHTML = nextAreaEl.innerHTML;
-            attachAreaEvents(areaEl);
-            return true;
-        }
-    }
-
     surgicallyUpdateArea(areaId);
     return true;
 }
+
+const pendingAreaIds = new Set();
+let areaFrame = 0;
+export function scheduleAreaUpdate(areaId) {
+    pendingAreaIds.add(areaId);
+    if (areaFrame) return;
+    areaFrame = requestAnimationFrame(() => {
+        areaFrame = 0;
+        const ids = [...pendingAreaIds];
+        pendingAreaIds.clear();
+        ids.forEach(surgicallyUpdateArea);
+    });
+}
+window._clabScheduleAreaUpdate = scheduleAreaUpdate;
 
 // 同步所有卡片/区域的默认标题（仅在标题未自定义时更新）。
 export function updateAllDefaultTitles() {
@@ -226,9 +208,12 @@ window._clabRefreshAreaForContext = refreshAreaForContext;
 export function syncAreaDOMOrder(cardId, newAreasArray) {
     const list = document.querySelector(`.clab-card[data-card-id="${cardId}"] .clab-area-list`);
     if (!list) return;
+    let cursor = list.firstElementChild;
     newAreasArray.forEach(a => {
         const el = document.querySelector(`.clab-area[data-area-id="${a.id}"]`);
-        if (el) list.appendChild(el); 
+        if (!el) return;
+        if (el !== cursor) moveModuleDOM(list, el, cursor);
+        cursor = el.nextElementSibling;
     });
 }
 

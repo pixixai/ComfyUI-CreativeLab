@@ -15,21 +15,7 @@ import {
     syncTextContentWithSelection,
 } from "./media_types/media_utils.js";
 import { selectOutputHistory } from "./module_history.js";
-
-// 【防裂图引擎】：解析并强制刷新 ComfyUI 原生 /view URL 的访问时间戳
-function getValidMediaUrl(urlStr) {
-    if (!urlStr || typeof urlStr !== 'string') return urlStr;
-    try {
-        let urlObj = new URL(urlStr, window.location.origin);
-        if (urlObj.pathname === '/view') {
-            urlObj.searchParams.set('t', Date.now());
-            return urlObj.pathname + urlObj.search + urlObj.hash;
-        }
-        return urlStr;
-    } catch(e) {
-        return urlStr;
-    }
-}
+import { refreshModuleBindingSummary } from "./module_binding.js";
 
 function getTextSnippet(text) {
     const source = String(text || "").replace(/\s+/g, " ").trim();
@@ -87,7 +73,7 @@ export function generateOutputHTML(area, card) {
             const isAud = urlLower.match(/\.(mp3|wav|ogg|flac|aac|m4a)/);
             
             // 【关键修复】：这里必须先解析出安全的 displayUrl，下面才能正常使用！
-            const displayUrl = getValidMediaUrl(hUrl); 
+            const displayUrl = hUrl;
             const historyType = getMediaType(displayUrl);
 
             let media = '';
@@ -95,20 +81,20 @@ export function generateOutputHTML(area, card) {
                 // 【设置项支持】：动态判断是否启用高性能缩略图模式
                 if (window._clabThumbPerfMode !== false) {
                     // 高性能模式：加入 preload="metadata" 和 #t=0.1，只截取首帧！
-                    media = `<video src="${displayUrl}#t=0.1" preload="metadata" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" muted></video>`;
+                    media = `<video data-clab-src="${displayUrl}#t=0.1" preload="metadata" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" muted></video>`;
                 } else {
                     // 动态模式：全量加载并自动循环播放 (极具视觉冲击力但较吃配置)
-                    media = `<video src="${displayUrl}" preload="auto" autoplay loop muted style="width:100%; height:100%; object-fit:cover; pointer-events:none;"></video>`;
+                    media = `<video data-clab-src="${displayUrl}" preload="auto" autoplay loop muted style="width:100%; height:100%; object-fit:cover; pointer-events:none;"></video>`;
                 }
             } else if (historyType === 'audio' || isAud) {
                 media = `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#222; color:#fff; font-size:24px;">🎵</div>`;
             } else if (historyType === 'text') {
                 media = renderTextHistoryThumb(area, idx);
             } else {
-                media = `<img src="${displayUrl}" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" />`;
+                media = `<img loading="lazy" data-clab-src="${displayUrl}" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" />`;
             }
 
-            const overlay = isSelected ? `<div style="position:absolute;inset:0;background:rgba(33,150,243,0.3);pointer-events:none;"></div>` : '';
+            const overlay = isSelected ? `<div class="clab-thumb-selection" style="position:absolute;inset:0;background:rgba(33,150,243,0.3);pointer-events:none;"></div>` : '';
             
             const delBtn = `<div class="clab-thumb-delete" data-card="${card.id}" data-area="${area.id}" data-index="${idx}" style="position:absolute; top:3px; right:3px; width:18px; height:18px; background:rgba(255, 255, 255, 0.6); color:#333; font-weight:bold; border-radius:50%; font-size:10px; display:none; align-items:center; justify-content:center; cursor:pointer; z-index:10; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: all 0.2s;" title="删除此记录">✖</div>`;
 
@@ -166,7 +152,7 @@ export function generateOutputHTML(area, card) {
     let historyHtml = '';
     if (resultType !== 'text' && area.history && area.history.length > 1) {
         const currIdx = area.missingHistoryRun ? '—' : area.historyIndex !== undefined ? area.historyIndex + 1 : area.history.length;
-        historyHtml = `<div title="← / → 关联切换；Shift + ← / → 仅切换当前输出模块" style="position:absolute; top: 8px; left: 10px; color: rgba(255,255,255,0.9); font-size: 12px; font-weight: bold; font-family: sans-serif; letter-spacing: -0.5px; z-index: 20;">${currIdx} / ${area.history.length}</div>`;
+        historyHtml = `<div class="clab-output-history-position" title="← / → 关联切换；Shift + ← / → 仅切换当前输出模块" style="position:absolute; top: 8px; left: 10px; color: rgba(255,255,255,0.9); font-size: 12px; font-weight: bold; font-family: sans-serif; letter-spacing: -0.5px; z-index: 20;">${currIdx} / ${area.history.length}</div>`;
     }
 
     // 🌟 将原本庞杂的媒体判定逻辑交给专员去处理！
@@ -185,6 +171,97 @@ export function generateOutputHTML(area, card) {
             </div>
         </div>
     `;
+}
+
+function historyGridKey(area) {
+    return JSON.stringify([area.history, area.textHistory, area.textHistoryStatus, window._clabThumbPerfMode]);
+}
+
+export function refreshOutputAreaInPlace(areaEl, area, card) {
+    if (!areaEl.classList.contains('clab-output-area')) return false;
+    const temp = document.createElement('div');
+    temp.innerHTML = generateOutputHTML(area, card);
+    const next = temp.firstElementChild;
+    const grid = areaEl.querySelector('.clab-history-grid');
+    const nextGrid = next.querySelector('.clab-history-grid');
+    if (!!grid !== !!nextGrid) return false;
+    areaEl.className = next.className;
+    areaEl.dataset.cardId = card.id;
+    areaEl.style.cssText = next.style.cssText;
+    refreshModuleBindingSummary(areaEl, area);
+    const controls = areaEl.querySelector('.clab-output-controls');
+    const copy = controls.querySelector('.clab-text-copy-btn');
+    const nextCopy = next.querySelector('.clab-text-copy-btn');
+    if (copy && !nextCopy) copy.remove();
+    else if (!copy && nextCopy) controls.prepend(nextCopy);
+    if (grid) {
+        if (grid._clabHistoryKey !== historyGridKey(area)) {
+            const scroll = grid.scrollTop;
+            grid.innerHTML = nextGrid.innerHTML;
+            grid.scrollTop = scroll;
+            grid._clabHistoryKey = historyGridKey(area);
+        } else {
+            grid.querySelectorAll('.clab-history-thumb').forEach((thumb, index) => {
+                const selected = area.selectedThumbIndices?.includes(index);
+                const current = !area.missingHistoryRun && index === area.historyIndex;
+                thumb.style.borderColor = current ? '#4CAF50' : selected ? '#2196F3' : 'rgba(255,255,255,0.1)';
+                const overlay = thumb.querySelector('.clab-thumb-selection');
+                if (selected && !overlay) thumb.insertAdjacentHTML('beforeend', '<div class="clab-thumb-selection" style="position:absolute;inset:0;background:rgba(33,150,243,0.3);pointer-events:none;"></div>');
+                else if (!selected && overlay) overlay.remove();
+            });
+        }
+        const heading = areaEl.querySelector('.clab-output-manage-head > span');
+        heading.textContent = next.querySelector('.clab-output-manage-head > span').textContent;
+        const remove = areaEl.querySelector('.clab-manage-remove-btn');
+        const nextRemove = next.querySelector('.clab-manage-remove-btn');
+        remove.disabled = nextRemove.disabled;
+        remove.style.cssText = nextRemove.style.cssText;
+    } else {
+        const bg = areaEl.querySelector('.clab-preview-bg');
+        const nextBg = next.querySelector('.clab-preview-bg');
+        const media = bg.querySelector('.clab-preview-img, .clab-media-target');
+        const nextMedia = nextBg.querySelector('.clab-preview-img, .clab-media-target');
+        const shell = bg.querySelector('.clab-text-preview-shell');
+        const nextShell = nextBg.querySelector('.clab-text-preview-shell');
+        bg.className = nextBg.className;
+        if (bg.style.cssText !== nextBg.style.cssText) bg.style.cssText = nextBg.style.cssText;
+        if (media && nextMedia && media.tagName === nextMedia.tagName) {
+            media.className = nextMedia.className;
+            media.id = nextMedia.id;
+            if (media.getAttribute('src') !== nextMedia.getAttribute('src')) {
+                media.src = nextMedia.getAttribute('src');
+                bg.querySelector('.clab-media-dead-fallback')?.remove();
+            }
+            if (media.style.cssText !== nextMedia.style.cssText) media.style.cssText = nextMedia.style.cssText;
+            media.setAttribute('onerror', nextMedia.getAttribute('onerror') || '');
+        } else if (shell && nextShell) {
+            const body = shell.querySelector('.clab-text-body-content');
+            const nextBody = nextShell.querySelector('.clab-text-body-content');
+            if (body.innerHTML !== nextBody.innerHTML) body.innerHTML = nextBody.innerHTML;
+            if (shell.dataset.historyUrl !== area.resultUrl) shell.querySelector('.clab-text-body-scroll').scrollTop = 0;
+            shell.dataset.historyUrl = area.resultUrl || '';
+            shell.querySelectorAll('[data-option]').forEach(input => {
+                input.checked = nextShell.querySelector(`[data-option="${input.dataset.option}"]`).checked;
+            });
+            const counter = shell.querySelector('.clab-text-history-position');
+            const nextCounter = nextShell.querySelector('.clab-text-history-position');
+            if (counter && !nextCounter) counter.remove();
+            else if (!counter && nextCounter) shell.querySelector('.clab-text-toolbar').append(nextCounter);
+            else if (counter && nextCounter) { counter.textContent = nextCounter.textContent; counter.title = nextCounter.title; }
+        } else if (bg.innerHTML !== nextBg.innerHTML) {
+            bg.innerHTML = nextBg.innerHTML;
+        }
+        const placeholder = bg.querySelector('.clab-preview-placeholder');
+        const nextPlaceholder = nextBg.querySelector('.clab-preview-placeholder');
+        if (placeholder) { placeholder.textContent = nextPlaceholder.textContent; placeholder.style.cssText = nextPlaceholder.style.cssText; }
+        const counter = areaEl.querySelector(':scope > .clab-output-history-position');
+        const nextCounter = next.querySelector(':scope > .clab-output-history-position');
+        if (counter && !nextCounter) counter.remove();
+        else if (!counter && nextCounter) controls.after(nextCounter);
+        else if (counter && nextCounter) counter.textContent = nextCounter.textContent;
+    }
+    attachOutputEvents(areaEl);
+    return true;
 }
 
 export function attachOutputEvents(container) {
@@ -248,6 +325,8 @@ export function attachOutputEvents(container) {
     });
 
     container.querySelectorAll('.clab-history-grid').forEach(grid => {
+        const owner = state.cards.find(card => card.id === grid.dataset.cardId)?.areas.find(area => area.id === grid.dataset.areaId);
+        if (owner) grid._clabHistoryKey = historyGridKey(owner);
         grid.onclick = (e) => {
             if (e.target === grid) {
                 const card = state.cards.find(c => c.id === grid.dataset.cardId);

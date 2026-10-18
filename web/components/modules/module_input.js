@@ -10,6 +10,7 @@ import { app } from "../../../../scripts/app.js";
 import { renderVideo } from "./media_types/media_video.js";
 import { renderAudio } from "./media_types/media_audio.js";
 import { attachMediaEvents } from "./module_media.js";
+import { onModuleRemoved } from "./module_lifecycle.js";
 
 export function generateInputHTML(area, card) {
     const isAreaSelected = state.selectedAreaIds.includes(area.id);
@@ -337,18 +338,6 @@ function withFrozenAreaLayout(areaEl, updater) {
     return result;
 }
 
-function refreshInputBody(areaEl, nextAreaEl) {
-    const body = areaEl.querySelector(".clab-input-body");
-    const nextBody = nextAreaEl.querySelector(".clab-input-body");
-    if (!body || !nextBody) return false;
-
-    return withFrozenAreaLayout(areaEl, () => {
-        body.innerHTML = nextBody.innerHTML;
-        if (window._clabAttachAreaEvents) window._clabAttachAreaEvents(areaEl);
-        return true;
-    });
-}
-
 export function refreshInputAreaInPlace(areaEl, area, card) {
     if (!areaEl || !area || !card) return false;
 
@@ -388,7 +377,7 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
     const signature = getInputRefreshSignature(areaEl);
     const nextSignature = getInputRefreshSignature(nextAreaEl);
     if (signature !== nextSignature) {
-        return refreshInputBody(areaEl, nextAreaEl);
+        return false;
     }
 
     if (signature === "text") {
@@ -403,6 +392,7 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
         if (document.activeElement !== textarea) {
             textarea.value = nextTextarea.value;
         }
+        textarea._clabAutoResize?.();
         return true;
     }
 
@@ -421,24 +411,16 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
         return true;
     }
 
-    if (signature === "upload") {
+    if (signature.startsWith("upload")) {
         const zone = areaEl.querySelector(".clab-upload-zone");
         const nextZone = nextAreaEl.querySelector(".clab-upload-zone");
         if (!zone || !nextZone) return false;
 
-        if (zone.innerHTML !== nextZone.innerHTML) {
-            return withFrozenAreaLayout(areaEl, () => {
-                zone.innerHTML = nextZone.innerHTML;
-                zone.className = nextZone.className;
-                zone.style.cssText = nextZone.style.cssText;
-                zone.dataset.card = nextZone.dataset.card;
-                zone.dataset.area = nextZone.dataset.area;
-                zone.dataset.uploadType = nextZone.dataset.uploadType;
-                zone.dataset.autoRatio = nextZone.dataset.autoRatio;
-                if (window._clabAttachAreaEvents) window._clabAttachAreaEvents(areaEl);
-                return true;
-            });
-        }
+        const media = zone.querySelector('.clab-media-target');
+        const nextMedia = nextZone.querySelector('.clab-media-target');
+        const sameMedia = media && nextMedia && media.tagName === nextMedia.tagName && media.getAttribute('src') === nextMedia.getAttribute('src');
+        const contentChanged = !sameMedia && zone.innerHTML !== nextZone.innerHTML;
+        if (contentChanged) zone.innerHTML = nextZone.innerHTML;
 
         zone.dataset.card = nextZone.dataset.card;
         zone.dataset.area = nextZone.dataset.area;
@@ -446,6 +428,19 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
         zone.dataset.autoRatio = nextZone.dataset.autoRatio;
         zone.className = nextZone.className;
         zone.style.cssText = nextZone.style.cssText;
+        if (sameMedia) {
+            media.style.cssText = nextMedia.style.cssText;
+            if (zone.dataset.autoRatio === '1') {
+                const width = media.videoWidth || media.naturalWidth;
+                const height = media.videoHeight || media.naturalHeight;
+                if (width && height) { zone.style.aspectRatio = `${width} / ${height}`; zone.style.height = 'auto'; }
+            }
+        }
+        for (const selector of ['.clab-upload-trigger-btn', '.clab-upload-clear-btn']) {
+            const button = areaEl.querySelector(selector);
+            const nextButton = nextAreaEl.querySelector(selector);
+            if (button && nextButton) { button.disabled = nextButton.disabled; button.style.cssText = nextButton.style.cssText; }
+        }
 
         const fileInput = zone.querySelector(".clab-file-input");
         const nextFileInput = nextZone.querySelector(".clab-file-input");
@@ -455,10 +450,11 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
             fileInput.dataset.area = nextFileInput.dataset.area;
             fileInput.dataset.uploadType = nextFileInput.dataset.uploadType;
         }
-        return true;
+        if (contentChanged && window._clabAttachAreaEvents) window._clabAttachAreaEvents(areaEl);
+        if (signature === "upload") return true;
     }
 
-    if (signature === "combo") {
+    if (signature.endsWith("combo")) {
         const select = areaEl.querySelector('.clab-custom-select[data-type="module-combo"]');
         const nextSelect = nextAreaEl.querySelector('.clab-custom-select[data-type="module-combo"]');
         if (!select || !nextSelect) return false;
@@ -498,7 +494,7 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
         });
     }
 
-    return refreshInputBody(areaEl, nextAreaEl);
+    return false;
 }
 
 export function attachInputEvents(container) {
@@ -691,6 +687,14 @@ export function attachInputEvents(container) {
         const fileInput = zone.querySelector('.clab-file-input');
         if (!fileInput) return;
         const uploadType = zone.dataset.uploadType || fileInput.dataset.uploadType || 'file';
+        if (zone._clabUploadInput === fileInput && zone._clabUploadType === uploadType) return;
+        if (!zone._clabUploadInput) onModuleRemoved(zone, () => {
+            if (window._clabUploadHandlers.get(zone.dataset.area)?.zone === zone) {
+                window._clabUploadHandlers.delete(zone.dataset.area);
+            }
+        });
+        zone._clabUploadInput = fileInput;
+        zone._clabUploadType = uploadType;
         const useButtonUpload = useButtonUploadType(uploadType);
 
         zone.onclick = (e) => {
@@ -702,7 +706,7 @@ export function attachInputEvents(container) {
 
         const areaEl = zone.closest('.clab-area');
         const uploadBtn = areaEl ? areaEl.querySelector('.clab-upload-trigger-btn') : null;
-        if (uploadBtn && !uploadBtn.dataset.clabEventsBound) {
+        if (uploadBtn) {
             uploadBtn.dataset.clabEventsBound = "1";
             uploadBtn.onclick = (e) => {
                 e.preventDefault();
@@ -800,6 +804,7 @@ export function attachInputEvents(container) {
         };
 
         window._clabUploadHandlers.set(zone.dataset.area, {
+            zone,
             uploadType,
             upload: handleUpload
         });
@@ -810,29 +815,29 @@ export function attachInputEvents(container) {
             e.target.value = ''; 
         };
 
-        zone.addEventListener('dragover', (e) => {
+        zone.ondragover = (e) => {
             if(e.dataTransfer.types.includes('Files')) {
                 e.preventDefault(); e.stopPropagation();
                 zone.style.borderColor = '#fff';
                 zone.style.background = 'rgba(255,255,255,0.15)';
             }
-        });
+        };
 
-        zone.addEventListener('dragleave', (e) => {
+        zone.ondragleave = (e) => {
             if(e.dataTransfer.types.includes('Files')) {
                 e.preventDefault(); e.stopPropagation();
                 zone.style.borderColor = zone.classList.contains('has-file') ? '#444' : '#666';
                 zone.style.background = zone.classList.contains('has-file') ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.1)';
             }
-        });
+        };
 
-        zone.addEventListener('drop', (e) => {
+        zone.ondrop = (e) => {
             if(e.dataTransfer.types.includes('Files')) {
                 e.preventDefault(); e.stopPropagation();
                 const file = e.dataTransfer.files[0];
                 handleUpload(file);
             }
-        });
+        };
 
         enforceInputVideoAutoplaySetting(zone);
         applyMediaAutoRatio(zone);
@@ -853,14 +858,20 @@ export function attachInputEvents(container) {
     });
 
     container.querySelectorAll('.clab-edit-val').forEach(ta => {
-        
+        if (ta.dataset.clabInputBound) return;
+        ta.dataset.clabInputBound = '1';
         let resizeTimeout;
+        let resizeFrame = 0;
+        let ro = null;
 
         // 核心计算：requestAnimationFrame + 轻量防抖，保证快速输入时也平滑。
         const handleAutoResize = () => {
             if (ta.style.resize !== 'none') return;
             
-            window.requestAnimationFrame(() => {
+            if (resizeFrame) return;
+            resizeFrame = window.requestAnimationFrame(() => {
+                resizeFrame = 0;
+                if (!ta.isConnected) return;
                 // 1. 将真实输入框的关键样式同步到离屏测量器
                 const comp = window.getComputedStyle(ta);
                 ghostMeasurer.style.width = comp.width;
@@ -888,7 +899,7 @@ export function attachInputEvents(container) {
         // 监听宽度变化并做防抖，减少拖拽面板时的频繁重算
         if (window.ResizeObserver) {
             let lastWidth = null;
-            const ro = new ResizeObserver((entries) => {
+            ro = new ResizeObserver((entries) => {
                 for (let entry of entries) {
                     if (entry.contentRect.width !== lastWidth) {
                         lastWidth = entry.contentRect.width;
@@ -901,7 +912,15 @@ export function attachInputEvents(container) {
         }
 
         // 初始化一次高度
-        setTimeout(handleAutoResize, 50);
+        const initialResize = setTimeout(handleAutoResize, 50);
+        onModuleRemoved(ta, () => {
+            ro?.disconnect();
+            clearTimeout(resizeTimeout);
+            clearTimeout(initialResize);
+            cancelAnimationFrame(resizeFrame);
+            delete ta.dataset.clabInputBound;
+        });
+        ta._clabAutoResize = handleAutoResize;
 
         ta.oninput = (e) => {
             handleAutoResize();
@@ -911,10 +930,10 @@ export function attachInputEvents(container) {
             const area = card.areas.find(a => a.id === areaId);
             if(area) {
                 area.value = e.target.value;
-                if (window._clabJustSave) window._clabJustSave();
-                else if (window.CLab) window.CLab.saveState(state);
+                if (window.CLab?.scheduleSave) window.CLab.scheduleSave();
             }
         };
+        ta.onchange = () => { if (window._clabJustSave) window._clabJustSave(); };
     });
 }
 

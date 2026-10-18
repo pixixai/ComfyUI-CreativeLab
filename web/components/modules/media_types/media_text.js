@@ -1,5 +1,6 @@
 import { state } from "../../ui_state.js";
 import { ensureTextAreaState } from "./media_utils.js";
+import { onModuleRemoved } from "../module_lifecycle.js";
 
 function escapeHtml(value) {
     return String(value ?? "")
@@ -122,6 +123,8 @@ function renderPlainTextHtml(text, syntaxHighlight = false) {
     return `<pre class="clab-text-plain"><code>${body}</code></pre>`;
 }
 
+const renderedTextCache = new WeakMap();
+
 function getRenderedTextHtml(area) {
     ensureTextAreaState(area);
     if (area.textLoadState === "missing") {
@@ -131,10 +134,11 @@ function getRenderedTextHtml(area) {
         return `<div class="clab-text-state">正在读取文字...</div>`;
     }
     const source = area.textContent || "";
-    if (area.textPreviewMarkdown) {
-        return renderMarkdownHtml(source, area.textSyntaxHighlight);
-    }
-    return renderPlainTextHtml(source, area.textSyntaxHighlight);
+    const cached = renderedTextCache.get(area);
+    if (cached && cached.source === source && cached.markdown === area.textPreviewMarkdown && cached.syntax === area.textSyntaxHighlight) return cached.html;
+    const html = area.textPreviewMarkdown ? renderMarkdownHtml(source, area.textSyntaxHighlight) : renderPlainTextHtml(source, area.textSyntaxHighlight);
+    renderedTextCache.set(area, { source, markdown: area.textPreviewMarkdown, syntax: area.textSyntaxHighlight, html });
+    return html;
 }
 
 function findArea(areaId) {
@@ -208,7 +212,7 @@ async function copyAreaText(areaId, button) {
 }
 
 function updateTextPreviewLayout(shell) {
-    if (!shell) return;
+    if (!shell || shell._clabLayoutFrame) return;
 
     const viewport = shell.querySelector(".clab-text-body-scroll");
     const content = shell.querySelector(".clab-text-body-content");
@@ -218,11 +222,10 @@ function updateTextPreviewLayout(shell) {
     if (!shellWidth) return;
 
     const maxHeight = shellWidth;
-    viewport.style.maxHeight = `${maxHeight}px`;
-    viewport.style.height = "auto";
-    viewport.style.overflowY = "hidden";
-
-    requestAnimationFrame(() => {
+    shell._clabLayoutFrame = requestAnimationFrame(() => {
+        shell._clabLayoutFrame = 0;
+        if (!shell.isConnected) return;
+        viewport.style.maxHeight = `${maxHeight}px`;
         const totalHeight = Math.ceil(content.scrollHeight || 0);
         if (!totalHeight || totalHeight <= maxHeight) {
             viewport.style.height = `${Math.max(totalHeight, 32)}px`;
@@ -270,14 +273,21 @@ function bindTextShell(shell) {
         });
     });
 
-    updateTextPreviewLayout(shell);
-
     if (!window._clabTextPreviewResizeObserver) {
         window._clabTextPreviewResizeObserver = new ResizeObserver((entries) => {
-            entries.forEach((entry) => updateTextPreviewLayout(entry.target));
+            entries.forEach(({ target, contentRect }) => {
+                if (target._clabLayoutWidth === contentRect.width) return;
+                target._clabLayoutWidth = contentRect.width;
+                updateTextPreviewLayout(target);
+            });
         });
     }
     window._clabTextPreviewResizeObserver.observe(shell);
+    onModuleRemoved(shell, () => {
+        window._clabTextPreviewResizeObserver.unobserve(shell);
+        cancelAnimationFrame(shell._clabLayoutFrame);
+        delete shell.dataset.clabTextBound;
+    });
 }
 
 export function renderText(area) {
@@ -285,7 +295,7 @@ export function renderText(area) {
     const historyPosition = area.missingHistoryRun ? '—' : area.historyIndex >= 0 ? area.historyIndex + 1 : area.history.length;
 
     return `
-        <div class="clab-text-preview-shell" data-area="${area.id}">
+        <div class="clab-text-preview-shell" data-area="${area.id}" data-history-url="${escapeAttr(area.resultUrl || '')}">
             <div class="clab-text-body-scroll">
                 <div class="clab-text-body-content">${getRenderedTextHtml(area)}</div>
             </div>

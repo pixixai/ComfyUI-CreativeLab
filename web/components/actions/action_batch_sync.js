@@ -4,6 +4,7 @@
  * 职责: 负责任务卡片之间的模块同步、匹配、删除及批量位移逻辑 (全微创更新版)
  */
 import { state, saveAndRender } from "../ui_state.js";
+import { moveModuleDOM } from "../modules/module_lifecycle.js";
 import { updateSelectionUI } from "../ui_selection.js"; // 【修复】：直接引入纯净选择态引擎
 import { generateSingleCardHTML, attachCardEvents } from "../comp_taskcard.js"; // 【修复】：引入物理级卡片创建引擎
 
@@ -160,14 +161,16 @@ export function execMoveBackward(selectedAreaIds) {
         });
     }
     
-    // 利用 appendChild 的特性，将现存 DOM 直接拽入新顺序，物理级防闪烁
+    // 按状态顺序移动现有模块，保留媒体与焦点。
     state.cards.forEach(card => {
         const list = document.querySelector(`.clab-card[data-card-id="${card.id}"] .clab-area-list`);
         if (list && card.areas) {
+            let cursor = list.firstElementChild;
             card.areas.forEach(a => {
                 const el = document.querySelector(`.clab-area[data-area-id="${a.id}"]`);
                 if (el) {
-                    list.appendChild(el);
+                    if (el !== cursor) moveModuleDOM(list, el, cursor);
+                    cursor = el.nextElementSibling;
                     // 顺便把位移过后的模块的旧户口本换成新卡片
                     if (window._clabUpdateAreaDOMIdentity) window._clabUpdateAreaDOMIdentity(a.id, card.id);
                 }
@@ -207,14 +210,16 @@ export function execMoveForward(selectedAreaIds) {
         });
     }
     
-    // 利用 appendChild 的特性，将现存 DOM 直接拽入新顺序，物理级防闪烁
+    // 按状态顺序移动现有模块，保留媒体与焦点。
     state.cards.forEach(card => {
         const list = document.querySelector(`.clab-card[data-card-id="${card.id}"] .clab-area-list`);
         if (list && card.areas) {
+            let cursor = list.firstElementChild;
             card.areas.forEach(a => {
                 const el = document.querySelector(`.clab-area[data-area-id="${a.id}"]`);
                 if (el) {
-                    list.appendChild(el);
+                    if (el !== cursor) moveModuleDOM(list, el, cursor);
+                    cursor = el.nextElementSibling;
                     if (window._clabUpdateAreaDOMIdentity) window._clabUpdateAreaDOMIdentity(a.id, card.id);
                 }
             });

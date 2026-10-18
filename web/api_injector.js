@@ -24,6 +24,19 @@ export function setupAPIInjector(app) {
     let submitting = false;
     let currentTask = null;
 
+    const releaseTask = (task) => {
+        if (!task?.finished || task.pendingResults > 0) return;
+        if (window._clabTaskMap[task.promptId] === task) delete window._clabTaskMap[task.promptId];
+        task.batch.promptIds = task.batch.promptIds.filter(id => id !== task.promptId);
+    };
+    const finishTask = (promptId) => {
+        const task = window._clabTaskMap[promptId];
+        if (task) { task.finished = true; releaseTask(task); }
+    };
+    for (const type of ['execution_success', 'execution_interrupted']) {
+        api.addEventListener(type, event => finishTask(event.detail?.prompt_id));
+    }
+
     const getTaskCard = (task) => {
         const workspace = task.workspaceRef.deref();
         if (!StateManager.state.workspaces.includes(workspace)) return null;
@@ -48,7 +61,7 @@ export function setupAPIInjector(app) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ delete: toDelete }),
-            }).catch((err) => console.error("[CLab] 无法删除后续队列", err));
+            }).then(() => toDelete.forEach(finishTask)).catch((err) => console.error("[CLab] 无法删除后续队列", err));
             toDelete.forEach((id) => {
                 const skippedTask = window._clabTaskMap[id];
                 if (skippedTask) setUIProgress(skippedTask.cardId, 0, true);
@@ -212,10 +225,9 @@ export function setupAPIInjector(app) {
                     area.ratio = '自定义比例';
                     area.width = width;
                     area.height = height;
-                    StateManager.syncToNode(app.graph);
-                    
-                    // 【点穴修复】：读取完自适应尺寸后，放弃全局核弹，改用点穴更新
-                    if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(areaId);
+                    StateManager.scheduleSyncToNode(app.graph);
+                    if (window._clabScheduleAreaUpdate) window._clabScheduleAreaUpdate(areaId);
+                    else if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(areaId);
                     else document.dispatchEvent(new CustomEvent("clab_render_ui"));
                 }
             }
@@ -346,6 +358,7 @@ export function setupAPIInjector(app) {
             if (window._clabHaltOnError !== false) {
                 cancelBatch(task);
             }
+            finishTask(pid);
         }
     });
 
@@ -353,6 +366,7 @@ export function setupAPIInjector(app) {
     // 1. 坚如磐石的异步执行队列
     // =========================================================================
     window.CLab.executeTasks = async function(tasks) {
+        StateManager.flushPendingSave(app.graph);
         const workspace = StateManager.state.workspaces.find((item) => item.id === StateManager.state.activeWorkspaceId);
         const batch = { cancelled: false, promptIds: [] };
 
@@ -372,6 +386,8 @@ export function setupAPIInjector(app) {
                 previewTargets: card.areas.filter((area) => area.type === 'preview' && task.previewAreaIds.includes(area.id))
                     .map((area) => ({ areaId: area.id, nodeId: area.targetNodeId })),
                 bypassedNodeIds: collectBypassedNodeIdsFromCard(card),
+                pendingResults: 0,
+                finished: false,
             });
             
             const bar = document.querySelector(`.clab-card-progress-container[data-card-prog-id="${task.cardId}"] .clab-card-progress-bar`);
@@ -405,6 +421,8 @@ export function setupAPIInjector(app) {
                     if (window._clabHideTimers[task.cardId]) clearTimeout(window._clabHideTimers[task.cardId]);
                     window._clabHideTimers[task.cardId] = setTimeout(() => setUIProgress(task.cardId, 0, true), 6000);
                     if (window._clabHaltOnError !== false) cancelBatch(task);
+                    task.finished = true;
+                    releaseTask(task);
                 } finally {
                     currentTask = null;
                     window._clabLastGeneratedTask = null;
@@ -427,12 +445,14 @@ export function setupAPIInjector(app) {
                     window._clabTaskMap[res.prompt_id] = task;
                     task.batch.promptIds.push(res.prompt_id);
                     window._clabLastGeneratedTask = null;
+                    releaseTask(task);
                     if (task.batch.cancelled) {
                         await api.fetchApi('/queue', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ delete: [res.prompt_id] }),
                         });
+                        finishTask(res.prompt_id);
                     }
                 }
                 if (!res?.prompt_id || res.error || Object.keys(res.node_errors || {}).length > 0) {
@@ -560,6 +580,7 @@ export function setupAPIInjector(app) {
             window._clabHideTimers[task.cardId] = setTimeout(() => {
                 setUIProgress(task.cardId, 0, true);
             }, 800);
+            finishTask(pid);
         }
     });
 
@@ -573,121 +594,107 @@ export function setupAPIInjector(app) {
         const card = getTaskCard(task);
         if (!card?.areas) return;
 
-        const historyRun = { id: String(prompt_id), order: task.historyRunOrder, areaIds: task.previewTargets.map(target => target.areaId) };
+        task.pendingResults += 1;
+        let needsSave = false;
+        const updatedAreas = new Set();
+        try {
+            const historyRun = { id: String(prompt_id), order: task.historyRunOrder, areaIds: task.previewTargets.map(target => target.areaId) };
 
-        const targetItems = [outputData.videos, outputData.audio, outputData.gifs, outputData.images]
-            .find((items) => items?.length > 0);
-        const archivedMedia = new Map();
-        for (const target of task.previewTargets) {
-            if (String(target.nodeId) !== String(executedNodeId)) continue;
-            const area = card.areas.find((item) => item.id === target.areaId && item.type === 'preview');
-            if (!area) continue;
+            const targetItems = [outputData.videos, outputData.audio, outputData.gifs, outputData.images]
+                .find((items) => items?.length > 0);
+            const archivedMedia = new Map();
+            for (const target of task.previewTargets) {
+                if (String(target.nodeId) !== String(executedNodeId)) continue;
+                const area = card.areas.find((item) => item.id === target.areaId && item.type === 'preview');
+                if (!area) continue;
 
-            const persistAndRefresh = () => {
-                if (getTaskCard(task) !== card || !card.areas.includes(area)) return;
-                StateManager.syncToNode(app.graph);
-                if (StateManager.state.activeWorkspaceId !== task.workspaceId) return;
-                if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(area.id);
-                else document.dispatchEvent(new CustomEvent("clab_render_ui"));
-            };
+                const markAreaUpdated = () => {
+                    if (getTaskCard(task) !== card || !card.areas.includes(area)) return;
+                    needsSave = true;
+                    if (StateManager.state.activeWorkspaceId === task.workspaceId) updatedAreas.add(area.id);
+                };
 
-            if (targetItems?.length > 0) {
-                let firstUrl = null;
-                let firstKind = null;
-                for (const sourceMedia of targetItems) {
-                    const sourceKey = JSON.stringify([sourceMedia.type, sourceMedia.subfolder, sourceMedia.filename]);
-                    let media = archivedMedia.get(sourceKey);
-                    const ext = sourceMedia.filename.split('.').pop().toLowerCase();
-                    const kind = ['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext) || sourceMedia.format?.startsWith('video/')
-                        ? 'video'
-                        : ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'].includes(ext) || sourceMedia.format?.startsWith('audio/')
-                            ? 'audio' : 'image';
+                if (targetItems?.length > 0) {
+                    let firstUrl = null;
+                    let firstKind = null;
+                    for (const sourceMedia of targetItems) {
+                        const sourceKey = JSON.stringify([sourceMedia.type, sourceMedia.subfolder, sourceMedia.filename]);
+                        let media = archivedMedia.get(sourceKey);
+                        const ext = sourceMedia.filename.split('.').pop().toLowerCase();
+                        const kind = ['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext) || sourceMedia.format?.startsWith('video/')
+                            ? 'video'
+                            : ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'].includes(ext) || sourceMedia.format?.startsWith('audio/')
+                                ? 'audio' : 'image';
 
-                    if (!media) {
-                        media = { ...sourceMedia };
-                        if (media.type === 'temp' || media.type === 'output') {
-                            try {
-                                const response = await fetch('/clab/copy_temp_asset', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        filename: media.filename,
-                                        subfolder: media.subfolder || '',
-                                        asset_type: kind,
-                                        source_type: media.type,
-                                        archive_dir: window._clabArchiveDir || 'CLab',
-                                        delete_temp: window._clabDeleteTemp === true,
-                                        file_prefix: window._clabFilePrefix || 'pix',
-                                    }),
-                                });
-                                const data = await response.json();
-                                if (data.status === 'success') {
-                                    media = { filename: data.new_filename, subfolder: data.new_subfolder, type: data.new_type };
-                                } else {
-                                    console.error('[CLab] 截胡资产失败:', data.error);
+                        if (!media) {
+                            media = { ...sourceMedia };
+                            if (media.type === 'temp' || media.type === 'output') {
+                                try {
+                                    const response = await fetch('/clab/copy_temp_asset', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            filename: media.filename,
+                                            subfolder: media.subfolder || '',
+                                            asset_type: kind,
+                                            source_type: media.type,
+                                            archive_dir: window._clabArchiveDir || 'CLab',
+                                            delete_temp: window._clabDeleteTemp === true,
+                                            file_prefix: window._clabFilePrefix || 'pix',
+                                        }),
+                                    });
+                                    const data = await response.json();
+                                    if (data.status === 'success') {
+                                        media = { filename: data.new_filename, subfolder: data.new_subfolder, type: data.new_type };
+                                    } else {
+                                        console.error('[CLab] 截胡资产失败:', data.error);
+                                    }
+                                } catch (err) {
+                                    console.error('[CLab] 截胡资产网络请求失败:', err);
                                 }
-                            } catch (err) {
-                                console.error('[CLab] 截胡资产网络请求失败:', err);
                             }
+                            archivedMedia.set(sourceKey, media);
                         }
-                        archivedMedia.set(sourceKey, media);
+                        const params = new URLSearchParams({ filename: media.filename, type: media.type, subfolder: media.subfolder || '' });
+                        const url = api.apiURL(`/view?${params.toString()}`);
+                        pushPreviewHistoryEntry(area, url, { kind, inputSnapshot: task.inputSnapshot, run: historyRun });
+                        if (!firstUrl) {
+                            firstUrl = url;
+                            firstKind = kind;
+                        }
                     }
-                    const params = new URLSearchParams({ filename: media.filename, type: media.type, subfolder: media.subfolder || '' });
-                    const url = api.apiURL(`/view?${params.toString()}`);
-                    pushPreviewHistoryEntry(area, url, { kind, inputSnapshot: task.inputSnapshot, run: historyRun });
-                    if (!firstUrl) {
-                        firstUrl = url;
-                        firstKind = kind;
-                    }
-                }
 
-                const firstIndex = area.history.findIndex((url, index) => url === firstUrl && area.historyRuns[index]?.id === historyRun.id);
-                if (firstIndex !== -1) {
-                    area.historyIndex = firstIndex;
-                    area.resultUrl = firstUrl;
-                    area.resultKind = firstKind;
-                }
-                persistAndRefresh();
-                if (area.matchMedia) {
-                    if (firstKind === 'video') {
-                        const video = document.createElement('video');
-                        video.muted = true;
-                        video.playsInline = true;
-                        video.onloadeddata = () => {
-                            area.ratio = '自定义比例';
-                            area.width = video.videoWidth;
-                            area.height = video.videoHeight;
-                            persistAndRefresh();
-                        };
-                        video.src = area.resultUrl;
-                        video.load();
-                    } else if (firstKind === 'audio') {
-                        area.ratio = 'auto';
-                        persistAndRefresh();
-                    } else {
-                        const image = new Image();
-                        image.onload = () => {
-                            area.ratio = '自定义比例';
-                            area.width = image.naturalWidth;
-                            area.height = image.naturalHeight;
-                            persistAndRefresh();
-                        };
-                        image.src = area.resultUrl;
+                    const firstIndex = area.history.findIndex((url, index) => url === firstUrl && area.historyRuns[index]?.id === historyRun.id);
+                    if (firstIndex !== -1) {
+                        area.historyIndex = firstIndex;
+                        area.resultUrl = firstUrl;
+                        area.resultKind = firstKind;
                     }
-                }
-            } else {
-                const node = app.graph?.getNodeById(Number(executedNodeId));
-                const text = (extractTextFromOutputData(outputData) || extractTextFromNodeWidgets(node) || '').trim();
-                if (!text) continue;
-                try {
-                    const url = await saveTextAsset(text);
-                    pushPreviewHistoryEntry(area, url, { kind: 'text', text, inputSnapshot: task.inputSnapshot, run: historyRun });
-                    syncTextContentWithSelection(area);
-                    persistAndRefresh();
-                } catch (err) {
-                    console.error('[CLab] Text capture failed:', err);
+                    if (area.matchMedia && firstKind === 'audio') area.ratio = 'auto';
+                    markAreaUpdated();
+                } else {
+                    const node = app.graph?.getNodeById(Number(executedNodeId));
+                    const text = (extractTextFromOutputData(outputData) || extractTextFromNodeWidgets(node) || '').trim();
+                    if (!text) continue;
+                    try {
+                        const url = await saveTextAsset(text);
+                        pushPreviewHistoryEntry(area, url, { kind: 'text', text, inputSnapshot: task.inputSnapshot, run: historyRun });
+                        syncTextContentWithSelection(area);
+                        markAreaUpdated();
+                    } catch (err) {
+                        console.error('[CLab] Text capture failed:', err);
+                    }
                 }
             }
+        } finally {
+            if (needsSave) StateManager.syncToNode(app.graph);
+            for (const id of updatedAreas) {
+                if (window._clabScheduleAreaUpdate) window._clabScheduleAreaUpdate(id);
+                else if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(id);
+                else document.dispatchEvent(new CustomEvent('clab_render_ui'));
+            }
+            task.pendingResults -= 1;
+            releaseTask(task);
         }
     });
 }

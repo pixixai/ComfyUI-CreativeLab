@@ -7,7 +7,6 @@ import {
     createEmptyWorkspace,
     hydrateStateFromPersisted,
     ensureWorkspaceRuntime,
-    syncStateToActiveWorkspace,
     applyWorkspaceToState,
 } from "./components/ui_state.js";
 import { loadAllTextHistory, ensureInputSnapshotState } from "./components/modules/media_types/media_utils.js";
@@ -16,6 +15,16 @@ export const StateManager = {
     state,
     _lastSyncedJSON: "",
     _watchdogTimer: null,
+    _saveTimer: null,
+
+    scheduleSyncToNode(graph) {
+        if (this._saveTimer !== null) return;
+        this._saveTimer = setTimeout(() => this.syncToNode(graph), 250);
+    },
+
+    flushPendingSave(graph) {
+        if (this._saveTimer !== null) this.syncToNode(graph);
+    },
 
     startWatchdog(graph) {
         if (this._watchdogTimer) return;
@@ -54,11 +63,12 @@ export const StateManager = {
     },
 
     syncToNode(graph) {
+        clearTimeout(this._saveTimer);
+        this._saveTimer = null;
         const node = this.getConfigNode(graph);
         if (node) {
             const widget = node.widgets?.find((w) => w.name === "scenes_data");
             if (widget) {
-                syncStateToActiveWorkspace();
                 const persisted = buildPersistedState();
                 const jsonStr = JSON.stringify(persisted);
                 widget.value = jsonStr;
@@ -70,6 +80,8 @@ export const StateManager = {
     },
 
     async loadFromNode(graph) {
+        clearTimeout(this._saveTimer);
+        this._saveTimer = null;
         const node = this.getConfigNode(graph);
         if (!node) {
             const blank = createEmptyWorkspace();

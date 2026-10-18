@@ -45,8 +45,9 @@ export function refreshModuleBindingSummary(areaEl, area) {
     const button = areaEl.querySelector('.clab-module-binding-summary');
     if (!button) return;
     const summary = bindingSummary(area);
-    button.querySelector('.clab-module-binding-label').textContent = summary.label;
-    button.title = summary.title;
+    const label = button.querySelector('.clab-module-binding-label');
+    if (label.textContent !== summary.label) label.textContent = summary.label;
+    if (button.title !== summary.title) button.title = summary.title;
 }
 
 function setBindings(area, ids, widgets) {

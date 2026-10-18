@@ -360,3 +360,66 @@ test('switching workspace during asset copying preserves the result and avoids r
     assert.equal(h.refreshes.length, 0);
     assert.equal(h.persisted().workspaces[0].cards[0].areas[1].history.length, 1);
 });
+
+test('completed runs release their task snapshots without removing output history', async () => {
+    const h = createHarness();
+    for (let i = 1; i <= 5; i++) {
+        await h.run();
+        await h.emit('executed', imageResult(`p${i}`));
+        await h.emit('executing', { prompt_id: `p${i}`, node: null });
+    }
+    assert.equal(Object.keys(h.window._clabTaskMap).length, 0);
+    assert.equal(h.output.history.length, 5);
+    assert.equal(h.output.inputHistorySnapshots[4][0].value, 'before');
+});
+
+test('completion waits for asset copying and releases only after persistence', async () => {
+    let releaseCopy;
+    const copyGate = new Promise(resolve => { releaseCopy = resolve; });
+    let copying;
+    const copyStarted = new Promise(resolve => { copying = resolve; });
+    const h = createHarness({ async beforeArchive() { copying(); await copyGate; } });
+    await h.run();
+    const result = h.emit('executed', imageResult());
+    await copyStarted;
+    await h.emit('execution_success', { prompt_id: 'p1' });
+    assert.equal(h.window._clabTaskMap.p1.pendingResults, 1);
+    releaseCopy();
+    await result;
+    assert.equal(h.window._clabTaskMap.p1, undefined);
+    assert.equal(h.persisted().workspaces[0].cards[0].areas[1].history.length, 1);
+});
+
+test('early completion before the HTTP response does not reinsert a completed task', async () => {
+    const h = createHarness({ async submit(h) {
+        await h.emit('execution_start', { prompt_id: 'p1' });
+        await h.emit('executed', imageResult());
+        await h.emit('executing', { prompt_id: 'p1', node: null });
+        return { prompt_id: 'p1', node_errors: {} };
+    } });
+    await h.run();
+    assert.equal(h.output.history.length, 1);
+    assert.equal(Object.keys(h.window._clabTaskMap).length, 0);
+});
+
+test('one result shared by multiple modules is persisted once and schedules each changed module', async () => {
+    const h = createHarness();
+    h.card.areas.push({ ...h.output, id: 'second', history: [] });
+    const updated = [];
+    h.window._clabScheduleAreaUpdate = id => updated.push(id);
+    await h.run([{ cardId: 'card', previewAreaIds: ['output', 'second'] }]);
+    const writes = [];
+    Object.defineProperty(h.app.graph._nodes[0].widgets[0], 'value', {
+        set(value) { writes.push(value); }, get() { return writes.at(-1); }, configurable: true,
+    });
+    await h.emit('executed', imageResult());
+    assert.equal(writes.length, 1);
+    assert.deepEqual(updated, ['output', 'second']);
+});
+
+test('interrupted runs release their task registry entries', async () => {
+    const h = createHarness();
+    await h.run();
+    await h.emit('execution_interrupted', { prompt_id: 'p1' });
+    assert.equal(Object.keys(h.window._clabTaskMap).length, 0);
+});
