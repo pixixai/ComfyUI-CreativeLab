@@ -523,7 +523,6 @@ export function injectCSS() {
         .clab-toolbar-type .clab-type-btn { display:flex; align-items:center; }
         .clab-toolbar-left > .clab-module-toolbar:has(.clab-toolbar-output-settings) { flex-shrink:1; }
         .clab-toolbar-output-settings { display:flex; align-items:center; gap:var(--clab-module-gap); flex-shrink:1; min-width:0; }
-        .clab-toolbar-output-divider { flex-shrink:0; }
         #tb-output-settings { display:flex; align-items:center; justify-content:center; gap:6px; width:auto; min-width:0; max-width:160px; padding:0; border:0; background:transparent; box-shadow:none; color:#aaa; font:var(--clab-toolbar-font, 13px)/1 sans-serif; cursor:pointer; transition:color 0.15s; }
         #tb-output-settings svg { display:block; width:1em; height:1em; flex-shrink:0; }
         #tb-output-settings:hover, #tb-output-settings:active, #tb-output-settings[aria-expanded="true"] { color:#fff; }
@@ -723,7 +722,6 @@ export function injectCSS() {
             box-sizing: border-box; flex-wrap: wrap !important; gap: 8px !important;
         }
         #clab-toolbar-more-menu .clab-toolbar-type { height:var(--clab-toolbar-capsule-height, 30px) !important; }
-        #clab-toolbar-more-menu .clab-toolbar-output-divider { display:none; }
         #clab-toolbar-more-menu button:not(#tb-output-settings) { height: 32px !important; }
         #clab-toolbar-more-menu .clab-menu-actions button { height: 24px !important; }
         #clab-toolbar-more-menu .clab-custom-select { flex-wrap: wrap; height: auto !important; }

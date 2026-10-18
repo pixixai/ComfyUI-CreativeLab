@@ -35,7 +35,7 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
             <button id="tb-clone-btn" class="clab-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;" title="原样克隆选中项" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
             </button>
-            <button id="tb-format-painter" class="clab-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; ${state.painterMode ? 'background:#ff9800; border-color:#ff9800; color:#fff;' : 'background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;'}" title="格式刷：连续点击覆盖参数或在空白处插入克隆 (ESC/右键/工具栏点击退出)" onmouseover="if(!state.painterMode) this.style.color='#fff'" onmouseout="if(!state.painterMode) this.style.color='#aaa'">
+            <button id="tb-format-painter" class="clab-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; ${state.painterMode ? 'background:#ff9800; border-color:#ff9800; color:#fff;' : 'background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;'}" title="格式刷：连续点击覆盖参数或在空白处插入克隆 (ESC/右键/工具栏点击退出)" onmouseover="if(!${state.painterMode}) this.style.color='#fff'" onmouseout="if(!${state.painterMode}) this.style.color='#aaa'">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"></path><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"></path></svg>
             </button>
         </div>
@@ -60,13 +60,30 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
 
             html += cloneTools + `<div style="width:1px; height:16px; background:rgba(255,255,255,0.25); margin:0 2px;"></div>`;
 
+            html += `
+                <div data-clab-overflow-label="重置与同步" data-clab-overflow-priority="4" style="display:flex; align-items:center; margin-left: 4px; gap: 2px;">
+                    <button id="tb-reset-module" style="background:transparent; border:none; color:#aaa; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; transition:color 0.2s, transform 0.2s; width: 28px; height: 28px;" title="重置模块参数到新建状态" onmouseover="this.style.color='#fff'; this.style.transform='rotate(-45deg)'" onmouseout="this.style.color='#aaa'; this.style.transform='rotate(0deg)'">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                    </button>
+
+                    <button class="clab-btn" id="tb-btn-sync-params" title="同步参数至其它任务相同位置" style="padding: 0; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; color: #aaa; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 12v-2.5c0-1.93 1.57-3.5 3.5-3.5h11"/>
+                            <polyline points="15 2 19 6 15 10"/>
+                            <path d="M20 12v2.5c0 1.93-1.57 3.5-3.5 3.5h-11"/>
+                            <polyline points="9 22 5 18 9 14"/>
+                        </svg>
+                    </button>
+                </div>
+                <div style="width:1px; height:16px; background:rgba(255,255,255,0.25); margin:0 2px;"></div>
+            `;
+
             if (mainType === 'preview') {
                 html += `
                     <div class="clab-toolbar-output-settings" data-clab-overflow-label="尺寸与显示" data-clab-overflow-priority="3">
                         <button type="button" id="tb-output-settings" title="尺寸与显示：比例、宽高、显示方式、匹配媒体比例" aria-haspopup="dialog" aria-expanded="false" aria-controls="clab-output-settings-popover">
                             <span class="clab-output-settings-label">${getOutputSettingsLabel(selectedAreas.filter(sa => sa.area.type === 'preview').map(sa => sa.area))}</span>${outputSettingsIcon}
                         </button>
-                        <div class="clab-toolbar-output-divider" aria-hidden="true" style="width:1px; height:16px; background:rgba(255,255,255,0.25); margin:0 2px;"></div>
                     </div>
                 `;
             } else if (mainType === 'edit') {
@@ -78,30 +95,12 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
                     </div>
                 `;
             }
-
-            html += `
-                <div data-clab-overflow-label="重置与同步" data-clab-overflow-priority="4" style="display:flex; align-items:center; margin-left: 4px; gap: 2px;">
-                    <button id="tb-reset-module" style="background:transparent; border:none; color:#aaa; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; transition:color 0.2s, transform 0.2s; width: 28px; height: 28px;" title="重置模块参数到新建状态" onmouseover="this.style.color='#fff'; this.style.transform='rotate(-45deg)'" onmouseout="this.style.color='#aaa'; this.style.transform='rotate(0deg)'">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
-                    </button>
-                    
-                    <button class="clab-btn" id="tb-btn-sync-params" title="同步参数至其它任务相同位置" style="padding: 0; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; color: #aaa; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M4 12v-2.5c0-1.93 1.57-3.5 3.5-3.5h11"/>
-                            <polyline points="15 2 19 6 15 10"/>
-                            <path d="M20 12v2.5c0 1.93-1.57 3.5-3.5 3.5h-11"/>
-                            <polyline points="9 22 5 18 9 14"/>
-                        </svg>
-                    </button>
-                </div>
-            `;
         }
     }
 
     if (!html) html = cloneTools;
 
     if (mainType === 'preview') {
-        html += `<div style="width:1px; height:16px; background:rgba(255,255,255,0.25); margin:0 2px;"></div>`;
         html += `
             <div data-clab-overflow-label="历史记录" data-clab-overflow-priority="4" style="display:flex; align-items:center; gap:2px;">
                 <button id="tb-manage-history" class="clab-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; ${mainArea?.isManageMode ? 'background:#4CAF50; border-color:#4CAF50; color:#fff;' : 'background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;'}" title="管理生成记录 (网格视图与拖拽排序)" onmouseover="if(!${mainArea?.isManageMode}) this.style.color='#fff'" onmouseout="if(!${mainArea?.isManageMode}) this.style.color='#aaa'">
