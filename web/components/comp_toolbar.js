@@ -216,8 +216,8 @@ export function setupStaticToolbarEvents(panelContainer) {
                 <button class="clab-btn" id="clab-config-dropdown-trigger" style="border-top-left-radius:0; border-bottom-left-radius:0; width:24px; padding:0; display:flex; align-items:center; justify-content:center; height: 100%;">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </button>
-                <div id="clab-config-dropdown" class="clab-custom-select-dropdown" style="display:none; top:calc(100% + 4px); right:0; min-width:180px; z-index:10002;">
-                    <div class="clab-custom-select-group-title" style="padding:6px 12px; font-size:11px; font-weight:bold; color:#888; background:rgba(255,255,255,0.03);">数据维护中心</div>
+                <div id="clab-config-dropdown" class="clab-custom-select-dropdown clab-toolbar-menu" style="display:none; top:calc(100% + 4px); right:0; min-width:180px; z-index:10002;">
+                    <div class="clab-custom-select-group-title">数据维护中心</div>
                     <div class="clab-custom-select-item" id="clab-maint-clean-dead">清理失效记录 (404)</div>
                     <div class="clab-custom-select-item" id="clab-maint-resync">重新同步记录 (强制刷新)</div>
                 </div>

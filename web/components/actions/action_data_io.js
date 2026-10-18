@@ -41,13 +41,13 @@ export function attachDataIOEvents(panelContainer) {
                         <polyline points="6 9 12 15 18 9"></polyline>
                     </svg>
                 </button>
-                <div id="clab-import-json-dropdown" class="clab-custom-select-dropdown" style="display:none; top: calc(100% + 4px); left: 0; min-width: 170px; z-index: 10002;">
-                    <div class="clab-custom-select-group-title" style="padding: 6px 12px; font-size: 12px; margin-top: 0; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05);">从剪切板导入JSON数据</div>
+                <div id="clab-import-json-dropdown" class="clab-custom-select-dropdown clab-toolbar-menu" style="display:none; top: calc(100% + 4px); left: 0; min-width: 170px; z-index: 10002;">
+                    <div class="clab-custom-select-group-title">从剪切板导入JSON数据</div>
                     <div class="clab-custom-select-item" id="clab-import-new-clip">创建任务</div>
                     <div class="clab-custom-select-item" id="clab-import-append-smart-clip">追加模块</div>
                     <div class="clab-custom-select-item" id="clab-import-append-sel-clip">追加模块到选中</div>
                     
-                    <div class="clab-custom-select-group-title" style="padding: 6px 12px; font-size: 12px; margin-top: 4px; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05);">从本地文件导入JSON数据</div>
+                    <div class="clab-custom-select-group-title">从本地文件导入JSON数据</div>
                     <div class="clab-custom-select-item" id="clab-import-new-local">创建任务</div>
                     <div class="clab-custom-select-item" id="clab-import-append-smart-local">追加模块</div>
                     <div class="clab-custom-select-item" id="clab-import-append-sel-local">追加模块到选中</div>
@@ -285,27 +285,27 @@ export function attachDataIOEvents(panelContainer) {
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line>
                     </svg>
                 </button>
-                <div id="clab-export-json-dropdown" class="clab-custom-select-dropdown" style="display:none; top: calc(100% + 4px); right: 0; left: auto; min-width: 250px; z-index: 10002;">
+                <div id="clab-export-json-dropdown" class="clab-custom-select-dropdown clab-toolbar-menu" style="display:none; top: calc(100% + 4px); right: 0; left: auto; min-width: 250px; z-index: 10002;">
                     
-                    <div class="clab-custom-select-group-title" style="padding: 6px 12px; font-size: 12px; margin-top: 0; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05); display: flex; align-items: center; white-space: nowrap; gap: 12px;">打包为ZIP</div>
+                    <div class="clab-custom-select-group-title">打包为ZIP</div>
                     <div class="clab-custom-select-item" id="clab-export-media-all">下载全部</div>
                     <div class="clab-custom-select-item" id="clab-export-media-sel">下载选中</div>
                     <div class="clab-custom-select-item" id="clab-export-media-all-history">下载全部 (含所有生成记录)</div>
                     <div class="clab-custom-select-item" id="clab-export-media-sel-history">下载选中 (含所有生成记录)</div>
                     
-                    <div class="clab-custom-select-group-title" style="padding: 6px 12px; font-size: 12px; margin-top: 4px; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05);">收集整理</div>
+                    <div class="clab-custom-select-group-title">收集整理</div>
                     <div class="clab-custom-select-item" id="clab-export-org-copy">复制到子文件夹</div>
                     <div class="clab-custom-select-item" id="clab-export-org-copy-history">复制到子文件夹 (含所有生成记录)</div>
                     
-                    <div class="clab-custom-select-group-title" style="padding: 0 0 0 12px; height: 28px; font-size: 12px; margin-top: 4px; box-sizing: border-box; font-weight: bold; color: #aaa; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: space-between; white-space: nowrap;">
+                    <div class="clab-custom-select-group-title clab-menu-title-actions">
                         <span>导出JSON数据</span>
-                        <div style="display: flex; height: 100%; align-items: center; pointer-events: auto;">
-                            <div id="clab-json-action-copy" style="height: 100%; width: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: #2a2a2a; color: #fff; transition: all 0.2s;" title="点亮：点击下方项复制到剪切板">
+                        <div class="clab-menu-actions">
+                            <button type="button" id="clab-json-action-copy" aria-pressed="true" aria-label="复制 JSON 到剪切板" title="点亮：点击下方项复制到剪切板">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                            </div>
-                            <div id="clab-json-action-download" style="height: 100%; width: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: transparent; color: #888; transition: all 0.2s;" title="点亮：点击下方项下载到本地">
+                            </button>
+                            <button type="button" id="clab-json-action-download" aria-pressed="false" aria-label="下载 JSON 到本地" title="点亮：点击下方项下载到本地">
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                            </div>
+                            </button>
                         </div>
                     </div>
                     <div class="clab-custom-select-item" id="clab-export-json-input">输入模块</div>
@@ -625,13 +625,8 @@ export function attachDataIOEvents(panelContainer) {
         const downloadActionBtn = exportWrapper.querySelector("#clab-json-action-download");
 
         const updateJsonActionState = () => {
-            if (currentJsonAction === 'copy') {
-                copyActionBtn.style.background = '#2a2a2a'; copyActionBtn.style.color = '#fff';
-                downloadActionBtn.style.background = 'transparent'; downloadActionBtn.style.color = '#888';
-            } else {
-                copyActionBtn.style.background = 'transparent'; copyActionBtn.style.color = '#888';
-                downloadActionBtn.style.background = '#2a2a2a'; downloadActionBtn.style.color = '#fff';
-            }
+            copyActionBtn.setAttribute('aria-pressed', String(currentJsonAction === 'copy'));
+            downloadActionBtn.setAttribute('aria-pressed', String(currentJsonAction === 'download'));
         };
 
         copyActionBtn.onclick = (e) => { e.stopPropagation(); currentJsonAction = 'copy'; updateJsonActionState(); };

@@ -37,11 +37,25 @@ function getBindingTarget(e) {
     return { node, widget: node?.flags.collapsed ? undefined : node?.getWidgetOnPos(x, y, true) };
 }
 
+export function resolveBindingTargets(node, widgetName = null) {
+    const targets = [];
+    if (node.type === 'PrimitiveNode') {
+        for (const linkId of node.outputs?.[0]?.links || []) {
+            const link = app.graph.links[linkId];
+            const targetNode = link && app.graph.getNodeById(link.target_id);
+            const input = targetNode?.inputs?.[link.target_slot];
+            if (input) targets.push({ nodeIdStr: String(targetNode.id), widgetName: input.name });
+        }
+    }
+    return targets.length ? targets : [{ nodeIdStr: String(node.id), widgetName }];
+}
+
 export function enterBindingModeForSelected(targetType, panelContainer, backdropContainer) {
     if (!state.selectedAreaIds || state.selectedAreaIds.length === 0) return;
     if (appState.isBindingMode) return;
 
     appState.isBindingMode = true;
+    panelContainer?.querySelectorAll('[popover]:popover-open').forEach(menu => menu.hidePopover());
     if (panelContainer) panelContainer.classList.remove('visible');
     if (backdropContainer) backdropContainer.classList.remove('visible');
     
@@ -83,28 +97,8 @@ export function enterBindingModeForSelected(targetType, panelContainer, backdrop
             if (backdropContainer) backdropContainer.classList.add('visible');
 
             if (targetNode) {
-                let resolvedTargets = [];
-                if (targetNode.type === "PrimitiveNode" && targetNode.outputs && targetNode.outputs[0] && targetNode.outputs[0].links) {
-                    targetNode.outputs[0].links.forEach(linkId => {
-                        const link = app.graph.links[linkId];
-                        if (link) {
-                            const realNode = app.graph.getNodeById(link.target_id);
-                            if (realNode && realNode.inputs && realNode.inputs[link.target_slot]) {
-                                resolvedTargets.push({
-                                    nodeIdStr: String(realNode.id),
-                                    widgetName: realNode.inputs[link.target_slot].name
-                                });
-                            }
-                        }
-                    });
-                }
-                
-                if (resolvedTargets.length === 0) {
-                    resolvedTargets.push({
-                        nodeIdStr: String(targetNode.id),
-                        widgetName: targetWidget && targetWidget.type !== 'button' ? targetWidget.name : null
-                    });
-                }
+                const resolvedTargets = resolveBindingTargets(targetNode,
+                    targetWidget && targetWidget.type !== 'button' ? targetWidget.name : null);
 
                 state.selectedAreaIds.forEach(id => {
                     state.cards.forEach(c => {
@@ -170,6 +164,7 @@ export function enterBindingModeForSelected(targetType, panelContainer, backdrop
                 });
                 saveAndRender();
             }
+            document.dispatchEvent(new CustomEvent('clab_binding_finished'));
         }, 150);
     };
     

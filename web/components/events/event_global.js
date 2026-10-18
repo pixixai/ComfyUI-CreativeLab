@@ -27,7 +27,25 @@ function parseShortcut(shortcutStr) {
     return parsed;
 }
 
+function matchesShortcut(e, shortcut) {
+    if (!shortcut) return false;
+    const sc = parseShortcut(shortcut);
+    return e.key.toLowerCase() === sc.key && e.ctrlKey === sc.ctrl && e.shiftKey === sc.shift
+        && e.altKey === sc.alt && e.metaKey === sc.meta;
+}
+
 export function setupGlobalEvents(panelContainer, backdropContainer, togglePanelFunc, performRenderFunc) {
+    window.addEventListener('keydown', e => {
+        if (appState.isBindingMode || e.defaultPrevented || e.repeat || e.isComposing || !panelContainer?.classList.contains('visible')) return;
+        if (e.target?.isContentEditable || e.target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+        if (!matchesShortcut(e, window._clabPickShortcutRaw ?? 'P')) return;
+        const selected = state.cards.flatMap(c => c.areas || []).filter(a => state.selectedAreaIds.includes(a.id));
+        const area = selected.find(a => a.id === appState.lastClickedAreaId) || selected[0];
+        if (!area) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        document.dispatchEvent(new CustomEvent('clab_enter_binding_mode', { detail: area.type }));
+    }, true);
     
     if (!window._clabGlobalMediaErrorHijacked) {
         const clearFallback = (target) => {
@@ -276,13 +294,7 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
         if (isInput) return;
         
         // 【核心修复】：动态解析快捷键配置，执行严格的修饰键全量比对
-        const sc = parseShortcut(window._clabShortcutRaw || 'C');
-        
-        if (e.key.toLowerCase() === sc.key && 
-            e.ctrlKey === sc.ctrl && 
-            e.shiftKey === sc.shift && 
-            e.altKey === sc.alt && 
-            e.metaKey === sc.meta) {
+        if (matchesShortcut(e, window._clabShortcutRaw || 'C')) {
             
             e.preventDefault();
             togglePanelFunc();

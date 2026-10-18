@@ -47,60 +47,6 @@ export function getWidgetDef(nodeId, widgetName) {
     return node.widgets.find(w => w.name === widgetName);
 }
 
-export function getCustomNodeMenuHTML(selectedNodeId) {
-    const tree = { name: "Root", children: {}, nodes: [] };
-    if (app.graph && app.graph._nodes) {
-        app.graph._nodes.forEach(node => {
-            let groupPath = ["Ungrouped"];
-            if (app.graph._groups) {
-                for (let g of app.graph._groups) {
-                    if (node.pos[0] >= g.pos[0] && node.pos[0] <= g.pos[0] + g.size[0] &&
-                        node.pos[1] >= g.pos[1] && node.pos[1] <= g.pos[1] + g.size[1]) {
-                        groupPath = (g.title || "未命名组").split(/[/|\\]/).map(s => s.trim()).filter(s => s);
-                        break;
-                    }
-                }
-            }
-
-            let currentLevel = tree;
-            if (groupPath[0] !== "Ungrouped") {
-                groupPath.forEach(part => {
-                    if (!currentLevel.children[part]) {
-                        currentLevel.children[part] = { name: part, children: {}, nodes: [] };
-                    }
-                    currentLevel = currentLevel.children[part];
-                });
-            }
-            currentLevel.nodes.push(node);
-        });
-    }
-
-    function renderTree(nodeTree, depth = 0) {
-        let html = '';
-        const indent = depth * 12;
-        nodeTree.nodes.forEach(n => {
-            const isSel = n.id == selectedNodeId;
-            html += `<div class="clab-custom-select-item ${isSel ? 'selected' : ''}" data-value="${n.id}" style="padding-left:${indent + 12}px;">[${n.id}] ${n.title || n.type}</div>`;
-        });
-        for (let childName in nodeTree.children) {
-            html += `<div class="clab-custom-select-group-title" style="padding-left:${indent + 8}px;">${childName}</div>`;
-            html += renderTree(nodeTree.children[childName], depth + 1);
-        }
-        return html;
-    }
-
-    let finalHtml = `<div class="clab-custom-select-item" data-value="" style="color:#aaa;">(清除关联)</div>`;
-    if (tree.nodes.length > 0) {
-        finalHtml += `<div class="clab-custom-select-group-title">Ungrouped</div>`;
-        finalHtml += renderTree({ nodes: tree.nodes, children: {} }, 0);
-    }
-    for (let childName in tree.children) {
-        finalHtml += `<div class="clab-custom-select-group-title">${childName}</div>`;
-        finalHtml += renderTree(tree.children[childName], 1);
-    }
-    return finalHtml;
-}
-
 export function getCustomWidgetMenuHTML(nodeId, selectedWidget) {
     let html = `<div class="clab-custom-select-item" data-value="" style="color:#aaa;">(清除绑定)</div>`;
     if (nodeId && app.graph) {
@@ -112,55 +58,6 @@ export function getCustomWidgetMenuHTML(nodeId, selectedWidget) {
             });
         }
     }
-    return html;
-}
-
-export function getMultiNodeMenuHTML(selectedIds) {
-    if (!app.graph) return '';
-    const nodes = app.graph._nodes || [];
-    let html = '';
-
-    const groups = {};
-    nodes.forEach(n => {
-        const cat = n.category || '未分类';
-        if (!groups[cat]) groups[cat] = [];
-        groups[cat].push(n);
-    });
-
-    for (const cat in groups) {
-        html += `<div class="clab-custom-select-group-title">${cat}</div>`;
-        groups[cat].forEach(n => {
-            const isSelected = selectedIds.includes(String(n.id));
-            html += `<div class="clab-custom-select-item ${isSelected ? 'selected' : ''}" data-value="${n.id}">[${n.id}] ${n.title || n.type}</div>`;
-        });
-    }
-    return html;
-}
-
-export function getMultiWidgetMenuHTML(nodeIds, selectedWidgets) {
-    if (!app.graph || !nodeIds || nodeIds.length === 0) return '<div class="clab-custom-select-item" data-value="">请先选择关联节点</div>';
-
-    let html = '';
-    nodeIds.forEach(nid => {
-        const node = app.graph.getNodeById(Number(nid));
-        if (!node) return;
-
-        html += `<div class="clab-custom-select-group-title">[${node.id}] ${node.title || node.type}</div>`;
-
-        let hasWidget = false;
-        if (node.widgets && node.widgets.length > 0) {
-            node.widgets.forEach(w => {
-                if (w.type === 'button') return;
-                hasWidget = true;
-                const val = `${node.id}||${w.name}`;
-                const isSelected = selectedWidgets.includes(val);
-                html += `<div class="clab-custom-select-item ${isSelected ? 'selected' : ''}" data-value="${val}">${w.name} <span style="font-size:10px;color:#666;">(${w.type})</span></div>`;
-            });
-        }
-        if (!hasWidget) {
-            html += `<div class="clab-custom-select-item disabled" style="color:#666; pointer-events:none;">No available parameters</div>`;
-        }
-    });
     return html;
 }
 
@@ -374,10 +271,6 @@ export function injectCSS() {
             --clab-toolbar-capsule-height: 30px;
             --clab-toolbar-padding: 15px;
             --clab-toolbar-type-padding: 14px;
-            --clab-toolbar-node-width: 120px;
-            --clab-toolbar-widget-width: 140px;
-            --clab-toolbar-ratio-width: 100px;
-            --clab-toolbar-dimension-width: 75px;
             padding: 15px 20px; background: rgba(0, 0, 0, 0.3); border-bottom: 1px solid rgb(8, 8, 8);
             display: flex; justify-content: space-between; align-items: center; gap: 10px;
             cursor: grab; user-select: none; flex-wrap: nowrap; flex-shrink: 0; white-space: nowrap;
@@ -390,10 +283,6 @@ export function injectCSS() {
             --clab-toolbar-capsule-height: 28px;
             --clab-toolbar-padding: 10px;
             --clab-toolbar-type-padding: 10px;
-            --clab-toolbar-node-width: 108px;
-            --clab-toolbar-widget-width: 120px;
-            --clab-toolbar-ratio-width: 88px;
-            --clab-toolbar-dimension-width: 66px;
             padding: 10px 12px;
         }
         .clab-toolbar[data-density="dense"] {
@@ -404,10 +293,6 @@ export function injectCSS() {
             --clab-toolbar-capsule-height: 28px;
             --clab-toolbar-padding: 8px;
             --clab-toolbar-type-padding: 8px;
-            --clab-toolbar-node-width: 96px;
-            --clab-toolbar-widget-width: 108px;
-            --clab-toolbar-ratio-width: 80px;
-            --clab-toolbar-dimension-width: 60px;
             padding: 8px 10px;
         }
         .clab-toolbar:active { cursor: grabbing; }
@@ -605,9 +490,81 @@ export function injectCSS() {
             background: var(--clab-theme-card-bg, rgba(76, 175, 80, 0));
         }
         
+        .clab-module-binding { display:flex; align-items:center; gap:3px; margin-left:auto; max-width:75%; min-width:0; flex:0 1 auto; }
+        .clab-module-binding button { display:flex; align-items:center; justify-content:center; gap:4px; height:20px; min-height:20px; padding:0 5px; border:1px solid rgba(255,255,255,0.12); border-radius:4px; background:rgba(255,255,255,0.03); color:#999; font:11px sans-serif; cursor:pointer; }
+        .clab-module-binding button:hover, .clab-module-binding button[aria-expanded="true"] { background:rgba(255,255,255,0.1); color:#ddd; }
+        .clab-module-binding-summary { min-width:0; max-width:190px; }
+        .clab-module-binding-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+        .clab-output-area::before { content:""; position:absolute; top:0; right:0; width:min(100%, 180px); height:min(100%, 90px); border-radius:inherit; background:radial-gradient(ellipse at top right, rgba(0,0,0,0.22), rgba(0,0,0,0.08) 45%, transparent 80%); opacity:0; pointer-events:none; z-index:21; transition:opacity 0.15s; }
+        .clab-output-area:hover::before, .clab-output-area:has(.clab-output-controls [aria-expanded="true"])::before { opacity:1; }
+        .clab-output-controls { position:absolute; top:7px; right:8px; z-index:25; display:flex; align-items:center; gap:2px; max-width:calc(100% - 50px); opacity:0; pointer-events:none; transition:opacity 0.15s; }
+        .clab-output-controls::before { content:""; position:absolute; inset:-2px -3px; border:1px solid rgba(255,255,255,0.12); border-radius:6px; background:rgba(0,0,0,0.35); pointer-events:none; z-index:-1; }
+        .clab-area:hover .clab-output-controls, .clab-output-controls:has([aria-expanded="true"]) { opacity:1; pointer-events:auto; }
+        .clab-output-binding { position:relative; min-width:0; max-width:100px; }
+        .clab-output-binding::before { content:""; position:absolute; top:-1px; bottom:-1px; left:-1px; border-left:1px solid rgba(255,255,255,0.12); pointer-events:none; }
+        .clab-output-binding button { max-width:100px; border:0; background:transparent; color:rgba(255,255,255,0.8); transition:color 0.15s, background-color 0.15s; }
+        .clab-output-controls .clab-output-settings-trigger { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:20px; height:20px; padding:0; border:0; border-radius:3px; background:transparent; color:rgba(255,255,255,0.8); cursor:pointer; transition:color 0.15s, background-color 0.15s; }
+        .clab-output-controls button:hover, .clab-output-controls button[aria-expanded="true"] { background:rgba(255,255,255,0.1); color:#fff; }
+        .clab-output-manage-head .clab-output-controls { position:relative; top:auto; right:auto; max-width:114px; flex-shrink:0; }
+        .clab-input-header > .clab-area-title-input { flex:0 1 auto; min-width:15px; }
+        .clab-module-binding-popover, .clab-output-settings-popover, .clab-context-menu, .clab-custom-select-dropdown.clab-toolbar-menu { box-sizing:border-box; border:1px solid #505050; border-radius:7px; background:var(--comfy-menu-bg, #292929); color:#ddd; font:12px sans-serif; box-shadow:0 8px 28px rgba(0,0,0,0.45); }
+        .clab-output-settings-popover { position:fixed; inset:auto; margin:0; padding:0; width:min(280px, calc(100vw - 16px)); max-height:calc(100dvh - 16px); overflow:auto; }
+        .clab-output-settings-fields { display:flex; flex-direction:column; gap:12px; padding:12px 10px; }
+        .clab-output-match { display:flex; align-items:center; gap:6px; cursor:pointer; }
+        .clab-output-match input { width:12px; height:12px; margin:0; accent-color:var(--clab-theme-module, #2196f3); }
+        .clab-output-setting-row { display:grid; grid-template-columns:60px minmax(0, 1fr); align-items:center; gap:8px; }
+        .clab-output-dimensions { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; }
+        .clab-output-dimensions label { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+        .clab-output-settings-fields select, .clab-output-dimensions input { min-width:0; width:100%; box-sizing:border-box; height:27px; padding:3px 5px; border:1px solid #555; border-radius:4px; background:rgba(0,0,0,0.25); color:#ddd; font:12px sans-serif; }
+        .clab-output-settings-fields option { background:var(--comfy-menu-bg, #292929); color:#ddd; }
+        .clab-output-settings-fields :disabled { opacity:0.4; cursor:not-allowed; }
+        .clab-output-settings-fields select:focus-visible, .clab-output-dimensions input:focus-visible { outline:1px solid var(--clab-theme-module, #2196f3); outline-offset:1px; }
+        .clab-toolbar-type, #tb-output-settings { height:var(--clab-toolbar-capsule-height, 30px); box-sizing:border-box; }
+        .clab-toolbar-type .clab-type-btn { display:flex; align-items:center; }
+        .clab-toolbar-left > .clab-module-toolbar:has(.clab-toolbar-output-settings) { flex-shrink:1; }
+        .clab-toolbar-output-settings { display:flex; align-items:center; gap:var(--clab-module-gap); flex-shrink:1; min-width:0; }
+        .clab-toolbar-output-divider { flex-shrink:0; }
+        #tb-output-settings { display:flex; align-items:center; justify-content:center; gap:6px; width:auto; min-width:0; max-width:160px; padding:0; border:0; background:transparent; box-shadow:none; color:#aaa; font:var(--clab-toolbar-font, 13px)/1 sans-serif; cursor:pointer; transition:color 0.15s; }
+        #tb-output-settings svg { display:block; width:1em; height:1em; flex-shrink:0; }
+        #tb-output-settings:hover, #tb-output-settings:active, #tb-output-settings[aria-expanded="true"] { color:#fff; }
+        .clab-output-settings-label { display:block; line-height:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .clab-module-binding-popover { position:fixed; inset:auto; margin:0; padding:0; width:min(460px, calc(100vw - 16px)); max-height:min(440px, calc(100dvh - 16px)); overflow:hidden; }
+        .clab-output-binding-popover { width:min(320px, calc(100vw - 16px)); }
+        .clab-output-binding-popover .clab-binding-columns { grid-template-columns:minmax(0, 1fr); }
+        .clab-module-binding-popover:popover-open { display:flex; flex-direction:column; }
+        .clab-binding-panel-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px; border-bottom:1px solid rgba(255,255,255,0.1); flex-shrink:0; }
+        .clab-binding-start-pick { display:flex; align-items:center; gap:5px; margin-left:auto; flex-shrink:0; height:24px; padding:0 6px; border:1px solid #555; border-radius:4px; background:rgba(255,255,255,0.04); color:#ccc; font:11px sans-serif; cursor:pointer; }
+        .clab-binding-start-pick:hover { background:rgba(255,255,255,0.12); color:#fff; }
+        .clab-binding-panel-foot { color:#aaa; font-size:11px; }
+        .clab-binding-columns { display:grid; grid-template-columns:minmax(108px, 40%) minmax(0, 1fr); min-height:0; overflow:hidden; }
+        .clab-binding-nodes { display:flex; flex-direction:column; min-width:0; min-height:0; padding:6px; }
+        .clab-binding-search { min-width:0; width:100%; box-sizing:border-box; height:26px; margin-bottom:5px; padding:3px 5px; border:1px solid #555; border-radius:4px; background:rgba(0,0,0,0.25); color:#ddd; font:11px sans-serif; flex-shrink:0; }
+        .clab-binding-node-list { overflow:auto; min-height:0; }
+        .clab-binding-node-list::-webkit-scrollbar, .clab-binding-params::-webkit-scrollbar, .clab-context-menu::-webkit-scrollbar, .clab-toolbar-menu::-webkit-scrollbar { width:5px; }
+        .clab-binding-node-list::-webkit-scrollbar-thumb, .clab-binding-params::-webkit-scrollbar-thumb, .clab-context-menu::-webkit-scrollbar-thumb, .clab-toolbar-menu::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.22); border-radius:4px; }
+        .clab-binding-node-row { display:flex; align-items:center; gap:5px; padding:2px 3px; border-radius:3px; }
+        .clab-binding-node-row:hover, .clab-binding-param:hover, .clab-context-menu-item:hover, .clab-toolbar-menu .clab-custom-select-item:hover { background:rgba(255,255,255,0.08); }
+        .clab-binding-node-row.is-current { background:rgba(255,255,255,0.12); }
+        .clab-binding-node-row button { display:flex; gap:5px; align-items:center; min-width:0; flex:1; min-height:25px; padding:3px 0; border:0; background:transparent; color:#ccc; font:12px sans-serif; text-align:left; cursor:pointer; }
+        .clab-binding-node-row button span:first-child { flex-shrink:0; }
+        .clab-binding-node-row button span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .clab-module-binding-popover input[type="checkbox"], .clab-module-binding-popover input[type="radio"] { flex:0 0 12px; width:12px; height:12px; margin:0; accent-color:var(--clab-theme-module, #2196f3); cursor:pointer; }
+        .clab-binding-params { min-width:0; min-height:0; padding:6px; overflow:auto; border-left:1px solid rgba(255,255,255,0.1); }
+        .clab-binding-param-group { padding:7px; margin-bottom:5px; border:1px solid transparent; border-radius:4px; }
+        .clab-binding-param-group.is-current { background:rgba(0,0,0,0.35); border-color:rgba(255,255,255,0.08); }
+        .clab-binding-group-title { display:flex; justify-content:space-between; gap:6px; margin-bottom:5px; color:#aaa; font-size:11px; }
+        .clab-binding-group-title span:first-child { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+        .clab-binding-group-title span + span { flex-shrink:0; }
+        .clab-binding-param { display:flex; align-items:center; gap:6px; min-height:25px; cursor:pointer; }
+        .clab-binding-param span { min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+        .clab-binding-empty { padding:7px 2px; font-size:11px; color:#999; }
+        .clab-binding-panel-foot { padding:8px 10px; border-top:1px solid rgba(255,255,255,0.1); flex-shrink:0; }
+
         .clab-card-body {
             flex: 1; overflow-y: auto; overflow-y: overlay; overflow-x: hidden; 
-            padding: 0 10px 10px 10px;
+            /* Extend the scroll viewport above the first module without moving its content. */
+            padding: 10px;
+            margin-top: -10px;
             display: flex; flex-direction: column;
             min-height: 50px; 
         }
@@ -629,19 +586,27 @@ export function injectCSS() {
             font-size: 12px; font-weight: bold; display: flex; justify-content: center; align-items: center;
             cursor: pointer; opacity: 0; transition: opacity 0.2s, transform 0.2s, background 0.2s, color 0.2s; z-index: 10;
         }
-        .clab-del-card-btn:hover, .clab-del-area-btn:hover { transform: scale(1.15); background: #ff5555; color: #fff; }
-        .clab-card:hover > .clab-del-card-btn { opacity: 1; }
-        .clab-area:hover > .clab-del-area-btn { opacity: 1; }
+        .clab-del-card-btn:hover { transform: scale(1.15); background: #ff5555; color: #fff; }
+        .clab-del-area-btn {
+            top:calc(4px - var(--clab-area-border-width)); right:calc(4px - var(--clab-area-border-width));
+            width:18px; height:18px; padding:0; box-sizing:border-box; font-size:11px; line-height:1;
+            transform:translate(50%, -50%); transition:opacity 0.2s, background 0.2s, color 0.2s;
+        }
+        .clab-del-area-btn:hover { background:#ff5555; color:#fff; }
+        .clab-card:hover > .clab-del-card-btn { opacity: 0.6; }
+        .clab-area:hover > .clab-del-area-btn { opacity: 0.6; }
 
         .clab-area-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; min-height: 20px; transition: background 0.2s;}
         
         .clab-area { 
+            --clab-area-border-width:1px;
             background: rgba(255, 255, 255, 0.05); border: 1px dashed rgba(255, 255, 255, 0.2); 
             border-radius: 6px; font-size: 12px; position: relative; cursor: grab; transition: border-color 0.2s, border-width 0.2s, box-shadow 0.2s, background 0.2s;
-            flex-shrink: 0; overflow: hidden;
+            flex-shrink: 0; overflow: visible;
         }
         .clab-area:active { cursor: grabbing; }
         .clab-area.active { 
+            --clab-area-border-width:var(--clab-theme-module-border, 1px);
             border-color: var(--clab-theme-module, #2196F3) !important;
             border-width: var(--clab-theme-module-border, 1px) !important;
             border-style: solid !important;
@@ -700,13 +665,19 @@ export function injectCSS() {
             padding: 6px 12px; font-size: 12px; color: #eee; cursor: pointer;
             transition: background 0.1s; white-space: nowrap;
         }
-        .clab-custom-select-item:hover { background: var(--clab-theme-card, #4CAF50); color: #fff; }
+        .clab-custom-select-item:hover { background:rgba(255,255,255,0.15); color:#fff; }
         .clab-custom-select-item.selected { color: var(--clab-theme-card, #4CAF50); font-weight: bold; }
         .clab-custom-select-group-title {
             padding: 4px 12px; font-size: 10px; color: #aaa; font-weight: bold;
             background: rgba(255,255,255,0.05); margin-top: 4px; pointer-events: none;
             display: flex; align-items: center; gap: 4px;
         }
+        .clab-custom-select-dropdown.clab-toolbar-menu { padding:6px; max-height:min(440px, calc(100dvh - 16px)); }
+        .clab-toolbar-menu .clab-menu-title-actions { justify-content:space-between; }
+        .clab-menu-actions { display:flex; align-items:center; gap:3px; pointer-events:auto; }
+        .clab-menu-actions button { display:flex; align-items:center; justify-content:center; width:24px; height:24px; padding:0; border:1px solid transparent; border-radius:4px; background:transparent; color:#888; cursor:pointer; }
+        .clab-menu-actions button:hover { background:rgba(255,255,255,0.08); color:#ccc; }
+        .clab-menu-actions button[aria-pressed="true"] { background:rgba(255,255,255,0.12); color:#ddd; border-color:#555; }
 
         #clab-toolbar-handle .clab-btn {
             font-size: var(--clab-toolbar-font);
@@ -732,19 +703,6 @@ export function injectCSS() {
             padding-right: var(--clab-toolbar-padding) !important;
         }
         #clab-toolbar-handle label { font-size: var(--clab-toolbar-font) !important; white-space: nowrap; }
-        #clab-toolbar-handle #tb-node-select-custom { width: var(--clab-toolbar-node-width) !important; }
-        #clab-toolbar-handle #tb-widget-select-custom { width: var(--clab-toolbar-widget-width) !important; }
-        #clab-toolbar-handle #tb-ratio-select-custom,
-        #clab-toolbar-handle #tb-fill-select-custom { width: var(--clab-toolbar-ratio-width) !important; }
-        #clab-toolbar-handle #tb-ratio-w,
-        #clab-toolbar-handle #tb-ratio-h {
-            width: var(--clab-toolbar-dimension-width) !important;
-            box-sizing: border-box;
-            appearance: textfield;
-        }
-        #clab-toolbar-handle #tb-ratio-w::-webkit-inner-spin-button,
-        #clab-toolbar-handle #tb-ratio-h::-webkit-inner-spin-button { appearance: none; margin: 0; }
-        #clab-toolbar-handle[data-density="dense"] .clab-toolbar-output-settings { gap: 4px !important; margin-left: 0 !important; }
         #clab-toolbar-handle[data-density="dense"] .clab-capsule { padding-left: 6px !important; padding-right: 6px !important; }
         #clab-toolbar-handle[data-density="compact"] .clab-module-toolbar svg { max-width: 16px; max-height: 16px; }
         #clab-toolbar-handle[data-density="dense"] .clab-module-toolbar svg { max-width: 14px; max-height: 14px; }
@@ -764,7 +722,10 @@ export function injectCSS() {
             width: 100%; max-width: 100%; height: auto !important; margin-left: 0 !important;
             box-sizing: border-box; flex-wrap: wrap !important; gap: 8px !important;
         }
-        #clab-toolbar-more-menu button { height: 32px !important; }
+        #clab-toolbar-more-menu .clab-toolbar-type { height:var(--clab-toolbar-capsule-height, 30px) !important; }
+        #clab-toolbar-more-menu .clab-toolbar-output-divider { display:none; }
+        #clab-toolbar-more-menu button:not(#tb-output-settings) { height: 32px !important; }
+        #clab-toolbar-more-menu .clab-menu-actions button { height: 24px !important; }
         #clab-toolbar-more-menu .clab-custom-select { flex-wrap: wrap; height: auto !important; }
         #clab-toolbar-more-menu .clab-custom-select-value { height: 26px; }
         #clab-toolbar-more-menu .clab-custom-select-dropdown {
@@ -779,6 +740,7 @@ export function injectCSS() {
             display: flex; justify-content: center; align-items: center;
             position: relative; transition: all 0.3s;
         }
+        .clab-area > .clab-preview-bg { border-radius:max(0px, calc(6px - var(--clab-area-border-width))); }
         .clab-preview-img { width: 100%; height: 100%; display: none; }
         .clab-preview-placeholder { color: rgba(255,255,255,0.6); font-weight: bold; font-size: 14px; pointer-events: none; padding: 20px; text-align: center; }
 
@@ -809,43 +771,42 @@ export function injectCSS() {
         /* ========================================================================= */
         .clab-context-menu {
             position: fixed;
-            background: rgba(35, 35, 35, 0.95);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            padding: 6px 0;
+            padding: 6px;
             min-width: 180px;
-            z-index: 10005;
+            max-width: calc(100vw - 16px);
+            max-height: calc(100dvh - 16px);
+            overflow: auto;
+            z-index: 999999;
             display: none;
-            font-family: sans-serif;
-            font-size: 13px;
-            color: #eee;
+            user-select: none;
         }
-        .clab-context-menu-title {
-            padding: 4px 15px;
+        .clab-context-menu-title, .clab-toolbar-menu .clab-custom-select-group-title {
+            padding: 4px 6px;
             font-size: 11px;
             color: #aaa;
-            font-weight: bold;
-            background: rgba(0,0,0,0.2);
+            font-weight: normal;
+            background: transparent;
             margin: 4px 0;
             pointer-events: none;
-            letter-spacing: 1px;
         }
-        .clab-context-menu-item {
-            padding: 8px 15px;
+        .clab-context-menu-item, .clab-toolbar-menu .clab-custom-select-item {
+            padding: 5px 6px;
+            min-height: 29px;
+            box-sizing: border-box;
+            border-radius: 3px;
+            color: #ccc;
+            font: 12px sans-serif;
             cursor: pointer;
-            transition: background 0.1s;
             display: flex;
             align-items: center;
+            gap: 5px;
         }
-        .clab-context-menu-item:hover { background: var(--clab-theme-module, #2196F3); color: #fff; }
         .clab-context-menu-item.clab-danger { color: #ff6b6b; }
-        .clab-context-menu-item.clab-danger:hover { background: #f44336; color: #fff; }
+        .clab-context-menu-item.clab-danger:hover { background: rgba(255,107,107,0.12); }
         .clab-context-menu-divider {
             height: 1px;
             background: rgba(255, 255, 255, 0.1);
-            margin: 4px 0;
+            margin: 5px 6px;
         }
 
         .clab-preview-modal {

@@ -303,10 +303,6 @@ export function setupUI() {
 
     const overrideStyle = document.createElement("style");
     overrideStyle.innerHTML = `
-        .clab-custom-select-item:hover {
-            background-color: rgba(255, 255, 255, 0.15) !important;
-            color: #ffffff !important;
-        }
         #clab-panel {
             --clab-card-width: 320px;
         }
@@ -331,50 +327,6 @@ export function setupUI() {
             -moz-appearance: textfield;
         }
 
-        .clab-context-menu {
-            background: #2a2a2a !important;
-            border: 1px solid #555 !important;
-            border-radius: 6px !important;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important;
-            padding: 4px 0 !important;
-            font-family: sans-serif !important;
-            backdrop-filter: none !important;
-        }
-        .clab-context-menu-title {
-            padding: 6px 12px !important;
-            font-size: 12px !important;
-            color: #aaa !important;
-            font-weight: bold !important;
-            background: rgba(255,255,255,0.08) !important;
-            margin: 0 !important;
-            pointer-events: none !important;
-            letter-spacing: normal !important;
-        }
-        .clab-context-menu-item {
-            padding: 6px 12px !important;
-            font-size: 12px !important;
-            color: #eee !important;
-            cursor: pointer !important;
-            transition: background 0.1s !important;
-            display: flex !important;
-            align-items: center !important;
-        }
-        .clab-context-menu-item:hover {
-            background-color: rgba(255, 255, 255, 0.15) !important;
-            color: #ffffff !important;
-        }
-        .clab-context-menu-item.clab-danger {
-            color: #ff4d4f !important;
-        }
-        .clab-context-menu-item.clab-danger:hover {
-            background-color: #ff4d4f !important;
-            color: #ffffff !important;
-        }
-        .clab-context-menu-divider {
-            height: 1px !important;
-            background: rgba(255, 255, 255, 0.1) !important;
-            margin: 4px 12px !important;
-        }
         #clab-channel-strip {
             height: 28px;
             min-height: 28px;
@@ -531,8 +483,8 @@ function createPanelDOM() {
                                 <polyline points="6 9 12 15 18 9"></polyline>
                             </svg>
                         </button>
-                        <div id="clab-run-dropdown-menu" class="clab-custom-select-dropdown" style="display:none; top: calc(100% + 4px); right: 0; left: auto; min-width: 140px; z-index: 10002;">
-                            <div class="clab-custom-select-item" id="clab-btn-run-all" style="display:flex; align-items:center; gap:8px;">
+                        <div id="clab-run-dropdown-menu" class="clab-custom-select-dropdown clab-toolbar-menu" style="display:none; top: calc(100% + 4px); right: 0; left: auto; min-width: 140px; z-index: 10002;">
+                            <div class="clab-custom-select-item" id="clab-btn-run-all">
                                 <svg width="15" height="15" viewBox="0 0 19.6 15.01" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M19.26,6.77L11.55.23c-.63-.53-1.59-.09-1.59.74v13.07c0,.82.96,1.27,1.59.74l7.72-6.54c.46-.39.46-1.09,0-1.48Z"/>
                                     <path d="M9.31,6.77L1.59.23C.96-.3,0,.15,0,.97v13.07c0,.82.96,1.27,1.59.74l7.72-6.54c.46-.39.46-1.09,0-1.48Z"/>

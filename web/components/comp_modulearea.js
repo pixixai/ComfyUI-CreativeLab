@@ -2,10 +2,11 @@
  * 文件: comp_modulearea.js
  * 职责: 负责输入/输出区域渲染、拖拽排序与局部刷新。
  */
-import { state, dragState, saveAndRender } from "./ui_state.js";
+import { state, appState, dragState, saveAndRender } from "./ui_state.js";
 import { injectDnDCSS, bindComboSelectEvents } from "./ui_utils.js";
 import { generateInputHTML, attachInputEvents, refreshInputAreaInPlace } from "./modules/module_input.js";
 import { generateOutputHTML, attachOutputEvents } from "./modules/module_output.js";
+import { attachModulePickEvents } from "./modules/module_binding.js";
 import { updateSelectionUI } from "./ui_selection.js"; // [新增] 引入更新选中状态的 UI 方法
 import { app } from "../../../scripts/app.js";
 
@@ -238,6 +239,7 @@ export function generateAreaHTML(area, card) {
 
 export function attachAreaEvents(container) {
     injectDnDCSS();
+    attachModulePickEvents(container);
     attachInputEvents(container);
     attachOutputEvents(container);
     

@@ -24,6 +24,7 @@ function parseShortcut(shortcutStr) {
 // 内存中缓存全局变量，供各个 JS 模块极速读取
 window._clabShortcutRaw = 'C'; 
 window._clabShortcutParsed = parseShortcut('C');
+window._clabPickShortcutRaw = 'P';
 window._clabBgBlur = true;
 window._clabBgOpacity = 45;
 window._clabPanelWidthPercent = 80;
@@ -412,6 +413,16 @@ const clabSettings = [
         }
     },
     {
+        id: "CLab.1-General.PickShortcut",
+        name: "Node Picker Shortcut",
+        type: "text",
+        defaultValue: "P",
+        category: ["Creative Lab", "1-General", "PickShortcut"],
+        tooltip: "Pick nodes or parameters for selected modules while the panel is open. Ignored when editing text. Leave empty to disable.",
+        attrs: { placeholder: "e.g.: P, Shift+P" },
+        onChange: (newVal) => { window._clabPickShortcutRaw = String(newVal ?? 'P').trim(); }
+    },
+    {
         id: "CLab.1-General.Shortcut",
         name: "Panel Shortcut",
         type: "text",
@@ -476,6 +487,7 @@ app.registerExtension({
                 const shortcut = getSet("CLab.1-General.Shortcut", "C");
                 window._clabShortcutRaw = shortcut.trim();
                 window._clabShortcutParsed = parseShortcut(window._clabShortcutRaw);
+                window._clabPickShortcutRaw = String(getSet("CLab.1-General.PickShortcut", "P")).trim();
 
                 window._clabBgOpacity = getSet("CLab.1-General.BgOpacity", 45);
                 window._clabPanelWidthPercent = normalizePanelPercent(getSet("CLab.1-General.PanelWidthRatio", 80), 80);

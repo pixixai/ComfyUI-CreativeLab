@@ -3,7 +3,8 @@
  * 职责: 渲染并处理输入模块 UI（文本、布尔、下拉、媒体上传等）。
  */
 import { state, saveAndRender } from "../ui_state.js";
-import { buildCustomSelect, getWidgetDef, truncateString } from "../ui_utils.js";
+import { buildCustomSelect, getWidgetDef } from "../ui_utils.js";
+import { generateModuleBindingHTML, refreshModuleBindingSummary, attachModuleBindingEvents } from "./module_binding.js";
 import { uploadImageToServer } from "../actions/action_data_io.js";
 import { app } from "../../../../scripts/app.js";
 import { renderVideo } from "./media_types/media_video.js";
@@ -19,8 +20,6 @@ export function generateInputHTML(area, card) {
     const defaultTitle = `##${editIndex}`;
     const displayTitle = area.title ? area.title : defaultTitle;
 
-    let hintText = '未绑定参数';
-    let fullHintText = '未绑定参数';
     let primaryNodeId = area.targetNodeId;
     let primaryWidget = area.targetWidget;
     
@@ -34,34 +33,10 @@ export function generateInputHTML(area, card) {
         targets = [{ nodeId: area.targetNodeId, widget: area.targetWidget }];
     }
 
-    if (targets.length === 1) {
-        const t = targets[0];
-        primaryNodeId = t.nodeId;
-        primaryWidget = t.widget;
-        const node = app.graph ? app.graph.getNodeById(Number(t.nodeId)) : null;
-        const nodeName = node ? (node.title || node.type) : `Node:${t.nodeId}`;
-        hintText = `${truncateString(t.widget, 8)} (${truncateString(nodeName, 4)})`;
-        fullHintText = `节点ID: ${t.nodeId}\n节点名称: ${nodeName}\n绑定参数: ${t.widget}`;
-    } else if (targets.length > 1) {
+    if (targets.length > 0) {
         const firstT = targets[0];
         primaryNodeId = firstT.nodeId;
         primaryWidget = firstT.widget;
-        
-        const nodeIdsStr = targets.map(t => `[${t.nodeId}]`).join('');
-        hintText = `${truncateString(firstT.widget, 8)}${nodeIdsStr}`;
-        
-        fullHintText = `批量绑定了 ${targets.length} 个参数:\n` + targets.map(t => {
-            const n = app.graph ? app.graph.getNodeById(Number(t.nodeId)) : null;
-            return `[${t.nodeId}] ${n ? (n.title || n.type) : '未知节点'} : ${t.widget}`;
-        }).join('\n');
-    } else if (area.targetNodeId) {
-        const node = app.graph ? app.graph.getNodeById(Number(area.targetNodeId)) : null;
-        const nodeName = node ? (node.title || node.type) : `Node:${area.targetNodeId}`;
-        hintText = `未绑定参数 (${truncateString(nodeName, 4)})`;
-        fullHintText = `未绑定参数 (${nodeName})`;
-    } else if (area.targetWidget) {
-        hintText = truncateString(area.targetWidget, 8);
-        fullHintText = area.targetWidget;
     }
 
     const widgetDef = getWidgetDef(primaryNodeId, primaryWidget); 
@@ -315,12 +290,10 @@ export function generateInputHTML(area, card) {
         <div class="clab-area ${isAreaSelected ? 'active' : ''} ${nodeBypassedClass}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="overflow: visible;">
             <button class="clab-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="删除输入">&#10006;</button>
             
-            <div class="clab-input-header" style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:4px; padding: 8px 8px 0 8px;">
+            <div class="clab-input-header" style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:4px; padding: 8px 8px 0 8px;">
                 <input class="clab-area-title-input" data-card="${card.id}" data-area="${area.id}" type="text" value="${displayTitle}" placeholder="${defaultTitle}" size="${Math.max(displayTitle.length, 2)}" style="max-width:150px; min-width:15px; background:transparent; border:none; color:#ddd; font-weight:normal; font-size:12px; outline:none; font-family:sans-serif; padding:0; margin:0;" />
                 
-                <div class="clab-input-binding-hint" style="font-size:10px; color:#888; font-weight:normal; text-align:right; white-space:nowrap; pointer-events:none;" title="${fullHintText}">
-                    ${hintText}
-                </div>
+                ${generateModuleBindingHTML(area)}
             </div>
 
             <div class="clab-input-body" style="padding: 0 8px 8px 8px;">
@@ -410,12 +383,7 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
         }
     }
 
-    const hintEl = areaEl.querySelector(".clab-input-binding-hint");
-    const nextHintEl = nextAreaEl.querySelector(".clab-input-binding-hint");
-    if (hintEl && nextHintEl) {
-        hintEl.textContent = nextHintEl.textContent;
-        hintEl.title = nextHintEl.title;
-    }
+    refreshModuleBindingSummary(areaEl, area);
 
     const signature = getInputRefreshSignature(areaEl);
     const nextSignature = getInputRefreshSignature(nextAreaEl);
@@ -534,6 +502,7 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
 }
 
 export function attachInputEvents(container) {
+    attachModuleBindingEvents(container);
     const applySurgicalUpdate = (areaId) => {
         if (window._clabSurgicallyUpdateArea) {
             window._clabSurgicallyUpdateArea(areaId);

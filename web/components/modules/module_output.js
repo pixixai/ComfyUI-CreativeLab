@@ -6,6 +6,7 @@ import { state, dragState, saveAndRender } from "../ui_state.js";
 import { getRatioCSS, showBindingToast, hideBindingToast } from "../ui_utils.js";
 // 【完美保留】：继续使用你原本正确的媒体路由专员，绝不破坏底层架构！
 import { renderMedia, attachMediaEvents } from "./module_media.js";
+import { generateOutputControlsHTML, attachOutputSettingsEvents } from "./module_output_settings.js";
 import {
     getAreaResultType,
     getMediaType,
@@ -132,13 +133,14 @@ export function generateOutputHTML(area, card) {
         const btnRemoveStyle = hasSelection ? btnActiveStyle : btnDisabledStyle;
 
         return `
-            <div class="clab-area ${isAreaSelected ? 'active' : ''} ${nodeBypassedClass}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="padding:0; overflow:hidden; position:relative; background: rgba(0,0,0,0.4); min-height: 100px;">
+            <div class="clab-area clab-output-area ${isAreaSelected ? 'active' : ''} ${nodeBypassedClass}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="padding:0; position:relative; background: rgba(0,0,0,0.4); min-height: 100px;">
                 <button class="clab-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="删除输出模块" style="z-index: 30;">✖</button>
                 
-                <div style="padding: 8px 10px; font-size: 12px; font-weight: bold; color: #ccc; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3);">
-                    <span>生成记录管理 (${area.history.length})</span>
-                    <div style="display:flex; gap: 6px; align-items: center;">
+                <div class="clab-output-manage-head" style="padding: 8px 8px 8px 10px; border-radius:5px 5px 0 0; font-size: 12px; font-weight: bold; color: #ccc; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; gap:6px; align-items: center; background: rgba(0,0,0,0.3);">
+                    <span style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">生成记录管理 (${area.history.length})</span>
+                    <div style="display:flex; gap: 6px; align-items: center; flex-shrink:0;">
                         <button class="clab-manage-remove-btn" data-card="${card.id}" data-area="${area.id}" style="${btnBaseStyle} ${btnRemoveStyle}" ${hasSelection ? '' : 'disabled'} onmouseover="if(!this.disabled) { this.style.background='rgba(255,255,255,0.25)'; this.style.color='#fff'; }" onmouseout="if(!this.disabled) { this.style.background='rgba(255,255,255,0.15)'; this.style.color='#eee'; }">移除</button>
+                        ${generateOutputControlsHTML(area)}
                     </div>
                 </div>
                 
@@ -172,8 +174,9 @@ export function generateOutputHTML(area, card) {
     const previewPlaceholderVisible = resultType === 'text' ? false : !area.resultUrl;
 
     return `
-        <div class="clab-area ${isAreaSelected ? 'active' : ''} ${nodeBypassedClass}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="padding:0; overflow:hidden; position:relative;">
+        <div class="clab-area clab-output-area ${isAreaSelected ? 'active' : ''} ${nodeBypassedClass}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="padding:0; position:relative;">
             <button class="clab-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="删除输出模块" style="z-index: 30;">✖</button>
+            ${generateOutputControlsHTML(area)}
             ${historyHtml}
             <div class="${previewBgClass}" style="${finalRatioCSS} position: relative; ${resultType === 'text' ? 'display:block; padding:12px 10px 10px 10px; background: rgb(25, 25, 25);' : ''}">
                 ${mediaHtml}
@@ -184,6 +187,7 @@ export function generateOutputHTML(area, card) {
 }
 
 export function attachOutputEvents(container) {
+    attachOutputSettingsEvents(container);
     // 🌟 接管媒体区域特有的交互！
     attachMediaEvents(container);
 

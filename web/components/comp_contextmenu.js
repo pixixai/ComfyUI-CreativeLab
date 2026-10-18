@@ -27,26 +27,13 @@ export function setupContextMenu(panelContainer) {
     if (!menuEl) {
         menuEl = document.createElement("div");
         menuEl.className = "clab-context-menu";
-        // 关键修复：确保层级在 ComfyUI 画布之上
-        Object.assign(menuEl.style, {
-            position: "fixed",
-            display: "none",
-            zIndex: "999999", 
-            backgroundColor: "var(--comfy-menu-bg, #282828)",
-            color: "var(--fg-color, #ffffff)",
-            border: "1px solid #444",
-            padding: "8px 0",
-            minWidth: "160px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
-            borderRadius: "4px",
-            userSelect: "none"
-        });
         document.body.appendChild(menuEl);
     }
 
     const closeMenu = () => {
         menuEl.style.display = "none";
     };
+    document.addEventListener('clab_enter_binding_mode', closeMenu);
 
     const closeMenuGlobally = (e) => {
         if (menuEl.style.display === "block" && !menuEl.contains(e.target)) {
@@ -89,11 +76,8 @@ export function setupContextMenu(panelContainer) {
         menuEl.style.display = "block";
         const rect = menuEl.getBoundingClientRect();
         
-        let posX = x;
-        let posY = y;
-        // 边缘碰撞检测
-        if (posX + rect.width > window.innerWidth) posX = window.innerWidth - rect.width;
-        if (posY + rect.height > window.innerHeight) posY = window.innerHeight - rect.height;
+        const posX = Math.max(8, Math.min(x, window.innerWidth - rect.width - 8));
+        const posY = Math.max(8, Math.min(y, window.innerHeight - rect.height - 8));
 
         menuEl.style.left = `${posX}px`;
         menuEl.style.top = `${posY}px`;
