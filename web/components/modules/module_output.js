@@ -164,7 +164,7 @@ export function generateOutputHTML(area, card) {
     if (area.fillMode === '拉伸') objectFit = 'fill';
 
     let historyHtml = '';
-    if (area.history && area.history.length > 1) {
+    if (resultType !== 'text' && area.history && area.history.length > 1) {
         const currIdx = area.missingHistoryRun ? '—' : area.historyIndex !== undefined ? area.historyIndex + 1 : area.history.length;
         historyHtml = `<div title="← / → 关联切换；Shift + ← / → 仅切换当前输出模块" style="position:absolute; top: 8px; left: 10px; color: rgba(255,255,255,0.9); font-size: 12px; font-weight: bold; font-family: sans-serif; letter-spacing: -0.5px; z-index: 20;">${currIdx} / ${area.history.length}</div>`;
     }
@@ -179,7 +179,7 @@ export function generateOutputHTML(area, card) {
             <button class="clab-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="删除输出模块" style="z-index: 30;">✖</button>
             ${generateOutputControlsHTML(area)}
             ${historyHtml}
-            <div class="${previewBgClass}" style="${finalRatioCSS} position: relative; ${resultType === 'text' ? 'display:block; padding:12px 10px 10px 10px; background: rgb(25, 25, 25);' : ''}">
+            <div class="${previewBgClass}" style="${finalRatioCSS} position: relative; ${resultType === 'text' ? 'display:block; background: rgb(25, 25, 25);' : ''}">
                 ${mediaHtml}
                 <span class="clab-preview-placeholder" style="display:${previewPlaceholderVisible ? 'block' : 'none'}; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; text-align: center;">${area.missingHistoryRun ? '该次运行无可用记录' : area.targetNodeId ? `等待节点 [${area.targetNodeId}] 输出...` : '未关联节点'}</span>
             </div>

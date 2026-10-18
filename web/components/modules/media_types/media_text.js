@@ -282,6 +282,7 @@ function bindTextShell(shell) {
 
 export function renderText(area) {
     ensureTextAreaState(area);
+    const historyPosition = area.missingHistoryRun ? '—' : area.historyIndex >= 0 ? area.historyIndex + 1 : area.history.length;
 
     return `
         <div class="clab-text-preview-shell" data-area="${area.id}">
@@ -289,14 +290,15 @@ export function renderText(area) {
                 <div class="clab-text-body-content">${getRenderedTextHtml(area)}</div>
             </div>
             <div class="clab-text-toolbar">
-                <label class="clab-text-option">
+                <label class="clab-text-option" title="语法高亮">
                     <input type="checkbox" data-option="syntax" ${area.textSyntaxHighlight ? "checked" : ""}>
                     <span>语法高亮</span>
                 </label>
-                <label class="clab-text-option">
+                <label class="clab-text-option" title="预览Markdown">
                     <input type="checkbox" data-option="markdown" ${area.textPreviewMarkdown ? "checked" : ""}>
                     <span>预览Markdown</span>
                 </label>
+                ${area.history.length > 1 ? `<span class="clab-text-history-position" title="历史记录：${historyPosition} / ${area.history.length}；← / → 关联切换；Shift + ← / → 仅切换当前输出模块">${historyPosition} / ${area.history.length}</span>` : ''}
             </div>
         </div>
     `;

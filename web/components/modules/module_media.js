@@ -124,23 +124,24 @@ function injectMediaCSS() {
 
         .clab-text-preview-shell {
             width: 100%;
+            min-width: 0;
             display: flex;
             flex-direction: column;
-            gap: 10px;
             box-sizing: border-box;
             color: #e8edf5;
-            padding-top: 24px;
-            background: rgb(25, 25, 25);
         }
         .clab-text-toolbar {
             display: flex;
             align-items: center;
-            gap: 14px;
-            flex-wrap: wrap;
-            padding: 0 2px 2px 2px;
+            gap: 8px;
+            min-width: 0;
+            padding: 8px 14px 10px;
+            border-top: 1px solid rgba(255,255,255,0.08);
         }
         .clab-text-option {
             display: inline-flex;
+            flex: 0 1 auto;
+            min-width: 20px;
             align-items: center;
             gap: 6px;
             color: rgba(232, 237, 245, 0.9);
@@ -149,18 +150,31 @@ function injectMediaCSS() {
             cursor: pointer;
             user-select: none;
         }
+        .clab-text-option > span {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
         .clab-text-option input {
+            flex-shrink: 0;
             width: 14px;
             height: 14px;
             margin: 0;
             cursor: pointer;
         }
+        .clab-text-history-position {
+            flex-shrink: 0;
+            margin-left: auto;
+            color: rgba(232,237,245,0.55);
+            font: 11px sans-serif;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
         .clab-text-body-scroll {
             width: 100%;
             overflow-x: hidden;
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 8px;
-            background: rgb(32, 32, 32);
+            border: 0;
             box-sizing: border-box;
             scrollbar-width: thin;
             scrollbar-color: rgba(255,255,255,0.28) transparent;
@@ -190,6 +204,7 @@ function injectMediaCSS() {
             -webkit-user-select: text;
             cursor: text;
         }
+        .clab-text-body-content > :last-child { margin-bottom: 0; }
         .clab-text-state {
             min-height: 56px;
             display: flex;

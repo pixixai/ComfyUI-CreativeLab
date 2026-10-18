@@ -9,7 +9,7 @@ const { renderText } = new Function('state', 'ensureTextAreaState', 'window', so
 )({ cards: [] }, () => {}, { location: { origin: 'https://localhost' } });
 
 const render = (text, markdown = false, highlight = false) => renderText({
-    id: 'text', textContent: text, textLoadState: 'ready',
+    id: 'text', history: [], textContent: text, textLoadState: 'ready',
     textPreviewMarkdown: markdown, textSyntaxHighlight: highlight,
 }).match(/<div class="clab-text-body-content">([\s\S]*?)<\/div>\s*<\/div>\s*<div class="clab-text-toolbar">/)[1];
 
