@@ -5,10 +5,11 @@
 import { onModuleRemoved } from "./module_lifecycle.js";
 import { getAreaResultType, getMediaType } from "./media_types/media_utils.js";
 import { renderVideo, attachVideoEvents, updateVideoProgress } from "./media_types/media_video.js";
-import { renderAudio, attachAudioEvents, updateAudioProgress } from "./media_types/media_audio.js";
+import { renderAudio, attachAudioEvents, updateAudioProgress, loadAudioWaveform } from "./media_types/media_audio.js";
 import { renderFile } from "./media_types/media_file.js";
 import { renderImage } from "./media_types/media_image.js";
 import { renderText, attachTextEvents } from "./media_types/media_text.js";
+import { renderModel, attachModelEvents } from './media_types/media_model.js';
 
 // =========================================================================
 // 1. 动态注入媒体组件专用全局 CSS
@@ -25,16 +26,19 @@ function injectMediaCSS() {
             background: linear-gradient(transparent 70%, rgba(0,0,0,0.8) 100%); 
             pointer-events: none; display: flex; flex-direction: column; justify-content: flex-end;
         }
-        .clab-video-player:hover .clab-video-controls { opacity: 1; }
+        .clab-video-player:hover .clab-video-controls, .clab-video-player:focus-within .clab-video-controls, .clab-video-paused .clab-video-controls { opacity: 1; }
         
         .clab-video-toolbar {
             display: flex; justify-content: space-between; align-items: center;
-            padding: 0 12px 10px 12px; width: 100%; box-sizing: border-box; pointer-events: none;
+            gap:6px; padding: 0 8px 9px; width: 100%; box-sizing: border-box; pointer-events: none;
         }
         
-        .clab-timecode { color: #fff; font-size: 11px; font-family: sans-serif !important; text-shadow: 1px 1px 2px #000; pointer-events: none; transition: color 0.1s; }
+        .clab-timecode { display:flex; align-items:center; height:24px; color:#ddd; font:11px/1 sans-serif; font-variant-numeric:tabular-nums; white-space:nowrap; pointer-events:none; }
+        .clab-video-speed-val { display:block; font:11px/1 sans-serif; }
         
-        .clab-video-tools-right { display: flex; align-items: center; gap: 8px; pointer-events: auto; }
+        .clab-video-tools-right { display:flex; align-items:center; gap:8px; height:24px; margin-left:auto; pointer-events:auto; }
+        .clab-video-tools-right .clab-media-opt-btn { box-sizing:border-box; height:24px; min-height:24px; font:11px/1 sans-serif; }
+        .clab-video-tools-right svg { display:block; flex-shrink:0; }
         .clab-video-controls-interactive { pointer-events: auto; }
         
         /* --- 全新的自定义音量滑杆悬浮效果 --- */
@@ -64,51 +68,46 @@ function injectMediaCSS() {
         }
 
         .clab-media-opt-wrapper { position: relative; }
-        .clab-media-opt-btn { background: transparent; border: none; color: #fff; cursor: pointer; padding: 4px 6px; border-radius: 4px; transition: background 0.2s, color 0.2s; display: flex; align-items: center; justify-content: center; }
-        .clab-media-opt-btn:hover { background: rgba(255,255,255,0.2); }
+        .clab-media-opt-btn { background: transparent; border: none; color: #aaa; cursor: pointer; padding: 4px; border-radius: 4px; transition: color 0.15s; display: flex; align-items: center; justify-content: center; }
+        .clab-media-opt-btn:hover { color:#fff; }
         
         /* 突破裁切的全局菜单样式 */
         .clab-media-dropdown { 
             position: fixed; 
-            background: rgba(30, 30, 30, 0.95); backdrop-filter: blur(5px); border: 1px solid #555; 
-            border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.6); 
+            background: var(--comfy-menu-bg, #292929); border: 1px solid #505050;
+            border-radius: 7px; box-shadow: 0 8px 28px rgba(0,0,0,0.45);
             display: none; flex-direction: column; min-width: 150px; z-index: 100000; padding: 4px 0;
         }
         .clab-media-dropdown.show { display: flex; }
-        .clab-media-dropdown-item { padding: 8px 12px; font-size: 11px; color: #eee; cursor: pointer; white-space: nowrap; transition: background 0.1s; font-family: sans-serif; }
-        .clab-media-dropdown-item:hover { background: #2196F3; color: #fff; }
+        .clab-media-dropdown-item { padding: 6px 10px; font-size: 12px; color: #ddd; cursor: pointer; white-space: nowrap; transition: background 0.1s; font-family: sans-serif; }
+        .clab-media-dropdown-item:hover { background: rgba(255,255,255,0.1); color: #fff; }
         .clab-more-dropdown .clab-media-dropdown-item { text-align: left; }
 
         .clab-vid-speed-opt:hover { background: rgba(255,255,255,0.2) !important; color: #fff !important; }
 
         .clab-video-progress-container { position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: rgba(255,255,255,0.3); cursor: pointer; pointer-events: auto; }
         .clab-video-progress-container:hover { height: 6px; }
-        .clab-video-progress-bar { height: 100%; width: 0%; background: #4CAF50; transition: width 0.1s linear; pointer-events: none; }
+        .clab-video-progress-bar { height: 100%; width: 0%; background: #ccc; pointer-events: none; }
 
         /* --- 音频组件样式 --- */
-        .clab-audio-player { padding: 12px; box-sizing: border-box; width: 100%; background: rgba(0,0,0,0.4); border-radius: 6px; display: flex; flex-direction: column; justify-content: center; }
-        .clab-audio-progress-container { width: 100%; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; margin-bottom: 12px; cursor: pointer; overflow: hidden; position: relative; }
-        .clab-audio-progress-bar { height: 100%; width: 0%; background: #2196F3; pointer-events: none; }
-        
-        .clab-audio-controls-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-        .clab-audio-btn { background: #4CAF50; border: none; color: #fff; width: 26px; height: 26px; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: transform 0.1s; font-size: 10px; }
-        .clab-audio-btn:active { transform: scale(0.9); }
-        
-        .clab-audio-vol-wrap { display: flex; align-items: center; gap: 8px; }
-        
-        /* 音频专用的自定义滑杆 */
-        .clab-audio-vol-slider-container {
-            width: 50px; height: 24px; display: block; cursor: pointer; position: relative;
-        }
-        .clab-audio-vol-slider-track {
-            width: 100%; height: 3px; background: rgba(255,255,255,0.3); border-radius: 2px; position: absolute; top: 50%; transform: translateY(-50%); pointer-events: none;
-        }
-        .clab-audio-vol-slider-fill {
-            position: absolute; left: 0; top: 0; height: 100%; background: #2196F3; border-radius: 2px;
-        }
-        .clab-audio-vol-slider-thumb {
-            position: absolute; left: 0; top: 50%; transform: translate(-50%, -50%); width: 8px; height: 8px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.5);
-        }
+        .clab-audio-player { display:flex; flex-direction:column; height:100%; padding:8px 12px 6px; box-sizing:border-box; width:100%; min-width:0; background:#1d1d1d; border-radius:4px; }
+        .clab-audio-wave { display:block; width:100%; flex:1 0 72px; height:72px; min-height:72px; margin:0; padding:0; border:0; border-radius:0; background:transparent; position:relative; cursor:pointer; }
+        .clab-audio-wave:focus-visible { outline:1px solid #aaa; outline-offset:2px; }
+        .clab-audio-wave canvas { position:absolute; inset:0; display:block; width:100%; height:100%; pointer-events:none; }
+        .clab-audio-wave-played { clip-path:inset(0 calc(100% - var(--clab-audio-progress, 0%)) 0 0); }
+        .clab-audio-wave-status { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#888; font:11px sans-serif; pointer-events:none; }
+        .clab-audio-wave-status[hidden] { display:none; }
+        .clab-audio-progress-container { width:100%; height:3px; background:rgba(255,255,255,0.2); border-radius:2px; margin:4px 0 8px; cursor:pointer; position:relative; }
+        .clab-audio-progress-bar { height:100%; width:0%; background:#ccc; border-radius:inherit; pointer-events:none; }
+        .clab-audio-seek { position:absolute; left:0; top:-5px; width:100%; height:13px; padding:0; margin:0; opacity:0; cursor:pointer; }
+        .clab-audio-progress-container:focus-within { outline:1px solid #aaa; outline-offset:3px; }
+        .clab-audio-controls-row { display:flex; align-items:center; gap:6px; min-width:0; padding-top:5px; border-top:1px solid rgba(255,255,255,.09); }
+        .clab-audio-time { font:11px sans-serif; font-variant-numeric:tabular-nums; white-space:nowrap; color:#aaa; }
+        .clab-audio-tools-right { display:flex; align-items:center; gap:5px; margin-left:auto; }
+        .clab-audio-tools-right .clab-volume-wrap { position:relative; }
+        .clab-audio-tools-right .clab-volume-slider-container { position:absolute; right:25px; background:#252525; border-radius:4px; z-index:3; }
+        .clab-audio-speed-toggle { min-width:25px; font:11px sans-serif; }
+        .clab-audio-speed-dropdown { min-width:84px; }
         
         .clab-media-speed-wrap { 
             display: flex; align-items: center; background: rgba(0,0,0,0.5); 
@@ -121,7 +120,20 @@ function injectMediaCSS() {
         .clab-media-speed-input::-webkit-outer-spin-button, .clab-media-speed-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
         /* --- 文件组件样式 --- */
-        .clab-file-display { border: 1px dashed #666; border-radius: 6px; text-align: center; color: #999; background: rgba(0,0,0,0.1); display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 15px; width: 100%; box-sizing: border-box;}
+        .clab-file-display { border-radius:4px; text-align:center; color:#999; background:#191919; display:flex; gap:10px; flex-direction:column; justify-content:center; align-items:center; padding:18px; width:100%; height:100%; min-height:120px; box-sizing:border-box; }
+        .clab-file-name { width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:12px sans-serif; color:#aaa; }
+        .clab-file-download { color:#aaa; border:1px solid #444; border-radius:5px; padding:4px 10px; text-decoration:none; font:12px sans-serif; transition:color .15s, border-color .15s; }
+        .clab-file-download:hover { color:#fff; border-color:#777; }
+        .clab-model-placeholder { box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; width:100%; height:100%; min-height:140px; padding:18px; color:#999; }
+        .clab-model-actions { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:8px; }
+        .clab-model-open, .clab-model-reset { border:1px solid #444; border-radius:5px; background:#242424; color:#aaa; padding:4px 9px; font:11px sans-serif; cursor:pointer; transition:color .15s,border-color .15s; }
+        .clab-model-open:hover, .clab-model-reset:hover { color:#fff; border-color:#777; }
+        .clab-glb-viewer { width:100%; height:100%; min-height:160px; position:relative; background:#191919; }
+        .clab-model-canvas { position:absolute; inset:0; }
+        .clab-model-canvas canvas { display:block; width:100%; height:100%; touch-action:none; }
+        .clab-model-status { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:14px; box-sizing:border-box; color:#aaa; text-align:center; font:12px/1.5 sans-serif; pointer-events:none; }
+        .clab-model-status[hidden] { display:none; }
+        .clab-model-reset { position:absolute; right:8px; top:8px; z-index:1; }
 
         .clab-text-preview-shell {
             width: 100%;
@@ -129,26 +141,33 @@ function injectMediaCSS() {
             display: flex;
             flex-direction: column;
             box-sizing: border-box;
-            color: #e8edf5;
+            color: #ddd;
         }
         .clab-text-toolbar {
             display: flex;
             align-items: center;
             gap: 8px;
             min-width: 0;
-            padding: 8px 14px 10px;
+            box-sizing: border-box;
+            min-height: 34px;
+            padding: 8px 14px;
             border-top: 1px solid rgba(255,255,255,0.08);
         }
         .clab-text-option {
             display: inline-flex;
+            margin: 0;
+            padding: 0;
             flex: 0 1 auto;
             min-width: 20px;
             align-items: center;
             gap: 6px;
-            color: rgba(232, 237, 245, 0.9);
+            color: #aaa;
             font-size: 11px;
             font-family: sans-serif;
+            line-height: 16px;
+            min-height: 16px;
             cursor: pointer;
+            accent-color: #aaa;
             user-select: none;
         }
         .clab-text-option > span {
@@ -167,8 +186,8 @@ function injectMediaCSS() {
         .clab-text-history-position {
             flex-shrink: 0;
             margin-left: auto;
-            color: rgba(232,237,245,0.55);
-            font: 11px sans-serif;
+            color: #999;
+            font: 11px/16px sans-serif;
             font-variant-numeric: tabular-nums;
             white-space: nowrap;
         }
@@ -199,7 +218,7 @@ function injectMediaCSS() {
             padding: 12px 14px;
             font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
             line-height: 1.55;
-            color: #eef3f8;
+            color: #ddd;
             word-break: break-word;
             user-select: text;
             -webkit-user-select: text;
@@ -323,6 +342,7 @@ export function renderMedia(area, objectFit) {
     if (type === 'video') return renderVideo(area, objectFit, url, errCall);
     if (type === 'audio') return renderAudio(area, url, errCall);
     if (type === 'text') return renderText(area);
+    if (type === 'model') return renderModel(area, url);
     if (type === 'file') return renderFile(area, url);
     return renderImage(area, objectFit, url, errCall);
 }
@@ -358,6 +378,7 @@ function scheduleMediaLoop() {
 
 function syncPlayer(player) {
     const media = player.querySelector('video, audio');
+    if (player.classList.contains('clab-audio-player')) loadAudioWaveform(player, panelVisible(player) && visiblePlayers.has(player));
     if (media && !media.paused && !media.ended && panelVisible(player) && visiblePlayers.has(player)) activePlayers.add(player);
     else activePlayers.delete(player);
     updatePlayer(player);
@@ -394,7 +415,7 @@ function attachMediaVisibility(container) {
             thumbnails.forEach(syncThumbnail);
         };
         document.addEventListener('visibilitychange', syncVisibility);
-        for (const type of ['play', 'pause', 'ended', 'timeupdate', 'seeked', 'volumechange', 'loadeddata', 'durationchange']) {
+        for (const type of ['play', 'pause', 'ended', 'timeupdate', 'seeked', 'volumechange', 'ratechange', 'loadeddata', 'durationchange', 'emptied']) {
             document.addEventListener(type, event => {
                 const player = event.target.closest?.('.clab-video-player, .clab-audio-player');
                 if (player && players.has(player)) syncPlayer(player);
@@ -443,6 +464,7 @@ export function attachMediaEvents(container) {
             if (!e.target.closest('.clab-media-opt-wrapper') && !e.target.closest('.clab-media-dropdown')) {
                 document.querySelectorAll('.clab-media-dropdown.show').forEach(m => {
                     m.classList.remove('show');
+                    m._originalParent?.querySelector('[aria-expanded]')?.setAttribute('aria-expanded', 'false');
                     if (m._originalParent) m._originalParent.appendChild(m); 
                 });
             }
@@ -456,5 +478,6 @@ export function attachMediaEvents(container) {
     attachVideoEvents(container);
     attachAudioEvents(container);
     attachTextEvents(container);
+    attachModelEvents(container);
     attachMediaVisibility(container);
 }

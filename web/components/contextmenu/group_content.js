@@ -54,6 +54,12 @@ const previewModalApi = createPreviewModalApi({
     getPreviewTextState,
 });
 
+document.addEventListener('clab_open_model_preview', event => {
+    const card = state.cards.find(card => card.areas?.some(area => area.id === event.detail?.areaId));
+    const area = card?.areas.find(area => area.id === event.detail.areaId);
+    if (area?.type === 'preview' && area.resultUrl) previewModalApi.openPreviewModal(card, area, area.resultUrl, area.historyIndex);
+});
+
 export function renderContentGroup(showContentGroup) {
     if (!showContentGroup) return "";
     return `

@@ -35,6 +35,7 @@ export function execSyncParams(mainArea, mainCard) {
                 a.targetWidgets = Array.isArray(mainArea.targetWidgets) ? [...mainArea.targetWidgets] : [];
                 a.dataType = mainArea.dataType;
                 a.autoHeight = mainArea.autoHeight;
+                a.showUploadPreview = !!mainArea.showUploadPreview;
                 a.ratio = mainArea.ratio;
                 a.width = mainArea.width;
                 a.height = mainArea.height;

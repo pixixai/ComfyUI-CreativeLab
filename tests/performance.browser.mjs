@@ -8,6 +8,26 @@ import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const requests = [];
+let uploads = 0;
+const audioFixture = Buffer.alloc(44 + 16000 * 2);
+audioFixture.write('RIFF', 0); audioFixture.writeUInt32LE(audioFixture.length - 8, 4); audioFixture.write('WAVEfmt ', 8);
+audioFixture.writeUInt32LE(16, 16); audioFixture.writeUInt16LE(1, 20); audioFixture.writeUInt16LE(1, 22);
+audioFixture.writeUInt32LE(8000, 24); audioFixture.writeUInt32LE(16000, 28); audioFixture.writeUInt16LE(2, 32); audioFixture.writeUInt16LE(16, 34);
+audioFixture.write('data', 36); audioFixture.writeUInt32LE(32000, 40);
+for (let i = 0; i < 16000; i++) audioFixture.writeInt16LE(Math.round(Math.sin(i * Math.PI * 2 * 440 / 8000) * (4000 + 10000 * i / 16000)), 44 + i * 2);
+const positions = [-1,-1,-1, 1,-1,-1, 1,1,-1, -1,1,-1, -1,-1,1, 1,-1,1, 1,1,1, -1,1,1];
+const indices = [0,1,2,0,2,3, 4,6,5,4,7,6, 0,4,5,0,5,1, 3,2,6,3,6,7, 0,3,7,0,7,4, 1,5,6,1,6,2];
+const geometry = Buffer.alloc(168);
+positions.forEach((v,i) => geometry.writeFloatLE(v,i*4)); indices.forEach((v,i) => geometry.writeUInt16LE(v,96+i*2));
+const modelJSON = Buffer.from(JSON.stringify({ asset:{version:'2.0'}, scene:0, scenes:[{nodes:[0]}], nodes:[{mesh:0}],
+    meshes:[{primitives:[{attributes:{POSITION:0},indices:1,material:0}]}], materials:[{doubleSided:true,pbrMetallicRoughness:{baseColorFactor:[.7,.4,.2,1],metallicFactor:0,roughnessFactor:.8}}],
+    buffers:[{byteLength:168}], bufferViews:[{buffer:0,byteOffset:0,byteLength:96,target:34962},{buffer:0,byteOffset:96,byteLength:72,target:34963}],
+    accessors:[{bufferView:0,componentType:5126,count:8,type:'VEC3',min:[-1,-1,-1],max:[1,1,1]},{bufferView:1,componentType:5123,count:36,type:'SCALAR'}] }));
+const jsonLength = Math.ceil(modelJSON.length/4)*4;
+const glbFixture = Buffer.alloc(12+8+jsonLength+8+geometry.length,0x20);
+glbFixture.writeUInt32LE(0x46546c67,0);glbFixture.writeUInt32LE(2,4);glbFixture.writeUInt32LE(glbFixture.length,8);
+glbFixture.writeUInt32LE(jsonLength,12);glbFixture.writeUInt32LE(0x4e4f534a,16);modelJSON.copy(glbFixture,20);
+glbFixture.writeUInt32LE(geometry.length,20+jsonLength);glbFixture.writeUInt32LE(0x004e4942,24+jsonLength);geometry.copy(glbFixture,28+jsonLength);
 const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost');
     res.setHeader('Content-Type', 'text/javascript; charset=utf-8');
@@ -24,9 +44,28 @@ const server = http.createServer((req, res) => {
         res.end('export class ComfyButtonGroup { constructor(button) { this.element = button; } }');
     } else if (url.pathname === '/view') {
         requests.push(url.searchParams.get('filename'));
+        if (url.searchParams.get('filename')?.endsWith('.glb')) {
+            res.setHeader('Content-Type', 'model/gltf-binary'); res.end(url.searchParams.get('filename')==='broken.glb' ? Buffer.from('not a GLB file') : glbFixture); return;
+        }
+        if (url.searchParams.get('filename')?.endsWith('.wav')) {
+            res.setHeader('Content-Type', 'audio/wav');
+            res.setHeader('Accept-Ranges', 'bytes');
+            const range = req.headers.range?.match(/^bytes=(\d+)-(\d*)$/);
+            if (range) {
+                const start = Number(range[1]), end = range[2] ? Math.min(Number(range[2]), audioFixture.length - 1) : audioFixture.length - 1;
+                res.statusCode = 206;
+                res.setHeader('Content-Range', `bytes ${start}-${end}/${audioFixture.length}`);
+                res.end(audioFixture.subarray(start, end + 1));
+            } else res.end(audioFixture);
+            return;
+        }
         res.setHeader('Content-Type', 'image/svg+xml');
         const [width, height] = url.searchParams.get('type') === 'input' ? [150, 300] : [320, 180];
         res.end(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="#456"/></svg>`);
+    } else if (url.pathname === '/upload/image' && req.method === 'POST') {
+        req.resume();
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({name:`uploaded${++uploads}.png`,type:'input'}));
     } else if (url.pathname === '/clab/get_local_history') {
         res.setHeader('Content-Type', 'application/json');
         res.end('{"status":"success","history":[]}');
@@ -77,12 +116,43 @@ try {
         expression: 'new Promise((resolve,reject)=>{const timer=setInterval(()=>{if(window.testResult){clearInterval(timer);resolve(window.testResult);}},50);setTimeout(()=>{clearInterval(timer);reject(new Error("browser checks timed out"));},30000);})',
         awaitPromise: true, returnByValue: true,
     }, sessionId);
+    if (result.exceptionDetails) {
+        const progress = await send('Runtime.evaluate', {expression:'window.testProgress',returnByValue:true},sessionId);
+        console.log(JSON.stringify(progress.result.value));
+    }
     assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
     const report = result.result.value;
     for (const name of report.passed) console.log(`PASS ${name}`);
     assert.equal(report.error, undefined, report.error);
     assert.deepEqual(report.errors, []);
-    console.log(`${report.passed.length} browser checks passed; ${requests.length} image requests`);
+    const position = await send('Runtime.evaluate', {
+        expression:`(()=>{const canvas=document.querySelector('.clab-glb-viewer[data-model-loaded="1"] canvas');canvas.scrollIntoView({block:'center'});const r=canvas.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,scale:1};})()`,returnByValue:true,
+    },sessionId);
+    const clip = position.result.value;
+    const x = clip.x + clip.width/2, y = clip.y + clip.height/2;
+    await send('Input.dispatchMouseEvent', {type:'mouseMoved',x,y},sessionId);
+    await new Promise(resolve=>setTimeout(resolve,100));
+    const captureModel = async () => (await send('Page.captureScreenshot',{format:'png',clip},sessionId)).data;
+    const beforeRotate = await captureModel();
+    await send('Input.dispatchMouseEvent', {type:'mousePressed',button:'left',buttons:1,clickCount:1,x,y},sessionId);
+    await send('Input.dispatchMouseEvent', {type:'mouseMoved',button:'left',buttons:1,x:x+60,y:y+20},sessionId);
+    await send('Input.dispatchMouseEvent', {type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:x+60,y:y+20},sessionId);
+    await new Promise(resolve=>setTimeout(resolve,100));
+    const afterRotate = await captureModel();
+    assert.notEqual(afterRotate,beforeRotate,'native left dragging did not rotate the GLB model');
+    await send('Input.dispatchMouseEvent',{type:'mouseWheel',x,y,deltaX:0,deltaY:100},sessionId);
+    await new Promise(resolve=>setTimeout(resolve,100));
+    assert.notEqual(await captureModel(),afterRotate,'native wheel did not zoom the GLB model');
+    const panelState = await send('Runtime.evaluate',{expression:'document.querySelector("#clab-panel").classList.contains("visible")',returnByValue:true},sessionId);
+    assert.equal(panelState.result.value,true,'model interaction activated the node picker');
+    console.log('PASS native mouse dragging rotates GLB pixels and the wheel zooms without picking nodes');
+    if (process.env.CLAB_BROWSER_SCREENSHOT) {
+        await send('Runtime.evaluate', { expression: 'document.dispatchEvent(new Event("clab_render_ui")); document.querySelector(".clab-card-body").scrollTop = 0;' }, sessionId);
+        await new Promise(resolve => setTimeout(resolve, 200));
+        const screenshot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+        fs.writeFileSync(process.env.CLAB_BROWSER_SCREENSHOT, Buffer.from(screenshot.data, 'base64'));
+    }
+    console.log(`${report.passed.length+1} browser checks passed; ${requests.length} media requests`);
 } finally {
     socket?.close();
     browser.kill();

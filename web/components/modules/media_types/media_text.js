@@ -127,6 +127,7 @@ const renderedTextCache = new WeakMap();
 
 function getRenderedTextHtml(area) {
     ensureTextAreaState(area);
+    if (area.missingHistoryRun) return '<div class="clab-text-state">该次运行无可用记录</div>';
     if (area.textLoadState === "missing") {
         return `<div class="clab-text-state clab-text-state-missing">媒体丢失</div>`;
     }
@@ -168,21 +169,31 @@ async function copyAreaText(areaId, button) {
     const text = String(area.textContent || "");
     if (!text) return;
 
-    const originalLabel = "复制";
+    const originalLabel = button?.innerHTML;
+    const showFeedback = label => {
+        button.innerHTML = label === '已复制' ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>' : '<span aria-hidden="true">!</span>';
+        button.title = label;
+        button.setAttribute('aria-label', label);
+    };
+    const resetButton = () => {
+        button.innerHTML = originalLabel;
+        button.title = '复制全文';
+        button.setAttribute('aria-label', '复制全文');
+    };
     const markCopied = () => {
         if (!button) return;
-        button.textContent = "已复制";
+        showFeedback("已复制");
         button.disabled = true;
         setTimeout(() => {
-            button.textContent = originalLabel;
+            resetButton();
             button.disabled = false;
         }, 1200);
     };
     const markFailed = () => {
         if (!button) return;
-        button.textContent = "复制失败";
+        showFeedback("复制失败");
         setTimeout(() => {
-            if (button.textContent === "复制失败") button.textContent = originalLabel;
+            if (button.title === "复制失败") resetButton();
         }, 1200);
     };
 

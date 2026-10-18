@@ -133,6 +133,18 @@ class AssetPathTests(unittest.TestCase):
         self.assertFalse(self.source.exists())
         self.assertEqual((self.output / "CLab/pix_01.png").read_bytes(), b"source image")
 
+    def test_input_glb_is_archived_without_removing_the_input_file(self):
+        (self.input / "3d").mkdir()
+        model = self.input / "3d/model.glb"
+        model.write_bytes(b"glTF fixture")
+        result = self.archive(filename="model.glb", subfolder="3d", source_type="input", asset_type="file", delete_temp=True)
+        self.assertEqual(result["status"], "success")
+        self.assertEqual((self.output / "CLab/file/pix_01.glb").read_bytes(), model.read_bytes())
+        self.assertTrue(model.exists())
+
+    def test_unknown_archive_source_type_is_rejected(self):
+        self.assertEqual(self.archive(source_type="../input")["status"], "error")
+
     def test_symlink_target_cannot_bypass_containment(self):
         outside = self.root / "outside"
         outside.mkdir()

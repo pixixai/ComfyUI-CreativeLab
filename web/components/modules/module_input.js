@@ -11,6 +11,8 @@ import { renderVideo } from "./media_types/media_video.js";
 import { renderAudio } from "./media_types/media_audio.js";
 import { attachMediaEvents } from "./module_media.js";
 import { onModuleRemoved } from "./module_lifecycle.js";
+import { getMediaType } from './media_types/media_utils.js';
+import { renderGLBViewer } from './media_types/media_model.js';
 
 export function generateInputHTML(area, card) {
     const isAreaSelected = state.selectedAreaIds.includes(area.id);
@@ -43,6 +45,7 @@ export function generateInputHTML(area, card) {
     const widgetDef = getWidgetDef(primaryNodeId, primaryWidget); 
     
     let inputHtml = '';
+    let uploadToggleHtml = '';
     let isUpload = false;
     let uploadType = 'file';
     let comboValues = [];
@@ -104,172 +107,39 @@ export function generateInputHTML(area, card) {
         .replace(/'/g, '&#39;');
 
     if (isUpload) {
-        let iconSvg = '';
         const cloudUploadIconSvg = `<svg width="15" height="15" viewBox="0 0 171.37 147.71" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M43.68,51.32h116.52c3.4,0,6.16,2.76,6.16,6.16v79.08c0,3.4-2.76,6.16-6.16,6.16H37.52V57.48c0-3.4,2.76-6.16,6.16-6.16Z" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M141.73,51.32v-16.5c0-3.4-2.76-6.16-6.16-6.16h-45.57c-3.4,0-6.16-2.76-6.16-6.16v-11.33c0-3.4-2.76-6.16-6.16-6.16H11.16c-3.4,0-6.16,2.76-6.16,6.16v125.39c0,3.4,2.76,6.16,6.16,6.16h26.36" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><line x1="79.44" y1="97.02" x2="124.44" y2="97.02" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><line x1="101.94" y1="119.52" x2="101.94" y2="74.52" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-        const fileIconSvg = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z"></path><path d="M14 2v5h5"></path></svg>`;
-        const fileTopIconSvg = `<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z"></path><path d="M14 2v5h5"></path></svg>`;
         const removeIconSvg = `<svg width="15" height="15" viewBox="0 0 174.7 167.95" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><line x1="46.03" y1="6" x2="158.33" y2="139.83" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><line x1="80.57" y1="91.05" x2="45.49" y2="120.48" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><line x1="123.23" y1="55.25" x2="102.18" y2="72.92" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><path d="M47.29,51.39l-22.8,19.13C2.59,88.9-.27,121.56,18.11,143.46h0c18.38,21.9,51.03,24.76,72.93,6.38l22.8-19.13" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><path d="M83.65,20.88l-14.75,12.37,66.55,79.31,14.75-12.37c21.9-18.38,24.76-51.03,6.38-72.93h0c-18.38-21.9-51.03-24.76-72.93-6.38Z" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-        const getDisplayFileName = (rawPath) => {
-            const raw = String(rawPath || '');
-            if (!raw) return '';
-            const parts = raw.split(/[\\/]/);
-            return parts[parts.length - 1] || raw;
-        };
-        const buildFileUploadPanel = (rawFileName, hasFile) => {
-            const fileName = hasFile ? getDisplayFileName(rawFileName) : 'No file selected';
-            const safeName = escapeHtml(fileName);
-            const removeDisabledAttr = hasFile ? '' : 'disabled';
-            const removeDisabledStyle = hasFile ? '' : 'opacity: 0.45; cursor: not-allowed; pointer-events: none;';
-            return `
-                <div class="clab-file-upload-shell" style="width: 100%; display: flex; flex-direction: column; gap: 8px; position: relative; z-index: 1; align-items: center;">
-                    <div class="clab-file-upload-top" style="width: 100%; min-height: 84px; border: 1px solid #4a4a4a; border-radius: 6px; background: rgba(255,255,255,0.03); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 10px 12px; box-sizing: border-box;">
-                        <span style="display:flex; align-items:center; justify-content:center; color: ${hasFile ? '#9aa4b2' : '#666'};">${fileTopIconSvg}</span>
-                        <span class="clab-file-upload-name" title="${safeName}" style="max-width: 100%; min-width: 0; font-size: 12px; color: ${hasFile ? '#ddd' : '#888'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center;">${safeName}</span>
-                    </div>
-                    <div class="clab-file-upload-actions" style="display: flex; align-items: center; justify-content: center; gap: 10px;">
-                        <button type="button" class="clab-file-upload-btn clab-icon-only-btn" title="Upload file"
-                            style="height: 24px; width: 24px; min-width: 24px; padding: 0; border: none; border-radius: 0; background: transparent; color: #cfcfcf; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: none; outline: none; appearance: none; -webkit-appearance: none; opacity: 0.82; transition: opacity 0.16s ease, filter 0.16s ease, color 0.16s ease;">
-                            ${cloudUploadIconSvg}
-                        </button>
-                        <button type="button" class="clab-file-remove-btn clab-icon-only-btn" title="Remove file" ${removeDisabledAttr}
-                            style="height: 24px; width: 24px; min-width: 24px; padding: 0; border: none; border-radius: 0; background: transparent; color: #cfcfcf; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: none; outline: none; appearance: none; -webkit-appearance: none; opacity: 0.82; transition: opacity 0.16s ease, filter 0.16s ease, color 0.16s ease; ${removeDisabledStyle}">
-                            ${removeIconSvg}
-                        </button>
-                    </div>
-                </div>
-            `;
-        };
-        if (uploadType === 'image') {
-            iconSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>`;
-        } else if (uploadType === 'video') {
-            iconSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>`;
-        } else if (uploadType === 'audio') {
-            iconSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>`;
-        } else {
-            iconSvg = fileIconSvg;
-        }
-
-        let acceptType = "*/*";
-        if (uploadType === 'image') acceptType = "image/*";
-        else if (uploadType === 'video') acceptType = "video/*";
-        else if (uploadType === 'audio') acceptType = "audio/*";
-
-        const isImageUpload = uploadType === 'image';
-        const isVideoUpload = uploadType === 'video';
-        const isAudioUpload = uploadType === 'audio';
-        const isFileUpload = uploadType === 'file';
-        const useButtonUpload = isImageUpload || isVideoUpload || isAudioUpload;
-        const mediaAutoRatio = (isImageUpload || isVideoUpload) && area.autoHeight !== false;
-        const isMedia = (uploadType === 'image' || uploadType === 'video');
-        const ratioStyle = isMedia ? 'aspect-ratio: 16 / 9;' : '';
-
-        if (area.value) {
-            let previewHtml = '';
-            const fileUrl = `/view?filename=${encodeURIComponent(area.value)}&type=input`;
-            const errCall = `if(window.CLab && window.CLab.handleMediaError) window.CLab.handleMediaError('${card.id}', '${area.id}', '${fileUrl}');`;
-            
-            const fallbackHtml = `
-                <div class="clab-upload-fallback" style="display: none; position: absolute; inset: 0; flex-direction: column; justify-content: center; align-items: center; z-index: 2; background: rgba(0,0,0,0.2);">
-                    <div style="margin-bottom: 8px; color: #ff5555;">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                    </div>
-                    <div style="font-size: 11px; font-weight: bold; margin-bottom: 4px; color: #ccc;">文件已失效 / 格式不匹配</div>
-                    <div style="font-size: 10px; color: #888;">点击重新上传覆盖此参数</div>
-                </div>
-            `;
-
-            if (uploadType === 'image') {
-                const imageOnLoad = mediaAutoRatio
-                    ? "const p=this.parentElement; if(p&&this.naturalWidth&&this.naturalHeight){p.style.aspectRatio=this.naturalWidth + ' / ' + this.naturalHeight; p.style.height='auto';}"
-                    : "";
-                previewHtml = `
-                    <img class="clab-preview-img clab-media-target" src="${fileUrl}" draggable="false" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; display: block;" onload="${imageOnLoad}" onerror="this.style.display='none'; const fb=this.parentElement.querySelector('.clab-upload-fallback'); if(fb) fb.style.display='flex';" />
-                    ${fallbackHtml}
-                `;
-            } else if (uploadType === 'video') {
-                previewHtml = renderVideo({ ...area, id: area.id }, 'contain', fileUrl, errCall);
-            } else if (uploadType === 'audio') {
-                previewHtml = renderAudio({ ...area, id: area.id, matchMedia: false }, fileUrl, errCall);
-            } else if (uploadType === 'file') {
-                previewHtml = buildFileUploadPanel(area.value, true);
-            } else {
-                previewHtml = `<div style="color: #666; padding: 30px 0; position: relative; z-index: 1; display: flex; align-items: center; justify-content: center;">${fileIconSvg}</div>`;
-            }
-
-            const minHeightStyle = isMedia ? '' : (isFileUpload ? 'min-height: 96px;' : 'min-height: 80px;');
-            const zonePadding = isFileUpload ? 'padding: 8px;' : 'padding: 0;';
-            const zoneTextAlign = isFileUpload ? 'text-align: left;' : 'text-align: center;';
-            const zoneLayout = isFileUpload ? 'display: block;' : 'display: flex; align-items: center; justify-content: center;';
-            const zoneCursor = isFileUpload ? 'cursor: default;' : 'cursor: pointer;';
-
-            inputHtml = `
-                <div class="clab-upload-zone has-file" data-card="${card.id}" data-area="${area.id}" data-upload-type="${uploadType}" data-auto-ratio="${mediaAutoRatio ? '1' : '0'}"
-                     style="border: 1px solid #444; border-radius: 6px; ${zonePadding} position: relative; ${zoneTextAlign} ${zoneCursor} background: rgba(0,0,0,0.3); transition: border-color 0.2s; ${minHeightStyle} ${ratioStyle} ${zoneLayout} overflow: hidden;">
-                    <input type="file" class="clab-file-input" data-upload-type="${uploadType}" accept="${acceptType}" style="display:none;" />
-                    ${previewHtml}
-                </div>
-            `;
-        } else {
-            const emptyPadding = isMedia ? '' : (isFileUpload ? 'padding: 8px;' : 'padding: 16px 10px;');
-            const emptyFlex = isMedia ? 'display: flex; flex-direction: column; justify-content: center; align-items: center;' : '';
-            const emptyTextAlign = isFileUpload ? 'text-align: left;' : 'text-align: center;';
-            const emptyCursor = isFileUpload ? 'cursor: default;' : 'cursor: pointer;';
-            let emptyInnerHtml = `
-                    <div style="margin-bottom: 8px; color: #666;">${iconSvg}</div>
-                    <div style="font-size: 12px; font-weight: bold; margin-bottom: 4px; color: #ccc;">上传${uploadType === 'image' ? '图片' : uploadType === 'video' ? '视频' : uploadType === 'audio' ? '音频' : '文件'}</div>
-                    <div style="font-size: 10px; color: #666;">点击、粘贴或拖拽上传到服务器</div>
-            `;
-            if (isFileUpload) {
-                emptyInnerHtml = buildFileUploadPanel('', false);
-            }
-
-            inputHtml = `
-                <div class="clab-upload-zone" data-card="${card.id}" data-area="${area.id}" data-upload-type="${uploadType}" data-auto-ratio="${mediaAutoRatio ? '1' : '0'}" style="border: 1px dashed #666; border-radius: 6px; ${emptyTextAlign} ${emptyCursor} color: #999; background: rgba(0,0,0,0.1); transition: all 0.2s; box-sizing: border-box; ${emptyPadding} ${emptyFlex} ${ratioStyle}">
-                    <input type="file" class="clab-file-input" data-upload-type="${uploadType}" accept="${acceptType}" style="display:none;" />
-                    ${emptyInnerHtml}
-                </div>
-            `;
-        }
-
-        const uploadButtonHtml = useButtonUpload ? `
-            <button type="button" class="clab-upload-trigger-btn clab-icon-only-btn" data-card="${card.id}" data-area="${area.id}" title="Upload media"
-                style="height: 24px; width: 24px; min-width: 24px; padding: 0; border: none; border-radius: 0; background: transparent; color: #cfcfcf; cursor: pointer; display:flex; align-items:center; justify-content:center; box-shadow:none; outline:none; appearance:none; -webkit-appearance:none; opacity: 0.82; transition: opacity 0.16s ease, filter 0.16s ease, color 0.16s ease;">
-                ${cloudUploadIconSvg}
-            </button>
-        ` : '';
-        const clearDisabledAttr = area.value ? '' : 'disabled';
-        const clearDisabledStyle = area.value ? '' : 'opacity: 0.45; cursor: not-allowed; pointer-events: none;';
-        const clearButtonHtml = useButtonUpload ? `
-            <button type="button" class="clab-upload-clear-btn clab-icon-only-btn" data-card="${card.id}" data-area="${area.id}" title="Clear media" ${clearDisabledAttr}
-                style="height: 24px; width: 24px; min-width: 24px; padding: 0; border: none; border-radius: 0; background: transparent; color: #cfcfcf; cursor: pointer; display:flex; align-items:center; justify-content:center; box-shadow:none; outline:none; appearance:none; -webkit-appearance:none; opacity: 0.82; transition: opacity 0.16s ease, filter 0.16s ease, color 0.16s ease; ${clearDisabledStyle}">
-                ${removeIconSvg}
-            </button>
-        ` : '';
-        const mediaActionButtons = useButtonUpload ? `
-            <div style="display:flex; align-items:center; gap:6px;">
-                ${uploadButtonHtml}
-                ${clearButtonHtml}
+        const fileUrl = area.value ? `/view?filename=${encodeURIComponent(area.value)}&type=input` : '';
+        const previewType = uploadType === 'file'
+            ? (opts.upload === 'model' || getMediaType(fileUrl) === 'model' ? 'model' : getMediaType(fileUrl)) : uploadType;
+        const previewLabel = { image: '图片', video: '视频', audio: '音频', model: '3D' }[previewType];
+        const previewEnabled = !!previewLabel && area.showUploadPreview === true;
+        uploadToggleHtml = previewLabel ? `<label class="clab-upload-preview-option" title="开启后加载预览，关闭后释放预览资源"><input type="checkbox" class="clab-upload-preview-toggle" ${previewEnabled ? 'checked' : ''}><span>查看${previewLabel}</span></label>` : '';
+        const autoRatio = (previewType === 'image' || previewType === 'video') && area.autoHeight !== false;
+        const accept = { image: 'image/*', video: 'video/*', audio: 'audio/*' }[uploadType] || '*/*';
+        let previewHtml = '';
+        if (previewEnabled && fileUrl) {
+            const errCall = `if(window.CLab?.handleMediaError) window.CLab.handleMediaError('${card.id}', '${area.id}', '${fileUrl}');`;
+            if (previewType === 'image') previewHtml = `<img class="clab-preview-img clab-media-target" src="${fileUrl}" draggable="false" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;" />`;
+            else if (previewType === 'video') previewHtml = renderVideo(area, 'contain', fileUrl, errCall);
+            else if (previewType === 'audio') previewHtml = renderAudio({ ...area, matchMedia: true }, fileUrl, errCall);
+            else if (previewType === 'model') previewHtml = getMediaType(fileUrl) === 'model' ? renderGLBViewer(fileUrl) : '<span class="clab-model-status">基础版暂仅支持 GLB 模型</span>';
+        } else if (previewEnabled) previewHtml = '<span class="clab-upload-empty">尚未选择文件</span>';
+        const previewStyle = previewType === 'image' || previewType === 'video' ? 'aspect-ratio:16/9;' : previewType === 'model' ? 'height:200px;' : '';
+        const clearDisabled = area.value ? '' : 'disabled';
+        let fileSelect;
+        if (comboValues.length) {
+            const items = comboValues.map(value => `<div class="clab-custom-select-item ${area.value === value ? 'selected' : ''}" data-value="${escapeHtml(value)}">${escapeHtml(value)}</div>`).join('');
+            fileSelect = buildCustomSelect(`area-select-${area.id}`, '100%', area.value || '选择服务器已有文件…', items, false, `data-card-id="${card.id}" data-area-id="${area.id}" data-type="module-combo"`);
+        } else fileSelect = `<input class="clab-upload-filename" type="text" readonly value="${escapeHtml(area.value || '')}" placeholder="尚未选择文件" title="${escapeHtml(area.value || '')}" aria-label="已选择的文件">`;
+        inputHtml = `<div class="clab-upload-zone ${area.value ? 'has-file' : ''}" data-card="${card.id}" data-area="${area.id}" data-upload-type="${uploadType}" data-auto-ratio="${autoRatio ? '1' : '0'}">
+            <input type="file" class="clab-file-input" data-upload-type="${uploadType}" accept="${accept}" style="display:none;">
+            <div class="clab-upload-preview" style="${previewStyle}" ${previewEnabled ? '' : 'hidden'}>${previewHtml}</div>
+            <div class="clab-upload-file-row"><div class="clab-upload-select">${fileSelect}</div>
+                <button type="button" class="clab-upload-trigger-btn clab-icon-only-btn" data-card="${card.id}" data-area="${area.id}" title="上传文件" aria-label="上传文件">${cloudUploadIconSvg}</button>
+                <button type="button" class="clab-upload-clear-btn clab-icon-only-btn" data-card="${card.id}" data-area="${area.id}" title="清除选择" aria-label="清除选择" ${clearDisabled}>${removeIconSvg}</button>
             </div>
-        ` : '';
-
-        if (comboValues.length > 0) {
-            let itemsHtml = comboValues.map(opt => `<div class="clab-custom-select-item ${area.value === opt ? 'selected' : ''}" data-value="${opt}">${opt}</div>`).join('');
-            let currentVal = area.value || comboValues[0] || '或选择服务器已有文件...';
-            const comboHtml = buildCustomSelect(`area-select-${area.id}`, '100%', currentVal, itemsHtml, false, `data-card-id="${card.id}" data-area-id="${area.id}" data-type="module-combo"`);
-            if (useButtonUpload) {
-                inputHtml += `
-                    <div style="margin-top: 6px; position:relative; display:flex; align-items:center; gap:6px;">
-                        <div style="position: relative; flex: 1; min-width: 0;">${comboHtml}</div>
-                        ${mediaActionButtons}
-                    </div>
-                `;
-            } else {
-                inputHtml += `<div style="margin-top: 6px; position:relative;">${comboHtml}</div>`;
-            }
-        } else if (useButtonUpload) {
-            inputHtml += `<div style="margin-top: 6px; display:flex; justify-content:flex-end;">${mediaActionButtons}</div>`;
-        }
-
+        </div>`;
     } else if (comboValues.length > 0) {
         let itemsHtml = comboValues.map(opt => `<div class="clab-custom-select-item ${area.value === opt ? 'selected' : ''}" data-value="${opt}">${opt}</div>`).join('');
         let currentVal = area.value || comboValues[0] || '选择...';
@@ -294,7 +164,7 @@ export function generateInputHTML(area, card) {
             <div class="clab-input-header" style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:4px; padding: 8px 8px 0 8px;">
                 <input class="clab-area-title-input" data-card="${card.id}" data-area="${area.id}" type="text" value="${displayTitle}" placeholder="${defaultTitle}" size="${Math.max(displayTitle.length, 2)}" style="max-width:150px; min-width:15px; background:transparent; border:none; color:#ddd; font-weight:normal; font-size:12px; outline:none; font-family:sans-serif; padding:0; margin:0;" />
                 
-                ${generateModuleBindingHTML(area)}
+                ${uploadToggleHtml}${generateModuleBindingHTML(area)}
             </div>
 
             <div class="clab-input-body" style="padding: 0 8px 8px 8px;">
@@ -373,6 +243,13 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
     }
 
     refreshModuleBindingSummary(areaEl, area);
+    const toggle = areaEl.querySelector('.clab-upload-preview-option');
+    const nextToggle = nextAreaEl.querySelector('.clab-upload-preview-option');
+    if (toggle && nextToggle) {
+        toggle.querySelector('input').checked = nextToggle.querySelector('input').checked;
+        toggle.querySelector('span').textContent = nextToggle.querySelector('span').textContent;
+    } else if (toggle) toggle.remove();
+    else if (nextToggle) areaEl.querySelector('.clab-module-binding').before(nextToggle);
 
     const signature = getInputRefreshSignature(areaEl);
     const nextSignature = getInputRefreshSignature(nextAreaEl);
@@ -416,11 +293,18 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
         const nextZone = nextAreaEl.querySelector(".clab-upload-zone");
         if (!zone || !nextZone) return false;
 
-        const media = zone.querySelector('.clab-media-target');
-        const nextMedia = nextZone.querySelector('.clab-media-target');
+        const preview = zone.querySelector('.clab-upload-preview');
+        const nextPreview = nextZone.querySelector('.clab-upload-preview');
+        const media = preview.querySelector('.clab-media-target');
+        const nextMedia = nextPreview.querySelector('.clab-media-target');
         const sameMedia = media && nextMedia && media.tagName === nextMedia.tagName && media.getAttribute('src') === nextMedia.getAttribute('src');
-        const contentChanged = !sameMedia && zone.innerHTML !== nextZone.innerHTML;
-        if (contentChanged) zone.innerHTML = nextZone.innerHTML;
+        const model = preview.querySelector('.clab-glb-viewer');
+        const nextModel = nextPreview.querySelector('.clab-glb-viewer');
+        const sameModel = model && nextModel && model.dataset.modelUrl === nextModel.dataset.modelUrl;
+        const contentChanged = !sameMedia && !sameModel && preview.innerHTML !== nextPreview.innerHTML;
+        if (contentChanged) preview.innerHTML = nextPreview.innerHTML;
+        preview.hidden = nextPreview.hidden;
+        preview.style.cssText = nextPreview.style.cssText;
 
         zone.dataset.card = nextZone.dataset.card;
         zone.dataset.area = nextZone.dataset.area;
@@ -433,7 +317,7 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
             if (zone.dataset.autoRatio === '1') {
                 const width = media.videoWidth || media.naturalWidth;
                 const height = media.videoHeight || media.naturalHeight;
-                if (width && height) { zone.style.aspectRatio = `${width} / ${height}`; zone.style.height = 'auto'; }
+                if (width && height) { preview.style.aspectRatio = `${width} / ${height}`; preview.style.height = 'auto'; }
             }
         }
         for (const selector of ['.clab-upload-trigger-btn', '.clab-upload-clear-btn']) {
@@ -441,6 +325,9 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
             const nextButton = nextAreaEl.querySelector(selector);
             if (button && nextButton) { button.disabled = nextButton.disabled; button.style.cssText = nextButton.style.cssText; }
         }
+        const filename = zone.querySelector('.clab-upload-filename');
+        const nextFilename = nextZone.querySelector('.clab-upload-filename');
+        if (filename && nextFilename) { filename.value = nextFilename.value; filename.title = nextFilename.title; }
 
         const fileInput = zone.querySelector(".clab-file-input");
         const nextFileInput = nextZone.querySelector(".clab-file-input");
@@ -450,7 +337,7 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
             fileInput.dataset.area = nextFileInput.dataset.area;
             fileInput.dataset.uploadType = nextFileInput.dataset.uploadType;
         }
-        if (contentChanged && window._clabAttachAreaEvents) window._clabAttachAreaEvents(areaEl);
+        attachInputEvents(areaEl);
         if (signature === "upload") return true;
     }
 
@@ -522,6 +409,13 @@ export function attachInputEvents(container) {
     }
 
     attachMediaEvents(container);
+    container.querySelectorAll('.clab-upload-preview-toggle').forEach(input => {
+        input.onchange = () => {
+            const root = input.closest('.clab-area');
+            const area = state.cards.find(card => card.id === root.dataset.cardId)?.areas.find(area => area.id === root.dataset.areaId);
+            if (area) { area.showUploadPreview = input.checked; applySurgicalUpdate(area.id); }
+        };
+    });
 
     if (!window._clabUploadHandlers) {
         window._clabUploadHandlers = new Map();
@@ -578,7 +472,6 @@ export function attachInputEvents(container) {
         return false;
     };
 
-    const useButtonUploadType = (uploadType) => uploadType === 'image' || uploadType === 'video' || uploadType === 'audio';
 
     const isVideoAutoplayEnabled = () => {
         const raw = window._clabVideoAutoplay;
@@ -617,15 +510,16 @@ export function attachInputEvents(container) {
 
     const applyMediaAutoRatio = (zone) => {
         if (!zone || zone.dataset.autoRatio !== '1') return;
-        const uploadType = zone.dataset.uploadType || '';
+        const uploadType = zone.querySelector('video') ? 'video' : zone.querySelector('img') ? 'image' : '';
 
         if (uploadType === 'image') {
             const img = zone.querySelector('img.clab-media-target, img');
             if (!img) return;
             const applyRatio = () => {
                 if (img.naturalWidth && img.naturalHeight) {
-                    zone.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
-                    zone.style.height = 'auto';
+                    const preview = zone.querySelector('.clab-upload-preview');
+                    preview.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
+                    preview.style.height = 'auto';
                 }
             };
             if (img.complete) applyRatio();
@@ -638,8 +532,9 @@ export function attachInputEvents(container) {
             if (!vid) return;
             const applyRatio = () => {
                 if (vid.videoWidth && vid.videoHeight) {
-                    zone.style.aspectRatio = `${vid.videoWidth} / ${vid.videoHeight}`;
-                    zone.style.height = 'auto';
+                    const preview = zone.querySelector('.clab-upload-preview');
+                    preview.style.aspectRatio = `${vid.videoWidth} / ${vid.videoHeight}`;
+                    preview.style.height = 'auto';
                 }
             };
             if (vid.readyState >= 1) applyRatio();
@@ -687,7 +582,9 @@ export function attachInputEvents(container) {
         const fileInput = zone.querySelector('.clab-file-input');
         if (!fileInput) return;
         const uploadType = zone.dataset.uploadType || fileInput.dataset.uploadType || 'file';
-        if (zone._clabUploadInput === fileInput && zone._clabUploadType === uploadType) return;
+        if (zone._clabUploadInput === fileInput && zone._clabUploadType === uploadType) {
+            enforceInputVideoAutoplaySetting(zone); applyMediaAutoRatio(zone); return;
+        }
         if (!zone._clabUploadInput) onModuleRemoved(zone, () => {
             if (window._clabUploadHandlers.get(zone.dataset.area)?.zone === zone) {
                 window._clabUploadHandlers.delete(zone.dataset.area);
@@ -695,14 +592,7 @@ export function attachInputEvents(container) {
         });
         zone._clabUploadInput = fileInput;
         zone._clabUploadType = uploadType;
-        const useButtonUpload = useButtonUploadType(uploadType);
 
-        zone.onclick = (e) => {
-            if (useButtonUpload || uploadType === 'file') return;
-            if(e.target.closest('.clab-custom-select')) return; 
-            e.stopPropagation();
-            fileInput.click();
-        };
 
         const areaEl = zone.closest('.clab-area');
         const uploadBtn = areaEl ? areaEl.querySelector('.clab-upload-trigger-btn') : null;
@@ -715,15 +605,6 @@ export function attachInputEvents(container) {
             };
         }
 
-        const fileUploadBtn = zone.querySelector('.clab-file-upload-btn');
-        if (fileUploadBtn && !fileUploadBtn.dataset.clabEventsBound) {
-            fileUploadBtn.dataset.clabEventsBound = "1";
-            fileUploadBtn.onclick = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                fileInput.click();
-            };
-        }
 
         const clearFileValue = () => {
             const cardId = zone.dataset.card;
@@ -748,16 +629,6 @@ export function attachInputEvents(container) {
             };
         }
 
-        const fileRemoveBtn = zone.querySelector('.clab-file-remove-btn');
-        if (fileRemoveBtn && !fileRemoveBtn.dataset.clabEventsBound) {
-            fileRemoveBtn.dataset.clabEventsBound = "1";
-            fileRemoveBtn.onclick = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (fileRemoveBtn.disabled) return;
-                clearFileValue();
-            };
-        }
 
         const handleUpload = async (file) => {
             if(!file) return;
@@ -772,10 +643,9 @@ export function attachInputEvents(container) {
             const areaId = zone.dataset.area;
             
             zone.style.pointerEvents = 'none';
-            zone.innerHTML = `
-                <style>@keyframes clab-spin { 100% { transform: rotate(360deg); } }</style>
-                <div style="padding: 16px 10px; text-align: center; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; height: 100%; width: 100%;">
-                    <svg style="animation: clab-spin 1s linear infinite; margin-right: 6px; width:16px; height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            zone.insertAdjacentHTML('beforeend', `
+                <div class="clab-upload-status" style="padding: 8px; text-align: center; color: #ccc; font-size: 12px;">
+                    <svg style="animation: clab-upload-spin 1s linear infinite; margin-right: 6px; width:16px; height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line>
                         <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
                         <line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line>
@@ -783,7 +653,7 @@ export function attachInputEvents(container) {
                     </svg>
                     正在上传到服务器...
                 </div>
-            `;
+            `);
 
             try {
                 const data = await uploadImageToServer(file);
@@ -800,6 +670,9 @@ export function attachInputEvents(container) {
             } catch(err) {
                 alert('本地文件上传失败: ' + err.message);
                 applySurgicalUpdate(areaId);
+            } finally {
+                zone.style.pointerEvents = '';
+                zone.querySelector('.clab-upload-status')?.remove();
             }
         };
 

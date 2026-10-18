@@ -9,6 +9,7 @@ import {
     captureCardInputSnapshot,
     pushPreviewHistoryEntry,
     syncTextContentWithSelection,
+    getGLBOutputFiles,
 } from "./components/modules/media_types/media_utils.js";
 
 export function setupAPIInjector(app) {
@@ -101,14 +102,18 @@ export function setupAPIInjector(app) {
 
         const candidates = [];
         widgets.forEach((widget) => {
-            const value = normalizeTextResult(widget?.value);
+            if (typeof widget?.value !== 'string') return;
+            const name = String(widget.name || '');
+            const readOnly = widget.options?.read_only || widget.element?.readOnly;
+            const textPreview = /^(?:(?:preview|display|show|result|output)_)?(?:text|markdown)(?:_preview)?$/i.test(name);
+            if (!textPreview && !readOnly) return;
+            const value = widget.value;
             if (!value.trim()) return;
 
-            const name = String(widget?.name || "");
             const score =
                 (/^preview_(markdown|text)$/i.test(name) ? 100 : 0) +
                 (/(markdown|text|preview|result|output)/i.test(name) ? 20 : 0) +
-                ((widget?.options?.read_only || widget?.element?.readOnly) ? 10 : 0) +
+                (readOnly ? 10 : 0) +
                 Math.min(10, Math.floor(value.length / 200));
 
             candidates.push({ score, value });
@@ -600,7 +605,7 @@ export function setupAPIInjector(app) {
         try {
             const historyRun = { id: String(prompt_id), order: task.historyRunOrder, areaIds: task.previewTargets.map(target => target.areaId) };
 
-            const targetItems = [outputData.videos, outputData.audio, outputData.gifs, outputData.images]
+            const targetItems = [getGLBOutputFiles(outputData), outputData?.videos, outputData?.audio, outputData?.gifs, outputData?.images]
                 .find((items) => items?.length > 0);
             const archivedMedia = new Map();
             for (const target of task.previewTargets) {
@@ -621,14 +626,14 @@ export function setupAPIInjector(app) {
                         const sourceKey = JSON.stringify([sourceMedia.type, sourceMedia.subfolder, sourceMedia.filename]);
                         let media = archivedMedia.get(sourceKey);
                         const ext = sourceMedia.filename.split('.').pop().toLowerCase();
-                        const kind = ['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext) || sourceMedia.format?.startsWith('video/')
+                        const kind = ext === 'glb' ? 'model' : ['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext) || sourceMedia.format?.startsWith('video/')
                             ? 'video'
                             : ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'].includes(ext) || sourceMedia.format?.startsWith('audio/')
                                 ? 'audio' : 'image';
 
                         if (!media) {
                             media = { ...sourceMedia };
-                            if (media.type === 'temp' || media.type === 'output') {
+                            if (media.type === 'temp' || media.type === 'output' || (kind === 'model' && media.type === 'input')) {
                                 try {
                                     const response = await fetch('/clab/copy_temp_asset', {
                                         method: 'POST',
@@ -636,7 +641,7 @@ export function setupAPIInjector(app) {
                                         body: JSON.stringify({
                                             filename: media.filename,
                                             subfolder: media.subfolder || '',
-                                            asset_type: kind,
+                                            asset_type: kind === 'model' ? 'file' : kind,
                                             source_type: media.type,
                                             archive_dir: window._clabArchiveDir || 'CLab',
                                             delete_temp: window._clabDeleteTemp === true,

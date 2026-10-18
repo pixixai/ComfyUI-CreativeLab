@@ -7,6 +7,7 @@ import { getMediaType, getSteppedHistoryIndex } from "../../modules/media_types/
 import { selectOutputHistory } from "../../modules/module_history.js";
 import { state } from "../../ui_state.js";
 import { previewModalStore } from "./state.js";
+import { renderGLBViewer, attachModelEvents, releaseModelViewer } from '../../modules/media_types/media_model.js';
 import {
     parseAssetMetaFromUrl,
     escapeHtml,
@@ -61,6 +62,8 @@ export function createPreviewModalApi({
     }
 
     function teardownPreviewEnhancers() {
+        previewModalStore.activeModelCleanup?.();
+        previewModalStore.activeModelCleanup = null;
         if (typeof previewModalStore.activeAudioCleanup === "function") {
             try { previewModalStore.activeAudioCleanup(); } catch (_) { }
         }
@@ -299,6 +302,7 @@ export function createPreviewModalApi({
         if (entry.type === "video") {
             return `<video class="clab-preview-modal-main-video" src="${safeUrl}" controls autoplay loop muted playsinline></video>`;
         }
+        if (entry.type === 'model') return renderGLBViewer(entry.url);
         if (entry.type === "audio") {
             return `
                 <div class="clab-preview-modal-audio-wrap">
@@ -402,6 +406,8 @@ export function createPreviewModalApi({
                 thumbBody = `<div class="clab-preview-modal-thumb-badge">AUDIO</div>`;
             } else if (entry.type === "text") {
                 thumbBody = `<div class="clab-preview-modal-thumb-badge">TEXT</div>`;
+            } else if (entry.type === 'model') {
+                thumbBody = `<div class="clab-preview-modal-thumb-badge">3D</div>`;
             } else if (entry.type === "file") {
                 thumbBody = `<div class="clab-preview-modal-thumb-badge">FILE</div>`;
             }
@@ -426,6 +432,11 @@ export function createPreviewModalApi({
         }
         if (active.type === "text") {
             safeBindPreviewTextEditor(center, active);
+        }
+        if (active.type === 'model') {
+            attachModelEvents(center);
+            const stage = center.querySelector('.clab-glb-viewer');
+            previewModalStore.activeModelCleanup = () => releaseModelViewer(stage);
         }
 
         const snapshotEntry = active.index >= 0 ? previewModalStore.snapshots[active.index] : null;

@@ -80,10 +80,12 @@ function createHarness(options = {}) {
         clearTimeout() {}, showBindingToast() {}, hideBindingToast() {},
         CustomEvent: class { constructor(type, { detail } = {}) { this.type = type; this.detail = detail; } },
         async fetch(url, request) {
-            files.push({ url, body: JSON.parse(request.body) });
+            const body = JSON.parse(request.body);
+            files.push({ url, body });
+            const index = files.length;
             await options.beforeArchive?.(harness);
             return { json: async () => ({
-                status: 'success', new_filename: `archived_${files.length}.${url.endsWith('save_text') ? 'txt' : 'png'}`,
+                status: 'success', new_filename: `archived_${index}.${url.endsWith('save_text') ? 'txt' : body.filename.split('.').pop()}`,
                 new_subfolder: 'CLab', new_type: 'output',
             }) };
         },
@@ -125,6 +127,72 @@ function createHarness(options = {}) {
 
 const imageResult = (prompt_id = 'p1', filenames = ['source.png']) => ({
     prompt_id, node: '2', output: { images: filenames.map((filename) => ({ filename, type: 'temp', subfolder: '' })) },
+});
+
+test('3D viewport dimensions and model filenames are not archived as text output', async () => {
+    for (const width of [1024, '1024']) {
+        const h = createHarness();
+        h.app.graph.getNodeById = id => Number(id) === 2 ? { type: 'Preview3DAdvanced', widgets: [
+            { name: 'width', value: width }, { name: 'height', value: 1024 },
+            { name: 'model_file', value: 'input/3d/model.glb' },
+            { name: 'filename_prefix', value: '3d/ComfyUI' },
+        ] } : null;
+        await h.run();
+        await h.emit('executed', { prompt_id: 'p1', node: '2', output: { result: ['model.obj', {}, []] } });
+        assert.equal(h.files.length, 0);
+        assert.equal(h.output.history.length, 0);
+    }
+});
+
+test('named and read-only text preview widgets still support output fallback', async () => {
+    for (const widget of [
+        { name: 'preview_markdown', value: '# Generated text' },
+        { name: 'text', value: 'Generated text' },
+        { name: 'display', value: 'Generated text', options: { read_only: true } },
+    ]) {
+        const h = createHarness();
+        h.app.graph.getNodeById = id => Number(id) === 2 ? { widgets: [{ name: 'width', value: 1024 }, widget] } : null;
+        await h.run();
+        await h.emit('executed', { prompt_id: 'p1', node: '2', output: {} });
+        assert.equal(h.output.textContent, widget.value);
+        assert.equal(h.files[0].url, '/clab/save_text');
+    }
+});
+
+test('explicit numeric text output is preserved independently of widget fallback', async () => {
+    const h = createHarness();
+    await h.run();
+    await h.emit('executed', { prompt_id: 'p1', node: '2', output: { text: [1024] } });
+    assert.equal(h.output.textContent, '1024');
+});
+
+test('GLB outputs archive models from saved and legacy preview structures with run metadata', async () => {
+    for (const [output, sourceType, subfolder] of [
+        [{ '3d': [{ filename: 'model.glb', subfolder: 'models', type: 'output' }], result: ['models/model.glb', {}, []] }, 'output', 'models'],
+        [{ result: ['model.glb [temp]', {}, []] }, 'temp', ''],
+        [{ result: ['input/3d/model.glb', {}, null] }, 'input', '3d'],
+        [{ result: ['models/model.glb [output]', {}, []] }, 'output', 'models'],
+    ]) {
+        const h = createHarness();
+        await h.run();
+        await h.emit('executed', { prompt_id: 'p1', node: '2', output });
+        assert.equal(h.output.resultKind, 'model');
+        assert.equal(h.output.history.length, 1);
+        assert.match(h.output.resultUrl, /archived_1.glb/);
+        assert.equal(h.output.historyRuns[0].id, 'p1');
+        assert.equal(h.files[0].body.asset_type, 'file');
+        assert.equal(h.files[0].body.source_type, sourceType);
+        assert.equal(h.files[0].body.subfolder, subfolder);
+    }
+});
+
+test('legacy GLB paths cannot request an absolute or escaping file', async () => {
+    for (const path of ['../model.glb', 'C:/model.glb', '/model.glb', 'https://example.com/model.glb']) {
+        const h = createHarness(); await h.run();
+        await h.emit('executed', { prompt_id: 'p1', node: '2', output: { result: [path, {}, []] } });
+        assert.equal(h.files.length, 0);
+        assert.equal(h.output.history.length, 0);
+    }
 });
 
 test('execution records persist the prompt id and the frozen set of participating outputs', async () => {

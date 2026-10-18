@@ -31,7 +31,7 @@ export function getOutputSettingsLabel(areas) {
 
 export function generateOutputControlsHTML(area) {
     return `<div class="clab-output-controls">
-        ${!area.missingHistoryRun && getAreaResultType(area) === 'text' ? `<button type="button" class="clab-text-copy-btn" data-area="${area.id}" title="复制全文" aria-label="复制全文">复制</button>` : ''}
+        ${!area.missingHistoryRun && getAreaResultType(area) === 'text' ? `<button type="button" class="clab-text-copy-btn" data-area="${area.id}" title="复制全文" aria-label="复制全文"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/></svg></button>` : ''}
         <button type="button" class="clab-output-settings-trigger" title="尺寸与显示" aria-label="尺寸与显示" aria-haspopup="dialog" aria-expanded="false" aria-controls="clab-output-settings-popover">
             ${outputSettingsIcon}
         </button>${generateModuleBindingHTML(area)}</div>`;
@@ -52,7 +52,8 @@ function updateAppearance(area) {
         if (width && height) { area.width = width; area.height = height; }
     }
     if (bg && !bg.classList.contains('clab-preview-bg-text')) {
-        bg.style.aspectRatio = area.matchMedia && area.width && area.height ? `${area.width} / ${area.height}`
+        bg.style.aspectRatio = bg.classList.contains('clab-preview-bg-audio') && area.matchMedia ? 'auto'
+            : area.matchMedia && area.width && area.height ? `${area.width} / ${area.height}`
             : getRatioCSS(area).replace('aspect-ratio:', '').replace(';', '').trim();
     }
     if (media) media.style.objectFit = area.fillMode === '填充' ? 'cover' : area.fillMode === '拉伸' ? 'fill' : 'contain';

@@ -169,6 +169,8 @@ async def clab_copy_temp_asset(request):
         
         # 【核心修复】：兼容前端传 type 还是 source_type。找不到 source_type 时回退到 type，彻底解决截胡报 404 错误
         source_type = data.get("source_type", data.get("type", "temp")) 
+        if source_type not in ("input", "output", "temp"):
+            raise ValueError("Invalid source type")
         
         archive_dir = data.get("archive_dir", "CLab")
         archive_dir = "".join(c for c in archive_dir if c.isalnum() or c in (' ', '.', '_', '-')).strip()
@@ -185,6 +187,8 @@ async def clab_copy_temp_asset(request):
         # 根据文件来源获取基础目录
         if source_type == "output":
             source_base_dir = folder_paths.get_output_directory()
+        elif source_type == "input":
+            source_base_dir = folder_paths.get_input_directory()
         else:
             source_base_dir = folder_paths.get_temp_directory()
             

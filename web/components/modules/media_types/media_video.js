@@ -3,6 +3,7 @@
  * 职责: 视频组件的专属渲染与事件处理 (高精度滚轮寻道 + 点击跳转模式)
  */
 import { formatTime, formatTimeWithFrames } from "./media_utils.js";
+import { onModuleRemoved } from "../module_lifecycle.js";
 
 export function renderVideo(area, objectFit, url, errCall) {
     const autoplayEnabled = (() => {
@@ -22,12 +23,11 @@ export function renderVideo(area, objectFit, url, errCall) {
     const displayMuted = window._clabVideoMuted !== false ? 'block' : 'none';
 
     return `
-        <div class="clab-video-player" data-area-id="${area.id}">
+        <div class="clab-video-player clab-video-paused" data-area-id="${area.id}">
             <video id="clab-img-${area.id}" class="clab-preview-img clab-media-target" src="${url}" draggable="false" style="object-fit: ${objectFit}; width: 100%; height: 100%; display: block;" ${autoplayAttr} loop ${mutedAttr} playsinline onerror="${errCall}"></video>
             <div class="clab-video-controls">
                 <div class="clab-video-toolbar">
-                    <!-- 【样式锁定】：强制无衬线体，彻底去除投影 -->
-                    <span class="clab-timecode" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important; text-shadow: none !important; -webkit-font-smoothing: antialiased;">00:00 / 00:00</span>
+                    <span class="clab-timecode">00:00 / 00:00</span>
                     <div class="clab-video-tools-right">
                         
                         <!-- 极简音量滑杆 -->
@@ -46,7 +46,7 @@ export function renderVideo(area, objectFit, url, errCall) {
                         </div>
                         
                         <div class="clab-media-opt-wrapper clab-video-controls-interactive">
-                            <button class="clab-media-opt-btn clab-more-toggle">⋮</button>
+                            <button type="button" class="clab-media-opt-btn clab-more-toggle" title="播放速度、画中画与全屏" aria-label="播放速度、画中画与全屏" aria-expanded="false"><span class="clab-video-speed-val">1×</span></button>
                             <div class="clab-media-dropdown clab-more-dropdown" style="text-align: left;">
                                 <div style="padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1);">
                                     <span style="font-size: 11px; color: #aaa; font-family: sans-serif !important;">播放速度</span>
@@ -79,6 +79,8 @@ export function updateVideoProgress(players = document.querySelectorAll('.clab-v
     players.forEach(player => {
         const vid = player.querySelector('video');
         if (!vid) return;
+        player.classList.toggle('clab-video-paused', vid.paused);
+        player.querySelector('.clab-video-speed-val').textContent = `${vid.playbackRate}×`;
 
         // 音量与静音状态更新
         const muteOpt = player.querySelector('.clab-opt-mute');
@@ -298,10 +300,23 @@ export function attachVideoEvents(container) {
         // 更多菜单
         const moreToggle = player.querySelector('.clab-more-toggle');
         const moreDropdown = player.querySelector('.clab-more-dropdown');
+        onModuleRemoved(player, () => moreDropdown.remove());
         if (moreToggle) {
             moreToggle.onclick = (e) => {
                 e.stopPropagation();
-                moreDropdown.classList.toggle('show');
+                const open = moreDropdown.classList.contains('show');
+                document.querySelectorAll('.clab-media-dropdown.show').forEach(menu => {
+                    menu.classList.remove('show');
+                    if (menu._originalParent) menu._originalParent.appendChild(menu);
+                });
+                moreToggle.setAttribute('aria-expanded', String(!open));
+                if (open) return;
+                moreDropdown._originalParent ||= moreDropdown.parentElement;
+                document.body.append(moreDropdown);
+                moreDropdown.classList.add('show');
+                const rect = moreToggle.getBoundingClientRect();
+                moreDropdown.style.bottom = `${window.innerHeight - rect.top + 6}px`;
+                moreDropdown.style.left = `${Math.max(4, Math.min(rect.right - moreDropdown.offsetWidth, window.innerWidth - moreDropdown.offsetWidth - 4))}px`;
             };
         }
 
@@ -320,6 +335,8 @@ export function attachVideoEvents(container) {
                 vid.playbackRate = spd;
                 if (speedInput) speedInput.value = spd.toFixed(1);
                 moreDropdown.classList.remove('show');
+                moreToggle.setAttribute('aria-expanded', 'false');
+                moreDropdown._originalParent?.appendChild(moreDropdown);
             };
         });
 
@@ -328,6 +345,13 @@ export function attachVideoEvents(container) {
             e.stopPropagation(); 
             if (vid.requestFullscreen) vid.requestFullscreen(); 
             moreDropdown.classList.remove('show'); 
+        };
+        const pipOpt = moreDropdown.querySelector('.clab-opt-pip');
+        if (pipOpt) pipOpt.onclick = event => {
+            event.stopPropagation();
+            if (document.pictureInPictureElement === vid) document.exitPictureInPicture().catch(() => {});
+            else vid.requestPictureInPicture?.().catch(() => {});
+            moreDropdown.classList.remove('show');
         };
     });
 }

@@ -119,7 +119,7 @@ function createHarness() {
             flush();
             return e;
         },
-        moduleEvent(type, button = 1, id = 'edit', cardId = 'card') {
+        moduleEvent(type, button = 1, id = 'edit', cardId = 'card', target = { closest() { return null; } }) {
             if (!moduleElements.has(id)) moduleElements.set(id, {
                 dataset: { areaId: id, cardId }, listeners: new Map(),
                 addEventListener(eventType, fn, capture) {
@@ -130,7 +130,7 @@ function createHarness() {
             });
             const areaEl = moduleElements.get(id);
             context.attachModulePickEvents({ querySelectorAll() { return [areaEl]; } });
-            const event = { button, preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; } };
+            const event = { button, target, preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; } };
             for (const fn of areaEl.listeners.get(type) || []) fn(event);
             flush();
             return event;
@@ -432,6 +432,17 @@ test('middle clicking an unselected module replaces the previous module selectio
     h.pick(110, 35);
     assert.deepEqual(plain(h.area.targetWidgets), ['1||steps']);
     assert.equal(h.preview.targetNodeId, 'old');
+});
+
+test('middle dragging inside the GLB viewer does not enter node picking', () => {
+    const h = createHarness();
+    const target = { closest(selector) { return selector === '.clab-glb-viewer' ? {} : null; } };
+    for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'auxclick']) {
+        const event = h.moduleEvent(type, 1, 'edit', 'card', target);
+        assert.ok(!event.defaultPrevented);
+    }
+    assert.equal(h.appState.isBindingMode, undefined);
+    assert.equal(h.visible.size, 2);
 });
 
 test('middle clicking output modules picks only nodes for the selected output group', () => {

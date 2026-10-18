@@ -322,11 +322,13 @@ export function attachModulePickEvents(container) {
         if (areaEl.dataset.clabPickBound) return;
         areaEl.dataset.clabPickBound = '1';
         for (const type of ['pointerdown', 'pointerup', 'mousedown', 'mouseup']) areaEl.addEventListener(type, e => {
+            if (e.target.closest('.clab-glb-viewer')) return;
             if (e.button !== 1) return;
             e.preventDefault();
             e.stopPropagation();
         }, true);
         areaEl.addEventListener('auxclick', e => {
+            if (e.target.closest('.clab-glb-viewer')) return;
             if (e.button !== 1) return;
             e.preventDefault();
             e.stopPropagation();

@@ -314,6 +314,7 @@ function handlePainterModeClick(event, panelContainer, cardsContainer) {
                     area.targetWidgets = Array.isArray(src.targetWidgets) ? [...src.targetWidgets] : [];
                     area.dataType = src.dataType;
                     area.autoHeight = src.autoHeight;
+                    area.showUploadPreview = !!src.showUploadPreview;
                     area.ratio = src.ratio;
                     area.width = src.width;
                     area.height = src.height;

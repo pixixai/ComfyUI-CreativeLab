@@ -497,7 +497,11 @@ export function injectCSS() {
         .clab-module-binding-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
         .clab-output-area::before { content:""; position:absolute; top:0; right:0; width:min(100%, 180px); height:min(100%, 90px); border-radius:inherit; background:radial-gradient(ellipse at top right, rgba(0,0,0,0.22), rgba(0,0,0,0.08) 45%, transparent 80%); opacity:0; pointer-events:none; z-index:21; transition:opacity 0.15s; }
         .clab-output-area:hover::before, .clab-output-area:has(.clab-output-controls [aria-expanded="true"])::before { opacity:1; }
+        .clab-output-head { display:flex; align-items:center; gap:6px; min-height:32px; padding:5px 10px; box-sizing:border-box; }
+        .clab-output-head .clab-area-title-input { flex:0 1 auto; min-width:20px; max-width:100%; padding:0; border:0; background:transparent; color:#999; font:12px/20px sans-serif; text-overflow:ellipsis; }
+        .clab-output-head .clab-area-title-input:hover, .clab-output-head .clab-area-title-input:focus { color:#eee; }
         .clab-output-controls { position:absolute; top:7px; right:8px; z-index:25; display:flex; align-items:center; gap:2px; max-width:calc(100% - 50px); opacity:0; pointer-events:none; transition:opacity 0.15s; }
+        .clab-output-head .clab-output-controls { position:relative; top:auto; right:auto; margin-left:auto; max-width:calc(100% - 26px); flex-shrink:1; }
         .clab-output-controls::before { content:""; position:absolute; inset:-2px -3px; border:1px solid rgba(255,255,255,0.12); border-radius:6px; background:rgba(0,0,0,0.35); pointer-events:none; z-index:-1; }
         .clab-area:hover .clab-output-controls, .clab-output-controls:has([aria-expanded="true"]) { opacity:1; pointer-events:auto; }
         .clab-output-binding { position:relative; min-width:0; max-width:100px; }
@@ -505,11 +509,25 @@ export function injectCSS() {
         .clab-output-binding::before, .clab-text-copy-btn + .clab-output-settings-trigger::before { content:""; position:absolute; top:-1px; bottom:-1px; left:-1px; border-left:1px solid rgba(255,255,255,0.12); pointer-events:none; }
         .clab-output-binding button { max-width:100px; border:0; background:transparent; color:rgba(255,255,255,0.8); transition:color 0.15s, background-color 0.15s; }
         .clab-output-controls .clab-output-settings-trigger, .clab-output-controls .clab-text-copy-btn { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:20px; height:20px; padding:0; border:0; border-radius:3px; background:transparent; color:rgba(255,255,255,0.8); cursor:pointer; transition:color 0.15s, background-color 0.15s; }
-        .clab-output-controls .clab-text-copy-btn { width:auto; min-width:42px; padding:0 4px; font:11px/1 sans-serif; }
+        .clab-output-controls .clab-text-copy-btn svg { width:13px; height:13px; }
         .clab-output-controls .clab-text-copy-btn:disabled { cursor:default; opacity:0.75; }
         .clab-output-controls button:hover, .clab-output-controls button[aria-expanded="true"] { background:rgba(255,255,255,0.1); color:#fff; }
         .clab-output-manage-head .clab-output-controls { position:relative; top:auto; right:auto; max-width:114px; flex-shrink:0; }
         .clab-input-header > .clab-area-title-input { flex:0 1 auto; min-width:15px; }
+        .clab-upload-preview-option { display:inline-flex; flex-shrink:0; align-items:center; gap:4px; margin:0 0 0 auto; color:#999; font:11px/16px sans-serif; cursor:pointer; white-space:nowrap; }
+        .clab-upload-preview-option input { width:12px; height:12px; margin:0; accent-color:#aaa; }
+        .clab-upload-preview-option:hover { color:#ddd; }
+        .clab-upload-zone { position:relative; min-width:0; border-radius:5px; }
+        @keyframes clab-upload-spin { to { transform:rotate(360deg); } }
+        .clab-upload-preview { width:100%; position:relative; box-sizing:border-box; border:1px solid #444; border-radius:5px; overflow:hidden; background:#191919; margin-bottom:6px; }
+        .clab-upload-preview[hidden] { display:none; }
+        .clab-upload-empty { display:flex; align-items:center; justify-content:center; min-height:90px; color:#888; font:12px sans-serif; }
+        .clab-upload-file-row { display:flex; align-items:center; gap:6px; min-width:0; }
+        .clab-upload-select { flex:1; min-width:0; }
+        .clab-upload-filename { width:100%; min-width:0; box-sizing:border-box; height:28px; padding:4px 7px; border:1px solid #555; border-radius:4px; background:rgba(0,0,0,.25); color:#aaa; font:12px sans-serif; text-overflow:ellipsis; }
+        .clab-upload-file-row .clab-icon-only-btn { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:24px; height:24px; padding:0; border:0; background:transparent; color:#aaa; cursor:pointer; }
+        .clab-upload-file-row .clab-icon-only-btn:hover { color:#fff; }
+        .clab-upload-file-row .clab-icon-only-btn:disabled { opacity:.4; cursor:default; }
         .clab-module-binding-popover, .clab-output-settings-popover, .clab-context-menu, .clab-custom-select-dropdown.clab-toolbar-menu { box-sizing:border-box; border:1px solid #505050; border-radius:7px; background:var(--comfy-menu-bg, #292929); color:#ddd; font:12px sans-serif; box-shadow:0 8px 28px rgba(0,0,0,0.45); }
         .clab-output-settings-popover { position:fixed; inset:auto; margin:0; padding:0; width:min(280px, calc(100vw - 16px)); max-height:calc(100dvh - 16px); overflow:auto; }
         .clab-output-settings-fields { display:flex; flex-direction:column; gap:12px; padding:12px 10px; }
@@ -736,12 +754,17 @@ export function injectCSS() {
         #clab-toolbar-more-menu .clab-custom-select-item { white-space: normal; overflow-wrap: anywhere; }
 
         .clab-preview-bg {
-            background: linear-gradient(135deg, #4a00e0, #8e2de2);
+            background: #191919;
             width: 100%; border-radius: 4px; overflow: hidden;
             display: flex; justify-content: center; align-items: center;
-            position: relative; transition: all 0.3s;
+            position: relative;
         }
-        .clab-area > .clab-preview-bg { border-radius:max(0px, calc(6px - var(--clab-area-border-width))); }
+        .clab-output-area > .clab-preview-bg { width:calc(100% - 14px); margin:0 7px; border-radius:4px; }
+        .clab-output-area > .clab-preview-bg-text { margin-bottom:7px; }
+        .clab-output-area > .clab-preview-bg:last-child { margin-bottom:7px; }
+        .clab-output-footer { display:flex; align-items:center; gap:10px; min-width:0; min-height:29px; box-sizing:border-box; padding:5px 11px; color:#999; font:11px/18px sans-serif; font-variant-numeric:tabular-nums; }
+        .clab-output-metadata { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+        .clab-output-history-position { margin-left:auto; flex-shrink:0; white-space:nowrap; }
         .clab-preview-img { width: 100%; height: 100%; display: none; }
         .clab-preview-placeholder { color: rgba(255,255,255,0.6); font-weight: bold; font-size: 14px; pointer-events: none; padding: 20px; text-align: center; }
 

@@ -12,7 +12,6 @@ export const previewModalStore = {
     activeIndex: 0,
     textCache: new Map(),
     textEditorState: new Map(),
-    audioWaveCache: new Map(),
     activeAreaId: "",
     activeCardId: "",
     imageZoom: 1,
@@ -26,6 +25,7 @@ export const previewModalStore = {
     imageSpacePressed: false,
     activeAudioCleanup: null,
     activeTextCleanup: null,
+    activeModelCleanup: null,
 };
 
 export const externalEditorStore = {

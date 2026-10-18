@@ -173,7 +173,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                     a.matchMedia = true; a.ratio = '16:9'; a.fillMode = '显示全部'; a.width = ''; a.height = '';
                     a.isManageMode = false;
                 } else {
-                    a.dataType = 'string'; a.autoHeight = true;
+                    a.dataType = 'string'; a.autoHeight = true; a.showUploadPreview = false;
                 }
             });
         });

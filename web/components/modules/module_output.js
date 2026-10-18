@@ -17,6 +17,44 @@ import {
 import { selectOutputHistory } from "./module_history.js";
 import { refreshModuleBindingSummary } from "./module_binding.js";
 
+const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function outputMetadata(area, media) {
+    if (!area.resultUrl || area.missingHistoryRun) return '';
+    const width = media?.naturalWidth || media?.videoWidth;
+    const height = media?.naturalHeight || media?.videoHeight;
+    if (width && height) return `${width} × ${height}`;
+    const url = new URL(area.resultUrl, window.location.origin);
+    const filename = url.searchParams.get('filename') || url.pathname.split('/').pop();
+    const extension = filename?.match(/\.([a-z0-9]{1,8})$/i)?.[1].toUpperCase() || '';
+    if (media?.tagName === 'AUDIO' && Number.isFinite(media.duration)) {
+        const seconds = Math.floor(media.duration);
+        return `${extension}${extension ? ' · ' : ''}${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+    }
+    return extension;
+}
+
+function outputFooter(area, historyHTML) {
+    if (!area.resultUrl && !historyHTML) return '';
+    return `<div class="clab-output-footer" data-url="${escapeHTML(area.resultUrl || '')}"><span class="clab-output-metadata">${outputMetadata(area)}</span>${historyHTML}</div>`;
+}
+
+function attachOutputMetadata(container) {
+    container.querySelectorAll('.clab-output-area .clab-media-target').forEach(media => {
+        const update = () => {
+            const areaEl = media.closest('.clab-output-area');
+            const area = state.cards.find(c => c.id === areaEl?.dataset.cardId)?.areas.find(a => a.id === areaEl.dataset.areaId);
+            const label = areaEl?.querySelector('.clab-output-metadata');
+            if (area && label) label.textContent = outputMetadata(area, media);
+        };
+        if (!media.dataset.clabMetadataBound) {
+            media.dataset.clabMetadataBound = '1';
+            for (const type of ['load', 'loadedmetadata', 'emptied']) media.addEventListener(type, update);
+        }
+        update();
+    });
+}
+
 function getTextSnippet(text) {
     const source = String(text || "").replace(/\s+/g, " ").trim();
     return source.length > 90 ? `${source.slice(0, 90)}...` : (source || "Empty Text");
@@ -90,6 +128,8 @@ export function generateOutputHTML(area, card) {
                 media = `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#222; color:#fff; font-size:24px;">🎵</div>`;
             } else if (historyType === 'text') {
                 media = renderTextHistoryThumb(area, idx);
+            } else if (historyType === 'model' || historyType === 'file') {
+                media = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font:12px sans-serif;">${historyType === 'model' ? 'GLB · 3D' : '文件'}</div>`;
             } else {
                 media = `<img loading="lazy" data-clab-src="${displayUrl}" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" />`;
             }
@@ -143,6 +183,8 @@ export function generateOutputHTML(area, card) {
     }
     if (resultType === 'text') {
         finalRatioCSS = 'min-height: 72px;';
+    } else if (resultType === 'audio' && area.matchMedia) {
+        finalRatioCSS = 'aspect-ratio: auto;';
     }
 
     let objectFit = 'contain'; 
@@ -152,23 +194,25 @@ export function generateOutputHTML(area, card) {
     let historyHtml = '';
     if (resultType !== 'text' && area.history && area.history.length > 1) {
         const currIdx = area.missingHistoryRun ? '—' : area.historyIndex !== undefined ? area.historyIndex + 1 : area.history.length;
-        historyHtml = `<div class="clab-output-history-position" title="← / → 关联切换；Shift + ← / → 仅切换当前输出模块" style="position:absolute; top: 8px; left: 10px; color: rgba(255,255,255,0.9); font-size: 12px; font-weight: bold; font-family: sans-serif; letter-spacing: -0.5px; z-index: 20;">${currIdx} / ${area.history.length}</div>`;
+        historyHtml = `<span class="clab-output-history-position" title="历史记录：${currIdx} / ${area.history.length}；← / → 关联切换；Shift + ← / → 仅切换当前输出模块">${currIdx} / ${area.history.length}</span>`;
     }
 
     // 🌟 将原本庞杂的媒体判定逻辑交给专员去处理！
-    let mediaHtml = area.missingHistoryRun ? '' : renderMedia(area, objectFit);
-    const previewBgClass = resultType === 'text' ? 'clab-preview-bg clab-preview-bg-text' : 'clab-preview-bg';
-    const previewPlaceholderVisible = area.missingHistoryRun || (resultType === 'text' ? false : !area.resultUrl);
+    let mediaHtml = area.missingHistoryRun && resultType !== 'text' ? '' : renderMedia(area, objectFit);
+    const previewBgClass = `clab-preview-bg${resultType === 'text' ? ' clab-preview-bg-text' : resultType === 'audio' ? ' clab-preview-bg-audio' : ''}`;
+    const previewPlaceholderVisible = resultType !== 'text' && (area.missingHistoryRun || !area.resultUrl);
+    const defaultTitle = `##${card.areas.filter(a => a.type === 'preview').findIndex(a => a.id === area.id) + 1}`;
+    const title = area.title || defaultTitle;
 
     return `
         <div class="clab-area clab-output-area ${isAreaSelected ? 'active' : ''} ${nodeBypassedClass}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="padding:0; position:relative;">
             <button class="clab-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="删除输出模块" style="z-index: 30;">✖</button>
-            ${generateOutputControlsHTML(area)}
-            ${historyHtml}
+            <div class="clab-output-head"><input class="clab-area-title-input" data-card="${card.id}" data-area="${area.id}" value="${escapeHTML(title)}" placeholder="${defaultTitle}" size="${Math.max(title.length, 2)}" aria-label="输出模块标题">${generateOutputControlsHTML(area)}</div>
             <div class="${previewBgClass}" style="${finalRatioCSS} position: relative; ${resultType === 'text' ? 'display:block; background: rgb(25, 25, 25);' : ''}">
                 ${mediaHtml}
                 <span class="clab-preview-placeholder" style="display:${previewPlaceholderVisible ? 'block' : 'none'}; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; text-align: center;">${area.missingHistoryRun ? '该次运行无可用记录' : area.targetNodeId ? `等待节点 [${area.targetNodeId}] 输出...` : '未关联节点'}</span>
             </div>
+            ${resultType === 'text' ? '' : outputFooter(area, historyHtml)}
         </div>
     `;
 }
@@ -217,6 +261,10 @@ export function refreshOutputAreaInPlace(areaEl, area, card) {
         remove.disabled = nextRemove.disabled;
         remove.style.cssText = nextRemove.style.cssText;
     } else {
+        const title = areaEl.querySelector('.clab-output-head input');
+        const nextTitle = next.querySelector('.clab-output-head input');
+        if (document.activeElement !== title) { title.value = nextTitle.value; title.size = nextTitle.size; }
+        title.placeholder = nextTitle.placeholder;
         const bg = areaEl.querySelector('.clab-preview-bg');
         const nextBg = next.querySelector('.clab-preview-bg');
         const media = bg.querySelector('.clab-preview-img, .clab-media-target');
@@ -254,11 +302,21 @@ export function refreshOutputAreaInPlace(areaEl, area, card) {
         const placeholder = bg.querySelector('.clab-preview-placeholder');
         const nextPlaceholder = nextBg.querySelector('.clab-preview-placeholder');
         if (placeholder) { placeholder.textContent = nextPlaceholder.textContent; placeholder.style.cssText = nextPlaceholder.style.cssText; }
-        const counter = areaEl.querySelector(':scope > .clab-output-history-position');
-        const nextCounter = next.querySelector(':scope > .clab-output-history-position');
-        if (counter && !nextCounter) counter.remove();
-        else if (!counter && nextCounter) controls.after(nextCounter);
-        else if (counter && nextCounter) counter.textContent = nextCounter.textContent;
+        const footer = areaEl.querySelector(':scope > .clab-output-footer');
+        const nextFooter = next.querySelector(':scope > .clab-output-footer');
+        if (footer && !nextFooter) footer.remove();
+        else if (!footer && nextFooter) areaEl.append(nextFooter);
+        else if (footer && nextFooter) {
+            if (footer.dataset.url !== nextFooter.dataset.url) {
+                footer.dataset.url = nextFooter.dataset.url;
+                footer.querySelector('.clab-output-metadata').textContent = nextFooter.querySelector('.clab-output-metadata').textContent;
+            }
+            const counter = footer.querySelector('.clab-output-history-position');
+            const nextCounter = nextFooter.querySelector('.clab-output-history-position');
+            if (counter && !nextCounter) counter.remove();
+            else if (!counter && nextCounter) footer.append(nextCounter);
+            else if (counter && nextCounter) { counter.textContent = nextCounter.textContent; counter.title = nextCounter.title; }
+        }
     }
     attachOutputEvents(areaEl);
     return true;
@@ -268,6 +326,7 @@ export function attachOutputEvents(container) {
     attachOutputSettingsEvents(container);
     // 🌟 接管媒体区域特有的交互！
     attachMediaEvents(container);
+    attachOutputMetadata(container);
 
     // 【微创手术引擎】：在此处拦截局部更新，不影响其他模块的视频播放！
     const applySurgicalUpdate = (area) => {
