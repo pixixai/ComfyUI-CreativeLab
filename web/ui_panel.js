@@ -161,8 +161,8 @@ function syncCardShellInPlace(cardEl, card, index) {
 function canRefreshCardsInPlace(cardsContainer) {
     if (!cardsContainer || !window._clabSurgicallyUpdateArea) return false;
 
-    const { cardEls } = getRenderedCardsState(cardsContainer);
-    if (cardEls.length !== state.cards.length) return false;
+    const { wrapper, cardEls } = getRenderedCardsState(cardsContainer);
+    if (!wrapper || cardEls.length !== state.cards.length) return false;
 
     return state.cards.every((card, index) => {
         const cardEl = cardEls[index];
