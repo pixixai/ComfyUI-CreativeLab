@@ -5,9 +5,10 @@
 import { state, appState, createEmptyWorkspace, applyWorkspaceToState, saveAndRender } from "../ui_state.js";
 import { updateSelectionUI } from "../ui_selection.js";
 import { enterBindingModeForSelected } from "../actions/action_binding.js";
+import { selectOutputHistory } from "../modules/module_history.js";
 import {
     loadSelectedTextContent,
-    restoreCardInputsFromHistorySelection,
+    getSteppedHistoryIndex,
     syncTextContentWithSelection,
 } from "../modules/media_types/media_utils.js";
 
@@ -178,6 +179,7 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
 
     document.addEventListener("keydown", (e) => {
         if (appState.isBindingMode) return; 
+        if (document.querySelector('.clab-preview-modal.visible')) return;
 
         const tag = e.target.tagName;
         const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable;
@@ -238,7 +240,7 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
         }
 
         if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && state.selectedAreaIds.length === 1) {
-            if (isInput) return;
+            if (isInput || e.target.closest?.('input, textarea, select, [contenteditable="true"]') || e.ctrlKey || e.metaKey || e.altKey || e.isComposing || !panelContainer.classList.contains('visible')) return;
             
             const areaId = state.selectedAreaIds[0];
             let targetArea = null;
@@ -248,44 +250,11 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
                 if (a) { targetArea = a; targetCard = c; break; }
             }
             
-            if (targetArea && targetArea.type === 'preview' && targetArea.history && targetArea.history.length > 1) {
-                e.preventDefault(); 
-                let idx = targetArea.historyIndex !== undefined ? targetArea.historyIndex : targetArea.history.length - 1;
-                
-                if (e.key === 'ArrowLeft') idx = Math.max(0, idx - 1);
-                else idx = Math.min(targetArea.history.length - 1, idx + 1);
-                
-                if (targetArea.historyIndex !== idx) {
-                    targetArea.historyIndex = idx;
-                    targetArea.resultUrl = targetArea.history[idx];
-                    syncTextContentWithSelection(targetArea);
-
-                    if (window._clabSyncHistoryParams !== false) {
-                        const restored = restoreCardInputsFromHistorySelection(targetCard, targetArea);
-                        if (restored.changed) {
-                            if (restored.createdAreaIds.length > 0) {
-                                if (window._clabRefreshContextView) window._clabRefreshContextView();
-                                else saveAndRender();
-                                void loadSelectedTextContent(targetArea, { refresh: true });
-                                return;
-                            }
-
-                            if (window._clabRefreshAreaForContext) {
-                                restored.touchedAreaIds.forEach((areaToRefresh) => {
-                                    if (areaToRefresh === targetArea.id) return;
-                                    window._clabRefreshAreaForContext(areaToRefresh);
-                                });
-                            }
-                        }
-                    }
-
-                    if (window._clabSurgicallyUpdateArea) {
-                        window._clabSurgicallyUpdateArea(targetArea.id);
-                        if (window._clabJustSave) window._clabJustSave();
-                    } else {
-                        saveAndRender();
-                    }
-                    void loadSelectedTextContent(targetArea, { refresh: true });
+            if (targetArea?.type === 'preview' && targetArea.history?.length) {
+                e.preventDefault();
+                const index = getSteppedHistoryIndex(targetArea, e.key === 'ArrowLeft' ? -1 : 1);
+                if (index >= 0 && (targetArea.missingHistoryRun || index !== targetArea.historyIndex)) {
+                    selectOutputHistory(targetCard, targetArea, index, { linked: !e.shiftKey });
                 }
                 return;
             }

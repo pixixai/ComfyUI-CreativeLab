@@ -2,6 +2,7 @@
  * 文件: comp_modulearea.js
  * 职责: 负责输入/输出区域渲染、拖拽排序与局部刷新。
  */
+import { remapHistoryModuleIds } from "./modules/media_types/media_utils.js";
 import { state, appState, dragState, saveAndRender } from "./ui_state.js";
 import { injectDnDCSS, bindComboSelectEvents } from "./ui_utils.js";
 import { generateInputHTML, attachInputEvents, refreshInputAreaInPlace } from "./modules/module_input.js";
@@ -450,7 +451,8 @@ export function attachAreaEvents(container) {
                 const isSameCard = (targetCardId === dragState.cardId);
 
                 const movedAreasByCard = {};
-                const allMovedAreas = []; 
+                const allMovedAreas = [];
+                const historyIdMap = new Map();
                 
                 state.cards.forEach((c, cIdx) => {
                     movedAreasByCard[c.id] = [];
@@ -462,6 +464,7 @@ export function attachAreaEvents(container) {
                                 // 复制模式：深拷贝区域并分配新 id，避免与原区域冲突。
                                 const cloned = JSON.parse(JSON.stringify(a));
                                 cloned.id = 'area_clone_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + '_' + cIdx + '_' + aIdx;
+                                historyIdMap.set(a.id, cloned.id);
                                 movedAreasByCard[c.id].push(cloned);
                                 allMovedAreas.push(cloned);
                                 remainingAreas.push(a); // 复制模式保留原区域不移除
@@ -476,6 +479,7 @@ export function attachAreaEvents(container) {
                     if (!isClone) c.areas = remainingAreas; // 移动模式才从原卡片移除被拖拽区域
                 });
 
+                if (isClone) remapHistoryModuleIds(allMovedAreas, historyIdMap);
                 const targetCard = state.cards.find(c => c.id === targetCardId);
                 if (targetCard) {
                     if (!targetCard.areas) targetCard.areas = [];

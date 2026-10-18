@@ -1,6 +1,7 @@
 /**
  * event_panel.js: panel-local event wiring (selection, painter, wheel, drag, width).
  */
+import { removePreviewHistoryIndex } from "../modules/media_types/media_utils.js";
 import { state, saveAndRender } from "../ui_state.js";
 import { attachCardEvents, generateSingleCardHTML } from "../comp_taskcard.js";
 import { attachAreaEvents } from "../comp_modulearea.js";
@@ -188,17 +189,7 @@ function setupMediaErrorHandler() {
             });
 
             if (idx !== -1) {
-                area.history.splice(idx, 1);
-                if (Array.isArray(area.inputHistorySnapshots) && area.inputHistorySnapshots.length > 0) {
-                    area.inputHistorySnapshots.splice(idx, 1);
-                }
-                if (area.history.length === 0) {
-                    area.resultUrl = "";
-                    area.historyIndex = 0;
-                } else {
-                    area.historyIndex = Math.min(idx, area.history.length - 1);
-                    area.resultUrl = area.history[area.historyIndex];
-                }
+                removePreviewHistoryIndex(area, idx);
                 setTimeout(() => {
                     if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(areaId);
                 }, 10);

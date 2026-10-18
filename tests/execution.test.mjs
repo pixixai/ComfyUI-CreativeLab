@@ -127,6 +127,36 @@ const imageResult = (prompt_id = 'p1', filenames = ['source.png']) => ({
     prompt_id, node: '2', output: { images: filenames.map((filename) => ({ filename, type: 'temp', subfolder: '' })) },
 });
 
+test('execution records persist the prompt id and the frozen set of participating outputs', async () => {
+    const h = createHarness();
+    const second = { id: 'second', type: 'preview', targetNodeId: '3', matchMedia: false, history: [] };
+    h.card.areas.push(second);
+    await h.run([{ cardId: h.card.id, previewAreaIds: ['output', 'second'] }]);
+    await h.run();
+    await h.run([{ cardId: h.card.id, previewAreaIds: ['output', 'second'] }]);
+    for (const prompt_id of ['p1', 'p2', 'p3']) {
+        await h.emit('executed', imageResult(prompt_id));
+        if (prompt_id !== 'p2') await h.emit('executed', { ...imageResult(prompt_id), node: '3' });
+    }
+    assert.deepEqual(plain(h.output.historyRuns.map(run => run.id)), ['p1', 'p2', 'p3']);
+    assert.deepEqual(plain(second.historyRuns.map(run => run.id)), ['p1', 'p3']);
+    assert.deepEqual(plain(h.output.historyRuns[1].areaIds), ['output']);
+    assert.deepEqual(plain(h.output.historyRuns[2].areaIds), ['output', 'second']);
+    assert.deepEqual(plain(h.output.historyRuns.map(run => run.order)), [1, 2, 3]);
+    const saved = h.persisted().workspaces.find(item => item.id === h.workspace.id);
+    assert.deepEqual(saved.cards[0].areas[1].historyRuns[2], plain(h.output.historyRuns[2]));
+});
+
+test('text and image outputs from one execution receive the same history association', async () => {
+    const h = createHarness();
+    const text = { id: 'text', type: 'preview', targetNodeId: '3', matchMedia: false, history: [] };
+    h.card.areas.push(text);
+    await h.run([{ cardId: h.card.id, previewAreaIds: ['output', 'text'] }]);
+    await h.emit('executed', imageResult());
+    await h.emit('executed', { prompt_id: 'p1', node: '3', output: { text: ['result'] } });
+    assert.deepEqual(plain(text.historyRuns[0]), plain(h.output.historyRuns[0]));
+});
+
 test('successful task injects values, prunes unrelated outputs and leaves native graph values intact', async () => {
     const h = createHarness();
     await h.run();

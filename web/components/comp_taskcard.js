@@ -2,6 +2,7 @@
  * 文件名: comp_taskcard.js
  * 职责: 【组件】负责“任务卡片”列表的 HTML 生成、局部物理拖拽与单点重绘
  */
+import { remapHistoryModuleIds } from "./modules/media_types/media_utils.js";
 import { state, dragState, appState } from "./ui_state.js";
 // 【注入】：引入 attachAreaEvents 以便克隆时对新生 DOM 原地施放事件绑定魔法
 import { generateAreaHTML, syncAreaDOMOrder, justSave, attachAreaEvents } from "./comp_modulearea.js";
@@ -257,11 +258,15 @@ export function attachCardEvents(container) {
                                 // 深度拷贝生成全新克隆体（无损保留所有原图与设置）
                                 const cloned = JSON.parse(JSON.stringify(c));
                                 cloned.id = 'card_clone_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + '_' + cIdx;
+                                const historyIdMap = new Map();
                                 if (cloned.areas) {
                                     cloned.areas.forEach((a, aIdx) => {
+                                        const oldId = a.id;
                                         a.id = 'area_clone_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + '_' + cIdx + '_' + aIdx;
+                                        historyIdMap.set(oldId, a.id);
                                     });
                                 }
+                                remapHistoryModuleIds(cloned.areas || [], historyIdMap);
                                 movedCards.push(cloned);
                                 remainingCards.push(c); // 原件不动！
                             } else {
@@ -360,6 +365,7 @@ export function attachCardEvents(container) {
                     
                     const isClone = e.altKey; // 【注入】：判断是否克隆
                     const movedAreas = [];
+                    const historyIdMap = new Map();
 
                     state.cards.forEach((c, cIdx) => {
                         if (!c.areas) return;
@@ -369,6 +375,7 @@ export function attachCardEvents(container) {
                                 if (isClone) {
                                     const cloned = JSON.parse(JSON.stringify(a));
                                     cloned.id = 'area_clone_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + '_' + cIdx + '_' + aIdx;
+                                    historyIdMap.set(a.id, cloned.id);
                                     movedAreas.push(cloned);
                                     remaining.push(a); // 原件不动！
                                 } else {
@@ -381,6 +388,7 @@ export function attachCardEvents(container) {
                         if (!isClone) c.areas = remaining;
                         if (!isClone) syncAreaDOMOrder(c.id, c.areas);
                     });
+                    if (isClone) remapHistoryModuleIds(movedAreas, historyIdMap);
                     
                     const targetCard = state.cards.find(c => c.id === targetCardId);
                     if (!targetCard.areas) targetCard.areas = [];

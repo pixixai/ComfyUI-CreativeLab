@@ -2,6 +2,7 @@
  * action_module_config.js
  * 负责动态悬浮工具栏渲染、模块属性配置、克隆与格式刷逻辑
  */
+import { clearPreviewHistory, remapHistoryModuleIds } from "../modules/media_types/media_utils.js";
 import { state, appState, saveAndRender } from "../ui_state.js";
 import { getOutputSettingsLabel, attachOutputSettingsEvents, outputSettingsIcon } from "../modules/module_output_settings.js";
 import { execSyncParams } from "./action_batch_sync.js";
@@ -217,12 +218,14 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                 let insertBaseIndex = lastSrcIndex + 1;
 
                 const clonedAreas = [];
+                const historyIdMap = new Map();
                 sortedAreaIdsToClone.forEach(areaId => {
                     const srcArea = card.areas.find(a => a.id === areaId);
                     if (srcArea) {
                         // 【克隆修复】：原封不动地保留所有属性，不再清空历史记录！
                         const newArea = JSON.parse(JSON.stringify(srcArea));
                         newArea.id = 'area_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+                        historyIdMap.set(srcArea.id, newArea.id);
                         clonedAreas.push(newArea);
                         newSelectedAreaIds.push(newArea.id);
                     }
@@ -231,6 +234,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                 state.selectedAreaIds = newSelectedAreaIds;
                 appState.lastClickedAreaId = newSelectedAreaIds[newSelectedAreaIds.length - 1];
 
+                remapHistoryModuleIds(clonedAreas, historyIdMap);
                 card.areas.splice(insertBaseIndex, 0, ...clonedAreas);
 
                 const lastEl = document.querySelector(`.clab-area[data-area-id="${sortedAreaIdsToClone[sortedAreaIdsToClone.length - 1]}"]`);
@@ -275,11 +279,15 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                     // 【克隆修复】：原封不动地保留所有属性，不再清空历史记录！
                     const newCard = JSON.parse(JSON.stringify(srcCard));
                     newCard.id = 'card_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + indexOffset;
+                    const historyIdMap = new Map();
                     if (newCard.areas) {
                         newCard.areas.forEach((a, aIdx) => {
+                            const oldId = a.id;
                             a.id = 'area_' + Date.now() + '_' + Math.floor(Math.random() * 10000) + aIdx;
+                            historyIdMap.set(oldId, a.id);
                         });
                     }
+                    remapHistoryModuleIds(newCard.areas || [], historyIdMap);
                     clonedCards.push(newCard);
                     newSelectedCardIds.push(newCard.id);
                 }
@@ -352,10 +360,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                 // 【格式刷修复】：在提取“源墨水”时，直接剥离并清空所有的历史记录与图库状态！
                 const clonedData = JSON.parse(JSON.stringify(srcArea));
                 if (clonedData && clonedData.type === 'preview') {
-                    clonedData.resultUrl = '';
-                    clonedData.history = [];
-                    clonedData.historyIndex = 0;
-                    clonedData.selectedThumbIndices = [];
+                    clearPreviewHistory(clonedData);
                 }
                 state.painterSource = { type: 'area', data: clonedData };
 
@@ -367,10 +372,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
                 if (clonedCard && clonedCard.areas) {
                     clonedCard.areas.forEach(a => {
                         if (a.type === 'preview') {
-                            a.resultUrl = '';
-                            a.history = [];
-                            a.historyIndex = 0;
-                            a.selectedThumbIndices = [];
+                            clearPreviewHistory(a);
                         }
                     });
                 }

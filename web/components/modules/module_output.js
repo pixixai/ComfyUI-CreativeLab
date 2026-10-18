@@ -11,9 +11,10 @@ import {
     getAreaResultType,
     getMediaType,
     loadSelectedTextContent,
-    restoreCardInputsFromHistorySelection,
+    remapPreviewHistory,
     syncTextContentWithSelection,
 } from "./media_types/media_utils.js";
+import { selectOutputHistory } from "./module_history.js";
 
 // 【防裂图引擎】：解析并强制刷新 ComfyUI 原生 /view URL 的访问时间戳
 function getValidMediaUrl(urlStr) {
@@ -74,7 +75,7 @@ export function generateOutputHTML(area, card) {
         const selectedThumbs = area.selectedThumbIndices || [];
 
         area.history.forEach((hUrl, idx) => {
-            const isCurrent = idx === (area.historyIndex !== undefined ? area.historyIndex : area.history.length - 1);
+            const isCurrent = !area.missingHistoryRun && idx === (area.historyIndex !== undefined ? area.historyIndex : area.history.length - 1);
             const isSelected = selectedThumbs.includes(idx);
 
             let border = '2px solid rgba(255,255,255,0.1)';
@@ -164,14 +165,14 @@ export function generateOutputHTML(area, card) {
 
     let historyHtml = '';
     if (area.history && area.history.length > 1) {
-        const currIdx = area.historyIndex !== undefined ? area.historyIndex + 1 : area.history.length;
-        historyHtml = `<div style="position:absolute; top: 8px; left: 10px; color: rgba(255,255,255,0.9); font-size: 12px; font-weight: bold; font-family: sans-serif; letter-spacing: -0.5px; z-index: 20; pointer-events: none;">${currIdx} / ${area.history.length}</div>`;
+        const currIdx = area.missingHistoryRun ? '—' : area.historyIndex !== undefined ? area.historyIndex + 1 : area.history.length;
+        historyHtml = `<div title="← / → 关联切换；Shift + ← / → 仅切换当前输出模块" style="position:absolute; top: 8px; left: 10px; color: rgba(255,255,255,0.9); font-size: 12px; font-weight: bold; font-family: sans-serif; letter-spacing: -0.5px; z-index: 20;">${currIdx} / ${area.history.length}</div>`;
     }
 
     // 🌟 将原本庞杂的媒体判定逻辑交给专员去处理！
-    let mediaHtml = renderMedia(area, objectFit);
+    let mediaHtml = area.missingHistoryRun ? '' : renderMedia(area, objectFit);
     const previewBgClass = resultType === 'text' ? 'clab-preview-bg clab-preview-bg-text' : 'clab-preview-bg';
-    const previewPlaceholderVisible = resultType === 'text' ? false : !area.resultUrl;
+    const previewPlaceholderVisible = area.missingHistoryRun || (resultType === 'text' ? false : !area.resultUrl);
 
     return `
         <div class="clab-area clab-output-area ${isAreaSelected ? 'active' : ''} ${nodeBypassedClass}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="padding:0; position:relative;">
@@ -180,7 +181,7 @@ export function generateOutputHTML(area, card) {
             ${historyHtml}
             <div class="${previewBgClass}" style="${finalRatioCSS} position: relative; ${resultType === 'text' ? 'display:block; padding:12px 10px 10px 10px; background: rgb(25, 25, 25);' : ''}">
                 ${mediaHtml}
-                <span class="clab-preview-placeholder" style="display:${previewPlaceholderVisible ? 'block' : 'none'}; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; text-align: center;">${area.targetNodeId ? `等待节点 [${area.targetNodeId}] 输出...` : '未关联节点'}</span>
+                <span class="clab-preview-placeholder" style="display:${previewPlaceholderVisible ? 'block' : 'none'}; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; text-align: center;">${area.missingHistoryRun ? '该次运行无可用记录' : area.targetNodeId ? `等待节点 [${area.targetNodeId}] 输出...` : '未关联节点'}</span>
             </div>
         </div>
     `;
@@ -199,27 +200,6 @@ export function attachOutputEvents(container) {
         } else {
             saveAndRender();
         }
-    };
-
-    const applyInputSnapshotForSelection = (card, area) => {
-        if (!card || !area) return false;
-        if (window._clabSyncHistoryParams === false) return false;
-        const restored = restoreCardInputsFromHistorySelection(card, area);
-        if (!restored.changed) return false;
-
-        if (restored.createdAreaIds.length > 0) {
-            if (window._clabRefreshContextView) window._clabRefreshContextView();
-            else saveAndRender();
-            return true;
-        }
-
-        if (window._clabRefreshAreaForContext) {
-            restored.touchedAreaIds.forEach((areaId) => {
-                if (areaId === area.id) return;
-                window._clabRefreshAreaForContext(areaId);
-            });
-        }
-        return false;
     };
 
     // 【功能1】：网格视图下“仅移除” (仅限当前模块，不删文件)
@@ -244,18 +224,8 @@ export function attachOutputEvents(container) {
                 let targetIndices = Array.from(targetIndicesSet);
 
                 if (targetIndices.length > 0) {
-                    const activeUrl = area.resultUrl;
-                    area.history = area.history.filter((_, i) => !targetIndices.includes(i));
-                    if (Array.isArray(area.inputHistorySnapshots) && area.inputHistorySnapshots.length > 0) {
-                        area.inputHistorySnapshots = area.inputHistorySnapshots.filter((_, i) => !targetIndices.includes(i));
-                    }
-                    if (Array.isArray(area.textHistory) && area.textHistory.length > 0) {
-                        area.textHistory = area.textHistory.filter((_, i) => !targetIndices.includes(i));
-                    }
-                    if (Array.isArray(area.textHistoryStatus) && area.textHistoryStatus.length > 0) {
-                        area.textHistoryStatus = area.textHistoryStatus.filter((_, i) => !targetIndices.includes(i));
-                    }
-                    
+                    const preservedIndex = remapPreviewHistory(area, area.history.map((_, i) => i).filter(i => !targetIndices.includes(i)));
+
                     if (area.history.length === 0) {
                         area.resultUrl = '';
                         area.historyIndex = 0;
@@ -263,7 +233,7 @@ export function attachOutputEvents(container) {
                         if (Array.isArray(area.textHistory)) area.textContent = '';
                         area.textLoadState = 'idle';
                     } else {
-                        let newActiveIdx = area.history.indexOf(activeUrl);
+                        let newActiveIdx = preservedIndex;
                         if (newActiveIdx === -1) newActiveIdx = Math.max(0, area.history.length - 1);
                         area.historyIndex = newActiveIdx;
                         area.resultUrl = area.history[newActiveIdx];
@@ -305,18 +275,8 @@ export function attachOutputEvents(container) {
                     toDelete = [...area.selectedThumbIndices];
                 }
                 
-                const activeUrl = area.resultUrl;
-                area.history = area.history.filter((_, i) => !toDelete.includes(i));
-                if (Array.isArray(area.inputHistorySnapshots) && area.inputHistorySnapshots.length > 0) {
-                    area.inputHistorySnapshots = area.inputHistorySnapshots.filter((_, i) => !toDelete.includes(i));
-                }
-                if (Array.isArray(area.textHistory) && area.textHistory.length > 0) {
-                    area.textHistory = area.textHistory.filter((_, i) => !toDelete.includes(i));
-                }
-                if (Array.isArray(area.textHistoryStatus) && area.textHistoryStatus.length > 0) {
-                    area.textHistoryStatus = area.textHistoryStatus.filter((_, i) => !toDelete.includes(i));
-                }
-                
+                const preservedIndex = remapPreviewHistory(area, area.history.map((_, i) => i).filter(i => !toDelete.includes(i)));
+
                 if (area.history.length === 0) {
                     area.resultUrl = '';
                     area.historyIndex = 0;
@@ -324,7 +284,7 @@ export function attachOutputEvents(container) {
                     if (Array.isArray(area.textHistory)) area.textContent = '';
                     area.textLoadState = 'idle';
                 } else {
-                    let newActiveIdx = area.history.indexOf(activeUrl);
+                    let newActiveIdx = preservedIndex;
                     if (newActiveIdx === -1) newActiveIdx = Math.max(0, area.history.length - 1);
                     area.historyIndex = newActiveIdx;
                     area.resultUrl = area.history[newActiveIdx];
@@ -362,28 +322,20 @@ export function attachOutputEvents(container) {
                     const start = Math.min(area.lastClickedThumbIdx, idx);
                     const end = Math.max(area.lastClickedThumbIdx, idx);
                     const range = [];
-                    for(let i = start; i <= end; i++) range.push(i);
+                    for (let i = start; i <= end; i++) range.push(i);
                     area.selectedThumbIndices = Array.from(new Set([...area.selectedThumbIndices, ...range]));
                 } else {
-                    if (area.selectedThumbIndices.includes(idx)) {
-                        area.historyIndex = idx;
-                        area.resultUrl = area.history[idx];
-                    } else {
-                        area.historyIndex = idx;
-                        area.resultUrl = area.history[idx];
-                        area.selectedThumbIndices = [idx];
-                    }
+                    area.selectedThumbIndices = [idx];
                     area.lastClickedThumbIdx = idx;
-                    syncTextContentWithSelection(area);
-                    void loadSelectedTextContent(area, { refresh: true });
-
-                    const didFullRefresh = applyInputSnapshotForSelection(card, area);
-                    if (didFullRefresh) return;
+                    selectOutputHistory(card, area, idx);
+                    return;
                 }
                 applySurgicalUpdate(area);
             }
         };
 
+        if (thumb.dataset.clabHistoryDragBound === '1') return;
+        thumb.dataset.clabHistoryDragBound = '1';
         thumb.addEventListener('dragstart', (e) => {
             e.stopPropagation(); 
             if (e.target.closest('.clab-thumb-delete')) { e.preventDefault(); return; }
@@ -459,54 +411,18 @@ export function attachOutputEvents(container) {
                 const area = card?.areas.find(a => a.id === dragState.areaId);
                 
                 if (area && area.history) {
-                    const activeUrl = area.resultUrl;
-                    const targetUrl = area.history[targetIdx];
-
-                    const movedItems = draggedIndices.map(i => area.history[i]);
-                    const movedInputSnapshots = Array.isArray(area.inputHistorySnapshots)
-                        ? draggedIndices.map(i => area.inputHistorySnapshots[i])
-                        : null;
-                    const movedTextItems = Array.isArray(area.textHistory) ? draggedIndices.map(i => area.textHistory[i]) : null;
-                    const movedTextStatuses = Array.isArray(area.textHistoryStatus) ? draggedIndices.map(i => area.textHistoryStatus[i]) : null;
-                    let newHistory = area.history.filter((_, i) => !draggedIndices.includes(i));
-                    let newInputSnapshots = Array.isArray(area.inputHistorySnapshots)
-                        ? area.inputHistorySnapshots.filter((_, i) => !draggedIndices.includes(i))
-                        : null;
-                    let newTextHistory = Array.isArray(area.textHistory)
-                        ? area.textHistory.filter((_, i) => !draggedIndices.includes(i))
-                        : null;
-                    let newTextStatusHistory = Array.isArray(area.textHistoryStatus)
-                        ? area.textHistoryStatus.filter((_, i) => !draggedIndices.includes(i))
-                        : null;
-                    
-                    let newTargetIdx = newHistory.indexOf(targetUrl);
-                    if (newTargetIdx === -1) newTargetIdx = newHistory.length; 
-                    if (dropPos === 'right') newTargetIdx += 1;
-                    
-                    newHistory.splice(newTargetIdx, 0, ...movedItems);
-                    area.history = newHistory;
-                    if (newInputSnapshots && movedInputSnapshots) {
-                        newInputSnapshots.splice(newTargetIdx, 0, ...movedInputSnapshots);
-                        area.inputHistorySnapshots = newInputSnapshots;
-                    }
-                    if (newTextHistory && movedTextItems) {
-                        newTextHistory.splice(newTargetIdx, 0, ...movedTextItems);
-                        area.textHistory = newTextHistory;
-                    }
-                    if (newTextStatusHistory && movedTextStatuses) {
-                        newTextStatusHistory.splice(newTargetIdx, 0, ...movedTextStatuses);
-                        area.textHistoryStatus = newTextStatusHistory;
-                    }
-                    
-                    const newActiveIdx = area.history.indexOf(activeUrl);
-                    if (newActiveIdx !== -1) {
-                        area.historyIndex = newActiveIdx;
-                        syncTextContentWithSelection(area);
-                        void loadSelectedTextContent(area, { refresh: true });
-                    }
+                    const indices = area.history.map((_, i) => i).filter(i => !draggedIndices.includes(i));
+                    let newTargetIdx = indices.indexOf(targetIdx);
+                    if (dropPos === 'right') newTargetIdx++;
+                    indices.splice(newTargetIdx, 0, ...draggedIndices);
+                    const activeIndex = remapPreviewHistory(area, indices);
+                    area.historyIndex = activeIndex >= 0 ? activeIndex : area.history.length - 1;
+                    area.resultUrl = area.history[area.historyIndex] || '';
+                    syncTextContentWithSelection(area);
+                    void loadSelectedTextContent(area, { refresh: true });
 
                     area.selectedThumbIndices = [];
-                    for(let i=0; i<movedItems.length; i++) {
+                    for(let i=0; i<draggedIndices.length; i++) {
                         area.selectedThumbIndices.push(newTargetIdx + i);
                     }
                     

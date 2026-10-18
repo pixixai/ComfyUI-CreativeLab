@@ -31,7 +31,7 @@ export function getOutputSettingsLabel(areas) {
 
 export function generateOutputControlsHTML(area) {
     return `<div class="clab-output-controls">
-        ${getAreaResultType(area) === 'text' ? `<button type="button" class="clab-text-copy-btn" data-area="${area.id}" title="复制全文" aria-label="复制全文">复制</button>` : ''}
+        ${!area.missingHistoryRun && getAreaResultType(area) === 'text' ? `<button type="button" class="clab-text-copy-btn" data-area="${area.id}" title="复制全文" aria-label="复制全文">复制</button>` : ''}
         <button type="button" class="clab-output-settings-trigger" title="尺寸与显示" aria-label="尺寸与显示" aria-haspopup="dialog" aria-expanded="false" aria-controls="clab-output-settings-popover">
             ${outputSettingsIcon}
         </button>${generateModuleBindingHTML(area)}</div>`;

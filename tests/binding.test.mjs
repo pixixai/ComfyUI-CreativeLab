@@ -60,6 +60,7 @@ function createHarness() {
         StateManager: { state: {}, syncToNode() { saves++; } },
         CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options?.detail; } },
         document: {
+            querySelector() { return null; },
             addEventListener(type, fn) {
                 if (!documentListeners.has(type)) documentListeners.set(type, new Set());
                 documentListeners.get(type).add(fn);

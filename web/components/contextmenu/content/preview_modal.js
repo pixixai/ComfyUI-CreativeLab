@@ -3,7 +3,9 @@
  * 路径: web/components/contextmenu/content/preview_modal.js
  * 内容：预览弹窗（左中右布局、图片/音频/视频切换、键盘切换等）
  */
-import { getMediaType } from "../../modules/media_types/media_utils.js";
+import { getMediaType, getSteppedHistoryIndex } from "../../modules/media_types/media_utils.js";
+import { selectOutputHistory } from "../../modules/module_history.js";
+import { state } from "../../ui_state.js";
 import { previewModalStore } from "./state.js";
 import {
     parseAssetMetaFromUrl,
@@ -70,12 +72,33 @@ export function createPreviewModalApi({
         previewModalStore.imageDragging = false;
     }
 
-    function switchPreviewEntry(step) {
-        const total = previewModalStore.entries.length;
-        if (total <= 1) return;
-        previewModalStore.activeIndex = (previewModalStore.activeIndex + step + total) % total;
+    function selectPreviewEntry(index, linked = true) {
+        const entry = previewModalStore.entries[index];
+        if (!entry) return;
+        const card = state.cards.find(item => item.id === previewModalStore.activeCardId);
+        const area = card?.areas.find(item => item.id === previewModalStore.activeAreaId);
+        if (area && entry.index >= 0) {
+            const matchesEntry = (url, i) => normalizeHistoryUrl(url) === normalizeHistoryUrl(entry.url)
+                && (area.historyRuns?.[i]?.id || '') === entry.runId;
+            const recordIndex = matchesEntry(area.history[entry.index], entry.index) ? entry.index : area.history.findIndex(matchesEntry);
+            if (recordIndex < 0) return;
+            selectOutputHistory(card, area, recordIndex, { linked });
+            previewModalStore.entries = buildPreviewEntries(area);
+            previewModalStore.snapshots = area.inputHistorySnapshots || [];
+            previewModalStore.activeIndex = recordIndex;
+        } else {
+            previewModalStore.activeIndex = index;
+        }
         resetPreviewImageTransform();
         renderPreviewModal();
+    }
+
+    function switchPreviewEntry(step, linked = true) {
+        const card = state.cards.find(item => item.id === previewModalStore.activeCardId);
+        const area = card?.areas.find(item => item.id === previewModalStore.activeAreaId);
+        const index = area?.missingHistoryRun && previewModalStore.activeIndex < 0 ? getSteppedHistoryIndex(area, step)
+            : Math.max(0, Math.min(previewModalStore.entries.length - 1, previewModalStore.activeIndex + step));
+        if (index >= 0 && index !== previewModalStore.activeIndex) selectPreviewEntry(index, linked);
     }
 
     function applyPreviewImageTransform(root) {
@@ -95,6 +118,7 @@ export function createPreviewModalApi({
             return history.map((url, index) => ({
                 url,
                 index,
+                runId: area.historyRuns?.[index]?.id || '',
                 name: parseAssetMetaFromUrl(url).filename || `#${index + 1}`,
                 type: getMediaType(url),
             }));
@@ -147,9 +171,7 @@ export function createPreviewModalApi({
             if (!thumb) return;
             const nextIndex = Number(thumb.dataset.index);
             if (!Number.isFinite(nextIndex) || nextIndex < 0 || nextIndex >= previewModalStore.entries.length) return;
-            resetPreviewImageTransform();
-            previewModalStore.activeIndex = nextIndex;
-            renderPreviewModal();
+            selectPreviewEntry(nextIndex);
         });
 
         const centerEl = root.querySelector(".clab-preview-modal-center");
@@ -237,16 +259,16 @@ export function createPreviewModalApi({
                 return;
             }
 
-            if (typing) return;
+            if (typing || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
 
             if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
                 event.preventDefault();
-                switchPreviewEntry(-1);
+                switchPreviewEntry(-1, !event.shiftKey);
                 return;
             }
             if (event.key === "ArrowRight" || event.key === "ArrowDown") {
                 event.preventDefault();
-                switchPreviewEntry(1);
+                switchPreviewEntry(1, !event.shiftKey);
             }
         });
 
@@ -263,6 +285,7 @@ export function createPreviewModalApi({
 
     function renderPreviewCenter(entry) {
         if (!entry) return `<div class="clab-preview-modal-empty">No preview resource</div>`;
+        if (entry.type === 'missing') return `<div class="clab-preview-modal-empty">该次运行无可用记录</div>`;
 
         const safeUrl = escapeHtml(entry.url || "");
         const safeName = escapeHtml(entry.name || "");
@@ -353,17 +376,18 @@ export function createPreviewModalApi({
 
         const entries = previewModalStore.entries || [];
         if (entries.length === 0) {
+            const area = state.cards.find(item => item.id === previewModalStore.activeCardId)?.areas.find(item => item.id === previewModalStore.activeAreaId);
             left.innerHTML = `<div class="clab-preview-modal-empty">No history records</div>`;
-            center.innerHTML = `<div class="clab-preview-modal-empty">无可预览资源</div>`;
+            center.innerHTML = `<div class="clab-preview-modal-empty">${area?.missingHistoryRun ? '该次运行无可用记录' : '无可预览资源'}</div>`;
             right.innerHTML = `<div class="clab-preview-modal-empty">No parameter snapshots</div>`;
             return;
         }
 
-        if (previewModalStore.activeIndex < 0 || previewModalStore.activeIndex >= entries.length) {
+        if (previewModalStore.activeIndex >= entries.length) {
             previewModalStore.activeIndex = 0;
         }
 
-        const active = entries[previewModalStore.activeIndex];
+        const active = entries[previewModalStore.activeIndex] || { type: 'missing', name: '该次运行无可用记录', index: -1 };
         title.textContent = `预览模式 - ${active.name || `#${previewModalStore.activeIndex + 1}`}`;
 
         left.innerHTML = entries.map((entry, index) => {
@@ -426,7 +450,7 @@ export function createPreviewModalApi({
         previewModalStore.activeAreaId = area?.id || "";
         previewModalStore.entries = buildPreviewEntries(area);
         previewModalStore.snapshots = Array.isArray(area?.inputHistorySnapshots) ? area.inputHistorySnapshots : [];
-        previewModalStore.activeIndex = 0;
+        previewModalStore.activeIndex = area?.missingHistoryRun ? -1 : Number.isInteger(area?.historyIndex) ? area.historyIndex : 0;
         previewModalStore.imageSpacePressed = false;
         resetPreviewImageTransform();
 

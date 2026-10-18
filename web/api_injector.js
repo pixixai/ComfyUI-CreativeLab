@@ -360,12 +360,15 @@ export function setupAPIInjector(app) {
             const card = StateManager.state.cards.find((item) => item.id === task.cardId);
             if (!workspace || !card) continue;
             window._clabDoneTasks.delete(task.cardId);
+            card.historyRunSequence = Math.max(card.historyRunSequence || 0,
+                ...card.areas.flatMap(area => area.historyRuns || []).map(run => run?.order || 0)) + 1;
             window._clabExecQueue.push({
                 cardId: task.cardId,
                 workspaceRef: new WeakRef(workspace),
                 workspaceId: workspace.id,
                 batch,
                 inputSnapshot: captureCardInputSnapshot(card),
+                historyRunOrder: card.historyRunSequence,
                 previewTargets: card.areas.filter((area) => area.type === 'preview' && task.previewAreaIds.includes(area.id))
                     .map((area) => ({ areaId: area.id, nodeId: area.targetNodeId })),
                 bypassedNodeIds: collectBypassedNodeIdsFromCard(card),
@@ -570,6 +573,8 @@ export function setupAPIInjector(app) {
         const card = getTaskCard(task);
         if (!card?.areas) return;
 
+        const historyRun = { id: String(prompt_id), order: task.historyRunOrder, areaIds: task.previewTargets.map(target => target.areaId) };
+
         const targetItems = [outputData.videos, outputData.audio, outputData.gifs, outputData.images]
             .find((items) => items?.length > 0);
         const archivedMedia = new Map();
@@ -629,14 +634,14 @@ export function setupAPIInjector(app) {
                     }
                     const params = new URLSearchParams({ filename: media.filename, type: media.type, subfolder: media.subfolder || '' });
                     const url = api.apiURL(`/view?${params.toString()}`);
-                    pushPreviewHistoryEntry(area, url, { kind, inputSnapshot: task.inputSnapshot });
+                    pushPreviewHistoryEntry(area, url, { kind, inputSnapshot: task.inputSnapshot, run: historyRun });
                     if (!firstUrl) {
                         firstUrl = url;
                         firstKind = kind;
                     }
                 }
 
-                const firstIndex = area.history.indexOf(firstUrl);
+                const firstIndex = area.history.findIndex((url, index) => url === firstUrl && area.historyRuns[index]?.id === historyRun.id);
                 if (firstIndex !== -1) {
                     area.historyIndex = firstIndex;
                     area.resultUrl = firstUrl;
@@ -676,7 +681,7 @@ export function setupAPIInjector(app) {
                 if (!text) continue;
                 try {
                     const url = await saveTextAsset(text);
-                    pushPreviewHistoryEntry(area, url, { kind: 'text', text, inputSnapshot: task.inputSnapshot });
+                    pushPreviewHistoryEntry(area, url, { kind: 'text', text, inputSnapshot: task.inputSnapshot, run: historyRun });
                     syncTextContentWithSelection(area);
                     persistAndRefresh();
                 } catch (err) {

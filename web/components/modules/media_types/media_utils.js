@@ -211,10 +211,12 @@ export function normalizeHistoryUrl(url) {
 export function getHistoryIndexForUrl(area, url = area?.resultUrl) {
     if (!area || !Array.isArray(area.history) || area.history.length === 0 || !url) return -1;
     const normalized = normalizeHistoryUrl(url);
+    if (area.historyIndex >= 0 && normalizeHistoryUrl(area.history[area.historyIndex]) === normalized) return area.historyIndex;
     return area.history.findIndex((historyUrl) => normalizeHistoryUrl(historyUrl) === normalized);
 }
 
 function getSelectedHistoryIndex(area) {
+    if (area?.missingHistoryRun) return -1;
     if (!area || !Array.isArray(area.history) || area.history.length === 0) return -1;
     let activeIndex = Number.isInteger(area.historyIndex) ? area.historyIndex : -1;
     if (activeIndex < 0 || activeIndex >= area.history.length) {
@@ -229,6 +231,89 @@ export function ensureInputSnapshotState(area) {
     if (!Array.isArray(area.history)) area.history = [];
     if (!Array.isArray(area.inputHistorySnapshots)) area.inputHistorySnapshots = [];
     ensureArrayLength(area.inputHistorySnapshots, area.history.length, null);
+    if (!Array.isArray(area.historyRuns)) area.historyRuns = [];
+    ensureArrayLength(area.historyRuns, area.history.length, null);
+}
+
+// 所有历史的删除、排序都使用同一组索引，保持运行关联、参数和文本对应。
+export function remapPreviewHistory(area, indices) {
+    ensureInputSnapshotState(area);
+    const activeIndex = getSelectedHistoryIndex(area);
+    for (const key of ['history', 'historyRuns', 'inputHistorySnapshots', 'textHistory', 'textHistoryStatus']) {
+        if (Array.isArray(area[key])) area[key] = indices.map(index => area[key][index]);
+    }
+    area.missingHistoryRun = null;
+    return indices.indexOf(activeIndex);
+}
+
+export function remapHistoryModuleIds(areas, idMap) {
+    for (const area of areas) {
+        for (const run of [...(area.historyRuns || []), area.missingHistoryRun]) {
+            if (run?.areaIds) run.areaIds = run.areaIds.map(id => idMap.get(id) || id);
+        }
+        for (const snapshot of area.inputHistorySnapshots || []) {
+            if (!Array.isArray(snapshot)) continue;
+            for (const input of snapshot) input.sourceAreaId = idMap.get(input.sourceAreaId) || input.sourceAreaId;
+        }
+    }
+}
+
+export function getSteppedHistoryIndex(area, step) {
+    if (!area?.history?.length) return -1;
+    if (area.missingHistoryRun) {
+        const order = area.missingHistoryRun.order;
+        let nextIndex = -1;
+        for (let i = 0; i < area.history.length; i++) {
+            const candidate = area.historyRuns?.[i]?.order;
+            if (!Number.isFinite(candidate) || (step < 0 ? candidate >= order : candidate <= order)) continue;
+            const selectedOrder = area.historyRuns?.[nextIndex]?.order;
+            if (nextIndex < 0 || (step < 0 ? candidate >= selectedOrder : candidate < selectedOrder)) nextIndex = i;
+        }
+        return nextIndex;
+    }
+    const current = getSelectedHistoryIndex(area);
+    return Math.max(0, Math.min(area.history.length - 1, (current < 0 ? area.history.length - 1 : current) + step));
+}
+
+export function selectPreviewHistory(card, area, index, { linked = true } = {}) {
+    const outputAreaIds = [];
+    const emptyRestore = { changed: false, createdAreaIds: [], touchedAreaIds: [] };
+    if (!card?.areas?.includes(area) || !Number.isInteger(index) || !area.history?.[index]) {
+        return { outputAreaIds, restored: emptyRestore };
+    }
+    ensureInputSnapshotState(area);
+    const run = area.historyRuns[index];
+    const select = (target, targetIndex) => {
+        target.missingHistoryRun = null;
+        target.historyIndex = targetIndex;
+        target.resultUrl = target.history[targetIndex];
+        syncTextContentWithSelection(target);
+        outputAreaIds.push(target.id);
+    };
+    select(area, index);
+    if (linked && run?.id) {
+        for (const target of card.areas) {
+            if (target === area || target.type !== 'preview' || !run.areaIds?.includes(target.id)) continue;
+            ensureInputSnapshotState(target);
+            let targetIndex = target.historyRuns.findIndex(item => item?.id === run.id);
+            if (targetIndex >= 0) {
+                const current = getSelectedHistoryIndex(target);
+                if (current >= 0 && target.historyRuns[current]?.id === run.id) targetIndex = current;
+                select(target, targetIndex);
+            } else {
+                target.missingHistoryRun = deepCloneValue(run);
+                target.historyIndex = -1;
+                target.resultUrl = '';
+                target.textContent = '';
+                target.textLoadState = 'idle';
+                target.selectedThumbIndices = [];
+                outputAreaIds.push(target.id);
+            }
+        }
+    }
+    const restored = window._clabSyncHistoryParams !== false
+        ? restoreCardInputsFromHistorySelection(card, area) : emptyRestore;
+    return { outputAreaIds, restored };
 }
 
 export function captureCardInputSnapshot(card) {
@@ -574,6 +659,8 @@ export function clearPreviewHistory(area) {
     area.historyIndex = 0;
     area.selectedThumbIndices = [];
     area.inputHistorySnapshots = [];
+    area.historyRuns = [];
+    area.missingHistoryRun = null;
     area.textHistory = [];
     area.textHistoryStatus = [];
     area.textContent = "";
@@ -585,16 +672,7 @@ export function removePreviewHistoryIndex(area, index) {
     if (!area || typeof area !== "object" || !Array.isArray(area.history)) return;
     if (index < 0 || index >= area.history.length) return;
 
-    area.history = area.history.filter((_, historyIndex) => historyIndex !== index);
-    if (Array.isArray(area.inputHistorySnapshots)) {
-        area.inputHistorySnapshots = area.inputHistorySnapshots.filter((_, historyIndex) => historyIndex !== index);
-    }
-    if (Array.isArray(area.textHistory)) {
-        area.textHistory = area.textHistory.filter((_, historyIndex) => historyIndex !== index);
-    }
-    if (Array.isArray(area.textHistoryStatus)) {
-        area.textHistoryStatus = area.textHistoryStatus.filter((_, historyIndex) => historyIndex !== index);
-    }
+    remapPreviewHistory(area, area.history.map((_, i) => i).filter(i => i !== index));
 
     area.selectedThumbIndices = [];
 
@@ -633,12 +711,15 @@ export function pushPreviewHistoryEntry(area, url, options = {}) {
 
     const lastUrl = area.history[area.history.length - 1];
     const lastText = Array.isArray(area.textHistory) ? area.textHistory[area.textHistory.length - 1] : "";
-    const isDuplicate = kind === "text"
+    const run = options.run?.id ? deepCloneValue(options.run) : null;
+    const sameRun = !run || area.historyRuns[area.history.length - 1]?.id === run.id;
+    const isDuplicate = sameRun && (kind === "text"
         ? normalizeHistoryUrl(lastUrl) === normalizeHistoryUrl(url) && lastText === textValue
-        : normalizeHistoryUrl(lastUrl) === normalizeHistoryUrl(url);
+        : normalizeHistoryUrl(lastUrl) === normalizeHistoryUrl(url));
 
     if (!isDuplicate) {
         area.history.push(url);
+        area.historyRuns.push(run);
         area.inputHistorySnapshots.push(inputSnapshot ? deepCloneValue(inputSnapshot) : null);
         if (kind === "text") {
             area.textHistory.push(textValue);
@@ -648,6 +729,7 @@ export function pushPreviewHistoryEntry(area, url, options = {}) {
         const maxLimit = window._clabMaxHistory || 50;
         while (area.history.length > maxLimit) {
             area.history.shift();
+            area.historyRuns.shift();
             area.inputHistorySnapshots.shift();
             if (kind === "text") {
                 area.textHistory.shift();
@@ -659,6 +741,7 @@ export function pushPreviewHistoryEntry(area, url, options = {}) {
     }
 
     area.historyIndex = area.history.length - 1;
+    area.missingHistoryRun = null;
     area.resultUrl = area.history[area.historyIndex] || "";
 
     if (kind === "text") {

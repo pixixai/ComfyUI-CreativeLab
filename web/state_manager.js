@@ -10,7 +10,7 @@ import {
     syncStateToActiveWorkspace,
     applyWorkspaceToState,
 } from "./components/ui_state.js";
-import { loadAllTextHistory } from "./components/modules/media_types/media_utils.js";
+import { loadAllTextHistory, ensureInputSnapshotState } from "./components/modules/media_types/media_utils.js";
 
 export const StateManager = {
     state,
@@ -144,8 +144,7 @@ export const StateManager = {
 
                     if (newUrls.length > 0) {
                         area.history = [...area.history, ...newUrls];
-                        if (!Array.isArray(area.inputHistorySnapshots)) area.inputHistorySnapshots = [];
-                        while (area.inputHistorySnapshots.length < area.history.length) area.inputHistorySnapshots.push(null);
+                        ensureInputSnapshotState(area);
                         if (!area.resultUrl && area.history.length > 0) {
                             area.historyIndex = area.history.length - 1;
                             area.resultUrl = area.history[area.historyIndex];
