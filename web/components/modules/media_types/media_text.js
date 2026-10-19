@@ -125,7 +125,7 @@ function renderPlainTextHtml(text, syntaxHighlight = false) {
 
 const renderedTextCache = new WeakMap();
 
-function getRenderedTextHtml(area) {
+export function getRenderedTextHtml(area) {
     ensureTextAreaState(area);
     if (area.missingHistoryRun) return '<div class="clab-text-state">该次运行无可用记录</div>';
     if (area.textLoadState === "missing") {
@@ -248,7 +248,7 @@ function updateTextPreviewLayout(shell) {
     });
 }
 
-function bindTextShell(shell) {
+function bindTextShell(shell, resolveArea = findArea, refreshArea = requestAreaRefresh) {
     if (!shell || shell.dataset.clabTextBound === "1") return;
     shell.dataset.clabTextBound = "1";
 
@@ -270,7 +270,7 @@ function bindTextShell(shell) {
 
     shell.querySelectorAll(".clab-text-option input[type='checkbox']").forEach((input) => {
         input.addEventListener("change", (event) => {
-            const area = findArea(areaId);
+            const area = resolveArea(areaId);
             if (!area) return;
 
             ensureTextAreaState(area);
@@ -280,7 +280,7 @@ function bindTextShell(shell) {
             if (event.target.dataset.option === "markdown") {
                 area.textPreviewMarkdown = !!event.target.checked;
             }
-            requestAreaRefresh(areaId);
+            refreshArea(areaId);
         });
     });
 
@@ -325,9 +325,9 @@ export function renderText(area) {
     `;
 }
 
-export function attachTextEvents(container) {
+export function attachTextEvents(container, { resolveArea, refreshArea } = {}) {
     container.querySelectorAll(".clab-text-preview-shell").forEach((shell) => {
-        bindTextShell(shell);
+        bindTextShell(shell, resolveArea, refreshArea);
         updateTextPreviewLayout(shell);
     });
     container.querySelectorAll(".clab-text-copy-btn").forEach((button) => {

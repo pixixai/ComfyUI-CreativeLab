@@ -18,3 +18,14 @@ Draco, Meshopt, KTX2 and Gaussian splat renderers are not included.
 into `zip.js` for offline result-table exports (MIT; `fflate-LICENSE.txt`). Build
 with the command above, replacing the entry and output names with `zip-entry.js`
 and `zip.js`. The ZIP bundle is loaded only when an export needs it.
+
+`detail-viewer.js` is the offline detail-card viewer (local application modules plus
+this Three.js bundle). It reuses the inline video/audio/text/model components and
+loads packaged media from Blob URLs, without ComfyUI or a CDN. Build with:
+
+```text
+esbuild web/components/contextmenu/content/preview_detail_offline.js --bundle --minify --format=iife --target=es2022 --legal-comments=eof --outfile=web/vendor/detail-viewer.js
+```
+
+Regenerate it after changing any component used by the offline viewer. Exported
+packages include the Three.js and fflate license files alongside the viewer.

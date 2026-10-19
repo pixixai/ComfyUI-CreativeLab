@@ -41,7 +41,7 @@ function disposeObject(root) {
     for (const resource of resources) { resource.image?.close?.(); resource.dispose(); }
 }
 
-function mountViewer(stage, state) {
+function mountViewer(stage, state, resources) {
     const controller = new AbortController();
     const host = stage.querySelector('.clab-model-canvas'), status = stage.querySelector('.clab-model-status');
     const animation = stage.querySelector('.clab-model-animation'), play = stage.querySelector('.clab-model-play');
@@ -123,6 +123,7 @@ function mountViewer(stage, state) {
         disposeObject(model); environment?.dispose(); renderer?.dispose(); renderer?.forceContextLoss(); host.replaceChildren();
         animation.hidden = true;
         reset.onclick = play.onclick = seek.oninput = seek.onpointerdown = speed.onchange = clipSelect.onchange = null;
+        const entry = viewers.get(stage); if (entry) entry.capture = null;
         delete stage.dataset.modelLoaded;
     };
     (async () => {
@@ -131,12 +132,13 @@ function mountViewer(stage, state) {
         const loaded = await loadModel(THREE,stage.dataset.modelUrl,controller.signal,message => {
             if (disposed) return;
             warning.textContent = message; warning.hidden = !message; render();
-        });
+        }, resources);
         if (disposed) { loaded.release(); disposeObject(loaded.object); return; }
         model = loaded.object; clips = loaded.clips; releaseResources=loaded.release;
         renderer = new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1,2));
         renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping;
         host.replaceChildren(renderer.domElement);
+        viewers.get(stage).capture = () => { renderer.render(scene, controls.object); return renderer.domElement.toDataURL('image/png'); };
         scene = new THREE.Scene(); scene.background = new THREE.Color('#191919');
         const room = new THREE.RoomEnvironment(), generator = new THREE.PMREMGenerator(renderer);
         environment = generator.fromScene(room); room.dispose(); generator.dispose(); scene.environment = environment.texture;
@@ -186,11 +188,11 @@ function syncViewer(stage) {
     if (!entry) return;
     const modal = stage.closest('.clab-preview-modal');
     const shown = !document.hidden && visible.has(stage) && (modal ? modal.classList.contains('visible') : !!stage.closest('#clab-panel.visible'));
-    if (shown && !entry.stop) entry.stop = mountViewer(stage,entry.state);
+    if (shown && !entry.stop) entry.stop = mountViewer(stage,entry.state,entry.resources);
     else if (!shown && entry.stop) { entry.stop(); entry.stop=null; }
 }
 
-export function attachModelEvents(container) {
+export function attachModelEvents(container, resources) {
     if (!observer) {
         observer = new IntersectionObserver(entries=>entries.forEach(({target,isIntersecting})=>{
             if (isIntersecting) visible.add(target); else visible.delete(target);
@@ -205,7 +207,7 @@ export function attachModelEvents(container) {
     }
     container.querySelectorAll('.clab-glb-viewer').forEach(stage=>{
         if (viewers.has(stage)) return;
-        viewers.set(stage,{stop:null,state:{time:0,playing:false,speed:1,clip:0}}); observer.observe(stage);
+        viewers.set(stage,{stop:null,resources,state:{time:0,playing:false,speed:1,clip:0}}); observer.observe(stage);
         let rightStart, rightDragged = false;
         stage.addEventListener('pointerdown',event=>{
             if (event.button===2) { rightStart=[event.clientX,event.clientY]; rightDragged=false; }
@@ -228,4 +230,22 @@ export function attachModelEvents(container) {
 
 export function releaseModelViewer(stage) {
     viewers.get(stage)?.stop?.(); viewers.delete(stage); observer?.unobserve(stage); visible.delete(stage);
+}
+
+export async function captureModelPreview(stage,{width=300,height=200,resources,signal}={}) {
+    signal?.throwIfAborted();
+    const original=viewers.get(stage);
+    if(original?.capture)return original.capture();
+    const wrapper=document.createElement('div');wrapper.className='clab-preview-modal visible';wrapper.style.cssText=`position:fixed;inset:auto;left:-100000px;top:0;width:${width}px;height:${height}px;opacity:0;pointer-events:none`;
+    wrapper.innerHTML=renderModelViewer(stage.dataset.modelUrl);document.body.append(wrapper);
+    const preview=wrapper.firstElementChild,entry={state:{time:original?.state.time||0,clip:original?.state.clip||0,speed:1,playing:false},resources:original?.resources||resources};
+    viewers.set(preview,entry);
+    let observer,timer,abort;
+    const loaded=new Promise((resolve,reject)=>{
+        const check=()=>{if(preview.dataset.modelLoaded)resolve();else if(preview.querySelector('.clab-model-status').textContent.startsWith('无法预览'))reject(new Error(preview.querySelector('.clab-model-status').textContent));};
+        observer=new MutationObserver(check);observer.observe(preview,{childList:true,subtree:true,attributes:true});timer=setTimeout(()=>reject(new Error('3D 预览截图超时')),15000);
+        abort=()=>reject(new DOMException('已取消封面截图','AbortError'));signal?.addEventListener('abort',abort,{once:true});
+    });
+    const stop=mountViewer(preview,entry.state,entry.resources);
+    try{await loaded;return entry.capture();}finally{clearTimeout(timer);observer.disconnect();signal?.removeEventListener('abort',abort);stop();viewers.delete(preview);wrapper.remove();}
 }

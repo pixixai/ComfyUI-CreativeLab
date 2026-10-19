@@ -95,7 +95,7 @@ export async function exportPreviewPNGs(model, config) {
                 trimmed.getContext('2d').drawImage(page, 0, 0);
                 const blob = await new Promise(resolve => trimmed.toBlob(resolve, 'image/png'));
                 if (!blob) throw new Error('表格图片生成失败');
-                files.push({ name: `结果表-${files.length + 1}.png`, blob });
+                files.push({ name: `XY矩阵-${files.length + 1}.png`, blob });
             };
             begin();
             for (const row of model.rows) {
@@ -135,10 +135,10 @@ export async function exportPreviewPNGs(model, config) {
     } finally { cache.forEach(bitmap => bitmap?.close()); }
 }
 
-export async function packagePreviewPNGs(files) {
+export async function packagePreviewPNGs(files, name = '预览-分页图片.zip') {
     if (files.length === 1) return files[0];
     const { zipSync } = await import('../../../vendor/zip.js');
     const entries = {};
     for (const file of files) entries[file.name] = new Uint8Array(await file.blob.arrayBuffer());
-    return { name: '生成结果表-分页图片.zip', blob: new Blob([zipSync(entries, { level: 0 })], { type: 'application/zip' }) };
+    return { name, blob: new Blob([zipSync(entries, { level: 0 })], { type: 'application/zip' }) };
 }

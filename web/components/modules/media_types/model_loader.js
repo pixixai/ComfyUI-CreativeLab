@@ -48,12 +48,24 @@ function getFBXTexturePaths(bytes) {
     return paths;
 }
 
-export async function loadModel(THREE, url, signal, onResourceReady) {
-    const response = await fetch(url, {signal});
+export function modelResourcePaths(bytes, extension) {
+    const text = () => new TextDecoder().decode(bytes);
+    if (extension === 'fbx') return [...getFBXTexturePaths(bytes).values()];
+    if (extension === 'gltf' || extension === 'glb') {
+        const json = JSON.parse(extension === 'gltf' ? text() : new TextDecoder().decode(new Uint8Array(bytes,20,new DataView(bytes).getUint32(12,true))));
+        return [...(json.buffers || []), ...(json.images || [])].map(item => item.uri).filter(uri => uri && !uri.startsWith('data:'));
+    }
+    if (extension === 'obj') return [...text().matchAll(/^mtllib\s+(.+)$/gm)].map(match => match[1].trim());
+    if (extension === 'mtl') return [...text().matchAll(/^\s*(?:map_\w+|bump|disp|decal|norm)\s+(.+)$/gmi)].map(match => match[1].trim().replace(/^(?:-\w+\s+(?:-?\d*\.?\d+\s+)+)+/, '').replace(/^"|"$/g,''));
+    return [];
+}
+
+export async function loadModel(THREE, url, signal, onResourceReady, resources = { read: (url, options) => fetch(url, options), resolve: getModelResourceURL }) {
+    const response = await resources.read(url, {signal});
     if (!response.ok) throw new Error(`读取文件失败（HTTP ${response.status}）`);
     const bytes = await response.arrayBuffer();
     signal.throwIfAborted();
-    const resolved = new URL(url, window.location.origin);
+    const resolved = new URL(url, window.location.origin === 'null' ? 'https://offline.invalid' : window.location.origin);
     const name = resolved.searchParams.get('filename') || resolved.pathname;
     const extension = name.split('.').pop().toLowerCase();
     const manager = new THREE.LoadingManager();
@@ -62,7 +74,7 @@ export async function loadModel(THREE, url, signal, onResourceReady) {
     let resourceErrors = false;
     manager.setURLModifier(resource => {
         if(resource.startsWith('blob:')) blobs.add(resource);
-        return getModelResourceURL(url,texturePaths.get(resource) || resource);
+        return resources.resolve(url,texturePaths.get(resource) || resource);
     });
     manager.addHandler(/\.tga$/i,new THREE.TGALoader(manager));
     manager.onError = () => { resourceErrors = true; onResourceReady('部分贴图未能加载，请检查配套文件'); };
@@ -95,12 +107,12 @@ export async function loadModel(THREE, url, signal, onResourceReady) {
                 const materials = {};
                 for (const filename of libraries) {
                     try {
-                        const materialURL = getModelResourceURL(url, filename);
-                        const result = await fetch(materialURL, {signal});
+                        const materialURL = resources.resolve(url, filename);
+                        const result = await resources.read(materialURL, {signal});
                         if (!result.ok) throw new Error(`HTTP ${result.status}`);
                         const materialManager = new THREE.LoadingManager();
                         managers.push(materialManager);
-                        materialManager.setURLModifier(resource => getModelResourceURL(materialURL, resource));
+                        materialManager.setURLModifier(resource => resources.resolve(materialURL, resource));
                         materialManager.onLoad = manager.onLoad; materialManager.onError = manager.onError;
                         const creator = new THREE.MTLLoader(materialManager).parse(await result.text(), '');
                         creator.preload(); Object.assign(materials,creator.materials);

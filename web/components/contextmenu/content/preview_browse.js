@@ -58,7 +58,7 @@ export function createBrowseLayout(root, settings, onReorder) {
     }
     const observerController = new AbortController();
     const applyLayout = () => {
-        if (root.dataset.reviewLayout === 'filmstrip' && body.clientWidth > 0) {
+        if (root.dataset.reviewLayout === 'workspace' && body.clientWidth > 0) {
             const minimum = body.clientWidth < 700 ? 90 : 130, center = body.clientWidth < 600 ? 120 : 200;
             const sourceMinimum = settings.sourceWidth > 0 ? minimum : 0, parameterMinimum = settings.parameterWidth > 0 ? minimum : 0;
             settings.sourceWidth = Math.max(sourceMinimum, settings.sourceWidth);
@@ -145,7 +145,7 @@ export function createBrowseLayout(root, settings, onReorder) {
     }, { signal: observerController.signal });
 
     function renderSources(cards, allSources, selectedSources) {
-        if (!left.querySelector('.clab-browse-source-tree')) left.innerHTML = `<div class="clab-browse-source-head">来源</div>
+        if (!left.querySelector('[data-browse-search]')) left.innerHTML = `<div class="clab-browse-source-head">来源</div>
             <label class="clab-review-field"><input type="search" data-browse-search placeholder="搜索任务或模块" aria-label="搜索任务或模块" value="${esc(settings.search)}"></label>
             <div class="clab-browse-source-actions"><button data-browse-select="all">全选</button><button data-browse-select="none">取消</button><small data-browse-source-count></small></div><div class="clab-browse-source-tree"></div>`;
         const tree = left.querySelector('.clab-browse-source-tree');

@@ -1,7 +1,7 @@
 import { attachVideoControls, updateVideoControls } from '../../modules/media_types/media_video.js';
 import { formatTimeWithFrames } from '../../modules/media_types/media_utils.js';
 
-export function attachPreviewVideo(player, { view = { x: 0, y: 0, zoom: 1 }, playback = {}, status } = {}) {
+export function attachPreviewVideo(player, { view = { x: 0, y: 0, zoom: 1 }, playback = {}, status, active = () => true } = {}) {
     const videos = [...player.querySelectorAll('video')], first = videos[0];
     const transforms = [...player.querySelectorAll('.clab-preview-video-transform, .clab-compare-transform')];
     const controller = new AbortController(), { signal } = controller;
@@ -24,6 +24,7 @@ export function attachPreviewVideo(player, { view = { x: 0, y: 0, zoom: 1 }, pla
         for (const video of videos.slice(1)) if (Math.abs(video.currentTime - first.currentTime) > .08) video.currentTime = first.currentTime;
         update(); frame = requestAnimationFrame(tick);
     };
+    first.addEventListener('play',()=>{if(!frame)frame=requestAnimationFrame(tick);},{signal});
     const start = async () => {
         if (videos.some(video => !video.readyState) || disposed) return;
         playing = true;
@@ -47,7 +48,8 @@ export function attachPreviewVideo(player, { view = { x: 0, y: 0, zoom: 1 }, pla
         dragged = false;
     }, { signal });
     document.addEventListener('keydown', event => {
-        if (event.code !== 'Space' || event.ctrlKey || event.metaKey || event.altKey || event.isComposing || event.target.closest('input,textarea,select,[contenteditable=true]')) return;
+        if (!active()) return;
+        if (event.code !== 'Space' || event.ctrlKey || event.metaKey || event.altKey || event.isComposing || event.target.closest?.('input,textarea,select,[contenteditable=true]')) return;
         event.preventDefault();
         if (!event.repeat) toggle();
     }, { signal });

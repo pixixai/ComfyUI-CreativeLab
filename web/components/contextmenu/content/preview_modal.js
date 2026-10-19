@@ -16,6 +16,7 @@ import { comparisonHTML, attachComparison, syncComparison } from './preview_comp
 import { renderTableSettings, buildTableModel, renderTable } from './preview_table.js';
 import { exportPreviewHTML, exportPreviewPNGs, packagePreviewPNGs, downloadPreviewBlob } from './preview_export.js';
 import { injectReviewStyles } from './preview_styles.js';
+import { createDetailView, injectDetailStyles } from './preview_detail.js';
 import { workspacePreviewSources, initialPreviewSources, sourceRecordCount, sortBrowseRecords, moveBrowseRecords, createBrowseLayout } from './preview_browse.js';
 import {
     escapeHtml,
@@ -29,10 +30,10 @@ export function createPreviewModalApi({
     bindPreviewTextEditor,
     getPreviewTextState,
 } = {}) {
-    let sources = [], mode = 'browse', selection = new Set(), typeFilter = '', runFilter = '', cleanupReview = null, tableModel, exporting = false;
+    let sources = [], mode = 'browse', typeFilter = '', cleanupReview = null, tableModel, exporting = false;
     let compare = { a: '', b: '', slot: 'a', layout: 'side', view: { x: 0, y: 0, zoom: 1, split: .5 } };
-    let table = { layout: 'detail', fields: null, width: 200, textLimit: 200, x: '', y: '', z: '', zValue: '', source: '', filters: {} };
-    let allSources = [], browseLayout, renderedBrowseKey = '', renderedCompareKey = '', renderedMode = '';
+    let table = { layout: 'xy', fields: null, width: 200, textLimit: 200, x: '', y: '', z: '', zValue: '', source: '', filters: {} };
+    let allSources = [], browseLayout, detailView, renderedBrowseKey = '', renderedCompareKey = '', renderedMode = '';
     const browse = { search: '', sort: 'source', customOrder: [], height: 164, thumbSize: 120, sourceWidth: window.innerWidth < 1100 ? 180 : 220, parameterWidth: window.innerWidth < 1100 ? 240 : 300 };
     const safeSetupAudioWaveform = typeof setupAudioWaveform === "function" ? setupAudioWaveform : () => { };
     const safeBindPreviewTextEditor = typeof bindPreviewTextEditor === "function" ? bindPreviewTextEditor : () => { };
@@ -77,6 +78,7 @@ export function createPreviewModalApi({
     function teardownPreviewEnhancers() {
         renderedBrowseKey='';renderedCompareKey='';renderedMode='';
         cleanupReview?.(); cleanupReview = null;
+        detailView?.release();
         previewModalStore.root?.querySelectorAll('.clab-preview-modal-center video, .clab-preview-modal-center audio').forEach(media => { media.pause(); media.removeAttribute('src'); media.load(); });
         previewModalStore.activeModelCleanup?.();
         previewModalStore.activeModelCleanup = null;
@@ -143,14 +145,15 @@ export function createPreviewModalApi({
         const root = document.createElement("div");
         injectMediaCSS();
         injectReviewStyles();
+        injectDetailStyles();
         root.className = "clab-preview-modal";
         root.innerHTML = `
             <div class="clab-preview-modal-backdrop"></div>
             <div class="clab-preview-modal-panel">
                 <div class="clab-preview-modal-head">
                     <div class="clab-preview-modal-title">预览模式</div>
-                    <div class="clab-review-modes clab-review-segment">${[['browse','浏览'],['compare','对比'],['table','结果表']].map(([key,label])=>`<button data-review-mode="${key}" aria-pressed="${key==='browse'}">${label}</button>`).join('')}</div>
-                    <div class="clab-review-head-actions"><div class="clab-review-export" hidden><button data-review-export="png">导出图片</button><button data-review-export="html">导出 HTML</button></div>
+                    <div class="clab-review-modes clab-review-segment">${[['browse','浏览'],['compare','比较'],['detail','明细表'],['xy','XY 矩阵']].map(([key,label])=>`<button data-review-mode="${key}" aria-pressed="${key==='browse'}">${label}</button>`).join('')}</div>
+                    <div class="clab-review-head-actions">
                     <button class="clab-preview-modal-close" type="button">关闭</button></div>
                 </div>
                 <div class="clab-review-notice" role="status"></div>
@@ -172,23 +175,25 @@ export function createPreviewModalApi({
             browse.customOrder=[...reordered,...hidden];browse.sort='custom';renderPreviewModal();
         });
 
+        detailView = createDetailView(root);
+
         const close = () => {
             root.classList.remove("visible");
             teardownPreviewEnhancers();
             browseLayout.release();
             previewModalStore.imageSpacePressed = false;
             resetPreviewImageTransform();
-            sources=[];allSources=[];selection.clear();previewModalStore.entries=[];tableModel=null;
+            sources=[];allSources=[];previewModalStore.entries=[];tableModel=null;
         };
         root.querySelector(".clab-preview-modal-backdrop").addEventListener("click", close);
         root.querySelector(".clab-preview-modal-close").addEventListener("click", close);
         root.addEventListener("click", (event) => {
-            if(mode!=='table'&&browseLayout.handleClick(event))return;
+            if((mode!=='detail'||event.target.closest('[data-browse-restore]'))&&browseLayout.handleClick(event))return;
             const sourceSelect=event.target.closest('[data-browse-select]');
             if(sourceSelect){setBrowseSources(sourceSelect.dataset.browseSelect==='all'?allSources.filter(source=>sourceRecordCount(source.area)):[]);return;}
             const modeButton = event.target.closest('button[data-review-mode]');
             if (modeButton) {
-                mode = modeButton.dataset.reviewMode;runFilter='';
+                mode = modeButton.dataset.reviewMode;
                 if(mode==='compare'&&!['','image','video'].includes(typeFilter))typeFilter='';
                 renderPreviewModal();return;
             }
@@ -199,14 +204,6 @@ export function createPreviewModalApi({
             const slot = event.target.closest('[data-compare-slot]');
             if (slot) { compare.slot = slot.dataset.compareSlot; renderPreviewModal(); return; }
             if (event.target.closest('[data-compare-swap]')) { [compare.a,compare.b]=[compare.b,compare.a]; renderPreviewModal(); return; }
-            const all = event.target.closest('[data-review-selection]');
-            if (all) { filteredEntries().forEach(entry=>all.dataset.reviewSelection==='all'?selection.add(entry.key):selection.delete(entry.key)); renderPreviewModal(); return; }
-            const tableLayout=event.target.closest('[data-table-layout]');
-            if (tableLayout) { table.layout=tableLayout.dataset.tableLayout; renderPreviewModal(); return; }
-            const outputMove=event.target.closest('[data-output-move]');
-            if(outputMove){const index=table.outputs.indexOf(outputMove.dataset.outputMove),next=index+Number(outputMove.dataset.step);if(index>=0&&next>=0&&next<table.outputs.length)[table.outputs[index],table.outputs[next]]=[table.outputs[next],table.outputs[index]];renderPreviewModal();return;}
-            const move=event.target.closest('[data-column-move]');
-            if(move) { const index=table.fields.indexOf(move.dataset.columnMove),next=index+Number(move.dataset.step);if(index>=0&&next>=0&&next<table.fields.length)[table.fields[index],table.fields[next]]=[table.fields[next],table.fields[index]];renderPreviewModal();return; }
             const view=event.target.closest('[data-view-record]');
             if(view) { previewModalStore.activeIndex=previewModalStore.entries.findIndex(entry=>entry.key===view.dataset.viewRecord);mode='browse';renderPreviewModal();return; }
             if(event.target.closest('input[type=checkbox]'))return;
@@ -218,8 +215,7 @@ export function createPreviewModalApi({
                 const entry=previewModalStore.entries[nextIndex];
                 if(!['image','video'].includes(entry.type))return;
                 compare[compare.slot]=entry.key;compare.slot=compare.slot==='a'?'b':'a';previewModalStore.activeIndex=nextIndex;renderPreviewModal();
-            } else if(mode==='table') { const key=previewModalStore.entries[nextIndex].key;selection.has(key)?selection.delete(key):selection.add(key);renderPreviewModal(); }
-            else selectPreviewEntry(nextIndex);
+            } else selectPreviewEntry(nextIndex);
         });
         root.addEventListener('change',event=>{
             const target=event.target;
@@ -238,14 +234,11 @@ export function createPreviewModalApi({
                 browse.sort=target.value;renderPreviewModal();return;
             }
             if(target.matches('[data-review-type]')) typeFilter=target.value;
-            else if(target.matches('[data-review-run]')) runFilter=target.value;
-            else if(target.matches('[data-review-check]')) target.checked?selection.add(target.dataset.reviewCheck):selection.delete(target.dataset.reviewCheck);
             else if(target.matches('[data-table-option]')) {
                 const key=target.dataset.tableOption;
                 table[key]=key==='width'?Math.max(80,Math.min(640,Number(target.value)||200)):key==='textLimit'?Math.max(20,Math.min(2000,Number(target.value)||200)):target.value;
                 if(['x','y','z'].includes(key))delete table.filters[target.value];
-            } else if(target.matches('[data-output-column]')) { table.outputs=target.checked?[...table.outputs,target.dataset.outputColumn]:table.outputs.filter(key=>key!==target.dataset.outputColumn); }
-            else if(target.matches('[data-table-column]')) { table.fields=target.checked?[...table.fields,target.dataset.tableColumn]:table.fields.filter(key=>key!==target.dataset.tableColumn); }
+            }
             else if(target.matches('[data-table-filter]'))table.filters[target.dataset.tableFilter]=target.value;
             else return;
             renderPreviewModal();
@@ -477,39 +470,16 @@ export function createPreviewModalApi({
 
     function filteredEntries() {
         const records=previewModalStore.entries.filter(entry => (!typeFilter || entry.type===typeFilter)
-            && (mode!=='table' || !runFilter || (entry.runId ? JSON.stringify([entry.cardId,entry.runId]) : entry.key)===runFilter)
             && (mode!=='compare' || ['image','video'].includes(entry.type)));
-        return mode!=='table'?sortBrowseRecords(records,browse.sort,browse.customOrder):records;
+        return sortBrowseRecords(records,browse.sort,browse.customOrder);
     }
 
     function setBrowseSources(nextSources) {
-        const activeKey=getActivePreviewEntry()?.key,previous=new Set(sources.map(source=>sourceKey(source.card,source.area)));
+        const activeKey=getActivePreviewEntry()?.key;
         sources=nextSources;previewModalStore.entries=collectPreviewRecords(sources);
-        selection=new Set(previewModalStore.entries.filter(entry=>selection.has(entry.key)||!previous.has(entry.source)).map(entry=>entry.key));
         previewModalStore.activeIndex=previewModalStore.entries.findIndex(entry=>entry.key===activeKey);
         if(previewModalStore.activeIndex<0)previewModalStore.activeIndex=previewModalStore.entries.length?0:-1;
-        runFilter='';renderPreviewModal();
-    }
-
-    function renderRecordList(left) {
-        const scroll=left.scrollTop;
-        const entries=filteredEntries(), indices=new Map(previewModalStore.entries.map((entry,index)=>[entry.key,index]));
-        const closed=new Set([...left.querySelectorAll('details:not([open])')].map(group=>group.dataset.source));
-        const runs=new Map();
-        previewModalStore.entries.forEach(entry=>runs.set(entry.runId?JSON.stringify([entry.cardId,entry.runId]):entry.key,`${entry.cardLabel} · ${entry.runId?`运行 ${entry.run?.order??entry.runId}`:`旧历史 ${entry.index+1}`}`));
-        left.innerHTML=`<label class="clab-review-field">媒体<select data-review-type><option value="">全部</option>${[['image','图片'],['video','视频'],['text','文本'],['audio','音频'],['model','3D'],['file','文件']].map(([key,label])=>`<option value="${key}" ${typeFilter===key?'selected':''}>${label}</option>`).join('')}</select></label>
-            <label class="clab-review-field">运行<select data-review-run><option value="">全部运行</option>${[...runs].map(([key,label])=>`<option value="${escapeHtml(key)}" ${runFilter===key?'selected':''}>${escapeHtml(label)}</option>`).join('')}</select></label>
-            <div class="clab-review-selection"><button data-review-selection="all">全选当前列表</button><button data-review-selection="none">取消选择</button><span>已选 ${selection.size} 条</span></div>
-            ${sources.map(source=>{
-                const key=sourceKey(source.card,source.area),records=entries.filter(entry=>entry.source===key);
-                if(!records.length)return '';
-                return `<details data-source="${escapeHtml(key)}" ${closed.has(key)?'':'open'}><summary>${escapeHtml(records[0].cardLabel)} / ${escapeHtml(records[0].areaLabel)} <small>${records.length}</small></summary>${records.map(entry=>{
-                    const index=indices.get(entry.key),isActive=index===previewModalStore.activeIndex;
-                    let thumbBody=entry.type==='image'?`<img loading="lazy" src="${escapeHtml(entry.url)}" alt="">`:`<span class="clab-preview-modal-thumb-badge">${({video:'视频',text:'文本',audio:'音频',model:'3D',file:'文件'})[entry.type]||entry.type}</span>`;
-                    return `<div class="clab-review-record-row"><input type="checkbox" data-review-check="${escapeHtml(entry.key)}" aria-label="选择历史 ${entry.index+1}" ${selection.has(entry.key)?'checked':''}><button class="clab-preview-modal-thumb ${isActive?'active':''}" data-index="${index}" type="button" title="${escapeHtml(entry.name)}"><div class="clab-preview-modal-thumb-media">${thumbBody}</div><div class="clab-preview-modal-thumb-name">历史 ${entry.index+1} · ${escapeHtml(entry.name)}</div></button></div>`;
-                }).join('')}</details>`;
-            }).join('')||'<div class="clab-preview-modal-empty">没有符合筛选条件的历史记录</div>'}`;
-        left.scrollTop=scroll;
+        renderPreviewModal();
     }
 
     function renderCompareParameters(right,a,b) {
@@ -527,9 +497,9 @@ export function createPreviewModalApi({
         root.querySelectorAll('[data-review-export]').forEach(button=>button.disabled=true);
         notice.textContent='正在整理资源并导出…';
         try {
-            if(kind==='html')downloadPreviewBlob(await exportPreviewHTML(model,config),'生成结果表-HTML.zip');
+            if(kind==='html')downloadPreviewBlob(await exportPreviewHTML(model,config),'XY矩阵-HTML.zip');
             else {
-                const {files,failed}=await exportPreviewPNGs(model,config),packaged=await packagePreviewPNGs(files);
+                const {files,failed}=await exportPreviewPNGs(model,config),packaged=await packagePreviewPNGs(files,'XY矩阵-分页图片.zip');
                 downloadPreviewBlob(packaged.blob,packaged.name);
                 if(failed.length){notice.textContent=`已导出；${failed.length} 个媒体预览不可用，图片中已标注。`;return;}
             }
@@ -542,21 +512,22 @@ export function createPreviewModalApi({
         const root=ensurePreviewModal(),left=root.querySelector('.clab-preview-modal-left'),center=root.querySelector('.clab-preview-modal-center'),right=root.querySelector('.clab-preview-modal-right');
         const entries=previewModalStore.entries;
         root.dataset.reviewMode=mode;
-        root.dataset.reviewLayout=mode==='table'?'table':'filmstrip';
+        root.dataset.reviewLayout='workspace';
         root.querySelectorAll('[data-review-mode]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.reviewMode===mode)));
-        root.querySelector('.clab-review-export').hidden=mode!=='table';
         root.querySelectorAll('[data-review-export]').forEach(button=>button.disabled=exporting);
-        root.querySelector('.clab-browse-footer').hidden=mode==='table';
-        if(mode!=='table') {
+        root.querySelector('.clab-browse-footer').hidden=!['browse','compare'].includes(mode);
+        if(mode!=='detail') {
             browseLayout.renderSources(state.cards,allSources,sources);
             const visible=filteredEntries(),active=getActivePreviewEntry();
             if(active&&!visible.some(entry=>entry.key===active.key))previewModalStore.activeIndex=visible.length?entries.findIndex(entry=>entry.key===visible[0].key):-1;
             else if(previewModalStore.activeIndex<0&&visible.length&&!state.cards.find(card=>card.id===previewModalStore.activeCardId)?.areas.find(area=>area.id===previewModalStore.activeAreaId)?.missingHistoryRun)previewModalStore.activeIndex=entries.findIndex(entry=>entry.key===visible[0].key);
-            browseLayout.renderFilmstrip(visible,entries,previewModalStore.activeIndex,typeFilter,mode==='compare'?compare:null);
-        } else {browseLayout.release();renderRecordList(left);}
+            if(mode!=='xy')browseLayout.renderFilmstrip(visible,entries,previewModalStore.activeIndex,typeFilter,mode==='compare'?compare:null);
+            else browseLayout.release();
+        } else browseLayout.release();
+        browseLayout.applyLayout();
         if(previewModalStore.activeIndex>=entries.length)previewModalStore.activeIndex=entries.length?0:-1;
         const active=getActivePreviewEntry()||{type:'missing',name:'该次运行无可用记录',index:-1};
-        root.querySelector('.clab-preview-modal-title').textContent=mode==='browse'?`预览模式 · ${active.areaLabel||''}`:mode==='compare'?'A/B 对比':'生成结果表';
+        root.querySelector('.clab-preview-modal-title').textContent=mode==='browse'?`预览模式 · ${active.areaLabel||''}`:mode==='compare'?'A/B 比较':mode==='detail'?'明细表':'XY 矩阵';
         if(mode==='compare') {
             const a=entries.find(entry=>entry.key===compare.a),b=entries.find(entry=>entry.key===compare.b);
             const key=JSON.stringify([a?.key,a?.url,b?.key,b?.url]);
@@ -566,26 +537,30 @@ export function createPreviewModalApi({
             }
             syncComparison(center,compare);renderCompareParameters(right,a,b);return;
         }
-        if(mode==='table') {
+        if(mode==='detail') {
+            if(renderedMode!=='detail'){teardownPreviewEnhancers();renderedMode='detail';}
+            detailView.render(state.cards);return;
+        }
+        if(mode==='xy') {
             teardownPreviewEnhancers();
-            const records=entries.filter(entry=>selection.has(entry.key));
+            const records=entries;
             for(const record of records.filter(item=>item.type==='text'&&!item.text)) {
                 const cached=previewModalStore.textCache.get(record.url);
                 if(cached) { if(cached.state==='ready')record.text=cached.text;continue; }
                 previewModalStore.textCache.set(record.url,{state:'loading',text:''});
                 fetch(record.url).then(response=>{if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.text();}).then(text=>{
                     record.text=text;previewModalStore.textCache.set(record.url,{state:'ready',text});
-                    if(root.classList.contains('visible')&&mode==='table')renderPreviewModal();
-                }).catch(error=>{previewModalStore.textCache.set(record.url,{state:'error',text:error.message});record.text=`文本读取失败：${error.message}`;if(root.classList.contains('visible')&&mode==='table')renderPreviewModal();});
+                    if(root.classList.contains('visible')&&mode==='xy')renderPreviewModal();
+                }).catch(error=>{previewModalStore.textCache.set(record.url,{state:'error',text:error.message});record.text=`文本读取失败：${error.message}`;if(root.classList.contains('visible')&&mode==='xy')renderPreviewModal();});
             }
             right.innerHTML=renderTableSettings(records,sources,table);
             tableModel=buildTableModel(records,sources,table,entries);center.innerHTML=renderTable(tableModel,table);return;
         }
-        const browseKey=JSON.stringify([active.key||'',active.url||'',active.type,active.type==='text'?previewModalStore.textCache.get(normalizeHistoryUrl(active.url))?.state:'',active.type==='missing'?`${typeFilter}:${runFilter}:${sources.length}`:'']);
+        const browseKey=JSON.stringify([active.key||'',active.url||'',active.type,active.type==='text'?previewModalStore.textCache.get(normalizeHistoryUrl(active.url))?.state:'',active.type==='missing'?`${typeFilter}:${sources.length}`:'']);
         if(renderedMode!=='browse'||renderedBrowseKey!==browseKey) {
             teardownPreviewEnhancers();
             if(active.cardId){previewModalStore.activeCardId=active.cardId;previewModalStore.activeAreaId=active.areaId;}
-            center.innerHTML=active.type==='missing'&&!sources.length?'<div class="clab-preview-modal-empty">请在左侧勾选要查看的输出模块</div>':active.type==='missing'&&(typeFilter||runFilter)?'<div class="clab-preview-modal-empty">没有符合筛选条件的媒体</div>':renderPreviewCenter(active);
+            center.innerHTML=active.type==='missing'&&!sources.length?'<div class="clab-preview-modal-empty">请在左侧勾选要查看的输出模块</div>':active.type==='missing'&&typeFilter?'<div class="clab-preview-modal-empty">没有符合筛选条件的媒体</div>':renderPreviewCenter(active);
             if(active.type==='image')applyPreviewImageTransform(root);
             else {resetPreviewImageTransform();applyPreviewImageTransform(root);}
             if(active.type==='video') {
@@ -612,7 +587,8 @@ export function createPreviewModalApi({
         sources=initialPreviewSources(state.cards,selectedSources||(area?[{card,area}]:[]),state.selectedCardIds,card?.id);
         browse.search='';
         previewModalStore.entries=collectPreviewRecords(sources);
-        selection=new Set(previewModalStore.entries.map(entry=>entry.key));typeFilter='';runFilter='';mode='browse';
+        typeFilter='';mode='browse';
+        detailView.open(state.cards);
         compare={a:'',b:'',slot:'a',layout:'side',view:{x:0,y:0,zoom:1,split:.5}};
         table={layout:'detail',fields:null,width:200,textLimit:200,x:'',y:'',z:'',zValue:'',source:'',filters:{}};
         previewModalStore.activeIndex = area?.missingHistoryRun ? -1 : previewModalStore.entries.findIndex(entry=>entry.cardId===card?.id && entry.areaId===area?.id && entry.index===(Number.isInteger(preferredIndex)?preferredIndex:area?.historyIndex));

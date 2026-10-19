@@ -21,42 +21,42 @@ export function injectMediaCSS() {
     style.innerHTML = `
         /* --- 视频组件样式 --- */
         .clab-video-player { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; cursor: pointer; }
-        .clab-video-controls { 
-            position: absolute; inset: 0; opacity: 0; transition: opacity 0.3s; 
-            background: linear-gradient(transparent 70%, rgba(0,0,0,0.8) 100%); 
+        .clab-video-controls {
+            position: absolute; inset: 0; opacity: 0; transition: opacity 0.3s;
+            background: linear-gradient(transparent 70%, rgba(0,0,0,0.8) 100%);
             pointer-events: none; display: flex; flex-direction: column; justify-content: flex-end;
         }
         .clab-video-player:hover .clab-video-controls, .clab-video-player:focus-within .clab-video-controls, .clab-video-paused .clab-video-controls { opacity: 1; }
-        
+
         .clab-video-toolbar {
             display: flex; justify-content: space-between; align-items: center;
             gap:6px; padding: 0 8px 9px; width: 100%; box-sizing: border-box; pointer-events: none;
         }
-        
+
         .clab-timecode { display:flex; align-items:center; height:24px; color:#ddd; font:11px/1 sans-serif; font-variant-numeric:tabular-nums; white-space:nowrap; pointer-events:none; }
         .clab-video-speed-val { display:block; font:11px/1 sans-serif; }
-        
+
         .clab-video-tools-right { display:flex; align-items:center; gap:8px; height:24px; margin-left:auto; pointer-events:auto; }
         .clab-video-tools-right .clab-media-opt-btn { box-sizing:border-box; height:24px; min-height:24px; font:11px/1 sans-serif; }
         .clab-video-tools-right svg { display:block; flex-shrink:0; }
         .clab-video-controls-interactive { pointer-events: auto; }
-        
+
         /* --- 全新的自定义音量滑杆悬浮效果 --- */
-        .clab-volume-wrap { 
-            display: flex; align-items: center; justify-content: flex-end; overflow: visible; 
-            border-radius: 12px; background: transparent; transition: background 0.2s; 
+        .clab-volume-wrap {
+            display: flex; align-items: center; justify-content: flex-end; overflow: visible;
+            border-radius: 12px; background: transparent; transition: background 0.2s;
         }
         .clab-volume-wrap:not(.no-audio):hover, .clab-volume-wrap.is-active { background: rgba(0,0,0,0.6); }
-        
-        .clab-volume-slider-container { 
-            width: 0; opacity: 0; margin: 0; transition: width 0.2s ease, opacity 0.2s ease, margin 0.2s ease; 
+
+        .clab-volume-slider-container {
+            width: 0; opacity: 0; margin: 0; transition: width 0.2s ease, opacity 0.2s ease, margin 0.2s ease;
             cursor: pointer; height: 24px; display: block; position: relative;
         }
         .clab-volume-wrap:not(.no-audio):hover .clab-volume-slider-container,
-        .clab-volume-slider-container.is-dragging { 
-            width: 50px; opacity: 1; margin-left: 8px; margin-right: 2px; 
+        .clab-volume-slider-container.is-dragging {
+            width: 50px; opacity: 1; margin-left: 8px; margin-right: 2px;
         }
-        
+
         .clab-volume-slider-track {
             width: 100%; height: 3px; background: rgba(255,255,255,0.3); border-radius: 2px; position: absolute; top: 50%; transform: translateY(-50%); pointer-events: none;
         }
@@ -70,10 +70,10 @@ export function injectMediaCSS() {
         .clab-media-opt-wrapper { position: relative; }
         .clab-media-opt-btn { background: transparent; border: none; color: #aaa; cursor: pointer; padding: 4px; border-radius: 4px; transition: color 0.15s; display: flex; align-items: center; justify-content: center; }
         .clab-media-opt-btn:hover { color:#fff; }
-        
+
         /* 突破裁切的全局菜单样式 */
-        .clab-media-dropdown { 
-            position: fixed; 
+        .clab-media-dropdown {
+            position: fixed;
             background: var(--comfy-menu-bg, #292929); border: 1px solid #505050;
             border-radius: 7px; box-shadow: 0 8px 28px rgba(0,0,0,0.45);
             display: none; flex-direction: column; min-width: 150px; z-index: 100000; padding: 4px 0;
@@ -108,13 +108,13 @@ export function injectMediaCSS() {
         .clab-audio-tools-right .clab-volume-slider-container { position:absolute; right:25px; background:#252525; border-radius:4px; z-index:3; }
         .clab-audio-speed-toggle { min-width:25px; font:11px sans-serif; }
         .clab-audio-speed-dropdown { min-width:84px; }
-        
-        .clab-media-speed-wrap { 
-            display: flex; align-items: center; background: rgba(0,0,0,0.5); 
+
+        .clab-media-speed-wrap {
+            display: flex; align-items: center; background: rgba(0,0,0,0.5);
             border: 1px solid #555; border-radius: 4px; padding: 2px 4px; position: relative;
         }
-        .clab-media-speed-input { 
-            width: 30px; background: transparent; border: none; color: #eee; 
+        .clab-media-speed-input {
+            width: 30px; background: transparent; border: none; color: #eee;
             font-size: 11px; outline: none; text-align: center; font-family: sans-serif;
         }
         .clab-media-speed-input::-webkit-outer-spin-button, .clab-media-speed-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
@@ -343,7 +343,7 @@ export function injectMediaCSS() {
 // =========================================================================
 export function renderMedia(area, objectFit) {
     injectMediaCSS();
-    
+
     if (!area.resultUrl && getAreaResultType(area) !== 'text') {
         return `<img id="clab-img-${area.id}" class="clab-preview-img" src="" draggable="false" style="display:none;" />`;
     }
@@ -479,7 +479,7 @@ export function attachMediaEvents(container) {
                 document.querySelectorAll('.clab-media-dropdown.show').forEach(m => {
                     m.classList.remove('show');
                     m._originalParent?.querySelector('[aria-expanded]')?.setAttribute('aria-expanded', 'false');
-                    if (m._originalParent) m._originalParent.appendChild(m); 
+                    if (m._originalParent) m._originalParent.appendChild(m);
                 });
             }
         };

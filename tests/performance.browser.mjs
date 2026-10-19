@@ -4,7 +4,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createModelFixtures } from './fixtures/models.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -41,6 +41,8 @@ const server = http.createServer((req, res) => {
         res.end(fs.readFileSync(path.join(repo, 'tests/fixtures/performance.js')));
     } else if (url.pathname === '/review-checks.js') {
         res.end(fs.readFileSync(path.join(repo, 'tests/fixtures/preview_review.js')));
+    } else if (url.pathname === '/detail-checks.js') {
+        res.end(fs.readFileSync(path.join(repo, 'tests/fixtures/preview_detail.js')));
     } else if (url.pathname === '/scripts/app.js') {
         res.end('export const app = window.testApp;');
     } else if (url.pathname === '/scripts/api.js') {
@@ -343,13 +345,32 @@ try {
         await send('Runtime.evaluate',{expression:'window.closeReviewVideo()'},sessionId);
     }
     console.log('PASS native browse/compare video Ctrl+wheel zooms at the pointer, Space plays/pauses and plain wheel seeks');
+    const exportedFiles=await send('Runtime.evaluate',{expression:`Object.fromEntries([...window.detailArchiveFiles].map(([name,bytes])=>{let text='';for(let i=0;i<bytes.length;i+=32768)text+=String.fromCharCode(...bytes.subarray(i,i+32768));return[name,btoa(text)];}))`,returnByValue:true},sessionId);
+    const offlineFolder=fs.mkdtempSync(path.join(os.tmpdir(),'clab-detail-offline-'));
+    for(const [name,base64] of Object.entries(exportedFiles.result.value)){const target=path.resolve(offlineFolder,name);assert.ok(target.startsWith(offlineFolder+path.sep),'offline archive path escapes its export folder');fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,Buffer.from(base64,'base64'));}
+    const offlineTarget=await send('Target.createTarget',{url:'about:blank'}),offlineSession=(await send('Target.attachToTarget',{targetId:offlineTarget.targetId,flatten:true})).sessionId;
+    await send('Emulation.setDeviceMetricsOverride',{width:1366,height:1000,deviceScaleFactor:1,mobile:false},offlineSession);
+    await send('Network.enable',{},offlineSession);await send('Network.setBlockedURLs',{urls:['http://*','https://*']},offlineSession);
+    await send('Page.navigate',{url:pathToFileURL(path.join(offlineFolder,'index.html')).href},offlineSession);
+    const offline=await send('Runtime.evaluate',{expression:`new Promise((resolve,reject)=>{let tries=0;const timer=setInterval(()=>{const cards=document.querySelectorAll('.clab-detail-card'),model=document.querySelector('.clab-glb-viewer');if(cards.length===5&&model?.dataset.modelLoaded&&document.querySelector('video')?.readyState>=2&&document.querySelector('.clab-audio-wave-status')?.hidden){clearInterval(timer);resolve({count:cards.length,first:cards[0].textContent,model:!!model.querySelector('canvas'),markdown:!!document.querySelector('.clab-text-preview-shell'),wave:!document.querySelector('.clab-audio-wave-status').hidden?document.querySelector('.clab-audio-wave-status').textContent:'ready'});}else if(++tries>160){clearInterval(timer);reject(new Error('offline detail did not load: '+document.body.textContent.slice(-500)));}},50);})`,awaitPromise:true,returnByValue:true},offlineSession);
+    assert.equal(offline.exceptionDetails,undefined,JSON.stringify(offline.exceptionDetails));assert.ok(offline.result.value.first.includes('SECOND')&&offline.result.value.model&&offline.result.value.markdown&&offline.result.value.wave==='ready','offline file page failed to restore Chinese text, media or its local 3D viewer: '+JSON.stringify(offline.result.value));
+    const offlineCovers=await send('Runtime.evaluate',{expression:`Promise.all([...document.querySelectorAll('.clab-detail-cover')].map(layer=>layer._detailPrepareCover())).then(()=>({count:document.querySelectorAll('.clab-detail-cover[data-ready="1"]').length,model:!!document.querySelector('[data-detail-card="detail-model"] .clab-detail-cover img'),video:document.querySelector('[data-detail-card="detail-video"] .clab-detail-cover video').paused}))`,awaitPromise:true,returnByValue:true},offlineSession);
+    assert.deepEqual(offlineCovers.result.value,{count:5,model:true,video:true},'offline covers failed with HTTP blocked: '+JSON.stringify(offlineCovers));
+    const offlineLayout=await send('Runtime.evaluate',{expression:`(()=>{const board=document.querySelector('.clab-detail-board'),width=board.getBoundingClientRect().width,video=board.querySelector('video'),slider=document.querySelector('[data-offline-columns]');slider.value=3;slider.dispatchEvent(new Event('input'));const fixed=Math.abs(board.getBoundingClientRect().width-width)<1&&board.querySelector('video')===video;slider.value=2;slider.dispatchEvent(new Event('input'));return {fixed,rowWidth:document.querySelector('[data-offline-rowWidth-value]').textContent};})()`,returnByValue:true},offlineSession);
+    assert.deepEqual(offlineLayout.result.value,{fixed:true,rowWidth:'540px'},'offline layout does not preserve row width or media across column changes');
+    await send('Runtime.evaluate',{expression:`(()=>{const card=document.querySelector('.clab-detail-card');card.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));card.querySelector('[data-step="-1"]').click();})()`},offlineSession);
+    const offlineHistory=await send('Runtime.evaluate',{expression:'document.querySelector(".clab-detail-card .clab-detail-data").textContent',returnByValue:true},offlineSession);
+    assert.ok(offlineHistory.result.value.includes('FIRST')&&offlineHistory.result.value.includes('中文'),'offline history switching lost its selected-field snapshot');
+    if(process.env.CLAB_REVIEW_SCREENSHOT_PREFIX){const screenshot=await send('Page.captureScreenshot',{format:'png'},offlineSession);fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-offline.png`,Buffer.from(screenshot.data,'base64'));}
+    await send('Target.closeTarget',{targetId:offlineTarget.targetId});
+    console.log('PASS exported detail HTML opens from file:// with HTTP blocked, renders real video/audio/3D and switches historical Chinese input snapshots');
     if (process.env.CLAB_BROWSER_SCREENSHOT) {
         await send('Runtime.evaluate', { expression: 'document.dispatchEvent(new Event("clab_render_ui")); document.querySelector(".clab-card-body").scrollTop = 0;' }, sessionId);
         await new Promise(resolve => setTimeout(resolve, 200));
         const screenshot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
         fs.writeFileSync(process.env.CLAB_BROWSER_SCREENSHOT, Buffer.from(screenshot.data, 'base64'));
     }
-    if(process.env.CLAB_REVIEW_SCREENSHOT_PREFIX)for(const mode of ['browse','compare','table','xy']) {
+    if(process.env.CLAB_REVIEW_SCREENSHOT_PREFIX)for(const mode of ['browse','compare','detail','xy']) {
         await send('Runtime.evaluate',{expression:`window.showReviewDemo('${mode}')`},sessionId);
         await new Promise(resolve=>setTimeout(resolve,200));
         const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);
@@ -359,7 +380,126 @@ try {
         const exported=await send('Runtime.evaluate',{expression:'window.exportReviewDemoPNG()',awaitPromise:true,returnByValue:true},sessionId);
         fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-export.png`,Buffer.from(exported.result.value.split(',')[1],'base64'));
     }
-    console.log(`${report.passed.length+6} browser checks passed; ${requests.length} media requests`);
+    await send('Runtime.evaluate',{expression:'window.showDetailDemo()'},sessionId);await new Promise(resolve=>setTimeout(resolve,350));
+    const sourceEye=await send('Runtime.evaluate',{expression:`(()=>{const eye=document.querySelector('[data-detail-visibility]:not(:disabled)'),label=eye.closest('.clab-detail-source-option').querySelector('label span'),a=eye.getBoundingClientRect(),b=label.getBoundingClientRect();return{x:a.x+a.width/2,y:a.y+a.height/2,labelX:b.x,labelWidth:b.width};})()`,returnByValue:true},sessionId);
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:sourceEye.result.value.x,y:sourceEye.result.value.y},sessionId);await new Promise(resolve=>setTimeout(resolve,180));
+    const eyeHover=await send('Runtime.evaluate',{expression:`(()=>{const eye=document.querySelector('[data-detail-visibility]:not(:disabled)'),label=eye.closest('.clab-detail-source-option').querySelector('label span').getBoundingClientRect();return{opacity:getComputedStyle(eye).opacity,pointer:getComputedStyle(eye).pointerEvents,labelX:label.x,labelWidth:label.width};})()`,returnByValue:true},sessionId);
+    assert.deepEqual(eyeHover.result.value,{opacity:'1',pointer:'auto',labelX:sourceEye.result.value.labelX,labelWidth:sourceEye.result.value.labelWidth},'source eye did not appear under the mouse or shifted its field label');
+    for(const pressed of ['false','true']){
+        await send('Input.dispatchMouseEvent',{type:'mousePressed',x:sourceEye.result.value.x,y:sourceEye.result.value.y,button:'left',clickCount:1},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:sourceEye.result.value.x,y:sourceEye.result.value.y,button:'left',clickCount:1},sessionId);
+        const status=await send('Runtime.evaluate',{expression:`document.querySelector('[data-detail-visibility]:not(:disabled)').getAttribute('aria-pressed')`,returnByValue:true},sessionId);assert.equal(status.result.value,pressed,'native eye click did not toggle matching fields independently of the row checkbox');
+    }
+    console.log('PASS native source-field hover reveals the shared eye without label movement, and real clicks hide and restore matching fields');
+    const outputEye=await send('Runtime.evaluate',{expression:`(()=>{const eye=document.querySelector('[data-detail-output-switch="单独运行的视频"]');eye.scrollIntoView({block:'center'});window.nativeOutputEye=eye;const a=eye.getBoundingClientRect();return{x:a.x+a.width/2,y:a.y+a.height/2};})()`,returnByValue:true},sessionId);
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',...outputEye.result.value},sessionId);await new Promise(resolve=>setTimeout(resolve,180));
+    for(let i=0;i<2;i++){
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',...outputEye.result.value},sessionId);await new Promise(resolve=>setTimeout(resolve,150));
+        for(const type of ['mousePressed','mouseReleased'])await send('Input.dispatchMouseEvent',{type,...outputEye.result.value,button:'left',clickCount:1},sessionId);
+        const option=await send('Runtime.evaluate',{expression:`(()=>{const button=document.querySelector('[data-detail-apply-role="output"]'),r=button.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()`,returnByValue:true},sessionId);
+        for(const type of ['mousePressed','mouseReleased'])await send('Input.dispatchMouseEvent',{type,...option.result.value,button:'left',clickCount:1},sessionId);
+        const status=await send('Runtime.evaluate',{expression:`(()=>{const eye=document.querySelector('[data-detail-output-switch="单独运行的视频"]');return{same:eye===window.nativeOutputEye,selected:eye.getAttribute('aria-expanded'),count:[...document.querySelectorAll('[data-detail-output]:checked')].filter(input=>input.value==='detail-alt-out'||input.value.endsWith('-alt-out')).length};})()`,returnByValue:true},sessionId);
+        assert.deepEqual(status.result.value,{same:true,selected:'false',count:3},'native batch apply menu did not switch matching outputs or retain its source control');
+    }
+    await send('Runtime.evaluate',{expression:`document.querySelector('[data-detail-output-switch="预览结果"]').click();document.querySelector('[data-detail-apply-role="output"]').click()`},sessionId);
+    console.log('PASS native output-source batch menu switches matching outputs and preserves its DOM on repeated applications');
+    const fieldPoint=await send('Runtime.evaluate',{expression:`(()=>{const field=document.querySelector('[data-detail-field="detail-image-prompt"]');field.scrollIntoView({block:'center',inline:'nearest'});const r=field.getBoundingClientRect();window.nativeDetailVideo=document.querySelector('[data-detail-card="detail-video"] video');return{x:r.left+8,y:r.top+6};})()`,returnByValue:true},sessionId);
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',...fieldPoint.result.value},sessionId);await new Promise(resolve=>setTimeout(resolve,180));
+    for(const type of ['mousePressed','mouseReleased'])await send('Input.dispatchMouseEvent',{type,...fieldPoint.result.value,button:'left',clickCount:1},sessionId);
+    const fieldHover=await send('Runtime.evaluate',{expression:`(()=>{const field=document.querySelector('[data-detail-field="detail-image-prompt"]'),tools=field.querySelector('.clab-detail-field-actions');return{opacity:getComputedStyle(tools).opacity,buttons:tools.querySelectorAll('button').length,selected:field.classList.contains('selected'),source:document.querySelector('[data-detail-input="detail-image"][value="detail-image-prompt"]').closest('.clab-detail-source-option').classList.contains('clab-detail-source-current')};})()`,returnByValue:true},sessionId);
+    assert.deepEqual(fieldHover.result.value,{opacity:'1',buttons:2,selected:true,source:true},'native field selection did not reveal its controls and locate its source');
+    if(process.env.CLAB_REVIEW_SCREENSHOT_PREFIX){const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-detail-field-actions.png`,Buffer.from(screenshot.data,'base64'));}
+    for(const scope of ['field','name']){
+        const button=await send('Runtime.evaluate',{expression:`(()=>{const b=document.querySelector('[data-detail-field="detail-image-prompt"] [data-detail-hide="${scope}"]'),r=b.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};})()`,returnByValue:true},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',...button.result.value},sessionId);
+        for(const type of ['mousePressed','mouseReleased'])await send('Input.dispatchMouseEvent',{type,...button.result.value,button:'left',clickCount:1},sessionId);
+        const status=await send('Runtime.evaluate',{expression:`({visible:document.querySelectorAll('[data-detail-field$="-prompt"]').length,video:document.querySelector('[data-detail-card="detail-video"] video')===window.nativeDetailVideo})`,returnByValue:true},sessionId);
+        assert.deepEqual(status.result.value,{visible:scope==='field'?4:0,video:true},`native ${scope} field hide changed the wrong scope or rebuilt media`);
+        await send('Runtime.evaluate',{expression:scope==='field'?`document.querySelector('[data-detail-input="detail-image"][value="detail-image-prompt"]').click()`:`document.querySelector('[data-detail-visibility="提示词"]').click()`},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',...fieldPoint.result.value},sessionId);await new Promise(resolve=>setTimeout(resolve,150));
+    }
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:1270,y:69},sessionId);await new Promise(resolve=>setTimeout(resolve,180));
+    const fieldHidden=await send('Runtime.evaluate',{expression:`getComputedStyle(document.querySelector('[data-detail-field="detail-image-prompt"] .clab-detail-field-actions')).opacity`,returnByValue:true},sessionId);
+    assert.equal(fieldHidden.result.value,'0','field actions remained visible after the pointer left');
+    console.log('PASS native field hover reveals two hide icons, selection locates sources, local/shared clicks hide the correct fields and leaving the row hides its controls');
+    const clickDetailElement=async selector=>{
+        const point=await send('Runtime.evaluate',{expression:`(()=>{const element=document.querySelector(${JSON.stringify(selector)});element.scrollIntoView({block:'nearest',inline:'nearest'});const r=element.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};})()`,returnByValue:true},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',...point.result.value},sessionId);await new Promise(resolve=>setTimeout(resolve,150));
+        for(const type of ['mousePressed','mouseReleased'])await send('Input.dispatchMouseEvent',{type,...point.result.value,button:'left',clickCount:1},sessionId);
+    };
+    const videoBatch=title=>`[data-detail-source="detail-video"] [data-detail-output-switch="${title}"]`;
+    await clickDetailElement('[data-detail-cover="detail-video"][data-area-id="detail-video-out"]');
+    await clickDetailElement(videoBatch('单独运行的视频'));await clickDetailElement('[data-detail-apply-role="output"]');
+    const batchWithCover=await send('Runtime.evaluate',{expression:`(()=>{const row=id=>document.querySelector('[data-detail-source="'+id+'"]');return{alternate:['detail-image','detail-video','detail-audio'].every(id=>row(id).querySelector('[data-detail-output][value="'+(id==='detail-image'?'detail-alt-out':id+'-alt-out')+'"]').checked),actual:['detail-image','detail-video','detail-audio'].every(id=>document.querySelector('[data-detail-card="'+id+'"] [data-detail-pool="output"]').title==='生成记录 · 单独运行的视频'),cover:row('detail-video').querySelector('[data-detail-cover][data-area-id="detail-video-out"]').getAttribute('aria-pressed')};})()`,returnByValue:true},sessionId);
+    assert.deepEqual(batchWithCover.result.value,{alternate:true,actual:true,cover:'true'},'native batch application did not switch source circles and actual previews with another cover selected');
+    await clickDetailElement(videoBatch('预览结果'));await clickDetailElement('[data-detail-apply-role="output"]');
+    await clickDetailElement(videoBatch('单独运行的视频'));await clickDetailElement('[data-detail-apply-role="cover"]');
+    await clickDetailElement(videoBatch('单独运行的视频'));
+    const cancelLabel=await send('Runtime.evaluate',{expression:`document.querySelector('[data-detail-apply-role="clear-cover"]').textContent`,returnByValue:true},sessionId);assert.equal(cancelLabel.result.value,'取消所有任务封面');
+    await clickDetailElement('[data-detail-apply-role="clear-cover"]');
+    const cancelledBatch=await send('Runtime.evaluate',{expression:`!document.querySelector('[data-detail-cover][aria-pressed="true"]')&&['detail-image','detail-video','detail-audio'].every(id=>document.querySelector('[data-detail-output="'+id+'"][value="'+id+'-out"]').checked)`,returnByValue:true},sessionId);assert.equal(cancelledBatch.result.value,true,'native cover cancellation did not clear the matching group or changed its preview sources');
+    await clickDetailElement('[data-detail-cover="detail-video"][data-area-id="detail-video-out"]');
+    await clickDetailElement('[data-detail-source="detail-video"] .clab-detail-output-row:has([value="detail-video-duplicate-out"]) [data-detail-output-switch]');await clickDetailElement('[data-detail-apply-role="output"]');
+    const duplicateSelected=await send('Runtime.evaluate',{expression:`({checked:document.querySelector('[data-detail-output="detail-video"][value="detail-video-duplicate-out"]').checked,field:document.querySelector('[data-detail-field="detail-video-prompt"] .clab-detail-value').textContent.toLowerCase(),cover:document.querySelector('[data-detail-cover="detail-video"][data-area-id="detail-video-out"]').getAttribute('aria-pressed')})`,returnByValue:true},sessionId);assert.deepEqual(duplicateSelected.result.value,{checked:true,field:'duplicate result',cover:'true'},'native batch selection retained the previous output instead of the clicked same-name module');
+    await clickDetailElement(videoBatch('预览结果'));await clickDetailElement('[data-detail-apply-role="output"]');
+    await clickDetailElement('[data-detail-cover="detail-video"][data-area-id="detail-video-out"]');
+    console.log('PASS native batch preview clicks update source circles with another cover selected, distinguish same-name output modules and cancel batch covers from the same menu');
+    await clickDetailElement('[data-detail-card="detail-video"] [data-detail-pool="cover"]');
+    const emptyPool=await send('Runtime.evaluate',{expression:`(()=>{const button=document.querySelector('[data-detail-card="detail-video"] [data-detail-pool="cover"]'),panel=document.querySelector('.clab-detail-pool-popover'),r=panel.getBoundingClientRect(),a=button.getBoundingClientRect();return{empty:!panel.querySelector('[data-detail-pool-record]'),near:Math.abs(r.top-a.bottom-6)<2||Math.abs(r.bottom-a.top+6)<2,small:r.width<=342&&r.height<=302,modal:panel.querySelector('[aria-modal=true]')!==null};})()`,returnByValue:true},sessionId);
+    assert.deepEqual(emptyPool.result.value,{empty:true,near:true,small:true,modal:false},'unset cover pool was not an empty compact panel beside its entry');
+    await clickDetailElement('[data-detail-card="detail-video"] header strong');
+    const outsideClosed=await send('Runtime.evaluate',{expression:`!document.querySelector('.clab-detail-pool-popover')&&document.querySelector('.clab-preview-modal').classList.contains('visible')`,returnByValue:true},sessionId);assert.equal(outsideClosed.result.value,true,'outside click did not dismiss only the record pool');
+    await clickDetailElement('[data-detail-cover="detail-video"][data-area-id="detail-video-out"]');
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:1270,y:69},sessionId);await new Promise(resolve=>setTimeout(resolve,150));
+    const fixedCover=await send('Runtime.evaluate',{expression:`(()=>{const button=document.querySelector('[data-detail-cover="detail-video"][data-area-id="detail-video-out"]'),batch=button.closest('.clab-detail-source-option').querySelector('[data-detail-output-switch]');return{selected:button.getAttribute('aria-pressed'),opacity:getComputedStyle(button).opacity,output:document.querySelector('[data-detail-output="detail-video"][value="detail-video-out"]').checked,batchOpacity:getComputedStyle(batch).opacity,batchPointer:getComputedStyle(batch).pointerEvents,focused:document.activeElement===button};})()`,returnByValue:true},sessionId);
+    assert.deepEqual(fixedCover.result.value,{selected:'true',opacity:'1',output:true,batchOpacity:'0',batchPointer:'none',focused:true},'native cover selection did not pin only its cover icon after the pointer left');
+    for(const selected of ['true','false']){
+        await clickDetailElement('[data-detail-cover="detail-video"][data-area-id="detail-video-alt-out"]');
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:1270,y:69},sessionId);await new Promise(resolve=>setTimeout(resolve,180));
+        const visibility=await send('Runtime.evaluate',{expression:`(()=>{const cover=document.querySelector('[data-detail-cover="detail-video"][data-area-id="detail-video-alt-out"]'),batch=cover.closest('.clab-detail-source-option').querySelector('[data-detail-output-switch]');return{selected:cover.getAttribute('aria-pressed'),coverOpacity:getComputedStyle(cover).opacity,coverPointer:getComputedStyle(cover).pointerEvents,batchOpacity:getComputedStyle(batch).opacity,batchPointer:getComputedStyle(batch).pointerEvents,coverChecked:document.querySelector('[data-detail-output="detail-video"][value="detail-video-alt-out"]').checked,previewChecked:document.querySelector('[data-detail-output="detail-video"][value="detail-video-out"]').checked,focused:document.activeElement===cover};})()`,returnByValue:true},sessionId);
+        assert.deepEqual(visibility.result.value,{selected,coverOpacity:selected==='true'?'1':'0',coverPointer:selected==='true'?'auto':'none',batchOpacity:'0',batchPointer:'none',coverChecked:selected==='true',previewChecked:true,focused:true},'mouse focus kept source icons visible after selecting or clearing the cover');
+    }
+    await send('Runtime.evaluate',{expression:`document.querySelector('[data-detail-output="detail-video"][value="detail-video-alt-out"]').focus({preventScroll:true})`},sessionId);
+    for(const type of ['keyDown','keyUp'])await send('Input.dispatchKeyEvent',{type,key:'Tab',code:'Tab',windowsVirtualKeyCode:9},sessionId);
+    await new Promise(resolve=>setTimeout(resolve,180));
+    const keyboardIcon=await send('Runtime.evaluate',{expression:`(()=>{const cover=document.querySelector('[data-detail-cover="detail-video"][data-area-id="detail-video-alt-out"]'),batch=cover.closest('.clab-detail-source-option').querySelector('[data-detail-output-switch]');return{focused:document.activeElement===batch,visible:getComputedStyle(batch).opacity,coverOpacity:getComputedStyle(cover).opacity};})()`,returnByValue:true},sessionId);
+    assert.deepEqual(keyboardIcon.result.value,{focused:true,visible:'1',coverOpacity:'0'},'keyboard focus did not reveal only its source control');
+    console.log('PASS source icons hide after mouse selection and deselection without blurring, while keyboard focus reveals only its control');
+    await clickDetailElement('[data-detail-cover="detail-video"][data-area-id="detail-video-out"]');
+    await clickDetailElement('[data-detail-card="detail-video"] [data-detail-pool="cover"]');
+    await clickDetailElement('.clab-detail-pool-sources summary');
+    if(process.env.CLAB_REVIEW_SCREENSHOT_PREFIX){const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-detail-cover-pool.png`,Buffer.from(screenshot.data,'base64'));}
+    await clickDetailElement('[data-detail-pool-source="detail-video-alt-out"]');
+    await send('Runtime.evaluate',{expression:`window.nativeRecordPool=document.querySelector('.clab-detail-pool-popover');window.nativePoolEntry=document.querySelector('[data-detail-card="detail-video"] [data-detail-pool="cover"]')`},sessionId);
+    for(const record of ['0','1']){
+        await clickDetailElement(`[data-detail-pool-record="${record}"]`);
+        const poolSelection=await send('Runtime.evaluate',{expression:`document.querySelector('.clab-detail-pool-popover')===window.nativeRecordPool&&document.querySelector('[data-detail-pool-record="${record}"]').getAttribute('aria-pressed')==='true'&&document.querySelector('[data-detail-card="detail-video"] [data-detail-pool="cover"]')===window.nativePoolEntry&&window.nativePoolEntry.querySelector('span').textContent==='${Number(record)+1}/2'`,returnByValue:true},sessionId);assert.equal(poolSelection.result.value,true,'native consecutive record selections closed the pool, replaced its entry or lost their selected mark');
+    }
+    await clickDetailElement('[data-detail-pool-close]');
+    const poolClosed=await send('Runtime.evaluate',{expression:`!document.querySelector('.clab-detail-pool-popover')&&document.querySelector('.clab-preview-modal').classList.contains('visible')`,returnByValue:true},sessionId);
+    assert.equal(poolClosed.result.value,true,'record pool close button did not dismiss only its panel');
+    const bothSelected=await send('Runtime.evaluate',{expression:`document.querySelector('[data-detail-output="detail-video"][value="detail-video-out"]').checked&&document.querySelector('[data-detail-output="detail-video"][value="detail-video-alt-out"]').checked`,returnByValue:true},sessionId);assert.equal(bothSelected.result.value,true,'cover and preview source marks did not remain selected together');
+    await clickDetailElement('[data-detail-output="detail-video"][value="detail-video-alt-out"]');
+    const coverCleared=await send('Runtime.evaluate',{expression:`!document.querySelector('[data-detail-output="detail-video"][value="detail-video-alt-out"]').checked&&document.querySelector('[data-detail-output="detail-video"][value="detail-video-out"]').checked&&document.querySelector('[data-detail-cover="detail-video"][data-area-id="detail-video-alt-out"]').getAttribute('aria-pressed')==='false'`,returnByValue:true},sessionId);assert.equal(coverCleared.result.value,true,'native cover-row click changed the preview or retained the cover');
+    await clickDetailElement('[data-detail-cover="detail-video"][data-area-id="detail-video-alt-out"]');
+    const aligned=await send('Runtime.evaluate',{expression:`(()=>{const buttons=[...document.querySelectorAll('[data-detail-card="detail-video"] [data-detail-pool]')],a=buttons[0].getBoundingClientRect(),b=buttons[1].getBoundingClientRect();return buttons.every(button=>{const icon=button.querySelector('svg').getBoundingClientRect(),text=button.querySelector('span').getBoundingClientRect();return Math.abs((icon.top+icon.bottom-text.top-text.bottom)/2)<1;})&&b.left-a.right>=9;})()`,returnByValue:true},sessionId);assert.equal(aligned.result.value,true,'record-entry icons and labels were not centered or separated');
+    await send('Runtime.evaluate',{expression:`(()=>{const center=document.querySelector('.clab-preview-modal-center'),button=document.querySelector('[data-detail-card="detail-text"] [data-detail-pool="cover"]');center.scrollTop+=button.getBoundingClientRect().bottom-center.getBoundingClientRect().bottom+12;})()`},sessionId);
+    await clickDetailElement('[data-detail-card="detail-text"] [data-detail-pool="cover"]');
+    const above=await send('Runtime.evaluate',{expression:`(()=>{const panel=document.querySelector('.clab-detail-pool-popover').getBoundingClientRect(),anchor=document.querySelector('[data-detail-card="detail-text"] [data-detail-pool="cover"]').getBoundingClientRect();return panel.bottom<=anchor.top-5&&panel.top>=0;})()`,returnByValue:true},sessionId);assert.equal(above.result.value,true,'record pool did not open above an entry near the lower edge');
+    await clickDetailElement('[data-detail-pool-close]');
+    console.log('PASS native record pools open compactly beside their entry, stay empty without a cover, close outside, flip at the lower edge and preserve independent source selections');
+    const hoverPoint=await send('Runtime.evaluate',{expression:`(()=>{const host=document.querySelector('[data-detail-card="detail-video"] .clab-detail-media');host.scrollIntoView({block:'center'});window.nativeCoverPlayer=host.querySelector('.clab-preview-video video');const r=host.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};})()`,returnByValue:true},sessionId);
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',...hoverPoint.result.value},sessionId);await new Promise(resolve=>setTimeout(resolve,250));
+    const hoverPlaying=await send('Runtime.evaluate',{expression:`window.nativeCoverPlayer.paused===false&&document.querySelector('[data-detail-card="detail-video"] .clab-detail-cover').hidden`,returnByValue:true},sessionId);assert.equal(hoverPlaying.result.value,true,'native hover did not reveal and play the selected content');
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:1270,y:69},sessionId);await new Promise(resolve=>setTimeout(resolve,150));
+    const hoverStopped=await send('Runtime.evaluate',{expression:`window.nativeCoverPlayer.paused&&!document.querySelector('[data-detail-card="detail-video"] .clab-detail-cover').hidden&&document.querySelector('[data-detail-card="detail-video"] .clab-preview-video video')===window.nativeCoverPlayer&&!document.querySelector('.clab-detail-pool-popover')`,returnByValue:true},sessionId);assert.equal(hoverStopped.result.value,true,'native leave did not restore the cover and retain its content player');
+    console.log('PASS native cover icons remain selected, record pools switch modules and records, and hover plays/pauses the same content player');
+    if(process.env.CLAB_REVIEW_SCREENSHOT_PREFIX){
+        const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-detail-media.png`,Buffer.from(screenshot.data,'base64'));
+        const png=await send('Runtime.evaluate',{expression:`new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.readAsDataURL(window.detailPNG);})`,awaitPromise:true,returnByValue:true},sessionId);fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-detail-export.png`,Buffer.from(png.result.value.split(',')[1],'base64'));
+    }
+    await send('Runtime.evaluate',{expression:'window.releaseReviewAssets?.()'},sessionId);
+    console.log(`${report.passed.length+15} browser checks passed; ${requests.length} media requests`);
 } finally {
     socket?.close();
     browser.kill();

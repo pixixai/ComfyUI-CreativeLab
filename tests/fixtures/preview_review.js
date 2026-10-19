@@ -143,13 +143,7 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     assert(JSON.stringify([card,other])===before,'comparison dropping modified stored history or parameters');
     passed.push('comparison shares browse controls, keeps full-size media under corner overlays and accepts thumbnail drops into either A/B region');
 
-    q('[data-review-mode="table"]').click();
-    assert(q('.clab-result-table').querySelectorAll('tbody tr').length===5,'result table did not group matching runs or isolate legacy records');
-    assert(q('.clab-result-table').textContent.includes('未参与本次运行') && q('.clab-result-table').textContent.includes('无可用结果') && q('.clab-result-table').textContent.includes('参数未记录'),'result table substituted unrelated records or current values');
-    const outputColumn=q('[data-output-column]'),outputKey=outputColumn.dataset.outputColumn;outputColumn.click();assert(!q('.clab-result-table thead').textContent.includes('最终图像'),'output column toggle did not update the table');
-    [...root.querySelectorAll('[data-output-column]')].find(input=>input.dataset.outputColumn===outputKey).click();
-    const column=q('[data-table-column]');column.click();assert(!q('.clab-result-table thead').textContent.includes('步数'),'parameter column toggle did not update the table');
-    q('[data-table-layout="xy"]').click();
+    q('[data-review-mode="xy"]').click();
     assert(q('.clab-result-table').querySelectorAll('tbody tr').length===2,'XY matrix did not arrange sampler rows');
     const change=(selector,value)=>{const el=q(selector);el.value=value;el.dispatchEvent(new Event('change',{bubbles:true}));};
     const cfgKey=JSON.stringify(['1','cfg']);change('[data-table-option="z"]',cfgKey);
@@ -157,9 +151,8 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     assert(q('.clab-result-table').textContent.includes('无结果'),'XY matrix did not preserve missing combinations within a Z slice');
     change('[data-table-option="zValue"]','7');
     assert(q('.clab-result-table').querySelectorAll('.clab-result-record').length===1,'Z selection mixed other parameter slices');
-    const selected=q('[data-review-check]');selected.click();
     assert(JSON.stringify([card,other])===before,'table settings changed current inputs or outputs');
-    passed.push('detail and XYZ tables use recorded parameters, distinguish missing outputs and keep table selections read-only');
+    passed.push('XYZ matrices use recorded parameters and keep source selections read-only');
 
     const anchorClick=HTMLAnchorElement.prototype.click,downloads=[];
     HTMLAnchorElement.prototype.click=function(){if(this.download){downloads.push(this.download);return;}return anchorClick.call(this);};
@@ -170,7 +163,7 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     } finally {HTMLAnchorElement.prototype.click=anchorClick;}
 
     const sources=[{card,area:a},{card,area:b},{card:other,area:old}],records=collectPreviewRecords(sources);
-    const config={layout:'detail',fields:[JSON.stringify(['1','steps'])],width:120,textLimit:80};
+    const config={layout:'xy',x:JSON.stringify(['1','steps']),y:JSON.stringify(['1','sampler_name']),filters:{},width:120,textLimit:80};
     const model=buildTableModel(records,sources,config);
     const archive=await exportPreviewHTML(model,config);
     // ZIP local headers allow checking the stored package without an external unzip dependency.
@@ -278,8 +271,10 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     q('.clab-compare-stage .clab-video-progress-container').dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true,cancelable:true}));
     assert(videos.every(media=>Math.abs(media.currentTime-1)<.03),'shared progress exceeded the shorter video duration');
     passed.push('comparison shares module video controls and synchronized pointer-anchored Ctrl+wheel zoom');
-    q('[data-review-mode="table"]').click();assert(videos.every(media=>media.paused&&!media.getAttribute('src')),'leaving comparison retained active videos');
-    q('.clab-preview-modal-close').click();URL.revokeObjectURL(blobURL);
+    q('[data-review-mode="xy"]').click();assert(videos.every(media=>media.paused&&!media.getAttribute('src')),'leaving comparison retained active videos');
+    const {checkDetailPreview}=await import('/detail-checks.js');
+    await checkDetailPreview({state,videoURL,assert,delay,passed});
+    q('.clab-preview-modal-close').click();window.releaseReviewAssets=()=>URL.revokeObjectURL(blobURL);
     passed.push('two real videos share play, seek, wheel resume, speed and a single audio source, then release on mode changes');
 
     let nativeVideoURL;
@@ -302,7 +297,7 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
         if(!state.cards.includes(card))state.cards.push(card,other);
         state.selectedAreaIds=[a.id,b.id,old.id];open();
         if(layout==='compare'){q('[data-review-mode="compare"]').click();q('.clab-preview-modal-thumb[data-index="0"]').click();q('.clab-preview-modal-thumb[data-index="4"]').click();q('[data-compare-layout="split"]').click();}
-        else if(layout!=='browse'){q('[data-review-mode="table"]').click();if(layout==='xy')q('[data-table-layout="xy"]').click();}
+        else if(layout==='detail'){q('[data-review-mode="detail"]').click();}else if(layout!=='browse'){q('[data-review-mode="xy"]').click();}
     };
     window.exportReviewDemoPNG=async()=>{
         const {files}=await exportPreviewPNGs(model,config);

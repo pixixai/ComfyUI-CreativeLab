@@ -322,7 +322,6 @@ export function captureCardInputSnapshot(card) {
     const snapshots = [];
     card.areas.forEach((area) => {
         if (!area || area.type !== "edit") return;
-        if (getInjectableTargets(area).length === 0) return;
 
         const snapshot = sanitizeInputSnapshotEntry({
             sourceAreaId: area.id,

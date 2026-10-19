@@ -70,11 +70,11 @@ test('Z switches XY slices while retaining common axis ranges and filtering othe
     const filtered=buildXYMatrix(h.records,{x:keys[0],y:keys[1],filters:{[keys[2]]:valueKey(5)}});
     assert.equal(filtered.cells.size,2);
 });
-test('detail table honors parameter column order and preserves all same-run images',()=>{
-    const h=fixture(),model=buildTableModel(h.records,h.sources,{layout:'detail',fields:[keys[1],keys[0]]});
-    assert.equal(model.rows.length,3);assert.match(model.columns.at(-1),/steps/);
-    assert.equal(model.rows[0].cells[1].records.length,1);
+test('XY table preserves multiple results in a parameter cell',()=>{
+    const h=fixture(),model=buildTableModel(h.records,h.sources,{x:keys[0],y:keys[1],filters:{}});
+    assert.equal(model.rows.length,2);assert.equal(model.rows[0].cells[1].records.length,2);
 });
+
 test('table and comparison data processing leaves cards and history selection unchanged',()=>{
     const h=fixture(),before=JSON.stringify(h.card);
     parameterFields(h.records);buildResultRows(h.records);buildXYMatrix(h.records,{x:keys[0],y:keys[1]});
@@ -82,7 +82,7 @@ test('table and comparison data processing leaves cards and history selection un
 });
 test('standalone HTML escapes metadata and references packaged local media without runtime dependencies',()=>{
     const h=fixture();h.records[0].areaLabel='<script>alert(1)</script>';
-    const model=buildTableModel(h.records,h.sources,{layout:'detail',fields:keys});
+    const model=buildTableModel(h.records,h.sources,{x:keys[0],y:keys[1],filters:{}});
     const html=buildStandaloneHTML(model,new Map(h.records.map((r,i)=>[r.url,`media/${i}.png`])));
     assert.ok(!html.includes('<script>'));assert.ok(html.includes('&lt;script&gt;'));assert.match(html,/src="media\/0.png"/);
     assert.ok(!html.includes('/extensions/'));
