@@ -9,7 +9,7 @@ import { renderAudio, attachAudioEvents, updateAudioProgress, loadAudioWaveform 
 import { renderFile } from "./media_types/media_file.js";
 import { renderImage } from "./media_types/media_image.js";
 import { renderText, attachTextEvents } from "./media_types/media_text.js";
-import { renderModel, attachModelEvents } from './media_types/media_model.js';
+import { renderModelViewer, attachModelEvents } from './media_types/media_model.js';
 
 // =========================================================================
 // 1. 动态注入媒体组件专用全局 CSS
@@ -122,18 +122,32 @@ function injectMediaCSS() {
         /* --- 文件组件样式 --- */
         .clab-file-display { border-radius:4px; text-align:center; color:#999; background:#191919; display:flex; gap:10px; flex-direction:column; justify-content:center; align-items:center; padding:18px; width:100%; height:100%; min-height:120px; box-sizing:border-box; }
         .clab-file-name { width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:12px sans-serif; color:#aaa; }
+        .clab-file-preview-note { font:11px/1.5 sans-serif; color:#888; overflow-wrap:anywhere; }
         .clab-file-download { color:#aaa; border:1px solid #444; border-radius:5px; padding:4px 10px; text-decoration:none; font:12px sans-serif; transition:color .15s, border-color .15s; }
         .clab-file-download:hover { color:#fff; border-color:#777; }
-        .clab-model-placeholder { box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; width:100%; height:100%; min-height:140px; padding:18px; color:#999; }
-        .clab-model-actions { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:8px; }
-        .clab-model-open, .clab-model-reset { border:1px solid #444; border-radius:5px; background:#242424; color:#aaa; padding:4px 9px; font:11px sans-serif; cursor:pointer; transition:color .15s,border-color .15s; }
-        .clab-model-open:hover, .clab-model-reset:hover { color:#fff; border-color:#777; }
-        .clab-glb-viewer { width:100%; height:100%; min-height:160px; position:relative; background:#191919; }
-        .clab-model-canvas { position:absolute; inset:0; }
+        .clab-model-reset { border:1px solid #444; border-radius:5px; background:#242424; color:#aaa; padding:4px 9px; font:11px sans-serif; cursor:pointer; transition:color .15s,border-color .15s; }
+        .clab-model-reset:hover { color:#fff; border-color:#777; }
+        .clab-output-area > .clab-preview-bg-model { width:calc(100% - 16px); margin:0 8px; box-sizing:border-box; border:1px solid #444; border-radius:5px; }
+        .clab-glb-viewer { display:flex; flex-direction:column; width:100%; height:100%; min-height:0; min-width:0; position:relative; background:#191919; cursor:default; }
+        .clab-model-toolbar { display:flex; align-items:flex-start; flex-shrink:0; gap:8px; padding:6px 8px; min-width:0; }
+        .clab-model-canvas { position:relative; flex:1; min-height:0; min-width:0; overflow:hidden; cursor:grab; }
+        .clab-model-canvas:active { cursor:grabbing; }
         .clab-model-canvas canvas { display:block; width:100%; height:100%; touch-action:none; }
         .clab-model-status { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:14px; box-sizing:border-box; color:#aaa; text-align:center; font:12px/1.5 sans-serif; pointer-events:none; }
         .clab-model-status[hidden] { display:none; }
-        .clab-model-reset { position:absolute; right:8px; top:8px; z-index:1; }
+        .clab-model-reset { flex-shrink:0; margin-left:auto; white-space:nowrap; }
+        .clab-model-warning { min-width:0; overflow-wrap:anywhere; color:#b9a77c; font:10px/1.4 sans-serif; pointer-events:none; }
+        .clab-model-animation { flex-shrink:0; padding:5px 8px 4px; border-top:1px solid #333; background:#202020; min-width:0; }
+        .clab-model-animation[hidden], .clab-model-clips[hidden], .clab-model-warning[hidden] { display:none; }
+        .clab-model-playback-row { display:flex; align-items:center; gap:6px; min-height:20px; min-width:0; color:#aaa; font:10px sans-serif; }
+        .clab-model-play { display:flex; align-items:center; justify-content:center; width:20px; height:20px; flex-shrink:0; border:0; padding:0; background:transparent; color:#aaa; cursor:pointer; }
+        .clab-model-play:hover { color:#fff; }
+        .clab-model-time { white-space:nowrap; font-variant-numeric:tabular-nums; }
+        .clab-model-time.scrubbing { color:#4caf50; }
+        .clab-model-clips, .clab-model-speed { min-width:0; height:20px; max-width:100px; border:0; background:#292929; color:#aaa; font:10px sans-serif; padding:0; }
+        .clab-model-clips { flex:1; }
+        .clab-model-speed { margin-left:auto; width:43px; flex-shrink:0; }
+        .clab-model-seek { display:block; width:100%; height:10px; margin:3px 0 0; accent-color:#aaa; cursor:pointer; }
 
         .clab-text-preview-shell {
             width: 100%;
@@ -342,7 +356,7 @@ export function renderMedia(area, objectFit) {
     if (type === 'video') return renderVideo(area, objectFit, url, errCall);
     if (type === 'audio') return renderAudio(area, url, errCall);
     if (type === 'text') return renderText(area);
-    if (type === 'model') return renderModel(area, url);
+    if (type === 'model') return renderModelViewer(url);
     if (type === 'file') return renderFile(area, url);
     return renderImage(area, objectFit, url, errCall);
 }

@@ -7,7 +7,7 @@ import { getMediaType, getSteppedHistoryIndex } from "../../modules/media_types/
 import { selectOutputHistory } from "../../modules/module_history.js";
 import { state } from "../../ui_state.js";
 import { previewModalStore } from "./state.js";
-import { renderGLBViewer, attachModelEvents, releaseModelViewer } from '../../modules/media_types/media_model.js';
+import { renderModelViewer, attachModelEvents, releaseModelViewer } from '../../modules/media_types/media_model.js';
 import {
     parseAssetMetaFromUrl,
     escapeHtml,
@@ -302,7 +302,7 @@ export function createPreviewModalApi({
         if (entry.type === "video") {
             return `<video class="clab-preview-modal-main-video" src="${safeUrl}" controls autoplay loop muted playsinline></video>`;
         }
-        if (entry.type === 'model') return renderGLBViewer(entry.url);
+        if (entry.type === 'model') return renderModelViewer(entry.url);
         if (entry.type === "audio") {
             return `
                 <div class="clab-preview-modal-audio-wrap">

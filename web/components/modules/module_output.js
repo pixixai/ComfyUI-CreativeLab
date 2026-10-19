@@ -129,7 +129,7 @@ export function generateOutputHTML(area, card) {
             } else if (historyType === 'text') {
                 media = renderTextHistoryThumb(area, idx);
             } else if (historyType === 'model' || historyType === 'file') {
-                media = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font:12px sans-serif;">${historyType === 'model' ? 'GLB · 3D' : '文件'}</div>`;
+                media = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font:12px sans-serif;">${historyType === 'model' ? '3D 模型' : '文件'}</div>`;
             } else {
                 media = `<img loading="lazy" data-clab-src="${displayUrl}" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" />`;
             }
@@ -185,6 +185,8 @@ export function generateOutputHTML(area, card) {
         finalRatioCSS = 'min-height: 72px;';
     } else if (resultType === 'audio' && area.matchMedia) {
         finalRatioCSS = 'aspect-ratio: auto;';
+    } else if (resultType === 'model') {
+        finalRatioCSS = 'height:200px; aspect-ratio:auto;';
     }
 
     let objectFit = 'contain'; 
@@ -199,7 +201,7 @@ export function generateOutputHTML(area, card) {
 
     // 🌟 将原本庞杂的媒体判定逻辑交给专员去处理！
     let mediaHtml = area.missingHistoryRun && resultType !== 'text' ? '' : renderMedia(area, objectFit);
-    const previewBgClass = `clab-preview-bg${resultType === 'text' ? ' clab-preview-bg-text' : resultType === 'audio' ? ' clab-preview-bg-audio' : ''}`;
+    const previewBgClass = `clab-preview-bg${resultType === 'text' ? ' clab-preview-bg-text' : resultType === 'audio' ? ' clab-preview-bg-audio' : resultType === 'model' ? ' clab-preview-bg-model' : ''}`;
     const previewPlaceholderVisible = resultType !== 'text' && (area.missingHistoryRun || !area.resultUrl);
     const defaultTitle = `##${card.areas.filter(a => a.type === 'preview').findIndex(a => a.id === area.id) + 1}`;
     const title = area.title || defaultTitle;
@@ -271,6 +273,8 @@ export function refreshOutputAreaInPlace(areaEl, area, card) {
         const nextMedia = nextBg.querySelector('.clab-preview-img, .clab-media-target');
         const shell = bg.querySelector('.clab-text-preview-shell');
         const nextShell = nextBg.querySelector('.clab-text-preview-shell');
+        const model = bg.querySelector('.clab-glb-viewer');
+        const nextModel = nextBg.querySelector('.clab-glb-viewer');
         bg.className = nextBg.className;
         if (bg.style.cssText !== nextBg.style.cssText) bg.style.cssText = nextBg.style.cssText;
         if (media && nextMedia && media.tagName === nextMedia.tagName) {
@@ -296,7 +300,7 @@ export function refreshOutputAreaInPlace(areaEl, area, card) {
             if (counter && !nextCounter) counter.remove();
             else if (!counter && nextCounter) shell.querySelector('.clab-text-toolbar').append(nextCounter);
             else if (counter && nextCounter) { counter.textContent = nextCounter.textContent; counter.title = nextCounter.title; }
-        } else if (bg.innerHTML !== nextBg.innerHTML) {
+        } else if (!(model && nextModel && model.dataset.modelUrl === nextModel.dataset.modelUrl) && bg.innerHTML !== nextBg.innerHTML) {
             bg.innerHTML = nextBg.innerHTML;
         }
         const placeholder = bg.querySelector('.clab-preview-placeholder');

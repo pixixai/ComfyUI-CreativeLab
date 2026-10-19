@@ -30,7 +30,7 @@ window._clabBgOpacity = 45;
 window._clabPanelWidthPercent = 80;
 window._clabPanelHeightPercent = 80;
 window._clabMaxHistory = 50;
-window._clabVideoAutoplay = true;
+window._clabVideoAutoplay = false;
 window._clabVideoMuted = true;
 window._clabSyncHistoryParams = true;
 window._clabThumbPerfMode = false; // 默认关闭高性能缩略图模式
@@ -334,7 +334,7 @@ const clabSettings = [
         id: "CLab.2-PerformanceMedia.Autoplay",
         name: "Video Autoplay",
         type: "boolean",
-        defaultValue: true,
+        defaultValue: false,
         category: ["Creative Lab", "2-PerformanceMedia", "Autoplay"],
         tooltip: "When disabled, main videos only show the first frame and play on click (saves GPU decoding).",
         onChange: (newVal) => {
@@ -497,7 +497,7 @@ app.registerExtension({
                 
                 // 读取性能与媒体
                 window._clabMaxHistory = getSet("CLab.2-PerformanceMedia.MaxHistory", 50);
-                window._clabVideoAutoplay = getSet("CLab.2-PerformanceMedia.Autoplay", true);
+                window._clabVideoAutoplay = getSet("CLab.2-PerformanceMedia.Autoplay", false);
                 window._clabVideoMuted = getSet("CLab.2-PerformanceMedia.Muted", true);
                 window._clabThumbPerfMode = getSet("CLab.2-PerformanceMedia.ThumbMode", false);
                 window._clabSyncHistoryParams = getSet("CLab.2-PerformanceMedia.SyncHistoryParams", true);

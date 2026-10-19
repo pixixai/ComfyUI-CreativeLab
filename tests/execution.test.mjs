@@ -138,7 +138,7 @@ test('3D viewport dimensions and model filenames are not archived as text output
             { name: 'filename_prefix', value: '3d/ComfyUI' },
         ] } : null;
         await h.run();
-        await h.emit('executed', { prompt_id: 'p1', node: '2', output: { result: ['model.obj', {}, []] } });
+        await h.emit('executed', { prompt_id: 'p1', node: '2', output: { result: [null, {}, []] } });
         assert.equal(h.files.length, 0);
         assert.equal(h.output.history.length, 0);
     }
@@ -192,6 +192,31 @@ test('legacy GLB paths cannot request an absolute or escaping file', async () =>
         await h.emit('executed', { prompt_id: 'p1', node: '2', output: { result: [path, {}, []] } });
         assert.equal(h.files.length, 0);
         assert.equal(h.output.history.length, 0);
+    }
+});
+
+test('SaveGLB and Preview3D preserve all supported model formats and their execution metadata', async () => {
+    for (const [output, sourceType, subfolder, extension] of [
+        [{'3d':[{filename:'ComfyUI_00001_.fbx',subfolder:'3d',type:'output'}]}, 'output', '3d', 'fbx'],
+        [{result:['input/3d/texture.fbx',null,null]}, 'input', '3d', 'fbx'],
+        [{result:['preview.fbx [temp]',{},[]]}, 'temp', '', 'fbx'],
+        [{result:['models/model.obj [output]',{},[]]}, 'output', 'models', 'obj'],
+        [{result:['motion.bvh [temp]',{},[]]}, 'temp', '', 'bvh'],
+        [{'3d':[{filename:'scene.gltf',subfolder:'3d',type:'output'}]}, 'output', '3d', 'gltf'],
+        [{'3d':[{filename:'mesh.stl',subfolder:'3d',type:'output'}]}, 'output', '3d', 'stl'],
+        [{'3d':[{filename:'mesh.ply',subfolder:'3d',type:'output'}]}, 'output', '3d', 'ply'],
+    ]) {
+        const h=createHarness(); await h.run();
+        await h.emit('executed',{prompt_id:'p1',node:'2',output});
+        assert.equal(h.output.resultKind,'model');
+        assert.equal(h.output.history.length,1);
+        assert.equal(h.output.historyRuns[0].id,'p1');
+        assert.ok(h.output.resultUrl.includes(`archived_1.${extension}`));
+        assert.equal(h.files[0].url,'/clab/copy_temp_asset');
+        assert.equal(h.files[0].body.asset_type,'file');
+        assert.equal(h.files[0].body.source_type,sourceType);
+        assert.equal(h.files[0].body.subfolder,subfolder);
+        assert.ok(!h.output.textContent);
     }
 });
 

@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createModelFixtures } from './fixtures/models.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const requests = [];
@@ -28,6 +29,8 @@ const glbFixture = Buffer.alloc(12+8+jsonLength+8+geometry.length,0x20);
 glbFixture.writeUInt32LE(0x46546c67,0);glbFixture.writeUInt32LE(2,4);glbFixture.writeUInt32LE(glbFixture.length,8);
 glbFixture.writeUInt32LE(jsonLength,12);glbFixture.writeUInt32LE(0x4e4f534a,16);modelJSON.copy(glbFixture,20);
 glbFixture.writeUInt32LE(geometry.length,20+jsonLength);glbFixture.writeUInt32LE(0x004e4942,24+jsonLength);geometry.copy(glbFixture,28+jsonLength);
+const modelFixtures=createModelFixtures(JSON.parse(modelJSON.toString()),geometry);
+const localFBX=path.resolve(repo,'../../input/3d/texture_v128_768_moved.fbx');
 const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost');
     res.setHeader('Content-Type', 'text/javascript; charset=utf-8');
@@ -44,6 +47,16 @@ const server = http.createServer((req, res) => {
         res.end('export class ComfyButtonGroup { constructor(button) { this.element = button; } }');
     } else if (url.pathname === '/view') {
         requests.push(url.searchParams.get('filename'));
+        // ComfyUI strips directories from filename; nested files require subfolder.
+        if (/[/\\]/.test(url.searchParams.get('filename') || '')) { res.writeHead(404).end(); return; }
+        const fixture=modelFixtures.get(url.searchParams.get('filename'));
+        if(fixture) {
+            res.setHeader('Content-Type',url.searchParams.get('filename').endsWith('.png') ? 'image/png' : 'application/octet-stream');
+            res.end(fixture); return;
+        }
+        if(url.searchParams.get('filename')==='local-character.fbx' && fs.existsSync(localFBX)) {
+            res.setHeader('Content-Type','application/octet-stream'); fs.createReadStream(localFBX).pipe(res); return;
+        }
         if (url.searchParams.get('filename')?.endsWith('.glb')) {
             res.setHeader('Content-Type', 'model/gltf-binary'); res.end(url.searchParams.get('filename')==='broken.glb' ? Buffer.from('not a GLB file') : glbFixture); return;
         }
@@ -66,6 +79,8 @@ const server = http.createServer((req, res) => {
         req.resume();
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({name:`uploaded${++uploads}.png`,type:'input'}));
+    } else if (url.pathname === '/clab/test-model-info') {
+        res.setHeader('Content-Type','application/json');res.end(JSON.stringify({localFBX:fs.existsSync(localFBX)}));
     } else if (url.pathname === '/clab/get_local_history') {
         res.setHeader('Content-Type', 'application/json');
         res.end('{"status":"success","history":[]}');
@@ -113,7 +128,7 @@ try {
     await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
     await send('Page.navigate', { url: `http://127.0.0.1:${server.address().port}/` }, sessionId);
     const result = await send('Runtime.evaluate', {
-        expression: 'new Promise((resolve,reject)=>{const timer=setInterval(()=>{if(window.testResult){clearInterval(timer);resolve(window.testResult);}},50);setTimeout(()=>{clearInterval(timer);reject(new Error("browser checks timed out"));},30000);})',
+        expression: 'new Promise((resolve,reject)=>{const timer=setInterval(()=>{if(window.testResult){clearInterval(timer);resolve(window.testResult);}},50);setTimeout(()=>{clearInterval(timer);reject(new Error("browser checks timed out"));},60000);})',
         awaitPromise: true, returnByValue: true,
     }, sessionId);
     if (result.exceptionDetails) {
@@ -126,7 +141,7 @@ try {
     assert.equal(report.error, undefined, report.error);
     assert.deepEqual(report.errors, []);
     const position = await send('Runtime.evaluate', {
-        expression:`(()=>{const canvas=document.querySelector('.clab-glb-viewer[data-model-loaded="1"] canvas');canvas.scrollIntoView({block:'center'});const r=canvas.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,scale:1};})()`,returnByValue:true,
+        expression:`(()=>{const canvas=document.querySelector('[data-area-id="upload-model"] .clab-glb-viewer[data-model-loaded="1"] canvas');canvas.scrollIntoView({block:'center'});const r=canvas.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,scale:1};})()`,returnByValue:true,
     },sessionId);
     const clip = position.result.value;
     const x = clip.x + clip.width/2, y = clip.y + clip.height/2;
@@ -146,13 +161,73 @@ try {
     const panelState = await send('Runtime.evaluate',{expression:'document.querySelector("#clab-panel").classList.contains("visible")',returnByValue:true},sessionId);
     assert.equal(panelState.result.value,true,'model interaction activated the node picker');
     console.log('PASS native mouse dragging rotates GLB pixels and the wheel zooms without picking nodes');
+    await send('Runtime.evaluate',{
+        expression:`(async()=>{const {state}=await import('/extensions/clab/components/ui_state.js');const area=state.cards[0].areas.find(a=>a.id==='upload-model');area.value='animated.glb';window._clabSurgicallyUpdateArea(area.id);const stage=document.querySelector('[data-area-id="upload-model"] .clab-glb-viewer');stage.scrollIntoView({block:'center'});for(let i=0;i<120&&!stage.dataset.modelLoaded;i++)await new Promise(r=>setTimeout(r,30));return stage.dataset.modelLoaded;})()`,awaitPromise:true,returnByValue:true,
+    },sessionId);
+    const animationPosition=await send('Runtime.evaluate',{expression:`(()=>{const r=document.querySelector('[data-area-id="upload-model"] .clab-glb-viewer canvas').getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,scale:1};})()`,returnByValue:true},sessionId);
+    const animationClip=animationPosition.result.value;
+    const animationPixels=async()=>(await send('Page.captureScreenshot',{format:'png',clip:animationClip},sessionId)).data;
+    await new Promise(resolve=>setTimeout(resolve,100));const firstFrame=await animationPixels();
+    await send('Runtime.evaluate',{expression:`(()=>{const seek=document.querySelector('[data-area-id="upload-model"] .clab-model-seek');seek.value=1;seek.dispatchEvent(new Event('input'));})()`},sessionId);
+    await new Promise(resolve=>setTimeout(resolve,80));assert.notEqual(await animationPixels(),firstFrame,'seeking changed the UI but did not move actual model pixels');
+    const animationX=animationClip.x+animationClip.width/2,animationY=animationClip.y+animationClip.height/2;
+    await send('Input.dispatchMouseEvent',{type:'mouseWheel',x:animationX,y:animationY,deltaX:0,deltaY:100,modifiers:8},sessionId);
+    await new Promise(resolve=>setTimeout(resolve,100));
+    const seekTime=await send('Runtime.evaluate',{expression:`Number(document.querySelector('[data-area-id="upload-model"] .clab-model-seek').value)`,returnByValue:true},sessionId);
+    assert.ok(Math.abs(seekTime.result.value-1.2)<.01,'native Shift+wheel did not seek the animation');
+    const beforeZoom=await animationPixels();
+    await send('Input.dispatchMouseEvent',{type:'mouseWheel',x:animationX,y:animationY,deltaX:0,deltaY:100},sessionId);
+    await new Promise(resolve=>setTimeout(resolve,100));assert.notEqual(await animationPixels(),beforeZoom,'wheel did not zoom the animated model');
+    const afterZoomTime=await send('Runtime.evaluate',{expression:`Number(document.querySelector('[data-area-id="upload-model"] .clab-model-seek').value)`,returnByValue:true},sessionId);
+    assert.ok(Math.abs(afterZoomTime.result.value-1.2)<.01,'wheel also changed the animation time');
+    console.log('PASS animation seeking changes real model pixels; native Shift+wheel seeks and wheel zooms independently');
+    const outputPosition=await send('Runtime.evaluate',{
+        expression:`(async()=>{const area=document.querySelector('[data-area-id="model"]'),stage=area.querySelector('.clab-glb-viewer');stage.scrollIntoView({block:'center'});for(let i=0;i<120&&!stage.dataset.modelLoaded;i++)await new Promise(r=>setTimeout(r,30));window.testModelDrags=0;window.testModelMenus=0;area.addEventListener('dragstart',()=>window.testModelDrags++);const show=window.CLab.showPreviewContextMenu;window.CLab.showPreviewContextMenu=(...args)=>{window.testModelMenus++;show(...args);};const r=stage.querySelector('canvas').getBoundingClientRect(),bg=area.querySelector('.clab-preview-bg').getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,scale:1,bottom:bg.bottom};})()`,awaitPromise:true,returnByValue:true,
+    },sessionId);
+    const {bottom,...outputClip}=outputPosition.result.value;
+    assert.ok(outputClip.y+outputClip.height<=bottom+1,'inline 3D canvas overflows its module preview');
+    const outputX=outputClip.x+outputClip.width/2,outputY=outputClip.y+outputClip.height/2;
+    const outputPixels=async()=>(await send('Page.captureScreenshot',{format:'png',clip:outputClip},sessionId)).data;
+    for(const [button,buttons] of [['left',1],['left',1],['left',1],['middle',4],['right',2]]) {
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:outputX,y:outputY},sessionId);
+        await new Promise(resolve=>setTimeout(resolve,80));const before=await outputPixels();
+        await send('Input.dispatchMouseEvent',{type:'mousePressed',button,buttons,clickCount:1,x:outputX,y:outputY},sessionId);
+        for(let step=1;step<=8;step++) {
+            await send('Input.dispatchMouseEvent',{type:'mouseMoved',button,buttons,x:outputX+step*5,y:outputY+step*2},sessionId);
+            await new Promise(resolve=>setTimeout(resolve,20));
+        }
+        await send('Input.dispatchMouseEvent',{type:'mouseReleased',button,buttons:0,clickCount:1,x:outputX+40,y:outputY+16},sessionId);
+        await new Promise(resolve=>setTimeout(resolve,80));
+        assert.ok(await outputPixels()!==before,`output 3D ${button} dragging did not change the model view`);
+    }
+    const gestures=await send('Runtime.evaluate',{expression:'({drags:window.testModelDrags,menus:window.testModelMenus,panel:document.querySelector("#clab-panel").classList.contains("visible")})',returnByValue:true},sessionId);
+    assert.deepEqual(gestures.result.value,{drags:0,menus:0,panel:true},'3D gestures triggered module dragging, a context menu or node picking');
+    await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'right',buttons:2,clickCount:1,x:outputX,y:outputY},sessionId);
+    await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'right',buttons:0,clickCount:1,x:outputX,y:outputY},sessionId);
+    const menu=await send('Runtime.evaluate',{expression:'({count:window.testModelMenus,visible:document.querySelector(".clab-context-menu").style.display})',returnByValue:true},sessionId);
+    assert.deepEqual(menu.result.value,{count:1,visible:'block'},'right clicking after panning did not restore the module menu');
+    const header=await send('Runtime.evaluate',{expression:`(()=>{const r=document.querySelector('[data-area-id="model"] .clab-output-head').getBoundingClientRect();return{x:r.x+4,y:r.y+r.height/2};})()`,returnByValue:true},sessionId);
+    const h=header.result.value;
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:h.x,y:h.y},sessionId);
+    await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:h.x,y:h.y},sessionId);
+    for(let step=1;step<=8;step++) {
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,x:h.x+step*5,y:h.y+step*2},sessionId);
+        await new Promise(resolve=>setTimeout(resolve,20));
+    }
+    await new Promise(resolve=>setTimeout(resolve,80));
+    const outsideDrag=await send('Runtime.evaluate',{expression:'window.testModelDrags',returnByValue:true},sessionId);
+    await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27},sessionId);
+    await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27},sessionId);
+    await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:h.x+40,y:h.y+20},sessionId);
+    assert.ok(outsideDrag.result.value>0,'dragging outside the 3D viewport no longer drags the module');
+    console.log('PASS inline output gestures rotate/pan without dragging modules or opening menus; right click and dragging outside the viewport remain available');
     if (process.env.CLAB_BROWSER_SCREENSHOT) {
         await send('Runtime.evaluate', { expression: 'document.dispatchEvent(new Event("clab_render_ui")); document.querySelector(".clab-card-body").scrollTop = 0;' }, sessionId);
         await new Promise(resolve => setTimeout(resolve, 200));
         const screenshot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
         fs.writeFileSync(process.env.CLAB_BROWSER_SCREENSHOT, Buffer.from(screenshot.data, 'base64'));
     }
-    console.log(`${report.passed.length+1} browser checks passed; ${requests.length} media requests`);
+    console.log(`${report.passed.length+3} browser checks passed; ${requests.length} media requests`);
 } finally {
     socket?.close();
     browser.kill();

@@ -1,8 +1,10 @@
 import ast
 import asyncio
+import json
 import os
 from pathlib import Path
 import shutil
+import struct
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -17,6 +19,7 @@ def load_endpoints(folder_paths):
     namespace = {
         "os": os,
         "shutil": shutil,
+        "json": json,
         "folder_paths": folder_paths,
         "web": SimpleNamespace(json_response=lambda data: data),
         "print": lambda *args, **kwargs: None,
@@ -76,6 +79,58 @@ class AssetPathTests(unittest.TestCase):
         self.assertEqual((self.output / "CLab/project/result.png").read_bytes(), b"source image")
         self.assertEqual((self.output / "CLab/project/result_1.png").read_bytes(), b"source image")
         self.assertTrue(self.source.exists())
+
+    def test_gltf_archive_keeps_external_buffers_and_textures_in_an_isolated_package(self):
+        (self.temp / 'models').mkdir()
+        (self.temp / 'textures').mkdir()
+        (self.temp / 'models/mesh.bin').write_bytes(b'geometry')
+        (self.temp / 'textures/color.png').write_bytes(b'pixels')
+        model = self.temp / 'models/scene.gltf'
+        model.write_text(json.dumps({'buffers':[{'uri':'mesh.bin'}], 'images':[{'uri':'../textures/color.png'}]}))
+        result = self.archive(filename='scene.gltf',subfolder='models',asset_type='file',delete_temp=True)
+        self.assertEqual(result['status'],'success')
+        archived = self.output / result['new_subfolder'] / result['new_filename']
+        self.assertEqual(json.loads(archived.read_text())['buffers'][0]['uri'],'mesh.bin')
+        self.assertEqual((archived.parent / 'mesh.bin').read_bytes(),b'geometry')
+        self.assertEqual((archived.parent.parent / 'textures/color.png').read_bytes(),b'pixels')
+        self.assertFalse(model.exists())
+        self.assertTrue((self.temp / 'models/mesh.bin').exists())
+
+    def test_obj_archive_follows_mtl_and_its_relative_texture(self):
+        for name in ('models','models/materials','models/textures'):
+            (self.input / name).mkdir(exist_ok=True)
+        (self.input / 'models/model.obj').write_text('mtllib materials/surface.mtl\nv 0 0 0\n')
+        (self.input / 'models/materials/surface.mtl').write_text('newmtl surface\nmap_Kd -s 1 1 1 -o 0 0 0 -clamp on ../textures/color.png\n')
+        (self.input / 'models/textures/color.png').write_bytes(b'pixels')
+        result = self.archive(filename='model.obj',subfolder='models',asset_type='file',source_type='input')
+        self.assertEqual(result['status'],'success')
+        folder = self.output / result['new_subfolder']
+        self.assertTrue((folder / 'materials/surface.mtl').is_file())
+        self.assertEqual((folder / 'textures/color.png').read_bytes(),b'pixels')
+
+    def test_model_resources_cannot_escape_the_source_directory(self):
+        outside = self.root / 'secret.bin'
+        outside.write_bytes(b'private')
+        (self.temp / 'scene.gltf').write_text(json.dumps({'buffers':[{'uri':'../secret.bin'}]}))
+        result = self.archive(filename='scene.gltf',asset_type='file')
+        self.assertEqual(result['status'],'error')
+        self.assertEqual(outside.read_bytes(),b'private')
+        self.assertFalse(list(self.output.rglob('secret.bin')))
+
+    def test_binary_fbx_archive_preserves_declared_external_textures(self):
+        (self.input / '3d/textures').mkdir(parents=True)
+        (self.input / '3d/textures/color.png').write_bytes(b'pixels')
+        header = b'Kaydara FBX Binary  \x00\x1a\x00' + struct.pack('<I', 7400)
+        name = b'RelativeFilename'
+        reference = b'textures\\color.png'
+        prop = b'S' + struct.pack('<I', len(reference)) + reference
+        end = len(header) + 13 + len(name) + len(prop) + 13
+        node = struct.pack('<IIIB', end, 1, len(prop), len(name)) + name + prop + bytes(13)
+        (self.input / '3d/model.fbx').write_bytes(header + node)
+        result = self.archive(filename='model.fbx',subfolder='3d',source_type='input',asset_type='file')
+        self.assertEqual(result['status'],'success')
+        folder = self.output / result['new_subfolder']
+        self.assertEqual((folder / 'textures/color.png').read_bytes(),b'pixels')
 
     def test_organize_move_stays_in_output(self):
         result = self.call("clab_organize_files", {"action": "move", "files": [{

@@ -24,8 +24,11 @@ try {
     const uploadNode = { id: 4, type: 'LoadImage', widgets: [{ name: 'image', type: 'combo', value: 'input.png', options: { values: ['input.png', 'other.png'], image_upload: true } }] };
     const audioNode = { id:5, type:'LoadAudio', widgets:[{name:'audio',type:'combo',value:'audio.wav',options:{values:['audio.wav'],audio_upload:true}}] };
     const videoNode = { id:6, type:'LoadVideo', widgets:[{name:'video',type:'combo',value:'video.webm',options:{values:['video.webm'],video_upload:true}}] };
-    const modelNode = { id:7, type:'Load3D', widgets:[{name:'model_file',type:'combo',value:'model.glb',options:{values:['model.glb','other.glb'],upload:'model'}}] };
-    const graphNodes = [anchor,node,uploadNode,audioNode,videoNode,modelNode];
+    const modelOptions=['none','3d/model.glb','other.glb','3d/texture.fbx'];
+    const modelSchema={input:{required:{model_file:['COMBO',{options:modelOptions,file_upload:true}]}}};
+    const modelNode = { id:7, type:'Load3D', constructor:{nodeData:modelSchema}, widgets:[{name:'model_file',type:'combo',value:'3d/model.glb',options:{values:modelOptions}}] };
+    const advancedModelNode={id:8,type:'Load3DAdvanced',constructor:{nodeData:modelSchema},widgets:[]};
+    const graphNodes = [anchor,node,uploadNode,audioNode,videoNode,modelNode,advancedModelNode];
     window.testApp = {
         graph: { _nodes: graphNodes, getNodeById: id => graphNodes.find(item => item.id === Number(id)), clear() {}, serialize() { return { nodes: [{ widgets_values: [anchor.widgets[0].value] }] }; } },
         canvas: { deselectAllNodes() {} },
@@ -377,18 +380,18 @@ try {
     for (const label of textToolbar.querySelectorAll('.clab-text-option')) {
         assert(Math.abs(centerY(label) - toolbarCenter) < 1 && Math.abs(centerY(label.querySelector('input')) - centerY(label.querySelector('span'))) < 1, 'text option checkbox and label are not centered');
     }
-    assert(areaElement('model').querySelector('.clab-model-open').textContent === '查看 3D', 'GLB output has no model preview action');
+    assert(areaElement('model').querySelector('.clab-glb-viewer') && !areaElement('model').querySelector('.clab-model-open'), 'GLB output is not an inline viewer');
     for (const id of ['image', 'audio', 'text', 'model']) areaElement(id).style.width = '';
     passed.push('narrow output modules keep readable controls and GLB files offer a viewer');
 
-    const wheel = (target, deltaY) => {
-        const event = new WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true });
+    const wheel = (target, deltaY, modifiers = {}) => {
+        const event = new WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true, ...modifiers });
         target.dispatchEvent(event); return event;
     };
     // Audio source updates may retain the player while replacing its media element.
     const wheelAudio = audioRoot.querySelector('audio'), wheelWave = audioRoot.querySelector('.clab-audio-wave');
     wheelAudio.currentTime = .5;
-    assert(wheel(wheelWave, 100).defaultPrevented && Math.abs(wheelAudio.currentTime - .7) < .01, 'audio wheel did not seek by the same step as video');
+    assert(wheel(wheelWave, 100).defaultPrevented && Math.abs(wheelAudio.currentTime - .7) < .01, 'audio Shift+wheel did not seek by the same step as video');
     await delay(450);
     assert(wheelAudio.paused, 'wheel started previously paused audio');
     wheel(wheelWave, -10000); assert(wheelAudio.currentTime === 0, 'audio wheel did not clamp at the beginning');
@@ -414,7 +417,7 @@ try {
         {id:'upload-image',node:4,widget:'image',value:'input.png',label:'图片'},
         {id:'upload-audio',node:5,widget:'audio',value:'audio.wav',label:'音频'},
         {id:'upload-video',node:6,widget:'video',value:'video.webm',label:'视频'},
-        {id:'upload-model',node:7,widget:'model_file',value:'model.glb',label:'3D'},
+        {id:'upload-model',node:7,widget:'model_file',value:'3d/model.glb',label:'3D'},
     ].map(item => ({...item,type:'edit',targetNodeId:String(item.node),targetWidget:item.widget}));
     card.areas = [...uploadAreas, model];
     document.dispatchEvent(new Event('clab_render_ui')); await delay(60);
@@ -425,6 +428,27 @@ try {
         assert(zone.querySelector('.clab-custom-select') && zone.querySelector('.clab-upload-trigger-btn') && zone.querySelector('.clab-upload-clear-btn'), `${upload.id} lost its collapsed file controls`);
     }
     passed.push('all four upload types default to a compact file row with an explicit preview switch');
+
+    const {generateInputHTML}=await import('/extensions/clab/components/modules/module_input.js');
+    const {generateOutputHTML}=await import('/extensions/clab/components/modules/module_output.js');
+    for(const nodeId of [7,8]) {
+        for(const value of ['none','3d/texture.fbx','3d/model.glb']) {
+            const area={id:'native-model',type:'edit',targetNodeId:String(nodeId),targetWidget:'model_file',value,showUploadPreview:true};
+            const host=document.createElement('div');host.innerHTML=generateInputHTML(area,{id:'native',areas:[area]});
+            assert(host.querySelector('.clab-upload-preview-toggle') && host.querySelector('.clab-upload-preview-option').textContent.includes('查看3D'),`native ${nodeId} ${value} lost the 3D switch`);
+            assert(host.querySelectorAll('.clab-custom-select-item').length===modelOptions.length,'native COMBO options were lost');
+            if(value.endsWith('.fbx')) assert(host.querySelector('.clab-glb-viewer') && !host.querySelector('img'),'FBX was not sent to the model viewer');
+            if(value==='none') assert(host.textContent.includes('尚未选择文件') && !host.querySelector('.clab-glb-viewer'),'native none selection loaded a model');
+            if(value.endsWith('.glb')) {
+                const url=new URL(host.querySelector('.clab-glb-viewer').dataset.modelUrl,location.origin);
+                assert(url.searchParams.get('filename')==='model.glb' && url.searchParams.get('subfolder')==='3d' && url.searchParams.get('type')==='input','nested native model URL has no separate subfolder');
+            }
+        }
+    }
+    const fbxOutput={id:'fbx-output',type:'preview',resultKind:'file',resultUrl:'/view?filename=ComfyUI_00001_.fbx&type=output&subfolder=3d',history:[],ratio:'16:9'};
+    const fbxHost=document.createElement('div');fbxHost.innerHTML=generateOutputHTML(fbxOutput,{id:'fbx-card',areas:[fbxOutput]});
+    assert(fbxHost.querySelector('.clab-glb-viewer') && !fbxHost.querySelector('.clab-model-open') && !fbxHost.querySelector('img'),'FBX output did not render an inline viewer');
+    passed.push('real Load3D schemas retain the 3D switch and FBX models offer preview and download');
     const playWithin = async media => Promise.race([media.play(), delay(2000).then(() => {throw new Error(`input ${media.tagName} playback timed out: ready=${media.readyState}, src=${media.src}`);})]);
     for (const upload of uploadAreas.slice(0,3)) {
         const root = areaElement(upload.id), zone = root.querySelector('.clab-upload-zone'), input = zone.querySelector('.clab-file-input'), select = zone.querySelector('.clab-custom-select');
@@ -481,6 +505,8 @@ try {
         assert(stage.dataset.modelLoaded === '1' && stage.querySelector('canvas')?.width > 0, `real GLB did not render: ${stage.textContent}`);
     };
     await waitForModel(modelStage); await delay(150);
+    const inputModelBounds = modelRoot.querySelector('.clab-upload-preview').getBoundingClientRect();
+    const inputModelInset = modelRoot.clientWidth-inputModelBounds.width;
     let idleFrames = frames; await delay(150);
     assert(frames === idleFrames, 'static GLB kept a background animation loop running');
     modelStage.querySelector('.clab-model-reset').click(); await delay(60);
@@ -492,7 +518,30 @@ try {
     assert(!modelStage.querySelector('canvas') && modelInput === modelRoot.querySelector('.clab-file-input'), 'closing a GLB preview retained GPU resources or replaced its input');
     passed.push('real GLB input renders on demand, stays idle and releases resources when hidden or disabled');
 
-    areaElement('model').querySelector('.clab-model-open').click();
+    const inlineStage = areaElement('model').querySelector('.clab-glb-viewer');
+    inlineStage.scrollIntoView({block:'center'}); await waitForModel(inlineStage); await delay(220);
+    const outputModelBounds=areaElement('model').querySelector('.clab-preview-bg').getBoundingClientRect();
+    assert(Math.abs(areaElement('model').clientWidth-outputModelBounds.width-inputModelInset)<1 && Math.abs(outputModelBounds.height-inputModelBounds.height)<1 && Math.abs(outputModelBounds.height-200)<1,`input and output 3D previews have different dimensions: input ${inputModelBounds.width}x${inputModelBounds.height}, output ${outputModelBounds.width}x${outputModelBounds.height}`);
+    const outputModelRoot=areaElement('model');
+    outputModelRoot.style.width='180px';
+    const warning=inlineStage.querySelector('.clab-model-warning');
+    warning.textContent='部分贴图未能加载，请检查配套文件（Textures/很长的贴图文件名.png）';warning.hidden=false;
+    await delay(60);
+    const warningBounds=warning.getBoundingClientRect(), resetBounds=inlineStage.querySelector('.clab-model-reset').getBoundingClientRect();
+    const stageBounds=inlineStage.getBoundingClientRect(),canvasBounds=inlineStage.querySelector('canvas').getBoundingClientRect();
+    const warningText=document.createRange();warningText.selectNodeContents(warning);
+    assert(warningBounds.top>=stageBounds.top && warningBounds.right<=resetBounds.left && warningBounds.bottom<=canvasBounds.top,'model warning overlaps the reset button or viewport');
+    for(const r of warningText.getClientRects()) assert(r.left>=stageBounds.left && r.right<=stageBounds.right && r.top>=stageBounds.top && r.bottom<=canvasBounds.top,'model warning text is clipped in a narrow preview');
+    assert(canvasBounds.height>0 && canvasBounds.bottom<=stageBounds.bottom+1,'model warning collapses or overflows its viewport');
+    warning.hidden=true;outputModelRoot.style.width='';
+    passed.push('input and output 3D previews share 200px dimensions and long texture warnings wrap without clipping');
+    assert(!document.querySelector('.clab-preview-modal.visible'), 'inline output opened the independent preview automatically');
+    const inlineCanvas = inlineStage.querySelector('canvas');
+    model.ratio='4:3'; surgicallyUpdateArea('model'); await delay(80);
+    assert(areaElement('model').querySelector('canvas')===inlineCanvas, 'updating output settings replaced its 3D canvas');
+    inlineCanvas.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,button:2,clientX:100,clientY:100}));
+    assert(document.querySelector('#clab-ctx-preview-mode'), 'right clicking the 3D canvas did not open its content menu');
+    document.querySelector('#clab-ctx-preview-mode').click();
     const modal = document.querySelector('.clab-preview-modal.visible');
     assert(modal, 'GLB output did not open the existing independent preview');
     const firstModelStage = modal.querySelector('.clab-glb-viewer'); await waitForModel(firstModelStage);
@@ -501,7 +550,10 @@ try {
     assert(secondModelStage !== firstModelStage && secondModelStage.dataset.modelUrl.includes('other.glb') && model.historyIndex === 1 && !firstModelStage.querySelector('canvas'), 'GLB history did not switch its model or release the previous renderer');
     modal.querySelector('.clab-preview-modal-close').click(); await delay(50);
     assert(!modal.classList.contains('visible') && !secondModelStage.querySelector('canvas'), 'closing GLB preview retained its renderer');
-    passed.push('GLB outputs use the existing preview and history switching with deterministic cleanup');
+    const updatedInlineStage=areaElement('model').querySelector('.clab-glb-viewer');
+    updatedInlineStage.scrollIntoView({block:'center'}); await waitForModel(updatedInlineStage);
+    assert(updatedInlineStage!==inlineStage && !inlineStage.querySelector('canvas') && updatedInlineStage.dataset.modelUrl.includes('other.glb'), 'switching history did not replace only the owned inline model');
+    passed.push('GLB outputs render inline, preserve their canvas on updates and open independent previews only through the context menu');
 
     uploadAreas[3].value='broken.glb'; surgicallyUpdateArea('upload-model');
     modelRoot.querySelector('.clab-upload-preview-toggle').click();
@@ -511,6 +563,54 @@ try {
     uploadAreas[3].value='model.glb'; surgicallyUpdateArea('upload-model');
     await waitForModel(modelRoot.querySelector('.clab-glb-viewer'));
     passed.push('invalid GLB files show a local error and changing the file recovers the preview');
+
+    const showModel = async filename => {
+        uploadAreas[3].value=filename; surgicallyUpdateArea('upload-model');
+        const stage=modelRoot.querySelector('.clab-glb-viewer'); await waitForModel(stage); return stage;
+    };
+    for(const filename of ['models/mesh.obj','models/mesh.stl','models/mesh.ply','models/cloud.ply','models/scene.gltf']) {
+        const stage=await showModel(filename);
+        assert(!stage.querySelector('.clab-model-canvas').textContent.includes('无法预览'),`${filename} failed`);
+        if(!filename.endsWith('.gltf')) assert(stage.querySelector('.clab-model-animation').hidden,`${filename} showed controls without animation`);
+        assert(stage.querySelector('.clab-model-warning').hidden,`${filename} could not resolve a companion material/texture`);
+    }
+    passed.push('OBJ/MTL textures, STL, ordinary PLY meshes/points and external-resource glTF render in the real viewer');
+
+    for(const filename of ['animated.fbx','animated.glb','motion.bvh']) {
+        const stage=await showModel(filename), bar=stage.querySelector('.clab-model-animation');
+        const seek=stage.querySelector('.clab-model-seek'), play=stage.querySelector('.clab-model-play');
+        assert(!bar.hidden && Number(seek.max)===2,`${filename} lost its animation clip or duration`);
+        await delay(40);assert(stage.querySelector('.clab-model-warning').hidden,`${filename} lost external texture paths`);
+        assert(bar.getBoundingClientRect().top>=stage.querySelector('canvas').getBoundingClientRect().bottom-1,`${filename} timeline overlays the model`);
+        seek.value=.5; seek.dispatchEvent(new Event('input'));
+        assert(wheel(stage.querySelector('canvas'),100,{shiftKey:true}).defaultPrevented && Math.abs(Number(seek.value)-.7)<.01,`${filename} Shift+wheel did not seek`);
+        await delay(450);assert(play.getAttribute('aria-pressed')==='false',`${filename} wheel started a paused animation`);
+        play.click(); await delay(130); assert(Number(seek.value)>.7,`${filename} play did not advance time`);
+        wheel(stage.querySelector('canvas'),100,{shiftKey:true});assert(play.getAttribute('aria-pressed')==='false',`${filename} did not pause during wheel seeking`);
+        await delay(470);assert(play.getAttribute('aria-pressed')==='true',`${filename} did not resume after wheel seeking`);
+        play.click(); await delay(80);const idle=frames;await delay(90);assert(frames===idle,`${filename} still ran animation frames while paused`);
+        const speed=stage.querySelector('.clab-model-speed');speed.value='2';speed.dispatchEvent(new Event('change'));
+        if(filename.endsWith('.glb')) {
+            const clips=stage.querySelector('.clab-model-clips');assert(!clips.hidden && clips.options.length===2,'multiple animation clips were lost');
+            clips.value='1';clips.dispatchEvent(new Event('change'));assert(Number(seek.value)===0,'changing clip did not reset its playback position');
+        }
+        seek.value=.4;seek.dispatchEvent(new Event('input'));play.click();
+        togglePanel();await delay(80);const hiddenFrames=frames;await delay(90);
+        assert(frames===hiddenFrames && !stage.querySelector('canvas'),`${filename} retained animation work after hiding`);
+        togglePanel();await waitForModel(stage);
+        assert(stage.querySelector('.clab-model-play').getAttribute('aria-pressed')==='true' && stage.querySelector('.clab-model-speed').value==='2',`${filename} lost playback state after reopening`);
+        stage.querySelector('.clab-model-play').click();
+    }
+    passed.push('FBX/GLB/BVH animations play, seek with Shift+wheel, switch clips and preserve state without idle or hidden loops');
+
+    const {localFBX}=await (await fetch('/clab/test-model-info')).json();
+    if(localFBX) {await showModel('3d/local-character.fbx');passed.push('the local 29MB binary FBX character renders with its embedded textures');}
+    uploadAreas[3].value='splat.ply';surgicallyUpdateArea('upload-model');
+    const splatStage=modelRoot.querySelector('.clab-glb-viewer');splatStage.scrollIntoView({block:'center'});
+    for(let i=0;i<60 && !splatStage.textContent.includes('无法预览');i++) await delay(30);
+    assert(splatStage.textContent.includes('高斯泼溅') && !splatStage.querySelector('canvas'),'Gaussian PLY was silently treated as an ordinary point cloud');
+    await showModel('model.glb');
+    passed.push('Gaussian PLY shows a format-specific explanation and the viewer recovers when changing models');
 
     window.testResult = { passed, errors };
 } catch (error) {

@@ -11,8 +11,8 @@ import { renderVideo } from "./media_types/media_video.js";
 import { renderAudio } from "./media_types/media_audio.js";
 import { attachMediaEvents } from "./module_media.js";
 import { onModuleRemoved } from "./module_lifecycle.js";
-import { getMediaType } from './media_types/media_utils.js';
-import { renderGLBViewer } from './media_types/media_model.js';
+import { getMediaType, isModelFile } from './media_types/media_utils.js';
+import { renderModelViewer } from './media_types/media_model.js';
 
 export function generateInputHTML(area, card) {
     const isAreaSelected = state.selectedAreaIds.includes(area.id);
@@ -81,11 +81,13 @@ export function generateInputHTML(area, card) {
         }
     }
 
+    // 当前 Load3D 的接口将 model 上传标记序列化为 file_upload。
+    const isModelUpload = opts.upload === 'model' || (primaryWidget === 'model_file' && ['Load3D', 'Load3DAdvanced', 'Load3DAnimation'].includes(node?.type));
     // 只要 options 中带 upload 标记，就强制走媒体上传组件渲染（不依赖 widgetDef 是否可用）。
     if (opts.image_upload || opts.upload === 'image_upload' || opts.upload === 'image') { isUpload = true; uploadType = 'image'; }
     else if (opts.video_upload || opts.upload === 'video_upload' || opts.upload === 'video') { isUpload = true; uploadType = 'video'; }
     else if (opts.audio_upload || opts.upload === 'audio_upload' || opts.upload === 'audio') { isUpload = true; uploadType = 'audio'; }
-    else if (opts.file_upload || opts.upload === 'file_upload' || opts.upload === 'model' || opts.upload === true) { isUpload = true; uploadType = 'file'; }
+    else if (isModelUpload || opts.file_upload || opts.upload === 'file_upload' || opts.upload === true) { isUpload = true; uploadType = 'file'; }
     else if (node && isComboWidget) {
         if (primaryWidget === 'image' && node.type === 'LoadImage') { isUpload = true; uploadType = 'image'; }
         else if (primaryWidget === 'video' && node.type === 'VHS_LoadVideo') { isUpload = true; uploadType = 'video'; }
@@ -96,6 +98,8 @@ export function generateInputHTML(area, card) {
             comboValues = wType;
         } else if (isComboWidget && Array.isArray(opts.values)) {
             comboValues = opts.values;
+        } else if (Array.isArray(opts.options)) {
+            comboValues = opts.options;
         }
     }
 
@@ -109,9 +113,13 @@ export function generateInputHTML(area, card) {
     if (isUpload) {
         const cloudUploadIconSvg = `<svg width="15" height="15" viewBox="0 0 171.37 147.71" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M43.68,51.32h116.52c3.4,0,6.16,2.76,6.16,6.16v79.08c0,3.4-2.76,6.16-6.16,6.16H37.52V57.48c0-3.4,2.76-6.16,6.16-6.16Z" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M141.73,51.32v-16.5c0-3.4-2.76-6.16-6.16-6.16h-45.57c-3.4,0-6.16-2.76-6.16-6.16v-11.33c0-3.4-2.76-6.16-6.16-6.16H11.16c-3.4,0-6.16,2.76-6.16,6.16v125.39c0,3.4,2.76,6.16,6.16,6.16h26.36" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><line x1="79.44" y1="97.02" x2="124.44" y2="97.02" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><line x1="101.94" y1="119.52" x2="101.94" y2="74.52" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
         const removeIconSvg = `<svg width="15" height="15" viewBox="0 0 174.7 167.95" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><line x1="46.03" y1="6" x2="158.33" y2="139.83" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><line x1="80.57" y1="91.05" x2="45.49" y2="120.48" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><line x1="123.23" y1="55.25" x2="102.18" y2="72.92" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><path d="M47.29,51.39l-22.8,19.13C2.59,88.9-.27,121.56,18.11,143.46h0c18.38,21.9,51.03,24.76,72.93,6.38l22.8-19.13" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><path d="M83.65,20.88l-14.75,12.37,66.55,79.31,14.75-12.37c21.9-18.38,24.76-51.03,6.38-72.93h0c-18.38-21.9-51.03-24.76-72.93-6.38Z" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-        const fileUrl = area.value ? `/view?filename=${encodeURIComponent(area.value)}&type=input` : '';
+        let filePath = typeof area.value === 'string' && area.value !== 'none' ? area.value.replace(/\\/g, '/') : '';
+        let sourceType = 'input';
+        filePath = filePath.replace(/\s+\[(input|output|temp)\]$/, (_, type) => { sourceType = type; return ''; });
+        const slash = filePath.lastIndexOf('/');
+        const fileUrl = filePath ? `/view?${new URLSearchParams({ filename: filePath.slice(slash + 1), type: sourceType, subfolder: filePath.slice(0, Math.max(0, slash)) })}` : '';
         const previewType = uploadType === 'file'
-            ? (opts.upload === 'model' || getMediaType(fileUrl) === 'model' ? 'model' : getMediaType(fileUrl)) : uploadType;
+            ? (isModelUpload || isModelFile(filePath) ? 'model' : getMediaType(fileUrl)) : uploadType;
         const previewLabel = { image: '图片', video: '视频', audio: '音频', model: '3D' }[previewType];
         const previewEnabled = !!previewLabel && area.showUploadPreview === true;
         uploadToggleHtml = previewLabel ? `<label class="clab-upload-preview-option" title="开启后加载预览，关闭后释放预览资源"><input type="checkbox" class="clab-upload-preview-toggle" ${previewEnabled ? 'checked' : ''}><span>查看${previewLabel}</span></label>` : '';
@@ -123,7 +131,7 @@ export function generateInputHTML(area, card) {
             if (previewType === 'image') previewHtml = `<img class="clab-preview-img clab-media-target" src="${fileUrl}" draggable="false" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;" />`;
             else if (previewType === 'video') previewHtml = renderVideo(area, 'contain', fileUrl, errCall);
             else if (previewType === 'audio') previewHtml = renderAudio({ ...area, matchMedia: true }, fileUrl, errCall);
-            else if (previewType === 'model') previewHtml = getMediaType(fileUrl) === 'model' ? renderGLBViewer(fileUrl) : '<span class="clab-model-status">基础版暂仅支持 GLB 模型</span>';
+            else if (previewType === 'model') previewHtml = getMediaType(fileUrl) === 'model' ? renderModelViewer(fileUrl) : `<span class="clab-model-status">暂不支持 ${escapeHtml(filePath.split('.').pop().toUpperCase())} 预览</span>`;
         } else if (previewEnabled) previewHtml = '<span class="clab-upload-empty">尚未选择文件</span>';
         const previewStyle = previewType === 'image' || previewType === 'video' ? 'aspect-ratio:16/9;' : previewType === 'model' ? 'height:200px;' : '';
         const clearDisabled = area.value ? '' : 'disabled';

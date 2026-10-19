@@ -1,4 +1,11 @@
-export { WebGLRenderer, Scene, PerspectiveCamera, HemisphereLight, DirectionalLight, Box3, Vector3, Color, PMREMGenerator, SRGBColorSpace, ACESFilmicToneMapping } from 'three';
+export { WebGLRenderer, Scene, PerspectiveCamera, HemisphereLight, DirectionalLight, Box3, Vector3, Color, PMREMGenerator, SRGBColorSpace, ACESFilmicToneMapping, LoadingManager, Group, Mesh, MeshStandardMaterial, Points, PointsMaterial, SkeletonHelper, AnimationMixer, LoopOnce, MOUSE } from 'three';
 export { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 export { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 export { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+export { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+export { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+export { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+export { STLLoader } from 'three/addons/loaders/STLLoader.js';
+export { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
+export { BVHLoader } from 'three/addons/loaders/BVHLoader.js';
+export { TGALoader } from 'three/addons/loaders/TGALoader.js';

@@ -52,7 +52,7 @@ function updateAppearance(area) {
         if (width && height) { area.width = width; area.height = height; }
     }
     if (bg && !bg.classList.contains('clab-preview-bg-text')) {
-        bg.style.aspectRatio = bg.classList.contains('clab-preview-bg-audio') && area.matchMedia ? 'auto'
+        bg.style.aspectRatio = bg.classList.contains('clab-preview-bg-model') || bg.classList.contains('clab-preview-bg-audio') && area.matchMedia ? 'auto'
             : area.matchMedia && area.width && area.height ? `${area.width} / ${area.height}`
             : getRatioCSS(area).replace('aspect-ratio:', '').replace(';', '').trim();
     }

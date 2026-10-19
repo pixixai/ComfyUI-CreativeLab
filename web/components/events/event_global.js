@@ -102,7 +102,7 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
                                   e.target.closest('.clab-custom-select') || e.target.closest('.clab-history-thumb') ||
                                   e.target.closest('.clab-bool-label') || e.target.closest('.clab-upload-zone') ||
                                   e.target.closest('.clab-del-card-btn') || e.target.closest('.clab-del-area-btn') ||
-                                  e.target.closest('.clab-video-controls-interactive');
+                                  e.target.closest('.clab-video-controls-interactive') || e.target.closest('.clab-glb-viewer');
 
             if (isInteractive) return;
 

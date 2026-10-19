@@ -9,7 +9,8 @@ import {
     captureCardInputSnapshot,
     pushPreviewHistoryEntry,
     syncTextContentWithSelection,
-    getGLBOutputFiles,
+    getModelOutputFiles,
+    isPreviewableModel,
 } from "./components/modules/media_types/media_utils.js";
 
 export function setupAPIInjector(app) {
@@ -605,7 +606,8 @@ export function setupAPIInjector(app) {
         try {
             const historyRun = { id: String(prompt_id), order: task.historyRunOrder, areaIds: task.previewTargets.map(target => target.areaId) };
 
-            const targetItems = [getGLBOutputFiles(outputData), outputData?.videos, outputData?.audio, outputData?.gifs, outputData?.images]
+            const modelItems = getModelOutputFiles(outputData);
+            const targetItems = [modelItems, outputData?.videos, outputData?.audio, outputData?.gifs, outputData?.images]
                 .find((items) => items?.length > 0);
             const archivedMedia = new Map();
             for (const target of task.previewTargets) {
@@ -626,14 +628,14 @@ export function setupAPIInjector(app) {
                         const sourceKey = JSON.stringify([sourceMedia.type, sourceMedia.subfolder, sourceMedia.filename]);
                         let media = archivedMedia.get(sourceKey);
                         const ext = sourceMedia.filename.split('.').pop().toLowerCase();
-                        const kind = ext === 'glb' ? 'model' : ['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext) || sourceMedia.format?.startsWith('video/')
+                        const kind = modelItems.length ? (isPreviewableModel(sourceMedia.filename) ? 'model' : 'file') : ['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext) || sourceMedia.format?.startsWith('video/')
                             ? 'video'
                             : ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'].includes(ext) || sourceMedia.format?.startsWith('audio/')
                                 ? 'audio' : 'image';
 
                         if (!media) {
                             media = { ...sourceMedia };
-                            if (media.type === 'temp' || media.type === 'output' || (kind === 'model' && media.type === 'input')) {
+                            if (media.type === 'temp' || media.type === 'output' || (modelItems.length && media.type === 'input')) {
                                 try {
                                     const response = await fetch('/clab/copy_temp_asset', {
                                         method: 'POST',

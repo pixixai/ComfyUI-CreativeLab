@@ -492,7 +492,7 @@ export function getMediaType(url) {
         const resolved = new URL(url, window.location.origin);
         const filename = resolved.searchParams.get("filename") || "";
         const ext = filename.split(".").pop().toLowerCase();
-        if (ext === 'glb') return 'model';
+        if (isPreviewableModel(filename)) return 'model';
         if (["mp4", "webm", "mov", "avi", "mkv"].includes(ext)) return "video";
         if (["mp3", "wav", "ogg", "flac", "aac", "m4a"].includes(ext)) return "audio";
         if (["png", "jpg", "jpeg", "webp", "gif", "bmp"].includes(ext)) return "image";
@@ -500,7 +500,7 @@ export function getMediaType(url) {
         if (filename !== "") return "file";
     } catch (_) {}
 
-    if (cleanUrl.endsWith('.glb')) return 'model';
+    if (isPreviewableModel(cleanUrl)) return 'model';
     if (cleanUrl.match(/\.(mp4|webm|mov|avi|mkv)$/)) return "video";
     if (cleanUrl.match(/\.(mp3|wav|ogg|flac|aac|m4a)$/)) return "audio";
     if (cleanUrl.match(/\.(png|jpg|jpeg|webp|gif|bmp)$/)) return "image";
@@ -508,10 +508,18 @@ export function getMediaType(url) {
     return "file";
 }
 
-export function getGLBOutputFiles(output) {
+export function isModelFile(filename) {
+    return /\.(glb|gltf|obj|stl|fbx|ply|bvh|3mf|usdz|splat|spz|ksplat)$/i.test(String(filename || ''));
+}
+
+export function isPreviewableModel(filename) {
+    return /\.(glb|gltf|obj|stl|fbx|ply|bvh)$/i.test(String(filename || ''));
+}
+
+export function getModelOutputFiles(output) {
     const saved = output?.['3d'];
-    if (Array.isArray(saved) && saved.some(file => /\.glb$/i.test(file?.filename || ''))) {
-        return saved.filter(file => /\.glb$/i.test(file?.filename || ''));
+    if (Array.isArray(saved) && saved.some(file => isModelFile(file?.filename))) {
+        return saved.filter(file => isModelFile(file?.filename));
     }
     const result = output?.result?.[0];
     if (typeof result !== 'string') return [];
@@ -522,7 +530,7 @@ export function getGLBOutputFiles(output) {
     const prefix = path.match(/^(input|output|temp)\//);
     if (prefix && (!annotation || prefix[1] === type)) { type = prefix[1]; path = path.slice(prefix[0].length); }
     const parts = path.split('/');
-    if (!/\.glb$/i.test(path) || parts.some(part => part === '..' || part === '.' || !part) || /[:\0]/.test(path)) return [];
+    if (!isModelFile(path) || parts.some(part => part === '..' || part === '.' || !part) || /[:\0]/.test(path)) return [];
     return [{ filename: parts.pop(), subfolder: parts.join('/'), type }];
 }
 

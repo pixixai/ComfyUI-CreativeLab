@@ -156,6 +156,94 @@ async def clab_organize_files(request):
 # =========================================================================
 # 3. 截胡转移专用接口 (复制 temp 或 output 文件到专属归档目录)
 # =========================================================================
+def _clab_model_references(path):
+    import re
+    import struct
+    ext = os.path.splitext(path)[1].lower()
+    if ext in ('.gltf', '.glb'):
+        with open(path, 'rb') as source:
+            if ext == '.glb':
+                header = source.read(20)
+                if len(header) != 20 or header[:4] != b'glTF':
+                    return []
+                content = source.read(struct.unpack('<I', header[12:16])[0])
+            else:
+                content = source.read()
+        data = json.loads(content)
+        return [item['uri'] for item in data.get('buffers', []) + data.get('images', []) if item.get('uri')]
+    if ext in ('.obj', '.mtl'):
+        references = []
+        with open(path, encoding='utf-8', errors='replace') as source:
+            for line in source:
+                match = re.match(r'^\s*(mtllib|map_\w+|bump|disp|decal|norm)\s+(.+?)\s*$', line, re.I)
+                if match:
+                    value = match[2].strip().strip('"')
+                    # MTL map options precede the texture filename.
+                    previous = None
+                    while value != previous:
+                        previous = value
+                        value = re.sub(r'^-(?:s|o|t)\s+[-+\d.eE]+(?:\s+[-+\d.eE]+){0,2}\s+', '', value)
+                        value = re.sub(r'^-mm\s+\S+\s+\S+\s+', '', value)
+                        value = re.sub(r'^-(?:bm|clamp|blendu|blendv|imfchan|type|texres)\s+\S+\s+', '', value)
+                    references.append(value)
+        return references
+    if ext == '.fbx':
+        references = []
+        with open(path, 'rb') as source:
+            header = source.read(27)
+            if not header.startswith(b'Kaydara FBX Binary'):
+                source.seek(0)
+                return re.findall(r'(?:RelativeFilename|FileName|Filename):\s*"([^"]+)"', source.read().decode('utf-8', errors='replace'))
+            wide = struct.unpack('<I', header[23:27])[0] >= 7500
+            layout = '<QQQB' if wide else '<IIIB'
+            size = struct.calcsize(layout)
+            source.seek(0, os.SEEK_END)
+            pending = [(27, source.tell())]
+            while pending:
+                cursor, limit = pending.pop()
+                while cursor + size <= limit:
+                    source.seek(cursor)
+                    end, count, length, name_length = struct.unpack(layout, source.read(size))
+                    if end == 0 or not cursor < end <= limit:
+                        break
+                    name = source.read(name_length)
+                    properties = source.tell()
+                    if name in (b'RelativeFilename', b'FileName', b'Filename') and count and source.read(1) == b'S':
+                        text_length = struct.unpack('<I', source.read(4))[0]
+                        if text_length <= length - 5:
+                            references.append(source.read(text_length).decode('utf-8', errors='replace'))
+                    children = properties + length
+                    if children + size <= end:
+                        pending.append((children, end))
+                    cursor = end
+        return references
+    return []
+
+
+def _clab_model_resources(base_dir, model_path):
+    import re
+    from urllib.parse import unquote, urlsplit
+    resources = {model_path}
+    pending = [model_path]
+    while pending:
+        source = pending.pop()
+        for reference in _clab_model_references(source):
+            if reference.startswith(('data:', 'blob:')):
+                continue
+            reference = reference.replace('\\', '/')
+            # FBX exports often retain the author's original absolute texture path.
+            if re.match(r'^(?:[a-zA-Z]:/|/)', reference):
+                reference = reference.rsplit('/', 1)[-1]
+            elif urlsplit(reference).scheme or reference.startswith('//'):
+                continue
+            relative = unquote(urlsplit(reference).path)
+            dependency = _clab_safe_join(base_dir, os.path.relpath(os.path.dirname(source), base_dir), relative)
+            if dependency not in resources and os.path.isfile(dependency):
+                resources.add(dependency)
+                pending.append(dependency)
+    return resources
+
+
 @server.PromptServer.instance.routes.post("/clab/copy_temp_asset")
 async def clab_copy_temp_asset(request):
     try:
@@ -209,6 +297,7 @@ async def clab_copy_temp_asset(request):
         
         # 提取扩展名
         ext = os.path.splitext(filename)[1]
+        resources = _clab_model_resources(source_base_dir, source_path) if ext.lower() in ('.glb', '.gltf', '.obj', '.fbx') else {source_path}
         
         # 【核心修改】：应用用户设置的文件名前缀
         counter = 1
@@ -219,6 +308,22 @@ async def clab_copy_temp_asset(request):
             counter += 1
             new_filename = f"{file_prefix}_{counter:02}{ext}"
             target_path = _clab_safe_join(target_base_dir, target_subfolder, new_filename)
+
+        # Keep the resource directory layout when the model has external buffers/materials/textures.
+        if len(resources) > 1:
+            package = f"{archive_dir}/file/{file_prefix}_{counter:02}"
+            while os.path.exists(_clab_safe_join(target_base_dir, package, '')):
+                counter += 1
+                package = f"{archive_dir}/file/{file_prefix}_{counter:02}"
+            for resource in resources - {source_path}:
+                destination = _clab_safe_join(target_base_dir, package, os.path.relpath(resource, source_base_dir))
+                os.makedirs(os.path.dirname(destination), exist_ok=True)
+                shutil.copy2(resource, destination)
+            relative = os.path.relpath(source_path, source_base_dir)
+            new_filename = os.path.basename(relative)
+            target_subfolder = os.path.join(package, os.path.dirname(relative)).replace('\\', '/')
+            target_path = _clab_safe_join(target_base_dir, target_subfolder, new_filename)
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
             
         # 【核心新增】：若用户开启清理缓存，且当前确实是 temp 文件，使用 move 斩草除根
         if delete_temp and source_type == "temp":
