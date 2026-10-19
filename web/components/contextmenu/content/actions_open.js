@@ -5,6 +5,7 @@
  */
 export function bindOpenActions({
     menuEl,
+    selectedAreaObjs,
     mainObj,
     mainCurrentUrl,
     mainHistoryIdx,
@@ -18,11 +19,8 @@ export function bindOpenActions({
     if (previewEl) {
         previewEl.onclick = () => {
             menuEl.style.display = "none";
-            if (!mainCurrentUrl) {
-                showAutoToast("No previewable asset in current module.", true);
-                return;
-            }
-            previewModalApi.openPreviewModal(mainObj.card, mainObj.area, mainCurrentUrl, mainHistoryIdx);
+            const sources = selectedAreaObjs.filter(item => item.area.type === 'preview');
+            previewModalApi.openPreviewModal(mainObj.card, mainObj.area, mainCurrentUrl, mainHistoryIdx, sources);
         };
     }
 

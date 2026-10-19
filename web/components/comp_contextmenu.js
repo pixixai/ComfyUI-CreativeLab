@@ -5,7 +5,7 @@
  */
 import { state } from "./ui_state.js";
 import { updateSelectionUI } from "./ui_selection.js";
-import { renderContentGroup, bindContentGroup } from "./contextmenu/group_content.js";
+import { renderContentGroup, bindContentGroup, openCardPreview } from "./contextmenu/group_content.js";
 import { buildNodeGroupState, renderNodeGroup, bindNodeGroup } from "./contextmenu/group_node.js";
 import { renderModuleGroup, bindModuleGroup } from "./contextmenu/group_module.js";
 
@@ -45,6 +45,12 @@ export function setupContextMenu(panelContainer) {
     window.addEventListener("mousedown", closeMenuGlobally, true);
     
     // 2. 核心渲染函数
+    const positionMenu=(x,y)=>{
+        menuEl.style.display="block";
+        const rect=menuEl.getBoundingClientRect();
+        menuEl.style.left=`${Math.max(8,Math.min(x,window.innerWidth-rect.width-8))}px`;
+        menuEl.style.top=`${Math.max(8,Math.min(y,window.innerHeight-rect.height-8))}px`;
+    };
     const showMenu = (x, y, areaId) => {
         const selectedAreaObjs = collectSelectedAreaObjs();
         if (selectedAreaObjs.length === 0) return;
@@ -73,14 +79,7 @@ export function setupContextMenu(panelContainer) {
         if (typeof bindModuleGroup === "function") bindModuleGroup(bindArgs);
 
         // 步骤 D：计算位置并显示 (防溢出屏幕)
-        menuEl.style.display = "block";
-        const rect = menuEl.getBoundingClientRect();
-        
-        const posX = Math.max(8, Math.min(x, window.innerWidth - rect.width - 8));
-        const posY = Math.max(8, Math.min(y, window.innerHeight - rect.height - 8));
-
-        menuEl.style.left = `${posX}px`;
-        menuEl.style.top = `${posY}px`;
+        positionMenu(x,y);
     };
 
     if (!window.CLab) window.CLab = {};
@@ -115,7 +114,18 @@ export function setupContextMenu(panelContainer) {
         }
 
         const areaEl = e.target.closest(".clab-area");
-        if (!areaEl) return;
+        if (!areaEl) {
+            const cardEl=e.target.closest('.clab-card:not(.clab-add-card-inline)');
+            if(!cardEl)return;
+            e.preventDefault();e.stopPropagation();
+            if(!state.selectedCardIds.includes(cardEl.dataset.cardId)){
+                state.selectedCardIds=[cardEl.dataset.cardId];state.selectedAreaIds=[];state.activeCardId=cardEl.dataset.cardId;updateSelectionUI();
+            }
+            const cards=state.cards.filter(card=>state.selectedCardIds.includes(card.id));
+            menuEl.innerHTML='<div class="clab-context-menu-item" id="clab-ctx-preview-mode">预览模式</div>';
+            menuEl.querySelector('#clab-ctx-preview-mode').onclick=()=>{closeMenu();openCardPreview(cards);};
+            positionMenu(e.clientX,e.clientY);return;
+        }
 
         const areaId = areaEl.dataset.areaId;
         if (!state.selectedAreaIds.includes(areaId)) {

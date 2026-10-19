@@ -54,6 +54,12 @@ const previewModalApi = createPreviewModalApi({
     getPreviewTextState,
 });
 
+export function openCardPreview(cards) {
+    const sources=cards.flatMap(card=>(card.areas||[]).filter(area=>area.type==='preview').map(area=>({card,area})));
+    const main=sources.find(source=>source.area.resultUrl||source.area.history?.length)||sources[0];
+    previewModalApi.openPreviewModal(main?.card||cards[0],main?.area,main?.area.resultUrl,main?.area.historyIndex,sources);
+}
+
 export function renderContentGroup(showContentGroup) {
     if (!showContentGroup) return "";
     return `
@@ -97,6 +103,7 @@ export function bindContentGroup({ menuEl, selectedAreaObjs, mainObj }) {
 
     bindOpenActions({
         menuEl,
+        selectedAreaObjs,
         mainObj,
         mainCurrentUrl,
         mainHistoryIdx,

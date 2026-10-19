@@ -39,6 +39,8 @@ const server = http.createServer((req, res) => {
         res.end('<!doctype html><meta charset="utf-8"><script type="module" src="/checks.js"></script>');
     } else if (url.pathname === '/checks.js') {
         res.end(fs.readFileSync(path.join(repo, 'tests/fixtures/performance.js')));
+    } else if (url.pathname === '/review-checks.js') {
+        res.end(fs.readFileSync(path.join(repo, 'tests/fixtures/preview_review.js')));
     } else if (url.pathname === '/scripts/app.js') {
         res.end('export const app = window.testApp;');
     } else if (url.pathname === '/scripts/api.js') {
@@ -74,7 +76,8 @@ const server = http.createServer((req, res) => {
         }
         res.setHeader('Content-Type', 'image/svg+xml');
         const [width, height] = url.searchParams.get('type') === 'input' ? [150, 300] : [320, 180];
-        res.end(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="#456"/></svg>`);
+        const color=url.searchParams.get('filename')?.startsWith('review-')?(url.searchParams.get('filename').includes('-b')?'#566f9c':'#bb8c65'):'#456';
+        res.end(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="${color}"/><circle cx="${width*.5}" cy="${height*.5}" r="${height*.28}" fill="#ddd"/></svg>`);
     } else if (url.pathname === '/upload/image' && req.method === 'POST') {
         req.resume();
         res.setHeader('Content-Type', 'application/json');
@@ -110,9 +113,13 @@ try {
     await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
     let sequence = 0;
     const pending = new Map();
+    let onDragIntercepted;
     socket.onmessage = ({ data }) => {
         const response = JSON.parse(data);
-        if (!response.id) return;
+        if (!response.id) {
+            if(response.method==='Input.dragIntercepted')onDragIntercepted?.(response.params.data);
+            return;
+        }
         const { resolve, reject } = pending.get(response.id);
         pending.delete(response.id);
         if (response.error) reject(new Error(JSON.stringify(response.error)));
@@ -221,13 +228,86 @@ try {
     await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:h.x+40,y:h.y+20},sessionId);
     assert.ok(outsideDrag.result.value>0,'dragging outside the 3D viewport no longer drags the module');
     console.log('PASS inline output gestures rotate/pan without dragging modules or opening menus; right click and dragging outside the viewport remain available');
+    await send('Emulation.setDeviceMetricsOverride',{width:1024,height:768,deviceScaleFactor:1,mobile:false},sessionId);
+    const browseBounds=await send('Runtime.evaluate',{
+        expression:`(()=>{window.showReviewDemo('browse');const root=document.querySelector('.clab-preview-modal.visible'),panel=root.querySelector('.clab-preview-modal-panel').getBoundingClientRect(),center=root.querySelector('.clab-preview-modal-center').getBoundingClientRect(),footer=root.querySelector('.clab-browse-footer').getBoundingClientRect(),handle=root.querySelector('[data-filmstrip-resize]').getBoundingClientRect();window.nativeBrowseImage=root.querySelector('.clab-preview-modal-main-image');return{panelBottom:panel.bottom,footerBottom:footer.bottom,footerWidth:footer.width,panelWidth:panel.width,centerHeight:center.height,height:footer.height,x:handle.x+handle.width/2,y:handle.y+handle.height/2};})()`,returnByValue:true,
+    },sessionId);
+    const bounds=browseBounds.result.value;
+    assert.ok(bounds.centerHeight>200&&Math.abs(bounds.footerWidth-bounds.panelWidth)<3&&bounds.footerBottom<=bounds.panelBottom+1,'laptop browse layout overflowed or lost its full-width filmstrip');
+    for(const side of ['sources','parameters']) {
+        const handle=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible'),handle=root.querySelector('[data-browse-resize="${side}"]').getBoundingClientRect(),pane=root.querySelector('${side==='sources'?'.clab-preview-modal-left':'.clab-preview-modal-right'}').getBoundingClientRect();return{x:handle.x+handle.width/2,y:handle.y+handle.height/2,width:pane.width};})()`,returnByValue:true},sessionId);
+        const p=handle.result.value,dx=side==='sources'?28:-28;
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:p.x,y:p.y},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:p.x,y:p.y},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,x:p.x+dx,y:p.y},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:p.x+dx,y:p.y},sessionId);
+        const pane=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible');return{width:root.querySelector('${side==='sources'?'.clab-preview-modal-left':'.clab-preview-modal-right'}').getBoundingClientRect().width,same:root.querySelector('.clab-preview-modal-main-image')===window.nativeBrowseImage};})()`,returnByValue:true},sessionId);
+        assert.ok(pane.result.value.width>p.width+20&&pane.result.value.same,`native ${side} resize failed or replaced the preview`);
+    }
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:bounds.x,y:bounds.y},sessionId);
+    await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:bounds.x,y:bounds.y},sessionId);
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,x:bounds.x,y:bounds.y-36},sessionId);
+    await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:bounds.x,y:bounds.y-36},sessionId);
+    const resized=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible'),size=root.querySelector('[data-browse-size]');size.value=176;size.dispatchEvent(new Event('input',{bubbles:true}));const strip=root.querySelector('.clab-browse-filmstrip'),r=strip.getBoundingClientRect();strip.scrollLeft=0;return{height:root.querySelector('.clab-browse-footer').getBoundingClientRect().height,same:root.querySelector('.clab-preview-modal-main-image')===window.nativeBrowseImage,x:r.x+r.width/2,y:r.y+r.height/2};})()`,returnByValue:true},sessionId);
+    assert.ok(resized.result.value.height>bounds.height&&resized.result.value.same,'native filmstrip resizing rebuilt the active preview');
+    await send('Runtime.evaluate',{expression:'document.querySelector("[data-browse-sort]").value="source";document.querySelector("[data-browse-sort]").dispatchEvent(new Event("change",{bubbles:true}));document.querySelector(".clab-browse-filmstrip").scrollLeft=0'},sessionId);
+    const dragPoints=await send('Runtime.evaluate',{expression:`(()=>{const thumbs=document.querySelectorAll('.clab-browse-filmstrip .clab-filmstrip-thumb'),a=thumbs[0].getBoundingClientRect(),b=thumbs[2].getBoundingClientRect();return{x:a.x+a.width/2,y:a.y+a.height/2,targetX:b.right-2,targetY:b.y+b.height/2};})()`,returnByValue:true},sessionId);
+    const points=dragPoints.result.value;
+    await send('Input.setInterceptDrags',{enabled:true},sessionId);
+    const intercepted=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('native thumbnail drag was not initiated')),5000);onDragIntercepted=data=>{clearTimeout(timer);onDragIntercepted=null;resolve(data);};});
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:points.x,y:points.y},sessionId);
+    await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:points.x,y:points.y},sessionId);
+    for(let step=1;step<=5;step++)await send('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,x:points.x+step*6,y:points.y},sessionId);
+    const dragData=await intercepted;
+    for(const type of ['dragEnter','dragOver','drop'])await send('Input.dispatchDragEvent',{type,x:points.targetX,y:points.targetY,data:dragData},sessionId);
+    await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:points.targetX,y:points.targetY},sessionId);
+    await send('Input.setInterceptDrags',{enabled:false},sessionId);
+    const draggedOrder=await send('Runtime.evaluate',{expression:`({order:[...document.querySelectorAll('.clab-browse-filmstrip [data-index]')].map(button=>Number(button.dataset.index)),sort:document.querySelector('[data-browse-sort]').value,same:document.querySelector('.clab-preview-modal-main-image')===window.nativeBrowseImage})`,returnByValue:true},sessionId);
+    assert.deepEqual(draggedOrder.result.value.order.slice(0,3),[1,2,0],'native dragging did not insert the thumbnail at the target seam');
+    assert.ok(draggedOrder.result.value.sort==='custom'&&draggedOrder.result.value.same,'native sorting replaced the preview or did not enter custom mode');
+    await send('Input.dispatchMouseEvent',{type:'mouseWheel',x:resized.result.value.x,y:resized.result.value.y,deltaX:0,deltaY:400},sessionId);
+    await new Promise(resolve=>setTimeout(resolve,100));
+    const scroll=await send('Runtime.evaluate',{expression:'document.querySelector(".clab-browse-filmstrip").scrollLeft',returnByValue:true},sessionId);
+    assert.ok(scroll.result.value>0,'the filmstrip did not scroll horizontally on a laptop viewport');
+    for(const side of ['sources','parameters','filmstrip']) {
+        const collapse=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible'),side='${side}',handle=root.querySelector(side==='filmstrip'?'[data-filmstrip-resize]':'[data-browse-resize="'+side+'"]'),rect=handle.getBoundingClientRect(),pane=root.querySelector(side==='sources'?'.clab-preview-modal-left':side==='parameters'?'.clab-preview-modal-right':'.clab-browse-footer').getBoundingClientRect();return{x:rect.x+rect.width/2,y:rect.y+rect.height/2,size:side==='filmstrip'?pane.height:pane.width};})()`,returnByValue:true},sessionId);
+        const p=collapse.result.value;
+        const target=side==='filmstrip'?{x:p.x,y:p.y+p.size-50}:{x:p.x+(p.size-60)*(side==='sources'?-1:1),y:p.y};
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:p.x,y:p.y},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:p.x,y:p.y},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,...target},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,...target},sessionId);
+        const collapsed=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible'),button=root.querySelector('[data-browse-restore="${side}"]'),r=button.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;return{collapsed:root.dataset.${side==='sources'?'sourceCollapsed':side==='parameters'?'parameterCollapsed':'filmCollapsed'},same:root.querySelector('.clab-preview-modal-main-image')===window.nativeBrowseImage,visible:!button.hidden&&r.width>0,hit:document.elementFromPoint(x,y)?.closest('[data-browse-restore]')===button,x,y};})()`,returnByValue:true},sessionId);
+        const arrow=collapsed.result.value;
+        assert.ok(arrow.collapsed==='true'&&arrow.same&&arrow.visible&&arrow.hit,`native ${side} collapsing failed or its restore triangle cannot be clicked`);
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:arrow.x,y:arrow.y},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:arrow.x,y:arrow.y},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:arrow.x,y:arrow.y},sessionId);
+        const restored=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible');return{size:parseFloat(root.style.getPropertyValue('${side==='sources'?'--browse-source-width':side==='parameters'?'--browse-parameter-width':'--browse-film-height'}')),hidden:root.querySelector('[data-browse-restore="${side}"]').hidden,same:root.querySelector('.clab-preview-modal-main-image')===window.nativeBrowseImage};})()`,returnByValue:true},sessionId);
+        assert.equal(restored.result.value.size,side==='sources'?180:side==='parameters'?240:164,`native ${side} arrow did not restore the default size`);
+        assert.ok(restored.result.value.hidden&&restored.result.value.same,`native ${side} restore lost the preview or left its triangle visible`);
+    }
+    if(process.env.CLAB_REVIEW_SCREENSHOT_PREFIX){const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-laptop.png`,Buffer.from(screenshot.data,'base64'));}
+    await send('Runtime.evaluate',{expression:'document.querySelector(".clab-preview-modal-close").click()'},sessionId);
+    await send('Emulation.setDeviceMetricsOverride',{width:1366,height:1000,deviceScaleFactor:1,mobile:false},sessionId);
+    console.log('PASS laptop browse keeps its preview during native resizing, seam dragging, plain-wheel scrolling and collapsing/restoring all three panes');
     if (process.env.CLAB_BROWSER_SCREENSHOT) {
         await send('Runtime.evaluate', { expression: 'document.dispatchEvent(new Event("clab_render_ui")); document.querySelector(".clab-card-body").scrollTop = 0;' }, sessionId);
         await new Promise(resolve => setTimeout(resolve, 200));
         const screenshot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
         fs.writeFileSync(process.env.CLAB_BROWSER_SCREENSHOT, Buffer.from(screenshot.data, 'base64'));
     }
-    console.log(`${report.passed.length+3} browser checks passed; ${requests.length} media requests`);
+    if(process.env.CLAB_REVIEW_SCREENSHOT_PREFIX)for(const mode of ['browse','compare','table','xy']) {
+        await send('Runtime.evaluate',{expression:`window.showReviewDemo('${mode}')`},sessionId);
+        await new Promise(resolve=>setTimeout(resolve,200));
+        const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);
+        fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-${mode}.png`,Buffer.from(screenshot.data,'base64'));
+    }
+    if(process.env.CLAB_REVIEW_SCREENSHOT_PREFIX) {
+        const exported=await send('Runtime.evaluate',{expression:'window.exportReviewDemoPNG()',awaitPromise:true,returnByValue:true},sessionId);
+        fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-export.png`,Buffer.from(exported.result.value.split(',')[1],'base64'));
+    }
+    console.log(`${report.passed.length+4} browser checks passed; ${requests.length} media requests`);
 } finally {
     socket?.close();
     browser.kill();

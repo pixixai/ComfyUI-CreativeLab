@@ -545,9 +545,16 @@ try {
     const modal = document.querySelector('.clab-preview-modal.visible');
     assert(modal, 'GLB output did not open the existing independent preview');
     const firstModelStage = modal.querySelector('.clab-glb-viewer'); await waitForModel(firstModelStage);
+    const browseCanvas=firstModelStage.querySelector('canvas');
+    for(const key of ['ArrowLeft','ArrowRight'])modal.querySelector('[data-browse-resize="parameters"]').dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));
+    for(let i=0;i<32;i++)modal.querySelector('[data-browse-resize="parameters"]').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));
+    assert(getComputedStyle(modal.querySelector('.clab-preview-modal-right')).display==='none','3D preview parameters did not collapse');
+    modal.querySelector('[data-browse-restore="parameters"]').click();
+    assert(firstModelStage.querySelector('canvas')===browseCanvas,'resizing browse parameters replaced the 3D canvas');
+    const {previewModalStore: modelPreviewStore}=await import('/extensions/clab/components/contextmenu/content/state.js');
     modal.querySelector('.clab-preview-modal-thumb[data-index="1"]').click();
     const secondModelStage = modal.querySelector('.clab-glb-viewer'); await waitForModel(secondModelStage);
-    assert(secondModelStage !== firstModelStage && secondModelStage.dataset.modelUrl.includes('other.glb') && model.historyIndex === 1 && !firstModelStage.querySelector('canvas'), 'GLB history did not switch its model or release the previous renderer');
+    assert(secondModelStage !== firstModelStage && secondModelStage.dataset.modelUrl.includes('other.glb') && model.historyIndex === 1 && !firstModelStage.querySelector('canvas'), `GLB history did not switch its model or release the previous renderer: ${secondModelStage.dataset.modelUrl}, index ${model.historyIndex}, same ${secondModelStage===firstModelStage}, retained ${!!firstModelStage.querySelector('canvas')}, active ${modelPreviewStore.activeIndex}, entries ${JSON.stringify(modelPreviewStore.entries.map(e=>({i:e.index,u:e.url,run:e.runId,a:e.areaId})))}`);
     modal.querySelector('.clab-preview-modal-close').click(); await delay(50);
     assert(!modal.classList.contains('visible') && !secondModelStage.querySelector('canvas'), 'closing GLB preview retained its renderer');
     const updatedInlineStage=areaElement('model').querySelector('.clab-glb-viewer');
@@ -612,6 +619,8 @@ try {
     await showModel('model.glb');
     passed.push('Gaussian PLY shows a format-specific explanation and the viewer recovers when changing models');
 
+    const {checkPreviewReview}=await import('/review-checks.js');
+    await checkPreviewReview({state,passed,assert,delay});
     window.testResult = { passed, errors };
 } catch (error) {
     window.testResult = { passed, errors, error: error.stack };

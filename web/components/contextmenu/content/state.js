@@ -8,7 +8,6 @@
 export const previewModalStore = {
     root: null,
     entries: [],
-    snapshots: [],
     activeIndex: 0,
     textCache: new Map(),
     textEditorState: new Map(),

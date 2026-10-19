@@ -13,3 +13,8 @@ external decoder service. Included loaders: GLTF, FBX, OBJ/MTL, STL, PLY, BVH an
 TGA textures. AnimationMixer provides playback for glTF/FBX clips and BVH bones.
 FBX decompression includes fflate 0.8.2 (MIT); see `fflate-LICENSE.txt`.
 Draco, Meshopt, KTX2 and Gaussian splat renderers are not included.
+
+`zip-entry.js` bundles the same fflate 0.8.2 implementation shipped with Three.js
+into `zip.js` for offline result-table exports (MIT; `fflate-LICENSE.txt`). Build
+with the command above, replacing the entry and output names with `zip-entry.js`
+and `zip.js`. The ZIP bundle is loaded only when an export needs it.
