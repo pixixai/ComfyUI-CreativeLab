@@ -4,6 +4,7 @@ import { collectPreviewRecords, snapshotParameters, parameterFields, buildResult
 import { buildTableModel } from '../web/components/contextmenu/content/preview_table.js';
 import { buildStandaloneHTML } from '../web/components/contextmenu/content/preview_export.js';
 import { workspacePreviewSources, initialPreviewSources, sourceRecordCount, sortBrowseRecords, moveBrowseRecords } from '../web/components/contextmenu/content/preview_browse.js';
+import { comparisonHTML } from '../web/components/contextmenu/content/preview_compare.js';
 
 globalThis.window={location:{origin:'http://localhost:8188'}};
 
@@ -126,4 +127,28 @@ test('custom dragging supports end insertion, preserves selection order and igno
     assert.deepEqual(moveBrowseRecords(keys,['d','b']),['a','c','e','b','d']);
     assert.equal(moveBrowseRecords(keys,['b','c'],'b'),keys);
     assert.equal(moveBrowseRecords(keys,['b'],'missing'),keys);
+});
+
+test('comparison offers both drop regions before selecting media and escapes overlay labels',()=>{
+    const config={layout:'side',slot:'a'},empty=comparisonHTML(null,null,config);
+    assert.match(empty,/clab-compare-stage/);assert.match(empty,/拖到 A/);assert.match(empty,/拖到 B/);
+    const h=fixture();h.records[0].cardLabel='<script>bad</script>';
+    const html=comparisonHTML(h.records[0],h.records[1],config);
+    assert.ok(!html.includes('<script>'));assert.match(html,/&lt;script&gt;/);
+    assert.ok(html.indexOf('clab-compare-layout')>html.indexOf('clab-compare-status'));
+});
+
+test('exchanging A/B preserves saved video progress while choosing a new pair resets it',()=>{
+    const h=fixture(),config={layout:'side',slot:'a'};
+    comparisonHTML(h.records[0],h.records[1],config);
+    config.playback={time:12,speed:1.5,audio:'a',playing:false};
+    comparisonHTML(h.records[1],h.records[0],config);
+    assert.equal(config.playback.time,12);assert.equal(config.playback.speed,1.5);
+    comparisonHTML(h.records[1],h.records[2],config);assert.equal(config.playback.time,0);
+});
+
+test('mixed media pairs keep replacement controls available without creating shared video playback',()=>{
+    const h=fixture(),html=comparisonHTML(h.records[0],{...h.records[1],type:'video'},{layout:'split',slot:'b'});
+    assert.match(html,/请选择两张图片或两个视频/);assert.match(html,/data-compare-slot="b"/);
+    assert.ok(!html.includes('data-compare-play>'));
 });

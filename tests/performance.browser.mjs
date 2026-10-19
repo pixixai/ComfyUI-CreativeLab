@@ -291,6 +291,58 @@ try {
     await send('Runtime.evaluate',{expression:'document.querySelector(".clab-preview-modal-close").click()'},sessionId);
     await send('Emulation.setDeviceMetricsOverride',{width:1366,height:1000,deviceScaleFactor:1,mobile:false},sessionId);
     console.log('PASS laptop browse keeps its preview during native resizing, seam dragging, plain-wheel scrolling and collapsing/restoring all three panes');
+    await send('Runtime.evaluate',{expression:"window.showReviewDemo('compare')"},sessionId);
+    for(const [layout,index,slot] of [['side',2,'a'],['split',6,'b']]) {
+        const target=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible');root.querySelector('[data-compare-layout="${layout}"]').click();const thumb=root.querySelector('.clab-filmstrip-thumb[data-index="${index}"]');thumb.scrollIntoView({inline:'center',block:'nearest'});const from=thumb.getBoundingClientRect(),stage=root.querySelector('.clab-compare-stage'),to=stage.getBoundingClientRect(),split=parseFloat(stage.style.getPropertyValue('--compare-split'))/100;return{x:from.x+from.width/2,y:from.y+from.height/2,toX:to.x+to.width*(${slot==='a'?'split/2':'(1+split)/2'}),toY:to.y+to.height*.65};})()`,returnByValue:true},sessionId);
+        const p=target.result.value;
+        await send('Input.setInterceptDrags',{enabled:true},sessionId);
+        const data=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('native comparison thumbnail drag did not start')),5000);onDragIntercepted=value=>{clearTimeout(timer);onDragIntercepted=null;resolve(value);};});
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:p.x,y:p.y},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:p.x,y:p.y},sessionId);
+        for(let step=1;step<=5;step++)await send('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,x:p.x+step*6,y:p.y},sessionId);
+        const payload=await data;
+        for(const type of ['dragEnter','dragOver','drop'])await send('Input.dispatchDragEvent',{type,x:p.toX,y:p.toY,data:payload},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:p.toX,y:p.toY},sessionId);
+        await send('Input.setInterceptDrags',{enabled:false},sessionId);
+        const dropped=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible');return{badge:root.querySelector('.clab-filmstrip-thumb[data-index="${index}"] .clab-filmstrip-assignment').textContent,next:root.querySelector('[data-compare-slot="${slot==='a'?'b':'a'}"]').getAttribute('aria-pressed')};})()`,returnByValue:true},sessionId);
+        assert.equal(dropped.result.value.badge,slot.toUpperCase(),`native ${layout} drop assigned the wrong comparison slot`);
+        assert.equal(dropped.result.value.next,'true','comparison drop did not arm the other slot');
+        const swap=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible'),stage=root.querySelector('.clab-compare-stage'),r=stage.getBoundingClientRect();stage.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:r.x+r.width*.7,clientY:r.y+r.height*.3}));const button=root.querySelector('[data-compare-swap]').getBoundingClientRect();return{x:button.x+button.width/2,y:button.y+button.height/2,expected:r.x+r.width*${layout==='side'?'.5':'.7'},a:root.querySelector('.label-a').title,b:root.querySelector('.label-b').title};})()`,returnByValue:true},sessionId);
+        const button=swap.result.value;assert.ok(Math.abs(button.x-button.expected)<2,`${layout} exchange button is not centered on its divider`);
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:button.x,y:button.y},sessionId);
+        await new Promise(resolve=>setTimeout(resolve,180));
+        const hover=await send('Runtime.evaluate',{expression:`(()=>{const button=document.querySelector('.clab-preview-modal.visible [data-compare-swap]');return{color:getComputedStyle(button.querySelector('path')).color,stroke:parseFloat(getComputedStyle(button.querySelector('circle[stroke="currentColor"]')).strokeWidth),size:button.getBoundingClientRect().width};})()`,returnByValue:true},sessionId);
+        assert.ok(hover.result.value.color==='rgb(255, 255, 255)'&&hover.result.value.stroke>1.6&&hover.result.value.size===28,'swap hover did not brighten and thicken its circle without resizing');
+
+        await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:button.x,y:button.y},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:button.x,y:button.y},sessionId);
+        const exchanged=await send('Runtime.evaluate',{expression:"(()=>{const root=document.querySelector('.clab-preview-modal.visible');return{a:root.querySelector('.label-a').title,b:root.querySelector('.label-b').title};})()",returnByValue:true},sessionId);
+        assert.deepEqual(exchanged.result.value,{a:button.b,b:button.a},`native ${layout} divider click failed to exchange A/B`);
+    }
+    await send('Runtime.evaluate',{expression:'document.querySelector(".clab-preview-modal-close").click()'},sessionId);
+    console.log('PASS native thumbnail drops target A/B in side and split layouts, and their divider buttons exchange media');
+    for(const mode of ['browse','compare']) {
+        const position=await send('Runtime.evaluate',{expression:`window.openReviewVideo('${mode}')`,awaitPromise:true,returnByValue:true},sessionId);
+        const p=position.result.value;
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:p.x,y:p.y},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mouseWheel',x:p.x,y:p.y,deltaX:0,deltaY:-100,modifiers:2},sessionId);
+        await new Promise(resolve=>setTimeout(resolve,100));
+        const zoom=await send('Runtime.evaluate',{expression:`(()=>{const r=window.nativePreviewTransform.getBoundingClientRect();return{width:r.width,x:r.x,y:r.y,times:window.nativePreviewVideos.map(v=>v.currentTime),scale:window.visualViewport.scale};})()`,returnByValue:true},sessionId);
+        assert.ok(zoom.result.value.width>p.width&&Math.abs((p.x-zoom.result.value.x)/zoom.result.value.width-.7)<.002&&zoom.result.value.times.every(t=>Math.abs(t-.25)<.03)&&zoom.result.value.scale===1,`native ${mode} Ctrl+wheel changed playback or failed to zoom about the pointer`);
+        for(const type of ['keyDown','keyUp'])await send('Input.dispatchKeyEvent',{type,key:' ',code:'Space',windowsVirtualKeyCode:32},sessionId);
+        await new Promise(resolve=>setTimeout(resolve,80));
+        const playing=await send('Runtime.evaluate',{expression:'window.nativePreviewVideos.every(v=>!v.paused)',returnByValue:true},sessionId);
+        assert.equal(playing.result.value,true,`native ${mode} Space did not start playback`);
+        for(const type of ['keyDown','keyUp'])await send('Input.dispatchKeyEvent',{type,key:' ',code:'Space',windowsVirtualKeyCode:32},sessionId);
+        const before=await send('Runtime.evaluate',{expression:'window.nativePreviewVideos[0].currentTime',returnByValue:true},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mouseWheel',x:p.x,y:p.y,deltaX:0,deltaY:100},sessionId);
+        await new Promise(resolve=>setTimeout(resolve,100));
+        const after=await send('Runtime.evaluate',{expression:'window.nativePreviewVideos.map(v=>({time:v.currentTime,paused:v.paused}))',returnByValue:true},sessionId);
+        assert.ok(after.result.value.every(v=>v.paused&&Math.abs(v.time-before.result.value-.2)<.04),`native ${mode} wheel did not seek while preserving pause state`);
+        if(process.env.CLAB_REVIEW_SCREENSHOT_PREFIX){const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-video-${mode}.png`,Buffer.from(screenshot.data,'base64'));}
+        await send('Runtime.evaluate',{expression:'window.closeReviewVideo()'},sessionId);
+    }
+    console.log('PASS native browse/compare video Ctrl+wheel zooms at the pointer, Space plays/pauses and plain wheel seeks');
     if (process.env.CLAB_BROWSER_SCREENSHOT) {
         await send('Runtime.evaluate', { expression: 'document.dispatchEvent(new Event("clab_render_ui")); document.querySelector(".clab-card-body").scrollTop = 0;' }, sessionId);
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -307,7 +359,7 @@ try {
         const exported=await send('Runtime.evaluate',{expression:'window.exportReviewDemoPNG()',awaitPromise:true,returnByValue:true},sessionId);
         fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-export.png`,Buffer.from(exported.result.value.split(',')[1],'base64'));
     }
-    console.log(`${report.passed.length+4} browser checks passed; ${requests.length} media requests`);
+    console.log(`${report.passed.length+6} browser checks passed; ${requests.length} media requests`);
 } finally {
     socket?.close();
     browser.kill();

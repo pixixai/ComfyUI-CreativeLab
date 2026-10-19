@@ -623,5 +623,5 @@ try {
     await checkPreviewReview({state,passed,assert,delay});
     window.testResult = { passed, errors };
 } catch (error) {
-    window.testResult = { passed, errors, error: error.stack };
+    window.testResult = { passed, errors, error: error.stack || String(error) };
 }

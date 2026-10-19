@@ -85,17 +85,63 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     passed.push('multi-module preview groups all histories by source, preserves duplicate URLs and keeps ordinary history restoration');
 
     const before=JSON.stringify([card,other]);
-    q('[data-review-mode="compare"]').click();q('.clab-preview-modal-thumb[data-index="0"]').click();q('.clab-preview-modal-thumb[data-index="4"]').click();
+    q('[data-review-mode="compare"]').click();
+    assert(q('.clab-browse-source-tree')&&!q('.clab-browse-footer').hidden&&q('.clab-compare-stage'),'comparison did not use the source tree and bottom filmstrip or has no empty drop regions');
+    q('.clab-preview-modal-thumb[data-index="0"]').click();q('.clab-preview-modal-thumb[data-index="4"]').click();
     assert(q('.clab-compare-stage.side') && q('.clab-compare-stage').querySelectorAll('img').length===2,'image A/B slots did not accept different output modules');
+    assert(!q('.clab-compare-slots')&&q('.label-a').textContent.startsWith('A')&&q('.label-b').textContent.endsWith('B'),'A/B information is not in the overlay corner labels');
+    const initialStage=q('.clab-compare-stage'),firstPair=[...initialStage.querySelectorAll('img')];
+    const sideRect=initialStage.getBoundingClientRect(),modeRect=q('.clab-compare-layout').getBoundingClientRect(),swapRect=q('[data-compare-swap]').getBoundingClientRect();
+    assert(initialStage.contains(q('.clab-compare-layout'))&&modeRect.top>=sideRect.top&&modeRect.bottom<=sideRect.bottom+1&&Math.abs(sideRect.height-q('.clab-preview-modal-center').getBoundingClientRect().height)<2&&q('.clab-compare-layout').classList.contains('clab-review-segment')&&getComputedStyle(q('.clab-compare-layout')).backgroundColor!=='rgba(0, 0, 0, 0)'&&getComputedStyle(q('[data-compare-layout="side"]')).fontWeight==='700','comparison mode capsule is not overlaid on the full-height preview');
+    const swap=q('[data-compare-swap]'),glyph=swap.querySelector('svg').getBoundingClientRect(),hintRect=q('.clab-compare-status').getBoundingClientRect();
+    assert(glyph.width===22&&glyph.height===22&&swapRect.width>glyph.width&&swapRect.height>glyph.height&&swap.querySelector('svg').getAttribute('fill')==='none'&&swap.querySelector('circle[stroke="currentColor"]')&&swap.querySelector('path').getAttribute('fill')==='currentColor'&&!swap.querySelector('path').hasAttribute('fill-rule')&&getComputedStyle(swap).backgroundColor==='rgba(0, 0, 0, 0)'&&getComputedStyle(swap).color===getComputedStyle(q('.clab-compare-divider')).backgroundColor,'comparison swap does not use a hollow circle and solid arrows with a transparent hit area');
+    const dividerRect=q('.clab-compare-divider').getBoundingClientRect();
+    assert(Math.abs(glyph.x+glyph.width/2-dividerRect.x-dividerRect.width/2)<.6&&Math.abs(glyph.y+glyph.height/2-dividerRect.y-dividerRect.height/2)<.6,'comparison circle is not centered on the upper and lower divider segments');
+    assert(modeRect.width<145&&modeRect.height<=28&&Math.abs(sideRect.bottom-modeRect.top-modeRect.height/2-52)<2&&Math.abs(sideRect.bottom-hintRect.top-hintRect.height/2-19)<2,'comparison capsule did not shrink or exchange vertical positions with its hint');
+    for(const label of root.querySelectorAll('.clab-compare-label')) {
+        assert(getComputedStyle(label).backgroundColor==='rgba(0, 0, 0, 0)'&&getComputedStyle(label).borderTopWidth==='0px'&&label.querySelector('.clab-compare-label-separator'),'comparison corner information still has a background frame or lacks its separator');
+        const badge=label.querySelector('strong').getBoundingClientRect();assert(badge.width===badge.height&&getComputedStyle(label.querySelector('strong')).borderRadius==='3px','preview A/B badge is not a slightly rounded square');
+    }
+    for(const overlay of initialStage.querySelectorAll('button,strong,span,svg,.clab-compare-layout,.clab-compare-status,.clab-compare-divider'))assert(getComputedStyle(overlay).boxShadow==='none'&&getComputedStyle(overlay).textShadow==='none'&&getComputedStyle(overlay).filter==='none','comparison overlay still has a shadow or filter');
+    const badgeColor=slot=>getComputedStyle(q(`[data-compare-slot="${slot}"] strong`)).backgroundColor;
+    const activeColor=badgeColor('a');assert(activeColor!==badgeColor('b')&&getComputedStyle(q('[data-compare-slot="a"] strong')).color==='rgb(255, 255, 255)','pending A region is not indicated by its lit number badge');
+    q('[data-compare-slot="b"]').click();await delay(180);assert(badgeColor('b')===activeColor&&badgeColor('a')!==activeColor,'switching the pending region did not move the badge highlight');
+    assert(Math.abs(swapRect.x+swapRect.width/2-sideRect.x-sideRect.width/2)<2&&Math.abs(swapRect.y+swapRect.height/2-sideRect.y-sideRect.height/2)<2,'side comparison swap button is not at the divider center');
+    q('[data-compare-slot="a"]').click();resize('sources','ArrowLeft');resize('sources','ArrowRight');
+    assert(initialStage.querySelector('img')===firstPair[0],'comparison target or layout resizing rebuilt the selected media');
     q('[data-compare-layout="split"]').click();
     const stage=q('.clab-compare-stage'),r=stage.getBoundingClientRect();
+    assert(stage===initialStage&&stage.querySelector('img')===firstPair[0],'switching comparison layout replaced its media');
     stage.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:r.left+r.width*.75,clientY:r.top+20}));
     assert(stage.style.getPropertyValue('--compare-split')==='75%','hover did not move the image comparison divider');
     stage.dispatchEvent(new WheelEvent('wheel',{deltaY:-100,bubbles:true,cancelable:true}));
     assert([...stage.querySelectorAll('.clab-compare-transform')].every(el=>el.style.transform.includes('1.12')),'image A/B zoom is not shared');
+    const zoomSwap=q('[data-compare-swap]').getBoundingClientRect(),imageBounds=stage.querySelector('.clab-compare-transform').getBoundingClientRect();
+    assert(imageBounds.width>r.width&&Math.abs(zoomSwap.x+zoomSwap.width/2-r.left-r.width*.75)<2,'zoom did not fill the viewport or moved the overlay swap button');
+    assert(q('[data-compare-slot="a"]').getBoundingClientRect().left>=r.left&&q('[data-compare-slot="b"]').getBoundingClientRect().right<=r.right+1,'split clipping hid an A/B overlay label');
     q('[data-compare-swap]').click();assert(q('[data-compare-slot="a"]').textContent.includes('中间结果'),'swapping A/B did not swap the chosen sources');
     assert(JSON.stringify([card,other])===before,'A/B selection changed live parameters or history');
     passed.push('image A/B comparison supports cross-module slots, split hover, shared zoom and swapping without modifying tasks');
+    const put=async(index,slot)=>{
+        const thumb=q(`.clab-filmstrip-thumb[data-index="${index}"]`),dataTransfer=new DataTransfer();
+        thumb.dispatchEvent(new DragEvent('dragstart',{bubbles:true,cancelable:true,dataTransfer}));
+        const stage=q('.clab-compare-stage'),rect=stage.getBoundingClientRect(),split=parseFloat(stage.style.getPropertyValue('--compare-split'))/100;
+        const x=rect.left+rect.width*(slot==='a'?split/2:(1+split)/2),y=rect.top+rect.height/2;
+        stage.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer,clientX:x,clientY:y}));
+        assert(stage.dataset.dropSlot===slot,'drag feedback chose the wrong comparison region');
+        stage.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer,clientX:x,clientY:y}));
+        thumb.dispatchEvent(new DragEvent('dragend',{bubbles:true,dataTransfer}));await delay(0);
+    };
+    await put(2,'a');assert(q('.label-a').textContent.includes('历史 3')&&q('[data-compare-slot="b"]').getAttribute('aria-pressed')==='true','split drop did not replace A or arm B');
+    q('[data-compare-layout="side"]').click();await put(6,'b');assert(q('.label-b').textContent.includes(other.title),'side drop did not replace B with a different task');
+    assert(q('.clab-filmstrip-thumb[data-index="2"] .clab-filmstrip-assignment').textContent==='A'&&q('.clab-filmstrip-thumb[data-index="6"] .clab-filmstrip-assignment').textContent==='B','filmstrip does not identify selected A/B records');
+    q('[data-compare-slot="a"]').click();q('.clab-filmstrip-thumb[data-index="0"]').click();assert(q('.label-a').textContent.includes('历史 1')&&q('[data-compare-slot="b"]').getAttribute('aria-pressed')==='true','thumbnail click did not alternate its comparison target');
+    q('.clab-filmstrip-thumb[data-index="0"]').click();
+    const badges=q('.clab-filmstrip-thumb[data-index="0"] .clab-filmstrip-assignment'),thumbBounds=badges.parentElement.getBoundingClientRect();
+    assert(badges.children.length===2&&badges.textContent==='AB','a record used in both regions did not receive two separate A/B badges');
+    for(const badge of badges.children) {const r=badge.getBoundingClientRect();assert(r.width===r.height&&getComputedStyle(badge).borderRadius==='3px'&&r.right<=thumbBounds.right&&r.left>thumbBounds.left+thumbBounds.width/2,'thumbnail A/B badges are not rounded squares at the top right');}
+    assert(JSON.stringify([card,other])===before,'comparison dropping modified stored history or parameters');
+    passed.push('comparison shares browse controls, keeps full-size media under corner overlays and accepts thumbnail drops into either A/B region');
 
     q('[data-review-mode="table"]').click();
     assert(q('.clab-result-table').querySelectorAll('tbody tr').length===5,'result table did not group matching runs or isolate legacy records');
@@ -169,6 +215,9 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     window.CLab.showPreviewContextMenu(100,100,card.id,video.id,videoURL);document.querySelector('#clab-ctx-preview-mode').click();
     const browseVideo=q('.clab-preview-modal-main-video');
     for(let i=0;i<60&&browseVideo.readyState<2;i++)await delay(30);
+    assert(!browseVideo.controls && q('.clab-preview-video .clab-video-controls') && !q('.clab-video-play'), 'browse still uses native video controls');
+    if (!Number.isFinite(browseVideo.duration)) { q('.clab-preview-video').click();await delay(60);assert(!browseVideo.paused,'video without a duration header could not start');q('.clab-preview-video').click(); }
+    Object.defineProperty(browseVideo,'duration',{value:1.3});browseVideo.dispatchEvent(new Event('loadedmetadata'));
     browseVideo.currentTime=.2;await browseVideo.play();await delay(60);browseVideo.pause();
     const position=browseVideo.currentTime;
     resize('parameters','ArrowLeft');resize('parameters','ArrowRight');
@@ -178,21 +227,77 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     q('[data-browse-sort]').value='newest';q('[data-browse-sort]').dispatchEvent(new Event('change',{bubbles:true}));
     assert(q('.clab-preview-modal-main-video')===browseVideo&&browseVideo.paused&&Math.abs(browseVideo.currentTime-position)<.03,'browse layout changes replaced or restarted a paused video');
     passed.push('browse side-panel and sorting changes preserve the real video element, position and paused state');
+    const pressSpace = target => target.dispatchEvent(new KeyboardEvent('keydown',{key:' ',code:'Space',bubbles:true,cancelable:true}));
+    const browsePlayer=q('.clab-preview-video');
+    browsePlayer.click();await delay(80);assert(!browseVideo.paused,'browse click did not start playback');
+    pressSpace(browsePlayer);await delay(30);assert(browseVideo.paused,'browse Space did not pause playback');
+    const speed=q('.clab-preview-video .clab-media-speed-input');speed.focus();pressSpace(speed);assert(browseVideo.paused,'editing video speed unexpectedly toggled playback');speed.blur();
+    const beforeSeek=browseVideo.currentTime;
+    browsePlayer.dispatchEvent(new WheelEvent('wheel',{deltaY:100,bubbles:true,cancelable:true}));
+    assert(Math.abs(browseVideo.currentTime-beforeSeek-.2)<.03,'browse wheel did not seek by the module video step');await delay(450);
+    assert(browseVideo.paused,'browse wheel resumed a previously paused video');
+    const beforeZoom=browseVideo.currentTime,transform=q('.clab-preview-video-transform'),bounds=transform.getBoundingClientRect(),point={x:bounds.left+bounds.width*.75,y:bounds.top+bounds.height*.25};
+    const zoomEvent=new WheelEvent('wheel',{deltaY:-100,ctrlKey:true,clientX:point.x,clientY:point.y,bubbles:true,cancelable:true});browsePlayer.dispatchEvent(zoomEvent);
+    const zoomed=transform.getBoundingClientRect();
+    assert(zoomEvent.defaultPrevented&&Math.abs((point.x-zoomed.left)/zoomed.width-.75)<.001&&Math.abs((point.y-zoomed.top)/zoomed.height-.25)<.001&&Math.abs(browseVideo.currentTime-beforeZoom)<.01,'browse Ctrl+wheel did not zoom about the pointer independently of playback');
+    browsePlayer.querySelector('.clab-more-toggle').click();
+    const detachedVideoMenu=document.querySelector('body > .clab-more-dropdown');
+    assert(detachedVideoMenu&&detachedVideoMenu.classList.contains('show'),'browse did not open the module speed menu');
+    detachedVideoMenu.querySelector('[data-spd="1.5"]').click();assert(browseVideo.playbackRate===1.5,'browse speed menu did not change playback rate');
+    browsePlayer.querySelector('.clab-more-toggle').click();
+    passed.push('browse reuses module video controls, click/Space playback, wheel seeking and pointer-anchored Ctrl+wheel zoom');
     q('[data-review-mode="compare"]').click();q('.clab-preview-modal-thumb[data-index="0"]').click();q('.clab-preview-modal-thumb[data-index="1"]').click();
-    const videos=[...root.querySelectorAll('.clab-compare-stage video')];
-    for(const media of videos) {for(let i=0;i<60&&media.readyState<2;i++)await delay(30);assert(media.readyState>=2,'comparison fixture video did not decode');Object.defineProperty(media,'duration',{value:1.3});media.dispatchEvent(new Event('loadedmetadata'));}
+    const prepareVideos=async()=>{
+        const medias=[...root.querySelectorAll('.clab-compare-stage video')];
+        for(const [index,media] of medias.entries()) {for(let i=0;i<60&&media.readyState<2;i++)await delay(30);assert(media.readyState>=2,'comparison fixture video did not decode');Object.defineProperty(media,'duration',{value:index?1:1.3});media.dispatchEvent(new Event('loadedmetadata'));}
+        return medias;
+    };
+    let videos=await prepareVideos();
     assert(videos.every(media=>media.paused),'comparison videos ignored disabled autoplay');
-    const seek=q('[data-compare-seek]');seek.value=.3;seek.dispatchEvent(new Event('input',{bubbles:true}));seek.dispatchEvent(new Event('change',{bubbles:true}));await delay(80);
+    assert(!detachedVideoMenu.isConnected&&videos.every(media=>!media.controls)&&q('.clab-compare-stage .clab-video-controls'),'comparison failed to reuse module controls or leaked the old speed menu');
+    const seek=q('.clab-compare-stage .clab-video-progress-container'),seekRect=seek.getBoundingClientRect();seek.dispatchEvent(new MouseEvent('mousedown',{button:0,clientX:seekRect.left+seekRect.width*.3,bubbles:true,cancelable:true}));await delay(80);
     assert(videos.every(media=>Math.abs(media.currentTime-.3)<.06),'shared seek did not position both videos');
-    q('[data-compare-play]').click();await delay(150);assert(videos.every(media=>!media.paused),'shared play did not start both videos');
+    q('[data-compare-layout="split"]').click();q('[data-compare-slot="a"]').click();sourceCheck(a.id).click();sourceCheck(a.id).click();
+    assert([...root.querySelectorAll('.clab-compare-stage video')].every((media,i)=>media===videos[i]&&media.paused&&Math.abs(media.currentTime-.3)<.06),'comparison controls or source filtering rebuilt or restarted its paused video pair');
+    const stageBounds=q('.clab-compare-stage').getBoundingClientRect(),playBounds=q('.clab-compare-stage .clab-video-toolbar').getBoundingClientRect();
+    assert(playBounds.top>=stageBounds.top&&playBounds.top>=q('.clab-compare-layout').getBoundingClientRect().bottom,'video playback controls overlap comparison mode buttons or are outside the preview');
+    const previousVideos=videos;q('[data-compare-swap]').click();videos=await prepareVideos();await delay(80);
+    assert(previousVideos.every(media=>media.paused&&!media.getAttribute('src'))&&videos.every(media=>media.paused&&Math.abs(media.currentTime-.3)<.06),'video exchange lost paused progress or toggled playback');
+    pressSpace(q('.clab-compare-stage'));await delay(150);assert(videos.every(media=>!media.paused),'shared play did not start both videos');
     q('.clab-compare-stage').dispatchEvent(new WheelEvent('wheel',{deltaY:100,bubbles:true,cancelable:true}));assert(videos.every(media=>media.paused),'wheel seeking did not pause the pair');
     await delay(500);assert(videos.every(media=>!media.paused),'wheel seeking did not restore playback');
-    q('[data-compare-play]').click();change('[data-compare-audio]','b');assert(videos[0].muted&&!videos[1].muted,'comparison audio played both sources');
-    change('[data-compare-speed]','1.5');assert(videos.every(media=>media.playbackRate===1.5),'comparison speed was not shared');
+    pressSpace(q('.clab-compare-stage'));change('[data-compare-audio]','b');assert(videos[0].muted&&!videos[1].muted,'comparison audio played both sources');
+    q('.clab-compare-stage .clab-more-toggle').click();
+    const sharedMenu=document.querySelector('body > .clab-more-dropdown');sharedMenu.querySelector('[data-spd="1.5"]').click();
+    assert(videos.every(media=>media.playbackRate===1.5),'comparison speed was not shared');
+    const primaryTime=videos[0].currentTime,videoTransform=q('.clab-compare-transform'),videoBounds=videoTransform.getBoundingClientRect();
+    const videoPoint={x:videoBounds.left+videoBounds.width*.65,y:videoBounds.top+videoBounds.height*.3};
+    videoTransform.dispatchEvent(new WheelEvent('wheel',{deltaY:-100,ctrlKey:true,clientX:videoPoint.x,clientY:videoPoint.y,bubbles:true,cancelable:true}));
+    const afterVideoZoom=videoTransform.getBoundingClientRect();
+    assert([...root.querySelectorAll('.clab-compare-transform')].every(el=>el.style.transform===videoTransform.style.transform)&&Math.abs((videoPoint.x-afterVideoZoom.left)/afterVideoZoom.width-.65)<.001&&videos.every(media=>Math.abs(media.currentTime-primaryTime)<.03),'comparison Ctrl+wheel did not share pointer zoom independently of seek');
+    q('.clab-compare-stage .clab-video-progress-container').dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true,cancelable:true}));
+    assert(videos.every(media=>Math.abs(media.currentTime-1)<.03),'shared progress exceeded the shorter video duration');
+    passed.push('comparison shares module video controls and synchronized pointer-anchored Ctrl+wheel zoom');
     q('[data-review-mode="table"]').click();assert(videos.every(media=>media.paused&&!media.getAttribute('src')),'leaving comparison retained active videos');
     q('.clab-preview-modal-close').click();URL.revokeObjectURL(blobURL);
     passed.push('two real videos share play, seek, wheel resume, speed and a single audio source, then release on mode changes');
 
+    let nativeVideoURL;
+    window.openReviewVideo=async mode=>{
+        if(!state.cards.includes(card))state.cards.push(card,other);
+        q('.clab-preview-modal-close').click();
+        if(nativeVideoURL)URL.revokeObjectURL(nativeVideoURL);
+        nativeVideoURL=URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));
+        video.history=[`${nativeVideoURL}#review.webm`,`${nativeVideoURL}#review.webm`];video.resultUrl=video.history[0];state.selectedAreaIds=[video.id];
+        window.CLab.showPreviewContextMenu(100,100,card.id,video.id,video.resultUrl);document.querySelector('#clab-ctx-preview-mode').click();
+        if(mode==='compare'){q('[data-review-mode="compare"]').click();q('.clab-preview-modal-thumb[data-index="0"]').click();q('.clab-preview-modal-thumb[data-index="1"]').click();}
+        const player=q(mode==='compare'?'.clab-compare-stage':'.clab-preview-video');
+        window.nativePreviewVideos=[...player.querySelectorAll('video')];
+        for(const media of window.nativePreviewVideos){for(let i=0;i<60&&media.readyState<2;i++)await delay(30);Object.defineProperty(media,'duration',{value:1.3});media.dispatchEvent(new Event('loadedmetadata'));media.currentTime=.25;}
+        window.nativePreviewTransform=player.querySelector('.clab-preview-video-transform,.clab-compare-transform');
+        const r=window.nativePreviewTransform.getBoundingClientRect();return{x:r.x+r.width*.7,y:r.y+r.height*.35,width:r.width};
+    };
+    window.closeReviewVideo=()=>{q('.clab-preview-modal-close').click();URL.revokeObjectURL(nativeVideoURL);state.selectedAreaIds=previousSelection;};
     window.showReviewDemo=layout=>{
         if(!state.cards.includes(card))state.cards.push(card,other);
         state.selectedAreaIds=[a.id,b.id,old.id];open();

@@ -14,7 +14,7 @@ import { renderModelViewer, attachModelEvents } from './media_types/media_model.
 // =========================================================================
 // 1. 动态注入媒体组件专用全局 CSS
 // =========================================================================
-function injectMediaCSS() {
+export function injectMediaCSS() {
     if (document.getElementById('clab-media-styles')) return;
     const style = document.createElement('style');
     style.id = 'clab-media-styles';

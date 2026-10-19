@@ -58,7 +58,7 @@ export function createBrowseLayout(root, settings, onReorder) {
     }
     const observerController = new AbortController();
     const applyLayout = () => {
-        if (root.dataset.reviewMode === 'browse' && body.clientWidth > 0) {
+        if (root.dataset.reviewLayout === 'filmstrip' && body.clientWidth > 0) {
             const minimum = body.clientWidth < 700 ? 90 : 130, center = body.clientWidth < 600 ? 120 : 200;
             const sourceMinimum = settings.sourceWidth > 0 ? minimum : 0, parameterMinimum = settings.parameterWidth > 0 ? minimum : 0;
             settings.sourceWidth = Math.max(sourceMinimum, settings.sourceWidth);
@@ -176,7 +176,7 @@ export function createBrowseLayout(root, settings, onReorder) {
         left.scrollTop = scroll; applyLayout();
     }
 
-    let records = [], allRecords = [], activeIndex = -1, selected = new Set(), anchor = '';
+    let records = [], allRecords = [], activeIndex = -1, selected = new Set(), anchor = '', comparison = null;
     let dragged = [], dropBefore = '', dropReady = false, suppressClick = false;
 
     function updateSelection() {
@@ -187,6 +187,11 @@ export function createBrowseLayout(root, settings, onReorder) {
             button.classList.toggle('active', active); button.setAttribute('aria-current', String(active));
             const picked = selected.has(allRecords[Number(button.dataset.index)]?.key);
             button.classList.toggle('selected', picked); button.setAttribute('aria-selected', String(picked));
+            const record=allRecords[Number(button.dataset.index)],badge=button.querySelector('.clab-filmstrip-assignment');
+            const slots=comparison?['a','b'].filter(slot=>comparison[slot]===record?.key):[];
+            const letters=slots.map(slot=>slot.toUpperCase());
+            if(badge.textContent!==letters.join(''))badge.innerHTML=letters.map(letter=>`<span>${letter}</span>`).join('');
+            badge.hidden=!slots.length;
         });
         strip.querySelectorAll('.clab-filmstrip-group').forEach(group => {
             const buttons = [...group.querySelectorAll('[data-index]')];
@@ -199,7 +204,7 @@ export function createBrowseLayout(root, settings, onReorder) {
         const status = footer.querySelector('.clab-browse-status');
         const count = records.length === allRecords.length ? `共 ${allRecords.length} 条` : `显示 ${records.length} 条，共 ${allRecords.length} 条`;
         const detail = current ? `${sameSource ? `${current.cardLabel} · ${current.areaLabel}` : `${new Set(picked.map(record => record.source)).size} 个模块`} · ${picked.length > 1 ? `已选 ${picked.length} 条` : `${sourceRecords.findIndex(record => record.key === current.key) + 1}/${sourceRecords.length}`}` : '未选择记录';
-        status.textContent = `${count} · ${detail}`;
+        status.textContent = `${count}${comparison ? ` · 待替换 ${comparison.slot.toUpperCase()}` : ''} · ${detail}`;
         status.title = `${count}（共计当前勾选来源的全部记录）\n${detail}`;
     }
 
@@ -233,7 +238,9 @@ export function createBrowseLayout(root, settings, onReorder) {
         if (group) selected = new Set([...group.closest('.clab-filmstrip-group').querySelectorAll('[data-index]')].map(button => allRecords[Number(button.dataset.index)].key));
         else { const key = allRecords[Number(thumb.dataset.index)].key; if (!selected.has(key)) selected = new Set([key]); }
         dragged = records.filter(record => selected.has(record.key)).map(record => record.key);
-        event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'CreativeLab preview records'); updateSelection();
+        event.dataTransfer.effectAllowed = 'copyMove'; event.dataTransfer.setData('text/plain', 'CreativeLab preview records');
+        if(thumb)event.dataTransfer.setData('application/x-clab-preview-record',allRecords[Number(thumb.dataset.index)].key);
+        updateSelection();
     });
     footer.addEventListener('dragover', event => {
         const strip = event.target.closest('.clab-browse-filmstrip');
@@ -276,8 +283,8 @@ export function createBrowseLayout(root, settings, onReorder) {
         strip.scrollLeft += delta * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? strip.clientWidth : 1);
     }, { passive: false });
 
-    function renderFilmstrip(nextRecords, nextAllRecords, nextActiveIndex, typeFilter) {
-        records = nextRecords; allRecords = nextAllRecords; activeIndex = nextActiveIndex;
+    function renderFilmstrip(nextRecords, nextAllRecords, nextActiveIndex, typeFilter, nextComparison = null) {
+        records = nextRecords; allRecords = nextAllRecords; activeIndex = nextActiveIndex; comparison = nextComparison;
         if (!footer.querySelector('.clab-browse-filmstrip')) footer.innerHTML = `<div class="clab-filmstrip-resize" data-filmstrip-resize tabindex="0" role="separator" aria-orientation="horizontal" aria-label="调整缩略图区域高度" title="拖动调整缩略图区域高度">${restoreButton('filmstrip')}</div>
             <div class="clab-browse-tools">
                 <label>媒体<select data-review-type aria-label="浏览媒体类型"></select></label>
@@ -285,7 +292,8 @@ export function createBrowseLayout(root, settings, onReorder) {
                 <span class="clab-browse-status" role="status"></span>
                 <label class="clab-browse-thumb-size"><button type="button" data-browse-size-reset title="恢复默认缩略图大小" aria-label="恢复默认缩略图大小"><svg viewBox="0 0 20 16" width="16" height="14" aria-hidden="true"><rect x="1" y="1" width="18" height="14" rx="2" fill="none" stroke="currentColor"/><path d="m3 12 4-5 3 3 3-4 4 6Z" fill="currentColor"/></svg></button><input type="range" min="88" max="176" step="8" data-browse-size aria-label="缩略图大小"></label>
             </div><div class="clab-browse-filmstrip" role="list" aria-label="历史媒体缩略图"></div>`;
-        footer.querySelector('[data-review-type]').innerHTML = [['', '全部'], ['image', '图片'], ['video', '视频'], ['audio', '音频'], ['text', '文本'], ['model', '3D'], ['file', '文件']].map(([key, label]) => `<option value="${key}" ${typeFilter === key ? 'selected' : ''}>${label}</option>`).join('');
+        const types=comparison?[['','全部'],['image','图片'],['video','视频']]:[['', '全部'], ['image', '图片'], ['video', '视频'], ['audio', '音频'], ['text', '文本'], ['model', '3D'], ['file', '文件']];
+        footer.querySelector('[data-review-type]').innerHTML = types.map(([key, label]) => `<option value="${key}" ${typeFilter === key ? 'selected' : ''}>${label}</option>`).join('');
         footer.querySelector('[data-browse-sort]').value = settings.sort;
         footer.querySelector('[data-browse-size]').value = settings.thumbSize;
         const strip = footer.querySelector('.clab-browse-filmstrip'), signature = JSON.stringify(records.map(record => [record.key, record.areaLabel, record.cardLabel]));
@@ -302,7 +310,7 @@ export function createBrowseLayout(root, settings, onReorder) {
                 const thumbnails = group.records.map(record => {
                     const title = `${record.cardLabel} / ${record.areaLabel}\n${record.name}\n${record.index < 0 ? '当前结果' : `历史 ${record.index + 1}`}`;
                     const media = record.type === 'image' ? `<img loading="lazy" draggable="false" src="${esc(record.url)}" alt="${esc(record.name)}">` : record.type === 'video' ? `<video data-film-src="${esc(record.url.split('#')[0])}#t=0.01" muted playsinline preload="metadata"></video>` : `<span class="clab-preview-modal-thumb-badge">${({ audio: '音频', text: '文本', model: '3D', file: '文件' })[record.type] || record.type}</span>`;
-                    return `<button type="button" draggable="true" class="clab-preview-modal-thumb clab-filmstrip-thumb" data-index="${indices.get(record.key)}" title="${esc(title)}"><div class="clab-preview-modal-thumb-media">${media}</div><span class="clab-filmstrip-history">${record.index < 0 ? '当前' : record.index + 1}</span></button>`;
+                    return `<button type="button" draggable="true" class="clab-preview-modal-thumb clab-filmstrip-thumb" data-index="${indices.get(record.key)}" title="${esc(title)}"><div class="clab-preview-modal-thumb-media">${media}</div><span class="clab-filmstrip-assignment" hidden></span><span class="clab-filmstrip-history">${record.index < 0 ? '当前' : record.index + 1}</span></button>`;
                 }).join('');
                 return `<section class="clab-filmstrip-group"><button type="button" data-filmstrip-group draggable="true" title="${esc(label)}；点击选择分区，拖动调整顺序">${esc(label)} <small>${group.records.length}</small></button><div class="clab-filmstrip-group-items">${thumbnails}</div></section>`;
             }).join('') || '<div class="clab-preview-modal-empty">没有符合筛选条件的媒体</div>';

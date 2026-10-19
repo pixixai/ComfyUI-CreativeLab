@@ -17,19 +17,25 @@ export function renderVideo(area, objectFit, url, errCall) {
     })();
     const autoplayAttr = autoplayEnabled ? 'autoplay' : '';
     const mutedAttr = window._clabVideoMuted !== false ? 'muted' : '';
-    
-    // 初始化静音图标的状态，与视频标签保持一致
-    const displayHigh = window._clabVideoMuted !== false ? 'none' : 'block';
-    const displayMuted = window._clabVideoMuted !== false ? 'block' : 'none';
 
     return `
         <div class="clab-video-player clab-video-paused" data-area-id="${area.id}">
             <video id="clab-img-${area.id}" class="clab-preview-img clab-media-target" src="${url}" draggable="false" style="object-fit: ${objectFit}; width: 100%; height: 100%; display: block;" ${autoplayAttr} loop ${mutedAttr} playsinline onerror="${errCall}"></video>
+            ${renderVideoControls()}
+        </div>
+    `;
+}
+
+export function renderVideoControls(extraTools = '') {
+    const muted = window._clabVideoMuted !== false;
+    const displayHigh = muted ? 'none' : 'block', displayMuted = muted ? 'block' : 'none';
+    return `
             <div class="clab-video-controls">
                 <div class="clab-video-toolbar">
                     <span class="clab-timecode">00:00 / 00:00</span>
                     <div class="clab-video-tools-right">
-                        
+                        ${extraTools}
+
                         <!-- 极简音量滑杆 -->
                         <div class="clab-volume-wrap clab-video-controls-interactive" style="background: transparent !important;">
                             <div class="clab-volume-slider-container clab-vid-vol-slider" title="调节音量">
@@ -44,7 +50,7 @@ export function renderVideo(area, objectFit, url, errCall) {
                                 <svg class="clab-vol-icon-none" style="display:none;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon></svg>
                             </button>
                         </div>
-                        
+
                         <div class="clab-media-opt-wrapper clab-video-controls-interactive">
                             <button type="button" class="clab-media-opt-btn clab-more-toggle" title="播放速度、画中画与全屏" aria-label="播放速度、画中画与全屏" aria-expanded="false"><span class="clab-video-speed-val">1×</span></button>
                             <div class="clab-media-dropdown clab-more-dropdown" style="text-align: left;">
@@ -71,62 +77,72 @@ export function renderVideo(area, objectFit, url, errCall) {
                     <div class="clab-video-progress-bar"></div>
                 </div>
             </div>
-        </div>
     `;
 }
 
 export function updateVideoProgress(players = document.querySelectorAll('.clab-video-player')) {
-    players.forEach(player => {
-        const vid = player.querySelector('video');
-        if (!vid) return;
-        player.classList.toggle('clab-video-paused', vid.paused);
-        player.querySelector('.clab-video-speed-val').textContent = `${vid.playbackRate}×`;
+    players.forEach(player => updateVideoControls(player));
+}
 
-        // 音量与静音状态更新
-        const muteOpt = player.querySelector('.clab-opt-mute');
-        if (muteOpt) {
-            let noAudio = false;
-            if (vid.audioTracks && vid.audioTracks.length === 0) noAudio = true;
-            else if (vid.mozHasAudio === false) noAudio = true;
-            else if (vid.currentTime > 0.1 && vid.webkitAudioDecodedByteCount === 0) noAudio = true;
+export function updateVideoControls(player, videos = [player.querySelector('video')]) {
+    const vid = videos[0];
+    if (!vid) return;
+    const audio = videos.find(video => !video.muted) || vid;
+    const duration = videos.every(video => Number.isFinite(video.duration)) ? Math.min(...videos.map(video => video.duration)) : 0;
+    player.classList.toggle('clab-video-paused', vid.paused);
+    player.querySelector('.clab-video-speed-val').textContent = `${vid.playbackRate}×`;
 
-            const iconHigh = muteOpt.querySelector('.clab-vol-icon-high');
-            const iconMuted = muteOpt.querySelector('.clab-vol-icon-muted');
-            const iconNone = muteOpt.querySelector('.clab-vol-icon-none');
-            const slider = player.querySelector('.clab-vid-vol-slider');
+    // 音量与静音状态更新
+    const muteOpt = player.querySelector('.clab-opt-mute');
+    if (muteOpt) {
+        let noAudio = false;
+        if (audio.audioTracks && audio.audioTracks.length === 0) noAudio = true;
+        else if (audio.mozHasAudio === false) noAudio = true;
+        else if (vid.currentTime > 0.1 && audio.webkitAudioDecodedByteCount === 0) noAudio = true;
 
-            if (noAudio) {
-                muteOpt.style.color = '#888'; muteOpt.style.pointerEvents = 'none';
+        const iconHigh = muteOpt.querySelector('.clab-vol-icon-high');
+        const iconMuted = muteOpt.querySelector('.clab-vol-icon-muted');
+        const iconNone = muteOpt.querySelector('.clab-vol-icon-none');
+        const slider = player.querySelector('.clab-vid-vol-slider');
+
+        if (noAudio) {
+            muteOpt.style.color = '#888'; muteOpt.style.pointerEvents = 'none';
+            if (iconHigh) iconHigh.style.display = 'none';
+            if (iconMuted) iconMuted.style.display = 'none';
+            if (iconNone) iconNone.style.display = 'block';
+            if (slider) slider.style.display = 'none';
+        } else {
+            muteOpt.style.pointerEvents = 'auto';
+            if (audio.muted || audio.volume === 0) {
                 if (iconHigh) iconHigh.style.display = 'none';
-                if (iconMuted) iconMuted.style.display = 'none';
-                if (iconNone) iconNone.style.display = 'block';
-                if (slider) slider.style.display = 'none';
+                if (iconMuted) iconMuted.style.display = 'block';
             } else {
-                muteOpt.style.pointerEvents = 'auto';
-                if (vid.muted || vid.volume === 0) {
-                    if (iconHigh) iconHigh.style.display = 'none';
-                    if (iconMuted) iconMuted.style.display = 'block';
-                } else {
-                    if (iconHigh) iconHigh.style.display = 'block';
-                    if (iconMuted) iconMuted.style.display = 'none';
-                }
-                if (iconNone) iconNone.style.display = 'none';
-                if (slider) slider.style.display = 'block';
+                if (iconHigh) iconHigh.style.display = 'block';
+                if (iconMuted) iconMuted.style.display = 'none';
             }
+            if (iconNone) iconNone.style.display = 'none';
+            if (slider) slider.style.display = 'block';
         }
-        
-        // 当因为滚轮或拖拽正在 scrubbing 时，不执行默认的时间码更新逻辑
-        if (vid.dataset.isScrubbing === 'true') return; 
-        
-        const bar = player.querySelector('.clab-video-progress-bar');
-        const tc = player.querySelector('.clab-timecode');
-        if (bar && tc && vid.duration) {
-            bar.style.width = `${(vid.currentTime / vid.duration) * 100}%`;
-            // 正常播放时显示标准格式
-            const label = `${formatTime(vid.currentTime)} / ${formatTime(vid.duration)}`;
-            if (tc.textContent !== label) tc.textContent = label;
-        }
-    });
+    }
+
+    const level = audio.muted ? 0 : audio.volume;
+    const fill = player.querySelector('.clab-volume-slider-fill'), thumb = player.querySelector('.clab-volume-slider-thumb');
+    if (fill) fill.style.width = `${level * 100}%`;
+    if (thumb) thumb.style.right = `${level * 100}%`;
+
+    // 当因为滚轮或拖拽正在 scrubbing 时，不执行默认的时间码更新逻辑
+    if (vid.dataset.isScrubbing === 'true') return;
+
+    const bar = player.querySelector('.clab-video-progress-bar');
+    const tc = player.querySelector('.clab-timecode');
+    if (bar && tc && duration) {
+        player.querySelector('.clab-video-progress-container')?.setAttribute('aria-valuenow', String(vid.currentTime));
+        player.querySelector('.clab-video-progress-container')?.setAttribute('aria-valuemax', String(duration));
+        bar.style.width = `${(vid.currentTime / duration) * 100}%`;
+        // 正常播放时显示标准格式
+        const label = `${formatTime(vid.currentTime)} / ${formatTime(duration)}`;
+        if (tc.textContent !== label) tc.textContent = label;
+    }
 }
 
 export function attachVideoEvents(container) {
@@ -158,14 +174,14 @@ export function attachVideoEvents(container) {
             // 精度微调：大幅降低倍率 (滚轮卡顿1格通常等于100，100 * 0.002 = 0.2秒)
             const delta = e.deltaY || e.deltaX;
             const step = delta * 0.002;
-            
+
             let newTime = vid.currentTime + step;
             vid.currentTime = Math.max(0, Math.min(vid.duration, newTime));
 
             // 视觉反馈：即时更新时间码（显示帧格式，并变绿提示正在调节）
             const tc = player.querySelector('.clab-timecode');
             const bar = player.querySelector('.clab-video-progress-bar');
-            
+
             if (bar) {
                  bar.style.width = `${(vid.currentTime / vid.duration) * 100}%`;
             }
@@ -179,12 +195,12 @@ export function attachVideoEvents(container) {
             // 防抖逻辑：判断是否连续滚动。
             // 每次滚动都清除上一次的定时器。
             clearTimeout(vid._scrubTimer);
-            
+
             // 设置新的定时器。如果超过 400ms 没有新的滚动事件，认为滚动结束
             vid._scrubTimer = setTimeout(() => {
                 vid.dataset.isScrubbing = 'false';
                 if (tc) tc.style.color = ''; // 恢复颜色
-                
+
                 // 如果滚动前是在播放状态，则恢复播放
                 if (vid.dataset.wasPlayingBeforeScrub === 'true') {
                     vid.play().catch(()=>{});
@@ -216,142 +232,98 @@ export function attachVideoEvents(container) {
             }
         });
 
-        // =========================================================================
-        // 【核心修改 2】：底部进度条改为纯净的“仅点击跳转”模式
-        // =========================================================================
-        const progContainer = player.querySelector('.clab-video-progress-container');
-        if (progContainer) {
-            progContainer.addEventListener('mousedown', (e) => {
-                if (e.button !== 0) return;
-                e.preventDefault(); 
-                e.stopPropagation();
-                if (!vid.duration) return;
-
-                // 仅仅在按下的瞬间修改进度，不绑定任何后续拖拽事件
-                const rect = progContainer.getBoundingClientRect();
-                const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                vid.currentTime = pos * vid.duration;
-                
-                const bar = player.querySelector('.clab-video-progress-bar');
-                if (bar) bar.style.width = `${pos * 100}%`;
-                
-                // 让时间码瞬间刷新，不用等下一次 timeupdate
-                const tc = player.querySelector('.clab-timecode');
-                if (tc) {
-                    const label = `${formatTime(vid.currentTime)} / ${formatTime(vid.duration)}`;
-                    if (tc.textContent !== label) tc.textContent = label;
-                }
-            });
-        }
-
-        // 音量逻辑 (保持原样，因为音量通常需要拖拽调节)
-        const volContainer = player.querySelector('.clab-vid-vol-slider');
-        if (volContainer && vid) {
-            const updateVolUI = (vol) => {
-                const fill = volContainer.querySelector('.clab-volume-slider-fill');
-                const thumb = volContainer.querySelector('.clab-volume-slider-thumb');
-                if (fill) fill.style.width = `${vol * 100}%`;
-                if (thumb) thumb.style.right = `${vol * 100}%`;
-            };
-            volContainer.addEventListener('mousedown', (e) => {
-                if (e.button !== 0) return;
-                e.preventDefault(); e.stopPropagation();
-                const update = (clientX) => {
-                    const rect = volContainer.getBoundingClientRect();
-                    let v = 1.0 - (clientX - rect.left) / rect.width;
-                    v = Math.max(0, Math.min(1, v));
-                    vid.muted = false; vid.volume = v; updateVolUI(v);
-                };
-                update(e.clientX);
-                const onMove = (ev) => update(ev.clientX);
-                const onUp = () => {
-                    window.removeEventListener('mousemove', onMove);
-                    window.removeEventListener('mouseup', onUp);
-                };
-                window.addEventListener('mousemove', onMove);
-                window.addEventListener('mouseup', onUp);
-            });
-        }
-
-        const muteOpt = player.querySelector('.clab-opt-mute');
-        if (muteOpt) {
-            muteOpt.onclick = (e) => {
-                e.stopPropagation();
-                
-                const fill = player.querySelector('.clab-volume-slider-fill');
-                const thumb = player.querySelector('.clab-volume-slider-thumb');
-                
-                if (vid.muted || vid.volume === 0) {
-                    // 关闭静音，音量设为 80%
-                    vid.muted = false;
-                    vid.volume = 0.8;
-                    if (fill) fill.style.width = `80%`;
-                    if (thumb) thumb.style.right = `80%`; // 保持与拖拽时使用的 css 属性一致
-                } else {
-                    // 开启静音，音量设为 0
-                    vid.muted = true;
-                    vid.volume = 0;
-                    if (fill) fill.style.width = `0%`;
-                    if (thumb) thumb.style.right = `0%`;
-                }
-            };
-        }
-
-        // 更多菜单
-        const moreToggle = player.querySelector('.clab-more-toggle');
-        const moreDropdown = player.querySelector('.clab-more-dropdown');
-        onModuleRemoved(player, () => moreDropdown.remove());
-        if (moreToggle) {
-            moreToggle.onclick = (e) => {
-                e.stopPropagation();
-                const open = moreDropdown.classList.contains('show');
-                document.querySelectorAll('.clab-media-dropdown.show').forEach(menu => {
-                    menu.classList.remove('show');
-                    if (menu._originalParent) menu._originalParent.appendChild(menu);
-                });
-                moreToggle.setAttribute('aria-expanded', String(!open));
-                if (open) return;
-                moreDropdown._originalParent ||= moreDropdown.parentElement;
-                document.body.append(moreDropdown);
-                moreDropdown.classList.add('show');
-                const rect = moreToggle.getBoundingClientRect();
-                moreDropdown.style.bottom = `${window.innerHeight - rect.top + 6}px`;
-                moreDropdown.style.left = `${Math.max(4, Math.min(rect.right - moreDropdown.offsetWidth, window.innerWidth - moreDropdown.offsetWidth - 4))}px`;
-            };
-        }
-
-        const speedInput = player.querySelector('.clab-media-speed-input');
-        if (speedInput) {
-            speedInput.onchange = (e) => {
-                let v = parseFloat(e.target.value);
-                vid.playbackRate = Math.max(0.1, Math.min(5, v || 1));
-            };
-        }
-        
-        player.querySelectorAll('.clab-vid-speed-opt').forEach(item => {
-            item.onclick = (e) => {
-                e.stopPropagation();
-                const spd = parseFloat(item.dataset.spd);
-                vid.playbackRate = spd;
-                if (speedInput) speedInput.value = spd.toFixed(1);
-                moreDropdown.classList.remove('show');
-                moreToggle.setAttribute('aria-expanded', 'false');
-                moreDropdown._originalParent?.appendChild(moreDropdown);
-            };
-        });
-
-        const fsOpt = player.querySelector('.clab-opt-fullscreen');
-        if (fsOpt) fsOpt.onclick = (e) => { 
-            e.stopPropagation(); 
-            if (vid.requestFullscreen) vid.requestFullscreen(); 
-            moreDropdown.classList.remove('show'); 
-        };
-        const pipOpt = moreDropdown.querySelector('.clab-opt-pip');
-        if (pipOpt) pipOpt.onclick = event => {
-            event.stopPropagation();
-            if (document.pictureInPictureElement === vid) document.exitPictureInPicture().catch(() => {});
-            else vid.requestPictureInPicture?.().catch(() => {});
-            moreDropdown.classList.remove('show');
-        };
+        onModuleRemoved(player, attachVideoControls(player));
     });
+}
+
+export function attachVideoControls(player, videos = [player.querySelector('video')]) {
+    const controller = new AbortController(), { signal } = controller;
+    const media = videos[0];
+    const dropdown = player.querySelector('.clab-more-dropdown'), toggle = player.querySelector('.clab-more-toggle');
+    const duration = () => videos.every(video => Number.isFinite(video.duration)) ? Math.min(...videos.map(video => video.duration)) : 0;
+    const refresh = () => updateVideoControls(player, videos);
+    let menuController, volumeController;
+    const closeMenu = () => {
+        menuController?.abort();
+        dropdown.classList.remove('show'); toggle.setAttribute('aria-expanded', 'false');
+        dropdown._originalParent?.appendChild(dropdown);
+    };
+    const setRate = value => { videos.forEach(video => { video.playbackRate = value; }); refresh(); };
+    const progress = player.querySelector('.clab-video-progress-container');
+    progress.addEventListener('mousedown', event => {
+        if (event.button !== 0) return;
+        event.preventDefault(); event.stopPropagation();
+        const rect = progress.getBoundingClientRect();
+        if (!duration() || !rect.width) return;
+        const time = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * duration();
+        videos.forEach(video => { video.currentTime = time; }); refresh();
+    }, { signal });
+    progress.setAttribute('role', 'slider'); progress.tabIndex = 0;
+    progress.setAttribute('aria-label', '视频播放进度');
+    progress.addEventListener('keydown', event => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault(); event.stopPropagation();
+        const time = event.key === 'Home' ? 0 : event.key === 'End' ? duration() : Math.max(0, Math.min(duration(), media.currentTime + (event.key === 'ArrowLeft' ? -1 : 1)));
+        videos.forEach(video => { if (video.readyState) video.currentTime = time; }); refresh();
+    }, { signal });
+    const audio = () => videos.find(video => !video.muted) || media;
+    const setVolume = value => { const video = audio(); video.muted = false; video.volume = value; refresh(); };
+    const volume = player.querySelector('.clab-vid-vol-slider');
+    const dragVolume = x => {
+        const rect = volume.getBoundingClientRect();
+        if (!rect.width) return;
+        const value = Math.max(0, Math.min(1, 1 - (x - rect.left) / rect.width));
+        setVolume(value);
+    };
+    volume.addEventListener('mousedown', event => {
+        if (event.button !== 0) return;
+        event.preventDefault(); event.stopPropagation();
+        volume.classList.add('is-dragging'); dragVolume(event.clientX);
+        volumeController?.abort(); volumeController = new AbortController();
+        window.addEventListener('mousemove', event => dragVolume(event.clientX), { signal: volumeController.signal });
+        window.addEventListener('mouseup', stopVolume, { signal: volumeController.signal });
+        window.addEventListener('blur', stopVolume, { signal: volumeController.signal });
+    }, { signal });
+    const stopVolume = () => { volume.classList.remove('is-dragging'); volumeController?.abort(); };
+    player.querySelector('.clab-opt-mute').addEventListener('click', event => {
+        event.stopPropagation();
+        const video = audio();
+        if (video.muted || !video.volume) setVolume(.8);
+        else { videos.forEach(item => { item.muted = true; }); refresh(); }
+    }, { signal });
+    toggle.addEventListener('click', event => {
+        event.stopPropagation();
+        const open = dropdown.classList.contains('show');
+        document.querySelectorAll('.clab-media-dropdown.show').forEach(menu => {
+            menu.classList.remove('show');
+            menu._originalParent?.querySelector('[aria-expanded]')?.setAttribute('aria-expanded', 'false');
+            menu._originalParent?.appendChild(menu);
+        });
+        if (open) return;
+        dropdown._originalParent ||= dropdown.parentElement;
+        (document.fullscreenElement || document.body).append(dropdown); dropdown.classList.add('show'); toggle.setAttribute('aria-expanded', 'true');
+        const rect = toggle.getBoundingClientRect();
+        dropdown.style.bottom = `${window.innerHeight - rect.top + 6}px`;
+        dropdown.style.left = `${Math.max(4, Math.min(rect.right - dropdown.offsetWidth, window.innerWidth - dropdown.offsetWidth - 4))}px`;
+        menuController?.abort(); menuController = new AbortController();
+        const closeOutside = event => { if (!toggle.contains(event.target) && !dropdown.contains(event.target)) closeMenu(); };
+        window.addEventListener('mousedown', closeOutside, { capture: true, signal: menuController.signal });
+        window.addEventListener('wheel', closeOutside, { capture: true, passive: true, signal: menuController.signal });
+    }, { signal });
+    const speedInput = dropdown.querySelector('.clab-media-speed-input');
+    speedInput.addEventListener('change', () => { setRate(Math.max(.1, Math.min(5, Number(speedInput.value) || 1))); speedInput.value = media.playbackRate; }, { signal });
+    dropdown.querySelectorAll('.clab-vid-speed-opt').forEach(item => item.addEventListener('click', event => {
+        event.stopPropagation(); setRate(Number(item.dataset.spd)); speedInput.value = media.playbackRate; closeMenu();
+    }, { signal }));
+    dropdown.querySelector('.clab-opt-fullscreen').addEventListener('click', event => {
+        event.stopPropagation(); player.requestFullscreen?.().catch(() => {}); closeMenu();
+    }, { signal });
+    dropdown.querySelector('.clab-opt-pip').addEventListener('click', event => {
+        event.stopPropagation();
+        if (document.pictureInPictureElement === media) document.exitPictureInPicture().catch(() => {});
+        else media.requestPictureInPicture?.().catch(() => {});
+        closeMenu();
+    }, { signal });
+    refresh();
+    return () => { controller.abort(); stopVolume(); closeMenu(); dropdown.remove(); };
 }

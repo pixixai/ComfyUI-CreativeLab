@@ -9,7 +9,10 @@ import { state } from "../../ui_state.js";
 import { previewModalStore } from "./state.js";
 import { renderModelViewer, attachModelEvents, releaseModelViewer } from '../../modules/media_types/media_model.js';
 import { collectPreviewRecords, sourceKey, parameterFields, displayValue, valueKey } from './preview_records.js';
-import { comparisonHTML, attachComparison } from './preview_compare.js';
+import { renderVideoControls } from '../../modules/media_types/media_video.js';
+import { injectMediaCSS } from '../../modules/module_media.js';
+import { attachPreviewVideo } from './preview_video.js';
+import { comparisonHTML, attachComparison, syncComparison } from './preview_compare.js';
 import { renderTableSettings, buildTableModel, renderTable } from './preview_table.js';
 import { exportPreviewHTML, exportPreviewPNGs, packagePreviewPNGs, downloadPreviewBlob } from './preview_export.js';
 import { injectReviewStyles } from './preview_styles.js';
@@ -29,7 +32,7 @@ export function createPreviewModalApi({
     let sources = [], mode = 'browse', selection = new Set(), typeFilter = '', runFilter = '', cleanupReview = null, tableModel, exporting = false;
     let compare = { a: '', b: '', slot: 'a', layout: 'side', view: { x: 0, y: 0, zoom: 1, split: .5 } };
     let table = { layout: 'detail', fields: null, width: 200, textLimit: 200, x: '', y: '', z: '', zValue: '', source: '', filters: {} };
-    let allSources = [], browseLayout, renderedBrowseKey = '', renderedMode = '';
+    let allSources = [], browseLayout, renderedBrowseKey = '', renderedCompareKey = '', renderedMode = '';
     const browse = { search: '', sort: 'source', customOrder: [], height: 164, thumbSize: 120, sourceWidth: window.innerWidth < 1100 ? 180 : 220, parameterWidth: window.innerWidth < 1100 ? 240 : 300 };
     const safeSetupAudioWaveform = typeof setupAudioWaveform === "function" ? setupAudioWaveform : () => { };
     const safeBindPreviewTextEditor = typeof bindPreviewTextEditor === "function" ? bindPreviewTextEditor : () => { };
@@ -72,7 +75,7 @@ export function createPreviewModalApi({
     }
 
     function teardownPreviewEnhancers() {
-        renderedBrowseKey='';renderedMode='';
+        renderedBrowseKey='';renderedCompareKey='';renderedMode='';
         cleanupReview?.(); cleanupReview = null;
         previewModalStore.root?.querySelectorAll('.clab-preview-modal-center video, .clab-preview-modal-center audio').forEach(media => { media.pause(); media.removeAttribute('src'); media.load(); });
         previewModalStore.activeModelCleanup?.();
@@ -138,6 +141,7 @@ export function createPreviewModalApi({
         }
 
         const root = document.createElement("div");
+        injectMediaCSS();
         injectReviewStyles();
         root.className = "clab-preview-modal";
         root.innerHTML = `
@@ -179,11 +183,15 @@ export function createPreviewModalApi({
         root.querySelector(".clab-preview-modal-backdrop").addEventListener("click", close);
         root.querySelector(".clab-preview-modal-close").addEventListener("click", close);
         root.addEventListener("click", (event) => {
-            if(mode==='browse'&&browseLayout.handleClick(event))return;
+            if(mode!=='table'&&browseLayout.handleClick(event))return;
             const sourceSelect=event.target.closest('[data-browse-select]');
             if(sourceSelect){setBrowseSources(sourceSelect.dataset.browseSelect==='all'?allSources.filter(source=>sourceRecordCount(source.area)):[]);return;}
             const modeButton = event.target.closest('button[data-review-mode]');
-            if (modeButton) { mode = modeButton.dataset.reviewMode; runFilter=''; renderPreviewModal(); return; }
+            if (modeButton) {
+                mode = modeButton.dataset.reviewMode;runFilter='';
+                if(mode==='compare'&&!['','image','video'].includes(typeFilter))typeFilter='';
+                renderPreviewModal();return;
+            }
             const exportButton = event.target.closest('[data-review-export]');
             if (exportButton) { void exportTable(exportButton.dataset.reviewExport); return; }
             const layout = event.target.closest('[data-compare-layout]');
@@ -209,7 +217,7 @@ export function createPreviewModalApi({
             if(mode==='compare') {
                 const entry=previewModalStore.entries[nextIndex];
                 if(!['image','video'].includes(entry.type))return;
-                compare[compare.slot]=entry.key;compare.slot=compare.slot==='a'?'b':'a';renderPreviewModal();
+                compare[compare.slot]=entry.key;compare.slot=compare.slot==='a'?'b':'a';previewModalStore.activeIndex=nextIndex;renderPreviewModal();
             } else if(mode==='table') { const key=previewModalStore.entries[nextIndex].key;selection.has(key)?selection.delete(key):selection.add(key);renderPreviewModal(); }
             else selectPreviewEntry(nextIndex);
         });
@@ -251,6 +259,28 @@ export function createPreviewModalApi({
         });
 
         const centerEl = root.querySelector(".clab-preview-modal-center");
+        const dropStage = event => mode==='compare' ? event.target.closest('.clab-compare-stage') : null;
+        centerEl.addEventListener('dragover',event=>{
+            const stage=dropStage(event);
+            if(!stage||!Array.from(event.dataTransfer.types).includes('application/x-clab-preview-record'))return;
+            event.preventDefault();event.dataTransfer.dropEffect='copy';
+            const rect=stage.getBoundingClientRect(),label=event.target.closest('[data-compare-slot]');
+            stage.dataset.dropSlot=label?.dataset.compareSlot||((event.clientX-rect.left)/rect.width<(compare.layout==='split'?compare.view.split:.5)?'a':'b');
+        });
+        centerEl.addEventListener('dragleave',event=>{
+            const stage=dropStage(event);
+            if(stage&&!stage.contains(event.relatedTarget))delete stage.dataset.dropSlot;
+        });
+        centerEl.addEventListener('drop',event=>{
+            const stage=dropStage(event),slot=stage?.dataset.dropSlot;
+            if(!slot)return;
+            event.preventDefault();delete stage.dataset.dropSlot;
+            const key=event.dataTransfer.getData('application/x-clab-preview-record');
+            const index=previewModalStore.entries.findIndex(entry=>entry.key===key&&['image','video'].includes(entry.type));
+            if(index<0)return;
+            compare[slot]=key;compare.slot=slot==='a'?'b':'a';previewModalStore.activeIndex=index;renderPreviewModal();
+        });
+        root.addEventListener('dragend',()=>{const stage=centerEl.querySelector('.clab-compare-stage');if(stage)delete stage.dataset.dropSlot;});
         centerEl.addEventListener("wheel", (event) => {
             if (!root.classList.contains("visible") || mode!=='browse') return;
             const active = getActivePreviewEntry();
@@ -313,7 +343,7 @@ export function createPreviewModalApi({
             const active = getActivePreviewEntry();
             const typing = isEditableTarget(event.target) || isEditableTarget(document.activeElement);
 
-            if ((event.key === " " || event.key === "Spacebar") && active?.type === "image" && !typing) {
+            if ((event.key === " " || event.key === "Spacebar") && mode === 'browse' && active?.type === "image" && !typing) {
                 event.preventDefault();
                 previewModalStore.imageSpacePressed = true;
                 applyPreviewImageTransform(root);
@@ -374,7 +404,7 @@ export function createPreviewModalApi({
             `;
         }
         if (entry.type === "video") {
-            return `<video class="clab-preview-modal-main-video" src="${safeUrl}" controls ${window._clabIsVideoAutoplayEnabled?.() ? 'autoplay' : ''} loop muted playsinline></video>`;
+            return `<div class="clab-preview-video clab-video-player clab-video-paused"><div class="clab-preview-video-transform"><video class="clab-preview-modal-main-video" src="${safeUrl}" preload="metadata" muted playsinline></video></div>${renderVideoControls()}<div class="clab-preview-video-status" role="status"></div></div>`;
         }
         if (entry.type === 'model') return renderModelViewer(entry.url);
         if (entry.type === "audio") {
@@ -447,9 +477,9 @@ export function createPreviewModalApi({
 
     function filteredEntries() {
         const records=previewModalStore.entries.filter(entry => (!typeFilter || entry.type===typeFilter)
-            && (mode==='browse' || !runFilter || (entry.runId ? JSON.stringify([entry.cardId,entry.runId]) : entry.key)===runFilter)
+            && (mode!=='table' || !runFilter || (entry.runId ? JSON.stringify([entry.cardId,entry.runId]) : entry.key)===runFilter)
             && (mode!=='compare' || ['image','video'].includes(entry.type)));
-        return mode==='browse'?sortBrowseRecords(records,browse.sort,browse.customOrder):records;
+        return mode!=='table'?sortBrowseRecords(records,browse.sort,browse.customOrder):records;
     }
 
     function setBrowseSources(nextSources) {
@@ -469,14 +499,14 @@ export function createPreviewModalApi({
         previewModalStore.entries.forEach(entry=>runs.set(entry.runId?JSON.stringify([entry.cardId,entry.runId]):entry.key,`${entry.cardLabel} · ${entry.runId?`运行 ${entry.run?.order??entry.runId}`:`旧历史 ${entry.index+1}`}`));
         left.innerHTML=`<label class="clab-review-field">媒体<select data-review-type><option value="">全部</option>${[['image','图片'],['video','视频'],['text','文本'],['audio','音频'],['model','3D'],['file','文件']].map(([key,label])=>`<option value="${key}" ${typeFilter===key?'selected':''}>${label}</option>`).join('')}</select></label>
             <label class="clab-review-field">运行<select data-review-run><option value="">全部运行</option>${[...runs].map(([key,label])=>`<option value="${escapeHtml(key)}" ${runFilter===key?'selected':''}>${escapeHtml(label)}</option>`).join('')}</select></label>
-            ${mode==='table'?`<div class="clab-review-selection"><button data-review-selection="all">全选当前列表</button><button data-review-selection="none">取消选择</button><span>已选 ${selection.size} 条</span></div>`:''}
+            <div class="clab-review-selection"><button data-review-selection="all">全选当前列表</button><button data-review-selection="none">取消选择</button><span>已选 ${selection.size} 条</span></div>
             ${sources.map(source=>{
                 const key=sourceKey(source.card,source.area),records=entries.filter(entry=>entry.source===key);
                 if(!records.length)return '';
                 return `<details data-source="${escapeHtml(key)}" ${closed.has(key)?'':'open'}><summary>${escapeHtml(records[0].cardLabel)} / ${escapeHtml(records[0].areaLabel)} <small>${records.length}</small></summary>${records.map(entry=>{
-                    const index=indices.get(entry.key),isActive=mode==='compare'?[compare.a,compare.b].includes(entry.key):index===previewModalStore.activeIndex;
+                    const index=indices.get(entry.key),isActive=index===previewModalStore.activeIndex;
                     let thumbBody=entry.type==='image'?`<img loading="lazy" src="${escapeHtml(entry.url)}" alt="">`:`<span class="clab-preview-modal-thumb-badge">${({video:'视频',text:'文本',audio:'音频',model:'3D',file:'文件'})[entry.type]||entry.type}</span>`;
-                    return `<div class="clab-review-record-row">${mode==='table'?`<input type="checkbox" data-review-check="${escapeHtml(entry.key)}" aria-label="选择历史 ${entry.index+1}" ${selection.has(entry.key)?'checked':''}>`:''}<button class="clab-preview-modal-thumb ${isActive?'active':''}" data-index="${index}" type="button" title="${escapeHtml(entry.name)}"><div class="clab-preview-modal-thumb-media">${thumbBody}</div><div class="clab-preview-modal-thumb-name">${mode==='compare'&&entry.key===compare.a?'A · ':''}${mode==='compare'&&entry.key===compare.b?'B · ':''}历史 ${entry.index+1} · ${escapeHtml(entry.name)}</div></button></div>`;
+                    return `<div class="clab-review-record-row"><input type="checkbox" data-review-check="${escapeHtml(entry.key)}" aria-label="选择历史 ${entry.index+1}" ${selection.has(entry.key)?'checked':''}><button class="clab-preview-modal-thumb ${isActive?'active':''}" data-index="${index}" type="button" title="${escapeHtml(entry.name)}"><div class="clab-preview-modal-thumb-media">${thumbBody}</div><div class="clab-preview-modal-thumb-name">历史 ${entry.index+1} · ${escapeHtml(entry.name)}</div></button></div>`;
                 }).join('')}</details>`;
             }).join('')||'<div class="clab-preview-modal-empty">没有符合筛选条件的历史记录</div>'}`;
         left.scrollTop=scroll;
@@ -512,25 +542,29 @@ export function createPreviewModalApi({
         const root=ensurePreviewModal(),left=root.querySelector('.clab-preview-modal-left'),center=root.querySelector('.clab-preview-modal-center'),right=root.querySelector('.clab-preview-modal-right');
         const entries=previewModalStore.entries;
         root.dataset.reviewMode=mode;
+        root.dataset.reviewLayout=mode==='table'?'table':'filmstrip';
         root.querySelectorAll('[data-review-mode]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.reviewMode===mode)));
         root.querySelector('.clab-review-export').hidden=mode!=='table';
         root.querySelectorAll('[data-review-export]').forEach(button=>button.disabled=exporting);
-        root.querySelector('.clab-browse-footer').hidden=mode!=='browse';
-        if(mode==='browse') {
+        root.querySelector('.clab-browse-footer').hidden=mode==='table';
+        if(mode!=='table') {
             browseLayout.renderSources(state.cards,allSources,sources);
             const visible=filteredEntries(),active=getActivePreviewEntry();
             if(active&&!visible.some(entry=>entry.key===active.key))previewModalStore.activeIndex=visible.length?entries.findIndex(entry=>entry.key===visible[0].key):-1;
             else if(previewModalStore.activeIndex<0&&visible.length&&!state.cards.find(card=>card.id===previewModalStore.activeCardId)?.areas.find(area=>area.id===previewModalStore.activeAreaId)?.missingHistoryRun)previewModalStore.activeIndex=entries.findIndex(entry=>entry.key===visible[0].key);
-            browseLayout.renderFilmstrip(visible,entries,previewModalStore.activeIndex,typeFilter);
+            browseLayout.renderFilmstrip(visible,entries,previewModalStore.activeIndex,typeFilter,mode==='compare'?compare:null);
         } else {browseLayout.release();renderRecordList(left);}
         if(previewModalStore.activeIndex>=entries.length)previewModalStore.activeIndex=entries.length?0:-1;
         const active=getActivePreviewEntry()||{type:'missing',name:'该次运行无可用记录',index:-1};
         root.querySelector('.clab-preview-modal-title').textContent=mode==='browse'?`预览模式 · ${active.areaLabel||''}`:mode==='compare'?'A/B 对比':'生成结果表';
         if(mode==='compare') {
-            teardownPreviewEnhancers();
             const a=entries.find(entry=>entry.key===compare.a),b=entries.find(entry=>entry.key===compare.b);
-            center.innerHTML=`<div class="clab-compare-layout clab-review-segment"><button data-compare-layout="side" aria-pressed="${compare.layout==='side'}">并排比较</button><button data-compare-layout="split" aria-pressed="${compare.layout==='split'}">分屏比较</button></div>${comparisonHTML(a,b,compare)}`;
-            renderCompareParameters(right,a,b);cleanupReview=attachComparison(center,compare);return;
+            const key=JSON.stringify([a?.key,a?.url,b?.key,b?.url]);
+            if(renderedMode!=='compare'||renderedCompareKey!==key) {
+                teardownPreviewEnhancers();center.innerHTML=comparisonHTML(a,b,compare);cleanupReview=attachComparison(center,compare);
+                renderedCompareKey=key;renderedMode='compare';
+            }
+            syncComparison(center,compare);renderCompareParameters(right,a,b);return;
         }
         if(mode==='table') {
             teardownPreviewEnhancers();
@@ -554,6 +588,10 @@ export function createPreviewModalApi({
             center.innerHTML=active.type==='missing'&&!sources.length?'<div class="clab-preview-modal-empty">请在左侧勾选要查看的输出模块</div>':active.type==='missing'&&(typeFilter||runFilter)?'<div class="clab-preview-modal-empty">没有符合筛选条件的媒体</div>':renderPreviewCenter(active);
             if(active.type==='image')applyPreviewImageTransform(root);
             else {resetPreviewImageTransform();applyPreviewImageTransform(root);}
+            if(active.type==='video') {
+                const player = center.querySelector('.clab-preview-video');
+                cleanupReview = attachPreviewVideo(player, { status: player.querySelector('.clab-preview-video-status') });
+            }
             if(active.type==='audio')safeSetupAudioWaveform(center,active);
             if(active.type==='text')safeBindPreviewTextEditor(center,active);
             if(active.type==='model') {
