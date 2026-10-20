@@ -167,6 +167,7 @@ export function createEmptyWorkspace(name = DEFAULT_WORKSPACE_NAME, seed = {}) {
         id: seed.id || makeId("workspace"),
         name: seed.name || name,
         cards,
+        view: seed.view && typeof seed.view === 'object' ? deepClone(seed.view) : { mode: 'cards' },
         activeCardId: seed.activeCardId || null,
         selectedCardIds: Array.isArray(seed.selectedCardIds) ? seed.selectedCardIds : [],
         selectedAreaIds: Array.isArray(seed.selectedAreaIds) ? seed.selectedAreaIds : [],

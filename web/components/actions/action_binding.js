@@ -50,8 +50,7 @@ export function resolveBindingTargets(node, widgetName = null) {
     return targets.length ? targets : [{ nodeIdStr: String(node.id), widgetName }];
 }
 
-export function enterBindingModeForSelected(targetType, panelContainer, backdropContainer) {
-    if (!state.selectedAreaIds || state.selectedAreaIds.length === 0) return;
+export function pickWorkflowTarget(targetType, panelContainer, backdropContainer, onPick) {
     if (appState.isBindingMode) return;
 
     appState.isBindingMode = true;
@@ -100,69 +99,7 @@ export function enterBindingModeForSelected(targetType, panelContainer, backdrop
                 const resolvedTargets = resolveBindingTargets(targetNode,
                     targetWidget && targetWidget.type !== 'button' ? targetWidget.name : null);
 
-                state.selectedAreaIds.forEach(id => {
-                    state.cards.forEach(c => {
-                        const a = c.areas?.find(x => x.id === id);
-                        if (a && a.type === targetType) {
-                            if (targetType === 'edit') {
-                                
-                                let ids = Array.isArray(a.targetNodeIds) ? [...a.targetNodeIds] : (a.targetNodeId ? [String(a.targetNodeId)] : []);
-                                let widgets = Array.isArray(a.targetWidgets) ? [...a.targetWidgets] : (a.targetWidget && a.targetNodeId ? [`${a.targetNodeId}||${a.targetWidget}`] : []);
-                                
-                                if (!isAppend) {
-                                    ids = [];
-                                    widgets = [];
-                                }
-
-                                let firstValidWidgetDef = null;
-
-                                resolvedTargets.forEach(rt => {
-                                    if (!ids.includes(rt.nodeIdStr)) {
-                                        ids.push(rt.nodeIdStr);
-                                    }
-                                    if (rt.widgetName) {
-                                        const wVal = `${rt.nodeIdStr}||${rt.widgetName}`;
-                                        if (!widgets.includes(wVal)) {
-                                            widgets.push(wVal);
-                                        }
-                                        if (!firstValidWidgetDef) {
-                                            firstValidWidgetDef = getWidgetDef(rt.nodeIdStr, rt.widgetName);
-                                        }
-                                    }
-                                });
-
-                                a.targetNodeIds = ids;
-                                a.targetNodeId = ids.length > 0 ? ids[0] : null;
-                                
-                                a.targetWidgets = widgets;
-                                a.targetWidget = widgets.length > 0 ? widgets[0].split('||')[1] : null;
-
-                                if (firstValidWidgetDef) {
-                                    let isManual = true;
-                                    if (Array.isArray(firstValidWidgetDef.type) || firstValidWidgetDef.type === "combo" || Array.isArray(firstValidWidgetDef.options?.values)) isManual = false;
-                                    if (firstValidWidgetDef.type === "toggle" || typeof firstValidWidgetDef.value === "boolean") isManual = false;
-                                    
-                                    const hasVal = (a.value !== undefined && a.value !== null && a.value !== '');
-                                    
-                                    if (!isManual || !hasVal) {
-                                        a.value = firstValidWidgetDef.value;
-                                    }
-
-                                    if (firstValidWidgetDef.type === "toggle" || typeof firstValidWidgetDef.value === "boolean") {
-                                        a.dataType = 'boolean';
-                                    } else if (typeof firstValidWidgetDef.value === "number") {
-                                        a.dataType = 'number';
-                                    } else {
-                                        a.dataType = 'string';
-                                    }
-                                }
-                            } else {
-                                a.targetNodeId = resolvedTargets[0].nodeIdStr;
-                            }
-                        }
-                    });
-                });
-                saveAndRender();
+                onPick({ node: targetNode, widget: targetWidget, targets: resolvedTargets, isAppend });
             }
             document.dispatchEvent(new CustomEvent('clab_binding_finished'));
         }, 150);
@@ -173,4 +110,73 @@ export function enterBindingModeForSelected(targetType, panelContainer, backdrop
         window.addEventListener("pointerup", onPointerUp, true);
         shieldEvents.forEach(type => window.addEventListener(type, shieldEvent, true));
     }, 100);
+}
+
+export function enterBindingModeForSelected(targetType, panelContainer, backdropContainer) {
+    if (!state.selectedAreaIds || state.selectedAreaIds.length === 0) return;
+    pickWorkflowTarget(targetType, panelContainer, backdropContainer, ({ targets: resolvedTargets, isAppend }) => {
+        state.selectedAreaIds.forEach(id => {
+            state.cards.forEach(c => {
+                const a = c.areas?.find(x => x.id === id);
+                if (a && a.type === targetType) {
+                    if (targetType === 'edit') {
+
+                        let ids = Array.isArray(a.targetNodeIds) ? [...a.targetNodeIds] : (a.targetNodeId ? [String(a.targetNodeId)] : []);
+                        let widgets = Array.isArray(a.targetWidgets) ? [...a.targetWidgets] : (a.targetWidget && a.targetNodeId ? [`${a.targetNodeId}||${a.targetWidget}`] : []);
+
+                        if (!isAppend) {
+                            ids = [];
+                            widgets = [];
+                        }
+
+                        let firstValidWidgetDef = null;
+
+                        resolvedTargets.forEach(rt => {
+                            if (!ids.includes(rt.nodeIdStr)) {
+                                ids.push(rt.nodeIdStr);
+                            }
+                            if (rt.widgetName) {
+                                const wVal = `${rt.nodeIdStr}||${rt.widgetName}`;
+                                if (!widgets.includes(wVal)) {
+                                    widgets.push(wVal);
+                                }
+                                if (!firstValidWidgetDef) {
+                                    firstValidWidgetDef = getWidgetDef(rt.nodeIdStr, rt.widgetName);
+                                }
+                            }
+                        });
+
+                        a.targetNodeIds = ids;
+                        a.targetNodeId = ids.length > 0 ? ids[0] : null;
+
+                        a.targetWidgets = widgets;
+                        a.targetWidget = widgets.length > 0 ? widgets[0].split('||')[1] : null;
+
+                        if (firstValidWidgetDef) {
+                            let isManual = true;
+                            if (Array.isArray(firstValidWidgetDef.type) || firstValidWidgetDef.type === "combo" || Array.isArray(firstValidWidgetDef.options?.values)) isManual = false;
+                            if (firstValidWidgetDef.type === "toggle" || typeof firstValidWidgetDef.value === "boolean") isManual = false;
+
+                            const hasVal = (a.value !== undefined && a.value !== null && a.value !== '');
+
+                            if (!isManual || !hasVal) {
+                                a.value = firstValidWidgetDef.value;
+                            }
+
+                            if (firstValidWidgetDef.type === "toggle" || typeof firstValidWidgetDef.value === "boolean") {
+                                a.dataType = 'boolean';
+                            } else if (typeof firstValidWidgetDef.value === "number") {
+                                a.dataType = 'number';
+                            } else {
+                                a.dataType = 'string';
+                            }
+                        }
+                    } else {
+                        a.targetNodeId = resolvedTargets[0].nodeIdStr;
+                    }
+                }
+            });
+        });
+        saveAndRender();
+    });
 }

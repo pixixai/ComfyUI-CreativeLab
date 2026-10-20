@@ -38,6 +38,7 @@ try {
     };
     const listeners = new Map();
     window.testApi = {
+        async emit(type,detail){await Promise.all((listeners.get(type)||[]).map(callback=>callback({detail})));},
         addEventListener(type, callback) { const list = listeners.get(type) || []; list.push(callback); listeners.set(type, list); },
         apiURL: url => url, async fetchApi() { return {}; }, async queuePrompt() { return { prompt_id: 'browser-run' }; },
     };
@@ -621,6 +622,10 @@ try {
 
     const {checkPreviewReview}=await import('/review-checks.js');
     await checkPreviewReview({state,passed,assert,delay});
+    const {checkWorkspaceModes}=await import('/workspace-checks.js');
+    await checkWorkspaceModes({state,passed,assert,delay});
+    const {checkXYZMatrix}=await import('/xyz-checks.js');
+    await checkXYZMatrix({state,passed,assert,delay});
     window.testResult = { passed, errors };
 } catch (error) {
     window.testResult = { passed, errors, error: error.stack || String(error) };

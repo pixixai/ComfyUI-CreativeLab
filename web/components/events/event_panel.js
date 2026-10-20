@@ -440,6 +440,7 @@ export function setupPanelEvents(panelContainer) {
     });
 
     cardsContainer.addEventListener("wheel", (event) => {
+        if (panelContainer.dataset.workspaceMode && panelContainer.dataset.workspaceMode !== 'cards') return;
         if (event.deltaY === 0) return;
 
         let insideVerticalScrollable = false;

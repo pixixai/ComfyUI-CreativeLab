@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
+import { createWorkspaceView } from '../web/components/workspace_modes/view_state.js';
+import { synchronizeMatrix, matrixOutput, materializeMatrixRecords } from '../web/components/workspace_modes/xy_model.js';
 
 const source = (file) => readFileSync(new URL(`../web/${file}`, import.meta.url), 'utf8')
     .replace(/import\s+[\s\S]*?\s+from\s+["'][^"']+["'];?/g, '')
@@ -90,7 +92,7 @@ function createHarness(options = {}) {
             }) };
         },
     });
-    for (const file of ['components/modules/media_types/media_utils.js', 'components/ui_state.js', 'state_manager.js']) {
+    for (const file of ['components/modules/media_types/media_utils.js', 'components/actions/task_records.js', 'components/ui_state.js', 'state_manager.js']) {
         vm.runInContext(source(file), context, { filename: file });
     }
     const state = vm.runInContext('state', context);
@@ -127,6 +129,59 @@ function createHarness(options = {}) {
 
 const imageResult = (prompt_id = 'p1', filenames = ['source.png']) => ({
     prompt_id, node: '2', output: { images: filenames.map((filename) => ({ filename, type: 'temp', subfolder: '' })) },
+});
+
+test('repeated selected XY runs append real output histories and preserve the same output when converting to cards',async()=>{
+    const h=createHarness(),xy=createWorkspaceView({mode:'xy'}).xy;
+    xy.x={bindings:['1||text'],values:['before','after']};xy.y={bindings:['1||steps'],values:[20,30]};xy.outputNodeId='2';
+    h.state.cards.splice(0);synchronizeMatrix(h.state.cards,xy,[]);const card=h.state.cards[0],area=matrixOutput(card,xy),tasks=[{cardId:card.id,previewAreaIds:[area.id]}];
+    for(let run=1;run<=3;run++){
+        await h.run(tasks);await h.emit('executed',imageResult(`p${run}`,[`source-${run}.png`]));await h.emit('execution_success',{prompt_id:`p${run}`});
+    }
+    assert.equal(h.requests.length,3);assert.equal(area.history.length,3);assert.deepEqual(plain(area.historyRuns).map(run=>run.id),['p1','p2','p3']);assert.equal(area.historyIndex,2);
+    assert.equal(h.state.cards.filter(card=>matrixOutput(card,xy).history.length).length,1);
+    materializeMatrixRecords(h.state.cards,xy,[]);assert.equal(card.areas[0],area);assert.equal(area.history.length,3);assert.equal(area.inputHistorySnapshots.length,3);
+    assert.equal(h.persisted().workspaces[0].cards[0].areas.find(output=>output.id===area.id).history.length,3);
+});
+
+test('additional record parameters are frozen into output history without injecting them into the execution prompt',async()=>{
+    const h=createHarness(),cfg={name:'cfg',value:7};
+    h.app.graph.getNodeById=id=>String(id)==='1'?{widgets:[cfg]}:null;
+    h.card.recordParameters=[{key:'1||cfg',label:'CFG'},{key:'1||text',label:'文本'}];
+    await h.run();cfg.value=99;h.input.value='edited after submission';
+    assert.equal(h.requests[0].output[1].inputs.cfg,undefined);
+    await h.emit('executed',imageResult());
+    assert.deepEqual(plain(h.output.historyRuns[0].recordParameters).map(record=>record.value),[7,'before']);
+    assert.equal(h.output.inputHistorySnapshots[0].length,1);
+});
+
+test('running-card activity starts with execution and stops on success, interruption, error or the final executing event',async()=>{
+    for(const type of ['execution_success','execution_interrupted','execution_error','executing']){
+        const h=createHarness();await h.run();const running=()=>plain(h.window.CLab.getRunningCardIds(h.workspace.id));
+        assert.deepEqual(running(),[]);await h.emit('execution_start',{prompt_id:'p1'});assert.deepEqual(running(),['card']);
+        assert.deepEqual(plain(h.window.CLab.getRunningCardIds('another-workspace')),[]);
+        await h.emit(type,{prompt_id:'p1',node:null});assert.deepEqual(running(),[]);
+    }
+});
+
+test('overlapping runs retain their activity until every running job ends and early starts survive HTTP response ordering',async()=>{
+    const h=createHarness();await h.run([{cardId:'card',previewAreaIds:['output']},{cardId:'card',previewAreaIds:['output']}]);
+    await h.emit('execution_start',{prompt_id:'p1'});await h.emit('execution_start',{prompt_id:'p2'});
+    assert.deepEqual(plain(h.window.CLab.getRunningCardIds(h.workspace.id)),['card']);await h.emit('execution_success',{prompt_id:'p1'});assert.deepEqual(plain(h.window.CLab.getRunningCardIds(h.workspace.id)),['card']);
+    await h.emit('execution_interrupted',{prompt_id:'p2'});assert.deepEqual(plain(h.window.CLab.getRunningCardIds(h.workspace.id)),[]);
+    const early=createHarness({async submit(h){await h.emit('execution_start',{prompt_id:'fast'});assert.deepEqual(plain(h.window.CLab.getRunningCardIds(h.workspace.id)),['card']);return {prompt_id:'fast',node_errors:{}};}});
+    await early.run();await early.emit('execution_success',{prompt_id:'fast'});assert.deepEqual(plain(early.window.CLab.getRunningCardIds(early.workspace.id)),[]);
+});
+
+test('running-card progress follows the same backend percentages as the progress bar and remains still without new progress',async()=>{
+    const h=createHarness();await h.run();await h.emit('execution_start',{prompt_id:'p1'});
+    const progress=()=>plain(h.window.CLab.getRunningCardProgress(h.workspace.id));
+    await h.emit('progress_state',{prompt_id:'p1',nodes:{a:{value:5,max:20},b:{value:5,max:20}}});
+    assert.deepEqual(progress(),[{cardId:'card',progress:25}]);assert.equal(h.window._clabCardProgress.card.percentage,25);
+    assert.deepEqual(progress(),[{cardId:'card',progress:25}]);await h.emit('progress',{prompt_id:'p1',value:3,max:4});
+    assert.deepEqual(progress(),[{cardId:'card',progress:75}]);assert.equal(h.window._clabCardProgress.card.percentage,75);
+    await h.emit('progress',{prompt_id:'unrelated',value:1,max:2});assert.equal(progress()[0].progress,75);
+    await h.emit('execution_success',{prompt_id:'p1'});assert.deepEqual(progress(),[]);
 });
 
 test('3D viewport dimensions and model filenames are not archived as text output', async () => {

@@ -5,6 +5,7 @@
 import { api } from "../../scripts/api.js";
 import { StateManager } from "./state_manager.js";
 import { showBindingToast, hideBindingToast } from "./components/ui_utils.js";
+import { captureTaskRecords, resolveTaskRecords } from './components/actions/task_records.js';
 import {
     captureCardInputSnapshot,
     pushPreviewHistoryEntry,
@@ -25,8 +26,35 @@ export function setupAPIInjector(app) {
     window._clabDoneTasks = window._clabDoneTasks || new Set();
     let submitting = false;
     let currentTask = null;
+    const runningTasks = new Set();
+    window.CLab.getRunningCardProgress = workspaceId => {
+        const cards = new Map();
+        for (const task of runningTasks) if (task.workspaceId === workspaceId && !task.finished) cards.set(task.cardId, Math.min(cards.get(task.cardId) ?? 100, task.progress ?? 5));
+        return [...cards].map(([cardId, progress]) => ({ cardId, progress }));
+    };
+    window.CLab.getRunningCardIds = workspaceId => window.CLab.getRunningCardProgress(workspaceId).map(task => task.cardId);
+    const notifyActivity = task => document.dispatchEvent(new CustomEvent('clab_task_activity', { detail: { workspaceId: task.workspaceId, cardId: task.cardId } }));
+    const setTaskProgress = (task, percentage) => {
+        if (!task || task.finished) return;
+        const progress = Math.max(0, Math.min(100, percentage));
+        if (task.progress === progress) return;
+        task.progress = progress;
+        if (runningTasks.has(task)) notifyActivity(task);
+    };
+    const setTaskRunning = (task, running) => {
+        if (!task || (running && task.finished)) return;
+        const changed = running ? !runningTasks.has(task) : runningTasks.has(task);
+        if (!changed) return;
+        if (running) runningTasks.add(task); else runningTasks.delete(task);
+        notifyActivity(task);
+    };
+    api.addEventListener('execution_start', async event => {
+        await Promise.resolve();
+        setTaskRunning(window._clabTaskMap[event.detail?.prompt_id], true);
+    });
 
     const releaseTask = (task) => {
+        if (task?.finished) setTaskRunning(task, false);
         if (!task?.finished || task.pendingResults > 0) return;
         if (window._clabTaskMap[task.promptId] === task) delete window._clabTaskMap[task.promptId];
         task.batch.promptIds = task.batch.promptIds.filter(id => id !== task.promptId);
@@ -388,6 +416,7 @@ export function setupAPIInjector(app) {
                 workspaceId: workspace.id,
                 batch,
                 inputSnapshot: captureCardInputSnapshot(card),
+                recordParameters: captureTaskRecords(card,app.graph),
                 historyRunOrder: card.historyRunSequence,
                 previewTargets: card.areas.filter((area) => area.type === 'preview' && task.previewAreaIds.includes(area.id))
                     .map((area) => ({ areaId: area.id, nodeId: area.targetNodeId })),
@@ -522,6 +551,8 @@ export function setupAPIInjector(app) {
             });
         });
 
+        execTask.recordParameters = resolveTaskRecords(execTask.recordParameters,promptOutput);
+
         // --- 阶段 B: 动态剪枝 ---
         const targetPreviewAreas = execTask.previewTargets.filter((target) => target.nodeId);
         if (targetPreviewAreas.length === 0) throw new Error("No output nodes are bound to this task");
@@ -558,6 +589,7 @@ export function setupAPIInjector(app) {
         const task = window._clabTaskMap[pid];
         
         if (task && nodes) {
+            setTaskRunning(task, true);
             let total = 0;
             let done = 0;
             for (const nid in nodes) {
@@ -567,15 +599,24 @@ export function setupAPIInjector(app) {
             }
             if (total > 0) {
                 const percent = Math.max(5, (done / total) * 100);
+                setTaskProgress(task, percent);
                 setUIProgress(task.cardId, percent);
             }
         }
     });
 
+    api.addEventListener('progress', event => {
+        const { value, max, prompt_id } = event.detail || {};
+        const task = prompt_id ? window._clabTaskMap[prompt_id] : runningTasks.size === 1 ? [...runningTasks][0] : null;
+        if (!task || !(max > 0) || !Number.isFinite(value)) return;
+        const percent = Math.max(5, value / max * 100);
+        setTaskProgress(task, percent);setUIProgress(task.cardId, percent);
+    });
+
     api.addEventListener("executing", (e) => {
         const pid = e.detail?.prompt_id;
         const task = window._clabTaskMap[pid];
-        
+        if (task && e.detail.node) setTaskRunning(task, true);
         if (task && !e.detail.node) {
             window._clabDoneTasks = window._clabDoneTasks || new Set();
             window._clabDoneTasks.add(task.cardId); 
@@ -604,7 +645,7 @@ export function setupAPIInjector(app) {
         let needsSave = false;
         const updatedAreas = new Set();
         try {
-            const historyRun = { id: String(prompt_id), order: task.historyRunOrder, areaIds: task.previewTargets.map(target => target.areaId) };
+            const historyRun = { id: String(prompt_id), order: task.historyRunOrder, areaIds: task.previewTargets.map(target => target.areaId), ...(task.recordParameters?.length?{recordParameters:task.recordParameters}:{}) };
 
             const modelItems = getModelOutputFiles(outputData);
             const targetItems = [modelItems, outputData?.videos, outputData?.audio, outputData?.gifs, outputData?.images]

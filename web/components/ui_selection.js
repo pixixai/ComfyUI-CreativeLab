@@ -45,6 +45,7 @@ export function handleDeselectAll(forceExitPainter = false) {
 }
 
 export function handleSelectionMouseDown(event, panelContainer) {
+    if(panelContainer?.dataset.workspaceMode==='xy')return false;
     const isInteractive = isInteractiveTarget(event.target);
 
     if (state.painterMode) {

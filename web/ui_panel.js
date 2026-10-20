@@ -10,6 +10,7 @@ import { attachAreaEvents } from "./components/comp_modulearea.js";
 import { observeModuleRemoval } from "./components/modules/module_lifecycle.js";
 import { renderWorkspaceBar, attachWorkspaceEvents } from "./components/comp_workspace.js";
 import { renderChannelBar, attachChannelEvents } from "./components/comp_channel.js";
+import { setupWorkspaceModes, refreshWorkspaceModes } from './components/workspace_modes/workspace_modes.js';
 
 import { setupGlobalEvents } from "./components/events/event_global.js";
 import { setupExecutionEvents } from "./components/events/event_execution.js";
@@ -259,6 +260,7 @@ function performPanelRender() {
     attachWorkspaceEvents(workspaceBar);
 
     if (window._clabUpdateAllDefaultTitles) window._clabUpdateAllDefaultTitles();
+    refreshWorkspaceModes(panelContainer);
 }
 
 function refreshContextView(options = {}) {
@@ -288,7 +290,7 @@ function refreshContextView(options = {}) {
         attachWorkspaceEvents(workspaceBar);
     }
 
-    if (refreshCardsInPlace(cardsContainer, options.areaIds)) return;
+    if (refreshCardsInPlace(cardsContainer, options.areaIds)) { refreshWorkspaceModes(panelContainer); return; }
 
     performPanelRender();
 }
@@ -522,6 +524,7 @@ function createPanelDOM() {
 
         <div class="clab-panel-footer">
             <div class="clab-workspace-shell">
+                <div class="clab-mode-switch"><button data-mode-toggle aria-haspopup="menu" aria-expanded="false">任务卡片 ▴</button><div class="clab-mode-menu" role="menu" hidden><button data-workspace-mode="cards" role="menuitemradio" aria-checked="true">任务卡片</button><button data-workspace-mode="table" role="menuitemradio" aria-checked="false">参数表</button><button data-workspace-mode="xy" role="menuitemradio" aria-checked="false">XY 矩阵</button></div></div>
                 <div class="clab-workspace-tabs" id="clab-workspace-bar"></div>
             </div>
         </div>
@@ -529,4 +532,5 @@ function createPanelDOM() {
 
     setupStaticToolbarEvents(panelContainer);
     setupPanelEvents(panelContainer);
+    setupWorkspaceModes(panelContainer);
 }

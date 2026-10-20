@@ -354,7 +354,7 @@ export function injectCSS() {
             height: 27px;
             box-sizing: border-box;
             width: 100%;
-            overflow: hidden;
+            overflow: visible;
         }
         #clab-card-width-ctrl {
             position: absolute;

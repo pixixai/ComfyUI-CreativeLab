@@ -142,6 +142,10 @@ function createHarness() {
             context.enterBindingModeForSelected(type, container('panel'), container('backdrop'));
             flush();
         },
+        startTargetPicker(type, onPick) {
+            context.pickWorkflowTarget(type, container('panel'), container('backdrop'), onPick);
+            flush();
+        },
         pick(x, y, target = canvasElement, button = 0) {
             const down = emit('pointerdown', x, y, target, button);
             const up = emit('pointerup', x, y, target, button);
@@ -523,4 +527,21 @@ test('pick shortcut supports selected output modules without binding their param
     h.pick(110, 35);
     assert.equal(h.preview.targetNodeId, '1');
     assert.equal(h.preview.targetWidget, undefined);
+});
+
+test('workflow target picker works without selected modules and restores the panel before applying its callback', () => {
+    const h=createHarness(),before=plain(h.state.cards);h.state.selectedAreaIds=[];
+    let picked;
+    h.startTargetPicker('edit',target=>{assert.equal(h.visible.size,2);picked=target;});
+    assert.equal(h.visible.size,0);h.pick(110,35,undefined,2);
+    assert.equal(picked.node.id,1);assert.equal(picked.widget.name,'steps');assert.equal(picked.isAppend,true);
+    assert.deepEqual(plain(picked.targets),[{nodeIdStr:'1',widgetName:'steps'}]);
+    assert.deepEqual(plain(h.state.cards),before);assert.equal(h.saves,0);assert.equal(h.completions.length,1);
+});
+
+test('cancelling a workflow target pick leaves its bindings untouched and removes interception', () => {
+    const h=createHarness();h.state.selectedAreaIds=[];let calls=0;
+    h.startTargetPicker('preview',()=>calls++);h.pick(500,500);
+    assert.equal(calls,0);assert.equal(h.visible.size,2);assert.equal(h.appState.isBindingMode,false);
+    assert.equal(h.listeners.get('pointerdown').size,0);assert.equal(h.completions.length,1);
 });

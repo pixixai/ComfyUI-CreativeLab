@@ -14,6 +14,7 @@ export function updateCardsLayout() {
     const container = document.querySelector('#clab-cards-container');
     const wrapper = document.querySelector('.clab-cards-wrapper');
     if (!container || !wrapper) return;
+    if (container.closest('#clab-panel')?.dataset.workspaceMode && container.closest('#clab-panel').dataset.workspaceMode !== 'cards') return;
 
     const cardEls = wrapper.querySelectorAll('.clab-card');
     const count = cardEls.length;

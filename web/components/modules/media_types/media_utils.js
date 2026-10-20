@@ -321,7 +321,7 @@ export function captureCardInputSnapshot(card) {
 
     const snapshots = [];
     card.areas.forEach((area) => {
-        if (!area || area.type !== "edit") return;
+        if (!area || area.type !== "edit" || area.recordOnly) return;
 
         const snapshot = sanitizeInputSnapshotEntry({
             sourceAreaId: area.id,

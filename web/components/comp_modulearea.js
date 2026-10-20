@@ -14,6 +14,7 @@ import { moveModuleDOM } from "./modules/module_lifecycle.js";
 
 // 核心解耦：仅保存状态到后端节点，不触发整页刷新
 export function justSave() {
+    document.dispatchEvent(new CustomEvent('clab_workspace_view_change'));
     // Prefer extension save bridge so latest in-memory state is always persisted.
     if (window.CLab && typeof window.CLab.saveState === "function") {
         window.CLab.saveState(state);
@@ -36,6 +37,7 @@ function isVideoAutoplayEnabled() {
 export function surgicallyUpdateArea(areaId) {
     const areaEl = document.querySelector(`.clab-area[data-area-id="${areaId}"]`);
     if (!areaEl) return;
+    document.dispatchEvent(new CustomEvent('clab_workspace_view_change'));
     let targetCard = null;
     let targetArea = null;
     state.cards.forEach(c => {
