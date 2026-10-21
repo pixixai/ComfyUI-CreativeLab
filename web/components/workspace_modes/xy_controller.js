@@ -1,10 +1,10 @@
 import { state } from '../ui_state.js';
 import { workflowParameters } from './parameters.js';
-import { adoptMatrix, synchronizeMatrix, matrixCards, matrixOutput, matrixReady, materializeMatrixRecords, visibleMatrixCells } from './xy_model.js';
+import { adoptMatrix, synchronizeMatrix, matrixCards, matrixCells, matrixOutput, matrixReady, materializeMatrixRecords, visibleMatrixCells } from './xy_model.js';
 import { taskCoordinates } from './task_model.js';
 import { appendWorkspaceTasks } from './task_dom.js';
 import { xyToolbar, xyRunLabel } from './xy_settings.js';
-import { showXYMode } from './mode_xy.js';
+import { showXYMode, xyMediaRatio } from './mode_xy.js';
 import { attachXYCanvas, fitXYCanvas } from './xy_canvas.js';
 import { openXYBinding } from './xy_binding.js';
 import { openXYValues } from './xy_values.js';
@@ -21,11 +21,12 @@ import { updateSelectionUI } from '../ui_selection.js';
 import { synchronizeModeMedia } from './mode_media.js';
 
 export function createXYController(container,getView,save) {
-    let controls,visibleIds=new Set(),controlsHTML='',recordSequence=0;
+    let controls,visibleIds=new Set(),controlsHTML='',recordSequence=0,mediaFrame=0,mediaRatio=1;
     const getXY=()=>getView().xy,active=()=>container.closest('#clab-panel').dataset.workspaceMode==='xy';
     const selected=()=>matrixCards(state.cards,getXY()).filter(card=>visibleIds.has(card.id)&&(state.selectedCardIds.includes(card.id)||card.areas.some(area=>state.selectedAreaIds.includes(area.id))));
     const notice=message=>{let node=controls?.querySelector('[role=status]');if(!node&&controls){node=document.createElement('p');node.className='clab-mode-error';node.setAttribute('role','status');controls.append(node);}if(node)node.textContent=message;};
     const render=(enter=false,source)=>{
+        cancelAnimationFrame(mediaFrame);mediaFrame=0;
         const xy=getXY(),parameters=workflowParameters(),wrapper=container.querySelector('.clab-cards-wrapper');
         if(enter){adoptMatrix(state.cards,source,xy);synchronizeMatrix(state.cards,xy,parameters);appendWorkspaceTasks(container,state.cards);}
         ensureXYHistory(state.cards,xy);
@@ -33,6 +34,7 @@ export function createXYController(container,getView,save) {
         const html=xyToolbar(xy,0);
         if(html!==controlsHTML){controls.innerHTML=html;controlsHTML=html;}
         visibleIds=new Set(showXYMode(wrapper,state.cards,xy,parameters));
+        mediaRatio=xyMediaRatio(wrapper,matrixCells(state.cards,xy),xy);
         refreshXYActivity(container,state.activeWorkspaceId);
         const button=controls.querySelector('[data-xy-run]');if(button)button.textContent=xyRunLabel(xy,selected().length);
         synchronizeModeMedia(wrapper);
@@ -77,10 +79,18 @@ export function createXYController(container,getView,save) {
         if(target.matches('[data-xy-reset]')){fitXYCanvas(container,getXY());save();return;}
     });
     for(const type of ['mousedown','click'])container.addEventListener(type,()=>{if(active())requestAnimationFrame(()=>{const button=controls?.querySelector('[data-xy-run]');if(button)button.textContent=xyRunLabel(getXY(),selected().length);});});
-    container.addEventListener('load',event=>{if(active()&&event.target.matches('img'))render();},true);
-    container.addEventListener('loadedmetadata',()=>{if(active())render();},true);
-    const canvas=attachXYCanvas(container,getView,save,run);
+    const scheduleMediaLayout=event=>{
+        if(!active()||mediaFrame||!event.target.matches('.clab-output-area .clab-preview-bg img,.clab-output-area .clab-preview-bg video'))return;
+        mediaFrame=requestAnimationFrame(()=>{
+            mediaFrame=0;if(!active())return;
+            const xy=getXY(),wrapper=container.querySelector('.clab-cards-wrapper');
+            if(xyMediaRatio(wrapper,matrixCells(state.cards,xy),xy)!==mediaRatio)render();
+        });
+    };
+    container.addEventListener('load',scheduleMediaLayout,true);
+    container.addEventListener('loadedmetadata',scheduleMediaLayout,true);
+    const canvas=attachXYCanvas(container,getView,save,run,()=>window.CLab?.scheduleViewSave());
     attachXYSelection(container,getXY);attachXYHistoryKeys(container,getXY,selected,render);
     document.addEventListener('clab_task_activity',event=>{if(active()&&event.detail.workspaceId===state.activeWorkspaceId)refreshXYActivity(container,state.activeWorkspaceId);});
-    return {render,exportRecords(){ensureXYHistory(state.cards,getXY());materializeMatrixRecords(state.cards,getXY(),workflowParameters());appendWorkspaceTasks(container,state.cards);},leave(){canvas.stop();closeXYPopover();controls?.remove();container.querySelector('.clab-xy-overlay')?.remove();controls=null;}};
+    return {render,exportRecords(){ensureXYHistory(state.cards,getXY());materializeMatrixRecords(state.cards,getXY(),workflowParameters());appendWorkspaceTasks(container,state.cards);},leave(){cancelAnimationFrame(mediaFrame);mediaFrame=0;canvas.stop();closeXYPopover();controls?.remove();container.querySelector('.clab-xy-overlay')?.remove();controls=null;}};
 }

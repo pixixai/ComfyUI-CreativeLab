@@ -21,6 +21,9 @@ app.registerExtension({
             return originalSerialize.apply(this, arguments);
         };
         window.addEventListener('pagehide', () => StateManager.flushPendingSave(app.graph));
+        window.addEventListener('keydown', event => {
+            if ((event.ctrlKey || event.metaKey) && ['z', 'y'].includes(event.key.toLowerCase())) StateManager.flushPendingSave(app.graph);
+        }, true);
 
         // =========================================================================
         // 【修改点】：使用 V3 新版原生组件库，为 CLab 创建独立的按钮组
@@ -121,5 +124,11 @@ window.CLab = {
     },
     scheduleSave() {
         StateManager.scheduleSyncToNode(app.graph);
+    },
+    scheduleViewSave() {
+        StateManager.scheduleViewSyncToNode(app.graph);
+    },
+    flushPendingSave() {
+        StateManager.flushPendingSave(app.graph);
     }
 };

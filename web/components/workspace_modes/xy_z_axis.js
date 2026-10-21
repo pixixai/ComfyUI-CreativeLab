@@ -13,12 +13,14 @@ export function renderZAxis(overlay,xy,x,y,parameters) {
     const summary=binding.querySelector('.clab-xy-binding'),bindingY=y-extent;
     const toggle=binding.querySelector('[data-xy-toggle-layers]');toggle.setAttribute('aria-pressed',String(xy.z.display==='all'));toggle.title=xy.z.display==='all'?'切回单层显示':'平铺全部层';
     xyPosition(line,x,y-10,extent*Math.SQRT2,20);xyPosition(letter,x-extent-4,y-extent-20,18,18);xyPosition(binding,x-extent-12,bindingY-summary.offsetHeight/xy.zoom/2);binding.style.transform='translateX(-100%)';
-    group.querySelectorAll('[data-xy-z-layer],.clab-z-more').forEach(tick=>tick.remove());
+    const previous=new Map([...group.querySelectorAll('[data-xy-z-layer],.clab-z-more')].map(tick=>[tick.dataset.zMark,tick]));
     marks.forEach((index,position)=>{
-        const tick=document.createElement('button'),distance=extent*(position+1)/(marks.length+1);tick.className='clab-axis-label clab-z-tick';
+        const key=index===null?`more:${position}`:String(index),tick=previous.get(key)||document.createElement('button'),distance=extent*(position+1)/(marks.length+1);previous.delete(key);tick.dataset.zMark=key;tick.className='clab-axis-label clab-z-tick';
         if(index===null){tick.classList.add('clab-z-more');tick.dataset.xyZMore='';tick.setAttribute('aria-haspopup','menu');tick.setAttribute('aria-expanded','false');tick.textContent='…';tick.title='查看全部 Z 取值';}
-        else{const text=document.createElement('span');text.textContent=axisValueLabel(xy.z,index);tick.append(text);tick.dataset.xyZLayer=index;tick.setAttribute('aria-pressed',String(index===current));tick.title=axisValueDescription(xy.z.values[index],xy.z.bindings.map(key=>parameters.find(parameter=>parameter.key===key)));}
-        xyPosition(tick,x-distance-9,y-distance,undefined,18);tick.style.transform='translate(-100%,-50%)';group.append(tick);
+        else{let text=tick.querySelector('span');if(!text){text=document.createElement('span');tick.append(text);}text.textContent=axisValueLabel(xy.z,index);tick.dataset.xyZLayer=index;tick.setAttribute('aria-pressed',String(index===current));tick.title=axisValueDescription(xy.z.values[index],xy.z.bindings.map(key=>parameters.find(parameter=>parameter.key===key)));}
+        if(!tick.isConnected)group.append(tick);
+        xyPosition(tick,x-distance-9,y-distance,undefined,18);tick.style.transform='translate(-100%,-50%)';
     });
+    previous.forEach(tick=>tick.remove());
     return {left:x-extent-12-binding.offsetWidth/xy.zoom,top:y-extent-30,right:x+18,bottom:y+18,extent};
 }

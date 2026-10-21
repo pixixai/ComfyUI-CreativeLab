@@ -64,6 +64,23 @@ test('unchanged configuration does not write to the widget again', () => {
     assert.equal(writes, 2);
 });
 
+test('wheel view saves debounce until idle and serialization flushes the latest camera', () => {
+    const h = persistenceFixture();
+    for (let i = 0; i < 30; i++) { h.state.value = `camera ${i}`; h.manager.scheduleViewSyncToNode(h.graph); }
+    assert.equal(h.timers.size, 1);
+    assert.equal(h.builds, 0);
+    h.manager.flushPendingSave(h.graph);
+    assert.equal(h.timers.size, 0);
+    assert.equal(JSON.parse(h.widget.value).value, 'camera 29');
+    assert.equal(h.builds, 1);
+    h.manager.scheduleViewSyncToNode(h.graph);
+    h.widget.value = '{"value":"undo"}';
+    h.manager.scheduleLoadFromNode(h.graph);
+    h.manager.syncToNode(h.graph);
+    assert.equal(h.widget.value, '{"value":"undo"}');
+    assert.equal(h.builds, 1);
+});
+
 test('config storage retains complete workflow JSON without putting it in a textarea', () => {
     const original = JSON.stringify({ text: '生成参数\n'.repeat(40000) });
     const element = { value: original };

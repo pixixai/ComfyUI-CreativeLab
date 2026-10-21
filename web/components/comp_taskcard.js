@@ -3,9 +3,9 @@
  * 职责: 【组件】负责“任务卡片”列表的 HTML 生成、局部物理拖拽与单点重绘
  */
 import { remapHistoryModuleIds } from "./modules/media_types/media_utils.js";
-import { state, dragState, appState } from "./ui_state.js";
+import { state, dragState, appState, getActiveWorkspace } from "./ui_state.js";
 // 【注入】：引入 attachAreaEvents 以便克隆时对新生 DOM 原地施放事件绑定魔法
-import { generateAreaHTML, syncAreaDOMOrder, justSave, attachAreaEvents } from "./comp_modulearea.js";
+import { generateAreaHTML, generateDeferredAreaHTML, syncAreaDOMOrder, justSave, attachAreaEvents } from "./comp_modulearea.js";
 import { updateSelectionUI } from "./ui_selection.js";
 import { moveModuleDOM } from "./modules/module_lifecycle.js";
 
@@ -62,7 +62,8 @@ export function generateSingleCardHTML(card, index) {
     const isCardSelected = state.selectedCardIds && state.selectedCardIds.includes(card.id);
     const borderStyle = isCardSelected ? 'border-color: var(--clab-theme-card, #4CAF50);' : '';
     const activeClass = isCardSelected ? 'active selected' : '';
-    let areasHtml = (card.areas || []).map(area => generateAreaHTML(area, card)).join('');
+    const renderArea = getActiveWorkspace()?.view?.mode === 'xy' ? generateDeferredAreaHTML : generateAreaHTML;
+    let areasHtml = (card.areas || []).map(area => renderArea(area, card)).join('');
     const defaultTitle = `#${index + 1}`;
     const displayTitle = card.title ? card.title : defaultTitle;
 

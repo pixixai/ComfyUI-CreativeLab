@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createModelFixtures } from './fixtures/models.mjs';
 import { runXYZBrowserChecks } from './xyz.browser.mjs';
 import { runUndoBrowserChecks } from './undo.browser.mjs';
+import { runXYPerformanceChecks } from './xy_performance.browser.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const requests = [];
@@ -49,6 +50,8 @@ const server = http.createServer((req, res) => {
         res.end(fs.readFileSync(path.join(repo, 'tests/fixtures/workspace_modes.js')));
     } else if (url.pathname === '/xyz-checks.js') {
         res.end(fs.readFileSync(path.join(repo, 'tests/fixtures/xyz_matrix.js')));
+    } else if (url.pathname === '/xy-performance-checks.js') {
+        res.end(fs.readFileSync(path.join(repo, 'tests/fixtures/xy_performance.js')));
     } else if (url.pathname === '/scripts/app.js') {
         res.end('export const app = window.testApp;');
     } else if (url.pathname === '/scripts/api.js') {
@@ -574,7 +577,7 @@ try {
     await clickDetailElement('[data-mode-toggle]');await clickDetailElement('button[data-workspace-mode="xy"]');
     const restoredAxes=await send('Runtime.evaluate',{expression:`document.querySelector('#clab-panel').dataset.workspaceMode==='xy'&&JSON.stringify([window.workspaceModeDemo.view.xy.x,window.workspaceModeDemo.view.xy.y,window.workspaceModeDemo.view.xy.size])===window.nativeAxisConfig&&window.workspaceModeDemo.view.xy.zoom>window.nativeCanvasZoom`,returnByValue:true},sessionId);assert.equal(restoredAxes.result.value,true,'native footer mode switching lost axis bindings or zoom');
     console.log('PASS native XY wheel zoom and background dragging preserve generation sizes, and footer mode switches restore the same axes and camera');
-    const crispXY=await send('Runtime.evaluate',{expression:`(async()=>{const {projectXYCanvas}=await import('/extensions/clab/components/workspace_modes/xy_axes.js');const container=document.querySelector('#clab-cards-container'),xy=window.workspaceModeDemo.view.xy,old=xy.zoom,media=container.querySelector('.clab-card:not([hidden]) .clab-preview-bg');xy.zoom=3;projectXYCanvas(container,xy);const button=container.querySelector('[data-xy-bind=x]'),font=parseFloat(getComputedStyle(button).fontSize),tick=container.querySelector('.clab-axis-label'),unscaled=!button.closest('.clab-cards-wrapper')&&getComputedStyle(container.querySelector('.clab-xy-overlay')).transform==='none';xy.zoom=old;projectXYCanvas(container,xy);const matrix=new DOMMatrixReadOnly(getComputedStyle(tick).transform);return font===36&&unscaled&&media===container.querySelector('.clab-card:not([hidden]) .clab-preview-bg')&&matrix.a===1&&matrix.d===1;})()`,awaitPromise:true,returnByValue:true},sessionId);assert.equal(crispXY.result.value,true,'zoom magnified rasterized axis text instead of repainting display-size glyphs or rebuilt the media');
+    const crispXY=await send('Runtime.evaluate',{expression:`(async()=>{const {projectXYCanvas}=await import('/extensions/clab/components/workspace_modes/xy_axes.js');const container=document.querySelector('#clab-cards-container'),xy=window.workspaceModeDemo.view.xy,old=xy.zoom,media=container.querySelector('.clab-card:not([hidden]) .clab-preview-bg');xy.zoom=3;projectXYCanvas(container,xy);const button=container.querySelector('[data-xy-bind=x]'),font=parseFloat(getComputedStyle(button).fontSize),tick=container.querySelector('.clab-axis-label'),unscaled=!button.closest('.clab-cards-wrapper')&&new DOMMatrixReadOnly(getComputedStyle(container.querySelector('.clab-xy-overlay')).transform).a===1&&new DOMMatrixReadOnly(getComputedStyle(container.querySelector('.clab-xy-overlay')).transform).d===1;xy.zoom=old;projectXYCanvas(container,xy);const matrix=new DOMMatrixReadOnly(getComputedStyle(tick).transform);return font===36&&unscaled&&media===container.querySelector('.clab-card:not([hidden]) .clab-preview-bg')&&matrix.a===1&&matrix.d===1;})()`,awaitPromise:true,returnByValue:true},sessionId);assert.equal(crispXY.result.value,true,'zoom magnified rasterized axis text instead of repainting display-size glyphs or rebuilt the media');
     console.log('PASS XY axes and binding summaries repaint at the zoomed font size outside the scaled media layer');
     await send('Runtime.evaluate',{expression:`document.querySelector('[data-xy-reset]').click();window.nativeXYIds=[...document.querySelectorAll('#clab-panel .clab-card:not([hidden])')].map(card=>card.dataset.cardId);window.nativeXYExecute=window.CLab.executeTasks;window.CLab.executeTasks=tasks=>{window.nativeXYQueue=tasks;};`},sessionId);
     const xyIds=await send('Runtime.evaluate',{expression:`window.nativeXYIds`,returnByValue:true},sessionId),xyCell=index=>`.clab-card[data-card-id="${xyIds.result.value[index]}"] .clab-preview-bg`;
@@ -670,12 +673,13 @@ try {
     console.log('PASS native wheel zoom over axes, tick labels, grid cells and images stays centered on the pointer');
     const xyzChecks=await runXYZBrowserChecks(send,sessionId,process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX);
     const undoChecks=await runUndoBrowserChecks(send,sessionId);
+    const xyPerformanceChecks=await runXYPerformanceChecks(send,sessionId);
     if(process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX)for(const mode of ['cards','table','xy']){
         await send('Runtime.evaluate',{expression:`window.showWorkspaceModeDemo('${mode}');if('${mode}'==='xy')document.querySelector('[data-xy-reset]').click();`},sessionId);await new Promise(resolve=>setTimeout(resolve,100));
         const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX}-${mode}.png`,Buffer.from(screenshot.data,'base64'));
     }
     await send('Runtime.evaluate',{expression:'window.releaseReviewAssets?.()'},sessionId);
-    console.log(`${report.passed.length+31+xyzChecks+undoChecks} browser checks passed; ${requests.length} media requests`);
+    console.log(`${report.passed.length+31+xyzChecks+undoChecks+xyPerformanceChecks} browser checks passed; ${requests.length} media requests`);
 } finally {
     socket?.close();
     browser.kill();

@@ -5,24 +5,37 @@ import { medianMediaRatio } from './xy_layout.js';
 import { updateXYHistoryLabel } from './xy_history.js';
 import { matrixLayers, zLayerTitle } from './xy_layers.js';
 import { renderZAxis } from './xy_z_axis.js';
+import { hydrateWorkspaceAreas } from './task_dom.js';
 
 function at(element,x,y,width,height) {
     Object.assign(element.style,{left:`${x}px`,top:`${y}px`,...(width===undefined?{}:{width:`${width}px`}),...(height===undefined?{}:{height:`${height}px`})});
 }
-function geometry(xy,items,elements) {
+export function xyMediaRatio(wrapper,items,xy) {
     const sizes=[];
     for(const item of items){
-        const output=matrixOutput(item.card,xy),area=elements.get(item.card.id)?.querySelector(`.clab-output-area[data-area-id="${CSS.escape(output?.id||'')}"]`);
+        const output=matrixOutput(item.card,xy),known=output?.mediaSize;
+        if(known&&known.url===output?.resultUrl&&known.width>0&&known.height>0){sizes.push(known);continue;}
+        const area=wrapper.querySelector(`.clab-output-area[data-area-id="${CSS.escape(output?.id||'')}"]`);
         const media=area?.querySelector('.clab-preview-bg img,.clab-preview-bg video');
         const width=media?.naturalWidth||media?.videoWidth,height=media?.naturalHeight||media?.videoHeight;if(width&&height)sizes.push({width,height});
     }
-    const width=320,height=width/medianMediaRatio(sizes);
+    return medianMediaRatio(sizes);
+}
+function geometry(xy,ratio) {
+    const width=320,height=width/ratio;
     return {width,height,stepX:width+(xy.x.gap??4),stepY:height+(xy.y.gap??4),left:120+(xy.x.margin??10),top:xy.origin==='top'?56+(xy.y.margin??10):76};
 }
 export function showXYMode(wrapper,cards,xy,parameters) {
     const all=matrixCells(cards,xy),items=visibleMatrixCells(cards,xy);
     const elements=new Map([...wrapper.querySelectorAll(':scope > .clab-card')].map(element=>[element.dataset.cardId,element])),byId=new Map(items.map(item=>[item.card.id,item]));
-    const g=geometry(xy,all,elements),columns=Math.max(1,xy.x.values.length),rows=Math.max(1,xy.y.values.length),layers=matrixLayers(xy,g),layerByZ=new Map(layers.map(layer=>[layer.z,layer]));
+    for(const [id,element]of elements){
+        element.hidden=!byId.has(id);
+        const output=byId.has(id)?matrixOutput(byId.get(id).card,xy):null;
+        element.querySelectorAll('.clab-area').forEach(area=>{area.hidden=area.dataset.areaId!==output?.id;});
+    }
+    const outputs=new Set(items.map(item=>matrixOutput(item.card,xy)?.id));
+    hydrateWorkspaceAreas(wrapper,(card,area)=>outputs.has(area.id));
+    const g=geometry(xy,xyMediaRatio(wrapper,all,xy)),columns=Math.max(1,xy.x.values.length),rows=Math.max(1,xy.y.values.length),layers=matrixLayers(xy,g),layerByZ=new Map(layers.map(layer=>[layer.z,layer]));
     const row=y=>xy.origin==='bottom'?rows-1-y:y,gridW=(columns-1)*g.stepX+g.width;
     wrapper.style.setProperty('--xy-media-height',`${g.height}px`);
     wrapper.style.setProperty('--xy-cell-width',`${g.width}px`);

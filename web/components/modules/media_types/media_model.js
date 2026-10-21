@@ -4,6 +4,7 @@ import { loadModel } from './model_loader.js';
 
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const viewers = new Map();
+const hiddenViewers = new Map();
 const visible = new WeakSet();
 let observer, library, panelObserver;
 
@@ -49,7 +50,7 @@ function mountViewer(stage, state, resources) {
     const clipSelect = stage.querySelector('.clab-model-clips'), speed = stage.querySelector('.clab-model-speed');
     const reset = stage.querySelector('.clab-model-reset'), warning = stage.querySelector('.clab-model-warning');
     let renderer, controls, scene, model, environment, resize, mixer, action, releaseResources, clips = [], frame = 0, lastTime = 0;
-    let disposed = false, duration = 0, scrubTimer, scrubbing = false, resumeAfterScrub = false, pointerStart;
+    let disposed = false, suspended = false, duration = 0, scrubTimer, scrubbing = false, resumeAfterScrub = false, pointerStart;
     status.hidden = false; status.textContent = '正在读取模型…'; warning.hidden = true; animation.hidden = true;
     const updateUI = () => {
         seek.value = state.time;
@@ -64,7 +65,7 @@ function mountViewer(stage, state, resources) {
     };
     const draw = now => {
         frame = 0;
-        if (disposed || !renderer) return;
+        if (disposed || suspended || !renderer) return;
         if (state.playing && duration > 0) {
             state.time = (state.time + Math.min((now-lastTime)/1000,.1)*state.speed) % duration;
             applyTime(); updateUI();
@@ -73,7 +74,13 @@ function mountViewer(stage, state, resources) {
         renderer.render(scene,controls.object);
         if (state.playing && duration > 0) frame = requestAnimationFrame(draw);
     };
-    const render = () => { if (!frame && !disposed && renderer) frame = requestAnimationFrame(draw); };
+    const render = () => { if (!frame && !disposed && !suspended && renderer) frame = requestAnimationFrame(draw); };
+    viewers.get(stage).setVisible = shown => {
+        if (suspended === !shown) return;
+        suspended = !shown;
+        if (suspended) { cancelAnimationFrame(frame); frame = 0; }
+        else { lastTime = performance.now(); render(); }
+    };
     const cancelScrub = () => { clearTimeout(scrubTimer); scrubbing = false; resumeAfterScrub = false; };
     const togglePlayback = () => {
         cancelScrub(); state.playing = !state.playing; lastTime = performance.now(); updateUI(); render();
@@ -123,7 +130,8 @@ function mountViewer(stage, state, resources) {
         disposeObject(model); environment?.dispose(); renderer?.dispose(); renderer?.forceContextLoss(); host.replaceChildren();
         animation.hidden = true;
         reset.onclick = play.onclick = seek.oninput = seek.onpointerdown = speed.onchange = clipSelect.onchange = null;
-        const entry = viewers.get(stage); if (entry) entry.capture = null;
+        const entry = viewers.get(stage); if (entry) { entry.capture = null; entry.setVisible = null; }
+        hiddenViewers.delete(stage);
         delete stage.dataset.modelLoaded;
     };
     (async () => {
@@ -147,7 +155,11 @@ function mountViewer(stage, state, resources) {
         const camera = new THREE.PerspectiveCamera(45,1,.01,1000);
         controls = new THREE.OrbitControls(camera,renderer.domElement);
         controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN;
-        controls.addEventListener('change',render);
+        const savedCamera = state.camera;
+        controls.addEventListener('change',()=>{
+            state.camera = { position: camera.position.toArray(), target: controls.target.toArray(), zoom: camera.zoom };
+            render();
+        });
         if (clips.length) {
             animation.hidden = false; mixer = new THREE.AnimationMixer(model);
             clipSelect.innerHTML = clips.map((clip,index)=>`<option value="${index}">${escapeHTML(clip.name || `动画 ${index+1}`)}</option>`).join('');
@@ -174,6 +186,10 @@ function mountViewer(stage, state, resources) {
             renderer.setSize(host.clientWidth,host.clientHeight,false); camera.aspect=host.clientWidth/host.clientHeight; camera.updateProjectionMatrix(); render();
         };
         resize = new ResizeObserver(setSize); resize.observe(host); setSize(); fit();
+        if (savedCamera) {
+            camera.position.fromArray(savedCamera.position); controls.target.fromArray(savedCamera.target); camera.zoom = savedCamera.zoom;
+            controls.update(); camera.updateProjectionMatrix(); render();
+        }
         reset.onclick = event => { event.stopPropagation(); fit(); };
         status.hidden = true; stage.dataset.modelLoaded = '1';
     })().catch(error => {
@@ -187,9 +203,24 @@ function syncViewer(stage) {
     const entry = viewers.get(stage);
     if (!entry) return;
     const modal = stage.closest('.clab-preview-modal');
-    const shown = !document.hidden && visible.has(stage) && (modal ? modal.classList.contains('visible') : !!stage.closest('#clab-panel.visible'));
+    const shown = !document.hidden && visible.has(stage) && !stage.closest('[hidden]') && (modal ? modal.classList.contains('visible') : !!stage.closest('#clab-panel.visible'));
+    if (shown) hiddenViewers.delete(stage);
     if (shown && !entry.stop) entry.stop = mountViewer(stage,entry.state,entry.resources);
-    else if (!shown && entry.stop) { entry.stop(); entry.stop=null; }
+    else if (entry.stop) {
+        if (shown || !document.hidden && stage.closest('[data-clab-retain-model]') && stage.closest('#clab-panel.visible')) {
+            entry.setVisible?.(shown);
+            if (!shown) hiddenViewers.set(stage,entry);
+            while (hiddenViewers.size > 3) {
+                const [oldest,cached] = hiddenViewers.entries().next().value;
+                cached.stop(); cached.stop = null; hiddenViewers.delete(oldest);
+            }
+        }
+        else { entry.stop(); entry.stop=null; }
+    }
+}
+
+export function refreshModelVisibility(container) {
+    container.querySelectorAll('.clab-glb-viewer').forEach(syncViewer);
 }
 
 export function attachModelEvents(container, resources) {

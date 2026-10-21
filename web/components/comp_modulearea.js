@@ -38,6 +38,11 @@ export function surgicallyUpdateArea(areaId) {
     const areaEl = document.querySelector(`.clab-area[data-area-id="${areaId}"]`);
     if (!areaEl) return;
     document.dispatchEvent(new CustomEvent('clab_workspace_view_change'));
+    if (areaEl.hasAttribute('data-clab-deferred')) return;
+    if (areaEl.closest('#clab-panel')?.dataset.workspaceMode === 'xy' && areaEl.closest('.clab-card[hidden],.clab-area[hidden]')) {
+        areaEl.dataset.clabPendingRefresh = '';
+        return;
+    }
     let targetCard = null;
     let targetArea = null;
     state.cards.forEach(c => {
@@ -223,6 +228,10 @@ export function generateAreaHTML(area, card) {
     if (area.type === 'edit') return generateInputHTML(area, card);
     if (area.type === 'preview') return generateOutputHTML(area, card);
     return '';
+}
+
+export function generateDeferredAreaHTML(area, card) {
+    return `<div class="clab-area ${area.type === 'preview' ? 'clab-output-area' : 'clab-input-area'}" data-card-id="${card.id}" data-area-id="${area.id}" data-clab-deferred></div>`;
 }
 
 export function attachAreaEvents(container) {

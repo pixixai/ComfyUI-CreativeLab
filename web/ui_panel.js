@@ -435,6 +435,7 @@ export function togglePanel() {
         if (backdropContainer) backdropContainer.classList.remove("visible");
         state.painterMode = false;
         state.painterSource = null;
+        window.CLab?.flushPendingSave?.();
         return;
     }
 

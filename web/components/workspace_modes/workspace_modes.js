@@ -4,7 +4,7 @@ import { showCardsMode } from './mode_cards.js';
 import { tableControls, showTableMode, handleTableAction } from './mode_table.js';
 import { matchingTasks, cloneTask } from './task_model.js';
 import { injectWorkspaceModeStyles } from './mode_styles.js';
-import { appendWorkspaceTasks } from './task_dom.js';
+import { appendWorkspaceTasks, hydrateWorkspaceAreas } from './task_dom.js';
 import { captureTableStructure, synchronizeTableStructure } from './table_structure.js';
 import { synchronizeModeMedia } from './mode_media.js';
 import { createXYController } from './xy_controller.js';
@@ -24,9 +24,11 @@ export function setupWorkspaceModes(panel) {
         const config=view(),wrapper=container.querySelector('.clab-cards-wrapper');if(!wrapper)return;
         const key=`${state.activeWorkspaceId}:${config.mode}`,changed=key!==currentModeKey;
         panel.dataset.workspaceMode=config.mode;
+        wrapper.toggleAttribute('data-clab-retain-model',config.mode==='xy');
         switcher.querySelector('[data-mode-toggle]').textContent=`${names[config.mode]} ▴`;
         switcher.querySelectorAll('[data-workspace-mode]').forEach(button=>button.setAttribute('aria-checked',String(button.dataset.workspaceMode===config.mode)));
         if(changed){controls?.remove();controls=null;controlsHTML='';tableBaseline=null;xy.leave();showCardsMode(wrapper);currentModeKey=key;container.scrollLeft=container.scrollTop=0;}
+        if(config.mode!=='xy')hydrateWorkspaceAreas(wrapper);
         if(config.mode==='cards'){if(changed)window._clabUpdateCardsLayout?.();synchronizeModeMedia(wrapper);return;}
         if(config.mode==='xy'){xy.render(changed,template());if(changed)save();return;}
         if(synchronizeTableStructure(state.cards,tableBaseline)){tableBaseline=null;commit();return;}

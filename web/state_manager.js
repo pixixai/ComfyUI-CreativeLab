@@ -34,6 +34,11 @@ export const StateManager = {
         this._saveTimer = setTimeout(() => this.syncToNode(graph), 250);
     },
 
+    scheduleViewSyncToNode(graph) {
+        clearTimeout(this._saveTimer);
+        this._saveTimer = setTimeout(() => this.syncToNode(graph), 200);
+    },
+
     flushPendingSave(graph) {
         if (this._saveTimer !== null) this.syncToNode(graph);
     },

@@ -253,6 +253,12 @@ export function setupAPIInjector(app) {
             const areaId = areaEl.dataset.areaId;
             const card = StateManager.state.cards.find(c => c.id === cardId);
             const area = card?.areas.find(a => a.id === areaId);
+            if (area?.type === 'preview' && area.resultUrl && new URL(element.currentSrc || element.src, window.location.origin).href !== new URL(area.resultUrl, window.location.origin).href) return;
+
+            if (area?.type === 'preview' && areaEl.closest('#clab-panel')?.dataset.workspaceMode === 'xy' && area.resultUrl && (area.mediaSize?.url !== area.resultUrl || area.mediaSize.width !== width || area.mediaSize.height !== height)) {
+                area.mediaSize = { url: area.resultUrl, width, height };
+                StateManager.scheduleSyncToNode(app.graph);
+            }
             
             if (area && area.matchMedia) {
                 if (area.width !== width || area.height !== height || area.ratio !== '自定义比例') {
@@ -273,7 +279,7 @@ export function setupAPIInjector(app) {
             }
         }, true);
 
-        document.addEventListener('loadeddata', (e) => {
+        for (const type of ['loadedmetadata', 'loadeddata']) document.addEventListener(type, (e) => {
             if (e.target && e.target.tagName === 'VIDEO' && e.target.classList && e.target.classList.contains('clab-preview-img')) {
                 handleMediaLoad(e.target, e.target.videoWidth, e.target.videoHeight);
             }

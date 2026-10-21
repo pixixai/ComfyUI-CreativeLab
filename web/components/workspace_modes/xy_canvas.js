@@ -9,18 +9,20 @@ export function fitXYCanvas(container,xy) {
     xy.panY=(xy.origin==='bottom'?Math.max(40,container.clientHeight-height*xy.zoom-bottom):40)-minY*xy.zoom;
     projectXYCanvas(container,xy);
 }
-export function attachXYCanvas(container,getView,save,run) {
-    let drag,menu,point,spaceHeld=false,clickGuard=false;
+export function attachXYCanvas(container,getView,save,run,scheduleSave) {
+    let drag,menu,point,spaceHeld=false,clickGuard=false,frame=0,bounds;
     const world=()=>container.querySelector('.clab-cards-wrapper');
     const active=()=>{const panel=container.closest('#clab-panel');return panel.dataset.workspaceMode==='xy'&&panel.classList.contains('visible');};
     const background=target=>target===container||target===world()||target.matches('[data-xy-part="axes"]');
     const canvasTarget=target=>container.contains(target)&&!target.closest('.clab-xy-toolbar,.clab-xy-context');
     const overCanvas=p=>p&&canvasTarget(document.elementFromPoint(p.x,p.y));
-    const transform=()=>projectXYCanvas(container,getView().xy);
-    const pan=(x,y)=>{const xy=getView().xy;xy.panX+=x;xy.panY+=y;transform();};
+    const transform=()=>{frame=0;bounds=null;if(active())projectXYCanvas(container,getView().xy);};
+    const scheduleTransform=()=>{if(!frame)frame=requestAnimationFrame(transform);};
+    const pan=(x,y)=>{const xy=getView().xy;xy.panX+=x;xy.panY+=y;scheduleTransform();};
     const cursor=()=>container.classList.toggle('clab-xy-grabbing',spaceHeld||!!drag);
     const stop=()=>{
         const previous=drag,changed=!!drag||spaceHeld;drag=null;spaceHeld=false;cursor();
+        if(frame){cancelAnimationFrame(frame);transform();}
         if(previous&&container.hasPointerCapture(previous.id))container.releasePointerCapture(previous.id);
         if(changed)save();
     };
@@ -36,7 +38,7 @@ export function attachXYCanvas(container,getView,save,run) {
     window.addEventListener('pointermove',event=>{
         const previous=point;point={x:event.clientX,y:event.clientY};
         if(!active()){stop();return;}
-        if(spaceHeld){if(previous&&overCanvas(point)){pan(point.x-previous.x,point.y-previous.y);event.preventDefault();event.stopImmediatePropagation();}return;}
+        if(spaceHeld){if(previous&&canvasTarget(event.target)){pan(point.x-previous.x,point.y-previous.y);event.preventDefault();event.stopImmediatePropagation();}return;}
         if(!drag)return;pan(event.clientX-drag.x,event.clientY-drag.y);drag.moved||=Math.hypot(event.clientX-drag.startX,event.clientY-drag.startY)>3;drag.x=event.clientX;drag.y=event.clientY;event.preventDefault();event.stopImmediatePropagation();
     },true);
     window.addEventListener('pointerup',event=>{
@@ -58,9 +60,9 @@ export function attachXYCanvas(container,getView,save,run) {
         if(!active()||!canvasTarget(event.target))return;
         if(event.target.closest('.clab-video-player,.clab-audio-player,.clab-glb-viewer,.clab-text-body-scroll')&&!event.ctrlKey)return;
         event.preventDefault();event.stopImmediatePropagation();
-        const xy=getView().xy,rect=container.getBoundingClientRect(),x=event.clientX-rect.left,y=event.clientY-rect.top,old=xy.zoom;
+        const xy=getView().xy,rect=bounds||(bounds=container.getBoundingClientRect()),x=event.clientX-rect.left,y=event.clientY-rect.top,old=xy.zoom;
         xy.zoom=Math.max(.025,Math.min(4,old*Math.exp(-event.deltaY*.0015)));const ratio=xy.zoom/old;
-        xy.panX=x-(x-xy.panX)*ratio;xy.panY=y-(y-xy.panY)*ratio;transform();save();
+        xy.panX=x-(x-xy.panX)*ratio;xy.panY=y-(y-xy.panY)*ratio;scheduleTransform();scheduleSave();
     },{passive:false,capture:true});
     container.addEventListener('contextmenu',event=>{
         if(!active()||!background(event.target))return;event.preventDefault();event.stopImmediatePropagation();menu?.remove();
