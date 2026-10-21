@@ -16,6 +16,18 @@ export const StateManager = {
     _lastSyncedJSON: "",
     _watchdogTimer: null,
     _saveTimer: null,
+    _loadTimer: null,
+
+    scheduleLoadFromNode(graph) {
+        clearTimeout(this._saveTimer);
+        this._saveTimer = null;
+        clearTimeout(this._loadTimer);
+        // Graph configure clears and repopulates nodes in the same turn.
+        this._loadTimer = setTimeout(() => {
+            this._loadTimer = null;
+            this.loadFromNode(graph);
+        }, 0);
+    },
 
     scheduleSyncToNode(graph) {
         if (this._saveTimer !== null) return;
@@ -65,13 +77,14 @@ export const StateManager = {
     syncToNode(graph) {
         clearTimeout(this._saveTimer);
         this._saveTimer = null;
+        if (this._loadTimer !== null) return;
         const node = this.getConfigNode(graph);
         if (node) {
             const widget = node.widgets?.find((w) => w.name === "scenes_data");
             if (widget) {
                 const persisted = buildPersistedState();
                 const jsonStr = JSON.stringify(persisted);
-                widget.value = jsonStr;
+                if (widget.value !== jsonStr) widget.value = jsonStr;
                 this._lastSyncedJSON = jsonStr;
             }
         }
@@ -80,6 +93,8 @@ export const StateManager = {
     },
 
     async loadFromNode(graph) {
+        clearTimeout(this._loadTimer);
+        this._loadTimer = null;
         clearTimeout(this._saveTimer);
         this._saveTimer = null;
         const node = this.getConfigNode(graph);
@@ -226,6 +241,8 @@ export const StateManager = {
         node.pos = [posX, posY];
         graph.add(node);
 
+        clearTimeout(this._loadTimer);
+        this._loadTimer = null;
         this.syncToNode(graph);
         this.showToast("Configuration node created.");
     },

@@ -4,6 +4,7 @@
  */
 import { app } from "../../scripts/app.js";
 import { StateManager } from "./state_manager.js";
+import { prepareConfigStorage } from "./config_storage.js";
 import { setupAPIInjector } from "./api_injector.js";
 import { setupUI, togglePanel } from "./ui_panel.js"; // 【修改点】：引入 togglePanel 方法
 
@@ -84,29 +85,25 @@ app.registerExtension({
         // 监听图谱清空事件（切换工作流、新建工作流时触发）
         const originalClear = app.graph.clear;
         app.graph.clear = function() {
-            originalClear.apply(this, arguments);
-            console.log("[CLab] 工作流被清空，隔离并重置面板状态...");
-            StateManager.loadFromNode(app.graph); 
+            const result = originalClear.apply(this, arguments);
+            StateManager.scheduleLoadFromNode(app.graph);
+            return result;
         };
     },
 
     // 节点加载完成时的钩子：用于打开包含配置节点的工作流时，自动恢复数据
     loadedGraphNode(node, appData) {
         if (node.type === "CLab_SystemConfig") {
-            console.log("[CLab] 检测到工作流配置节点，准备同步数据...");
-            setTimeout(() => {
-                StateManager.loadFromNode(app.graph);
-            }, 100);
+            prepareConfigStorage(node);
+            StateManager.scheduleLoadFromNode(app.graph);
         }
     },
 
     // 节点被手动创建/粘贴时的钩子
     nodeCreated(node) {
         if (node.type === "CLab_SystemConfig") {
-            console.log("[CLab] 配置节点被创建或粘贴，尝试读取数据...");
-            setTimeout(() => {
-                StateManager.loadFromNode(app.graph);
-            }, 100);
+            prepareConfigStorage(node);
+            StateManager.scheduleLoadFromNode(app.graph);
         }
     }
 });

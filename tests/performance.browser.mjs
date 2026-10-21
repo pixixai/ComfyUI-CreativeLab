@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createModelFixtures } from './fixtures/models.mjs';
 import { runXYZBrowserChecks } from './xyz.browser.mjs';
+import { runUndoBrowserChecks } from './undo.browser.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const requests = [];
@@ -668,12 +669,13 @@ try {
     await send('Runtime.evaluate',{expression:`document.removeEventListener('wheel',window.nativeAxisWheelBlocker,true);delete window.nativeAxisWheelBlocker;document.querySelector('[data-xy-reset]').click();`},sessionId);
     console.log('PASS native wheel zoom over axes, tick labels, grid cells and images stays centered on the pointer');
     const xyzChecks=await runXYZBrowserChecks(send,sessionId,process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX);
+    const undoChecks=await runUndoBrowserChecks(send,sessionId);
     if(process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX)for(const mode of ['cards','table','xy']){
         await send('Runtime.evaluate',{expression:`window.showWorkspaceModeDemo('${mode}');if('${mode}'==='xy')document.querySelector('[data-xy-reset]').click();`},sessionId);await new Promise(resolve=>setTimeout(resolve,100));
         const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX}-${mode}.png`,Buffer.from(screenshot.data,'base64'));
     }
     await send('Runtime.evaluate',{expression:'window.releaseReviewAssets?.()'},sessionId);
-    console.log(`${report.passed.length+31+xyzChecks} browser checks passed; ${requests.length} media requests`);
+    console.log(`${report.passed.length+31+xyzChecks+undoChecks} browser checks passed; ${requests.length} media requests`);
 } finally {
     socket?.close();
     browser.kill();
