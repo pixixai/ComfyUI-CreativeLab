@@ -10,6 +10,7 @@ import {
     applyWorkspaceToState,
 } from "./components/ui_state.js";
 import { loadAllTextHistory, ensureInputSnapshotState } from "./components/modules/media_types/media_utils.js";
+import { prepareConfigStorage } from "./config_storage.js";
 
 export const StateManager = {
     state,
@@ -235,6 +236,7 @@ export const StateManager = {
         }
 
         const node = LiteGraph.createNode("CLab_SystemConfig");
+        prepareConfigStorage(node);
 
         let posX = 400;
         let posY = 300;

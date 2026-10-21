@@ -10,7 +10,7 @@ export async function runUndoBrowserChecks(send, sessionId) {
             const textarea=document.createElement('textarea');textarea.value=widget.value;
             widget.element=textarea;widget.options={getValue:()=>textarea.value,setValue:value=>{textarea.value=value;}};
             Object.defineProperty(widget,'value',{get(){return this.options.getValue();},set(value){this.options.setValue(value);}});
-            app.extension.nodeCreated(config);
+            app.extension.nodeCreated({type:'',constructor:{comfyClass:'CLab_SystemConfig'},widgets:config.widgets});
             const saved=buildPersistedState(),workspace=saved.workspaces.find(workspace=>workspace.id===saved.activeWorkspaceId);
             workspace.view.xy.panX+=10;
             const json=JSON.stringify(saved),images=[...document.querySelectorAll('#clab-panel .clab-card img')],ids=state.cards.map(card=>card.id);

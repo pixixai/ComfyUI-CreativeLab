@@ -16,7 +16,7 @@ function persistenceFixture() {
     const widget = { name: 'scenes_data', value: '' };
     const graph = { _nodes: [{ type: 'CLab_SystemConfig', widgets: [widget] }] };
     const context = vm.createContext({
-        state, window: {},
+        state, window: {}, prepareConfigStorage,
         setTimeout(fn) { const id = ++sequence; timers.set(id, fn); return id; },
         clearTimeout(id) { timers.delete(id); }, setInterval() { return 1; },
         buildPersistedState() { builds++; return { value: state.value }; },
@@ -139,6 +139,12 @@ test('undo cancels pending edits and cannot save stale UI state before restore',
 
 test('creating a config anchor saves existing tasks instead of loading its empty default', () => {
     const h = persistenceFixture();
+    const element = { value: '{}' };
+    h.widget.element = element;
+    h.widget.options = { getValue: () => element.value, setValue: value => { element.value = value; } };
+    Object.defineProperty(h.widget, 'value', {
+        get() { return this.options.getValue(); }, set(value) { this.options.setValue(value); },
+    });
     h.graph._nodes = [];
     h.context.LiteGraph = { createNode: () => ({ type: 'CLab_SystemConfig', widgets: [h.widget] }) };
     h.graph.add = node => {
@@ -150,6 +156,30 @@ test('creating a config anchor saves existing tasks instead of loading its empty
     assert.equal(h.timers.size, 0);
     assert.equal(h.manager._loadTimer, null);
     assert.equal(JSON.parse(h.widget.value).value, 'initial');
+    assert.equal(element.value, '');
+    assert.equal(element.readOnly, true);
+});
+
+test('config node creation initializes compact storage before LiteGraph assigns its type', () => {
+    const h = persistenceFixture();
+    let extension;
+    h.context.app = { graph: h.graph, registerExtension(value) { extension = value; } };
+    vm.runInContext(source('main.js'), h.context);
+    const element = { value: '{}' }, widget = { name: 'scenes_data', element, options: {
+        getValue: () => element.value, setValue: value => { element.value = value; },
+    } };
+    Object.defineProperty(widget, 'value', {
+        get() { return this.options.getValue(); }, set(value) { this.options.setValue(value); },
+    });
+    const node = { type: '', constructor: { comfyClass: 'CLab_SystemConfig' }, widgets: [widget] };
+    extension.nodeCreated(node);
+    node.type = 'CLab_SystemConfig';
+    const json = JSON.stringify({ text: '矩阵生成记录'.repeat(40000) });
+    widget.value = json;
+    assert.equal(widget.value, json);
+    assert.equal(element.value, '');
+    assert.equal(element.readOnly, true);
+    assert.equal(h.timers.size, 1);
 });
 
 test('removed module resources are released once while moves keep their resources', () => {

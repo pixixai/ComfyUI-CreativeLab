@@ -104,7 +104,7 @@ app.registerExtension({
 
     // 节点被手动创建/粘贴时的钩子
     nodeCreated(node) {
-        if (node.type === "CLab_SystemConfig") {
+        if (node.type === "CLab_SystemConfig" || node.constructor.comfyClass === "CLab_SystemConfig") {
             prepareConfigStorage(node);
             StateManager.scheduleLoadFromNode(app.graph);
         }
