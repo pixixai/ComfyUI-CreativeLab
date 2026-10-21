@@ -89,6 +89,7 @@ export function materializeMatrixRecords(cards,xy,parameters) {
 }
 
 export function changeAxisBindings(axis,bindings,parameters) {
+    if(JSON.stringify(axis.bindings)!==JSON.stringify(bindings))delete axis.inputText;
     const values=axis.values.map(value=>{const previous=axisTuple(axis,value),tuple=bindings.map(key=>axis.bindings.includes(key)?previous[axis.bindings.indexOf(key)]:parameters.find(parameter=>parameter.key===key)?.value??'');return bindings.length===1?tuple[0]:tuple;});
     axis.bindings=bindings;axis.values=bindings.length?[...new Map(values.map(value=>[valueKey(value),value])).values()]:[];
 }

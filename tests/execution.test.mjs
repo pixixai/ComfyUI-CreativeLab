@@ -571,3 +571,22 @@ test('interrupted runs release their task registry entries', async () => {
     await h.emit('execution_interrupted', { prompt_id: 'p1' });
     assert.equal(Object.keys(h.window._clabTaskMap).length, 0);
 });
+
+
+test('XY output capture uses the shared video, audio, 3D and text history pipeline',async()=>{
+    for(const [kind,output]of [
+        ['video',{videos:[{filename:'clip.webm',type:'temp',subfolder:''}]}],
+        ['audio',{audio:[{filename:'sound.wav',type:'temp',subfolder:''}]}],
+        ['model',{'3d':[{filename:'scene.glb',type:'output',subfolder:'models'}]}],
+        ['text',{text:['generated text']}],
+    ]){
+        const h=createHarness(),xy=createWorkspaceView({mode:'xy',xy:{outputNodeId:'2',x:{bindings:['1||text'],values:['before']},y:{bindings:['1||steps'],values:[20]}}}).xy;
+        h.state.cards.splice(0);synchronizeMatrix(h.state.cards,xy,[]);h.workspace.view={mode:'xy',xy};
+        const card=h.state.cards[0],area=matrixOutput(card,xy);await h.run([{cardId:card.id,previewAreaIds:[area.id]}]);
+        await h.emit('executed',{prompt_id:'p1',node:'2',output});
+        assert.equal(area.resultKind,kind);assert.equal(area.history.length,1);assert.equal(area.historyIndex,0);assert.equal(area.resultUrl,area.history[0]);
+        assert.equal(area.historyRuns[0].id,'p1');assert.equal(area.inputHistorySnapshots.length,1);assert.equal(h.refreshes.includes(area.id),true);
+        assert.equal(h.persisted().workspaces[0].cards[0].areas.find(a=>a.id===area.id).resultKind,kind);
+        if(kind==='text')assert.equal(area.textContent,'generated text');
+    }
+});

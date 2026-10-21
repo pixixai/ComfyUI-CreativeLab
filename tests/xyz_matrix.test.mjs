@@ -5,7 +5,7 @@ import { synchronizeMatrix, matrixCells, visibleMatrixCells, matrixReady, matrix
 import { parameterValue, taskCoordinates } from '../web/components/workspace_modes/task_model.js';
 import { matrixLayers, matrixRunCards } from '../web/components/workspace_modes/xy_layers.js';
 import { axisValueLabel, axisValueDescription } from '../web/components/workspace_modes/axis_labels.js';
-import { parseAxisValues, formatAxisValues, formatAxisOrder, reorderAxisValues } from '../web/components/workspace_modes/value_parser.js';
+import { parseAxisValues, axisInputText, formatAxisValues, formatAxisOrder, reorderAxisValues } from '../web/components/workspace_modes/value_parser.js';
 import { selectXYCells } from '../web/components/workspace_modes/xy_layout.js';
 import { captureCardInputSnapshot } from '../web/components/modules/media_types/media_utils.js';
 import { swapMatrixAxes } from '../web/components/workspace_modes/xy_axis_swap.js';
@@ -181,4 +181,23 @@ test('reordering all three axes preserves task IDs, input snapshots and output h
         assert.equal(cards[index],card);assert.equal(matrixOutput(card,xy),output);assert.deepEqual(output.history,[`/${at.x}-${at.y}-${at.z}.png`]);assert.equal(output.inputHistorySnapshots[0],snapshot);
         assert.deepEqual(taskCoordinates(card,xy),{x:1-at.x,y:1-at.y,z:(at.z+2)%3});
     });
+});
+
+
+test('axis input formatting survives reopen and workflow normalization without changing parsed values',()=>{
+    for(const text of ['1, 2,3','1，2，3','1,2\n3','[1, 2, 3]','  1,2,3  ','1,1,2,3']){
+        const xy=createWorkspaceView({xy:{x:{bindings:['1||steps'],values:[1,2,3],inputText:text}}}).xy;
+        assert.equal(axisInputText(xy.x,['number']),text);
+        const restored=createWorkspaceView(JSON.parse(JSON.stringify({xy}))).xy;
+        assert.equal(axisInputText(restored.x,['number']),text);assert.deepEqual(restored.x.values,[1,2,3]);
+    }
+    const axis={values:[2,3],inputText:'1,2,3'};assert.equal(axisInputText(axis,['number']),'2\n3');
+    axis.inputText='2,invalid';assert.equal(axisInputText(axis,['number']),'2\n3');
+});
+
+test('axis swapping carries original input syntax and rebinding discards stale input syntax',()=>{
+    const {xy}=fixture();xy.x.inputText='20,30';xy.z.inputText='[5, 7, 9]';
+    swapMatrixAxes(xy,'x','z');assert.equal(axisInputText(xy.x,['number']),'[5, 7, 9]');assert.equal(axisInputText(xy.z,['number']),'20,30');
+    swapMatrixAxes(xy,'x','y');assert.equal('inputText' in xy.x,false);assert.equal(xy.y.inputText,'[5, 7, 9]');
+    changeAxisBindings(xy.y,['2||text'],parameters);assert.equal('inputText' in xy.y,false);
 });

@@ -1,6 +1,8 @@
+import { axisLabelState } from './axis_label_layout.js';
+
 export function createWorkspaceView(seed = {}) {
     const xy=seed.xy||{};
-    const axis=value=>({bindings:value?.bindings||[],values:value?.values||[],gap:Number.isFinite(value?.gap)?Math.max(0,value.gap):4,margin:Number.isFinite(value?.margin)?Math.max(0,value.margin):10});
+    const axis=value=>({bindings:value?.bindings||[],values:value?.values||[],...axisLabelState(value),...(typeof value?.inputText==='string'?{inputText:value.inputText}:{}),gap:Number.isFinite(value?.gap)?Math.max(0,value.gap):4,margin:Number.isFinite(value?.margin)?Math.max(0,value.margin):10});
     return {
         mode:['cards','table','xy'].includes(seed.mode)?seed.mode:'cards',templateId:seed.templateId||'',
         columns:Number(seed.columns)||3,outputIndex:Number(seed.outputIndex)||0,

@@ -15,7 +15,8 @@ export function attachXYCanvas(container,getView,save,run,scheduleSave) {
     const active=()=>{const panel=container.closest('#clab-panel');return panel.dataset.workspaceMode==='xy'&&panel.classList.contains('visible');};
     const background=target=>target===container||target===world()||target.matches('[data-xy-part="axes"]');
     const canvasTarget=target=>container.contains(target)&&!target.closest('.clab-xy-toolbar,.clab-xy-context');
-    const overCanvas=p=>p&&canvasTarget(document.elementFromPoint(p.x,p.y));
+    const workspaceTarget=target=>container.contains(target)&&!target.closest('.clab-xy-context');
+    const overWorkspace=p=>p&&workspaceTarget(document.elementFromPoint(p.x,p.y));
     const transform=()=>{frame=0;bounds=null;if(active())projectXYCanvas(container,getView().xy);};
     const scheduleTransform=()=>{if(!frame)frame=requestAnimationFrame(transform);};
     const pan=(x,y)=>{const xy=getView().xy;xy.panX+=x;xy.panY+=y;scheduleTransform();};
@@ -29,9 +30,9 @@ export function attachXYCanvas(container,getView,save,run,scheduleSave) {
     window.addEventListener('pointerdown',event=>{
         if(!active())return;
         if(menu&&!menu.contains(event.target)){menu.remove();menu=null;}
+        if(spaceHeld&&workspaceTarget(event.target)){event.preventDefault();event.stopImmediatePropagation();return;}
         if(!canvasTarget(event.target))return;
         point={x:event.clientX,y:event.clientY};
-        if(spaceHeld){event.preventDefault();event.stopImmediatePropagation();return;}
         if(event.button!==1&&!(event.button===0&&background(event.target)))return;
         event.preventDefault();event.stopImmediatePropagation();drag={id:event.pointerId,x:event.clientX,y:event.clientY,startX:event.clientX,startY:event.clientY,button:event.button,moved:false};container.setPointerCapture(event.pointerId);cursor();
     },true);
@@ -48,11 +49,11 @@ export function attachXYCanvas(container,getView,save,run,scheduleSave) {
     },true);
     window.addEventListener('pointercancel',stop,true);container.addEventListener('lostpointercapture',()=>{if(drag)stop();});
     for(const type of ['mousedown','mouseup','click','auxclick'])window.addEventListener(type,event=>{
-        if(active()&&canvasTarget(event.target)&&(spaceHeld||(type==='click'&&clickGuard)||(type==='auxclick'&&event.button===1))){event.preventDefault();event.stopImmediatePropagation();}
+        if(active()&&((spaceHeld&&workspaceTarget(event.target))||(canvasTarget(event.target)&&((type==='click'&&clickGuard)||(type==='auxclick'&&event.button===1))))){event.preventDefault();event.stopImmediatePropagation();}
     },true);
     window.addEventListener('keydown',event=>{
-        if(event.code!=='Space'||!active()||event.ctrlKey||event.metaKey||event.altKey||event.isComposing||event.target.closest?.('input,textarea,select,[contenteditable=true],[role=dialog],[role=menu],[data-xy-toggle-layers],.clab-xy-toolbar')||(!spaceHeld&&!overCanvas(point)))return;
-        event.preventDefault();event.stopImmediatePropagation();if(!spaceHeld){stop();spaceHeld=true;cursor();}
+        if(event.code!=='Space'||!active()||event.ctrlKey||event.metaKey||event.altKey||event.isComposing||event.target.closest?.('input,textarea,select,[contenteditable=true],[role=dialog],[role=menu]')||(!spaceHeld&&!overWorkspace(point)))return;
+        event.preventDefault();event.stopImmediatePropagation();event.target.closest?.('button')?.blur();if(!spaceHeld){stop();spaceHeld=true;cursor();}
     },true);
     window.addEventListener('keyup',event=>{if(event.code==='Space'&&spaceHeld){event.preventDefault();event.stopImmediatePropagation();stop();}},true);
     window.addEventListener('blur',stop);document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});

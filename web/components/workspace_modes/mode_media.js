@@ -7,7 +7,7 @@ export function synchronizeModeMedia(wrapper) {
         bound.add(wrapper);
         wrapper.addEventListener('play',event=>{
             const media=event.target;
-            if(media.matches('video,audio')&&media.closest('.clab-card[hidden],.clab-area[hidden]')){pausedByMode.add(media);media.pause();}
+            if(media.matches('video,audio')&&!media.paused&&media.closest('.clab-card[hidden],.clab-area[hidden]')){pausedByMode.add(media);media.pause();}
         },true);
     }
     for(const media of wrapper.querySelectorAll('video,audio')){

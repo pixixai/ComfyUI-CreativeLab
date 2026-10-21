@@ -49,6 +49,14 @@ export function formatAxisValues(values,types) {
     return values.map(String).join('\n');
 }
 
+export function axisInputText(axis,types) {
+    if(typeof axis.inputText==='string')try{
+        const values=[...new Map(parseAxisValues(axis.inputText,types).map(value=>[JSON.stringify(value),value])).values()];
+        if(JSON.stringify(values)===JSON.stringify(axis.values))return axis.inputText;
+    }catch{}
+    return formatAxisValues(axis.values,types);
+}
+
 export function reorderAxisValues(values,from,before) {
     const next=[...values],value=next.splice(from,1)[0];next.splice(before-(before>from?1:0),0,value);return next;
 }

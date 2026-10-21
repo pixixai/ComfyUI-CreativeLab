@@ -9,12 +9,14 @@ import { attachXYCanvas, fitXYCanvas } from './xy_canvas.js';
 import { openXYBinding } from './xy_binding.js';
 import { openXYValues } from './xy_values.js';
 import { closeXYPopover } from './xy_popover.js';
-import { openXYRunOptions, openZLayerOptions } from './xy_options.js';
+import { openXYRunOptions, openXYConfigOptions, openZLayerOptions } from './xy_options.js';
+import { resyncRecords, cleanDeadRecords } from '../actions/action_record_maintenance.js';
 import { openXYAxisPanel } from './xy_axis_panel.js';
 import { openXYRecords } from './xy_records.js';
 import { swapMatrixAxes } from './xy_axis_swap.js';
 import { ensureXYHistory, attachXYHistoryKeys } from './xy_history.js';
 import { attachXYSelection } from './xy_selection.js';
+import { syncAxisLabelSettings } from './xy_axes.js';
 import { refreshXYActivity } from './xy_activity.js';
 import { matrixRunCards } from './xy_layers.js';
 import { updateSelectionUI } from '../ui_selection.js';
@@ -69,15 +71,19 @@ export function createXYController(container,getView,save) {
         if(target.matches('[data-xy-bind]')){bind(target.dataset.xyBind,target);return;}
         if(target.matches('[data-xy-z-layer]')){showLayer(target.dataset.xyZLayer);return;}
         if(target.matches('[data-xy-z-more]')){openZLayerOptions(container,getXY(),showLayer);return;}
-        if(target.matches('[data-xy-toggle-layers]')){closeXYPopover();getXY().z.display=getXY().z.display==='all'?'single':'all';clearSelection();commit(true);updateSelectionUI();return;}
+        if(target.matches('[data-xy-toggle-layers]')){target.blur();closeXYPopover();getXY().z.display=getXY().z.display==='all'?'single':'all';clearSelection();commit(true);updateSelectionUI();return;}
         if(target.matches('[data-xy-run-options]')){openXYRunOptions(container,run);return;}
-        if(target.matches('[data-xy-edit-values]')){openXYValues(container,target.dataset.xyEditValues,getXY,fit=>commit(!!fit),bind,target);return;}
-        if(target.matches('[data-xy-origin]')){const origin=target.dataset.xyOrigin;if(getXY().origin===origin)return;getXY().origin=origin;closeXYPopover();render();fitXYCanvas(container,getXY());save();controls.querySelector(`[data-xy-origin=${origin}]`).focus({preventScroll:true});return;}
+        if(target.matches('[data-xy-config]')){window.CLab?.createNode();return;}
+        if(target.matches('[data-xy-config-options]')){openXYConfigOptions(container,value=>{void (value==='clean'?cleanDeadRecords():resyncRecords()).catch(error=>notice(error.message));});return;}
+        if(target.matches('[data-xy-edit-values]')){openXYValues(container,target.dataset.xyEditValues,getXY,fit=>commit(!!fit),bind,target,()=>syncAxisLabelSettings(container.querySelector('.clab-xy-overlay'),getXY()),()=>{render();save();});return;}
+        if(target.matches('[data-xy-origin]')){const origin=target.dataset.xyOrigin;if(getXY().origin===origin)return;getXY().origin=origin;closeXYPopover();render();fitXYCanvas(container,getXY());save();if(event.detail===0)controls.querySelector(`[data-xy-origin=${origin}]`).focus({preventScroll:true});return;}
         if(target.matches('[data-xy-reassign]')){openXYAxisPanel(container,getXY,swap);return;}
         if(target.matches('[data-xy-records]')){openXYRecords(container,getXY,recordActions);return;}
         if(target.matches('[data-xy-run]')){run();return;}
         if(target.matches('[data-xy-reset]')){fitXYCanvas(container,getXY());save();return;}
     });
+    container.addEventListener('pointerdown',event=>{if(active()&&event.button===0&&event.target.closest('button')?.closest('.clab-xy-overlay,.clab-xy-toolbar')){event.preventDefault();if(container.contains(document.activeElement)&&document.activeElement.matches('button'))document.activeElement.blur();}});
+    for(const type of ['keydown','keyup'])container.addEventListener(type,event=>{if(active()&&['Space','Enter'].includes(event.code)&&event.target.closest('[data-xy-toggle-layers]'))event.preventDefault();});
     for(const type of ['mousedown','click'])container.addEventListener(type,()=>{if(active())requestAnimationFrame(()=>{const button=controls?.querySelector('[data-xy-run]');if(button)button.textContent=xyRunLabel(getXY(),selected().length);});});
     const scheduleMediaLayout=event=>{
         if(!active()||mediaFrame||!event.target.matches('.clab-output-area .clab-preview-bg img,.clab-output-area .clab-preview-bg video'))return;

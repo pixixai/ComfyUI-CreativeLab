@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { runXYToolbarChecks } from './xy_toolbar.browser.mjs';
+import { runXYFocusChecks } from './xy_focus.browser.mjs';
+import { runXYLabelChecks } from './xy_labels.browser.mjs';
 
 export async function runXYZBrowserChecks(send,sessionId,screenshotPrefix) {
     const evaluate=async expression=>{const result=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true},sessionId);assert.equal(result.exceptionDetails,undefined,JSON.stringify(result.exceptionDetails));return result.result.value;};
@@ -12,11 +14,14 @@ export async function runXYZBrowserChecks(send,sessionId,screenshotPrefix) {
     };
     const type=async(selector,text)=>{await click(selector);for(const event of ['keyDown','keyUp'])await send('Input.dispatchKeyEvent',{type:event,key:'a',code:'KeyA',windowsVirtualKeyCode:65,modifiers:2},sessionId);await send('Input.insertText',{text},sessionId);};
     const dragOrder=async(from,before)=>{
+        await evaluate(`(async()=>{const {getActiveWorkspace}=await import('/extensions/clab/components/ui_state.js');window.axisOrderDragBefore=JSON.stringify(getActiveWorkspace().view.xy);})()`);
         const p=await evaluate(`(async()=>{await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));const rows=[...document.querySelectorAll('.clab-xy-values [data-xy-order-index]')],handle=rows[${from}].querySelector('button'),a=handle.getBoundingClientRect(),b=rows[${before}>=rows.length?rows.length-1:${before}].getBoundingClientRect(),x=(a.left+a.right)/2,y=(a.top+a.bottom)/2;return{x,y,toY:${before}>=rows.length?b.bottom-1:b.top+1,hit:handle.contains(document.elementFromPoint(x,y)),target:document.elementFromPoint(x,y)?.outerHTML};})()`);
         assert.equal(p.hit,true,`native sort handle missed: ${JSON.stringify(p)}`);
         await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:p.x,y:p.y},sessionId);await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:p.x,y:p.y},sessionId);
         for(let i=1;i<=6;i++)await send('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,x:p.x,y:p.y+(p.toY-p.y)*i/6},sessionId);
+        assert.equal(await evaluate(`(async()=>{const {getActiveWorkspace}=await import('/extensions/clab/components/ui_state.js');return !!document.querySelector('.clab-axis-drag-ghost:popover-open')&&[...document.querySelectorAll('.clab-xy-values [data-xy-order-index]')].some(row=>row.style.transform&&!row.style.transform.includes('(0px)'))&&JSON.stringify(getActiveWorkspace().view.xy)===window.axisOrderDragBefore;})()`),true,'value drag changed data before drop or omitted its animated preview');
         await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:p.x,y:p.toY},sessionId);
+        assert.equal(await evaluate(`new Promise(resolve=>{let n=0;const check=()=>{if(!document.querySelector('.clab-axis-drag-ghost'))resolve(true);else if(++n>40)resolve(false);else requestAnimationFrame(check);};check();})`),true);
     };
     const shot=async suffix=>{if(screenshotPrefix){const result=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${screenshotPrefix}-${suffix}.png`,Buffer.from(result.data,'base64'));}};
     await evaluate(`window.showXYZDemo();document.querySelector('[data-xy-reset]').click();window.nativeXYZExecute=window.CLab.executeTasks;window.CLab.executeTasks=tasks=>{window.nativeXYZQueue=tasks;};`);
@@ -37,11 +42,12 @@ export async function runXYZBrowserChecks(send,sessionId,screenshotPrefix) {
     await evaluate(`window.nativeZToggle=document.querySelector('[data-xy-toggle-layers]');window.nativeZToggleBackground=getComputedStyle(window.nativeZToggle).backgroundColor;`);
     await click('[data-xy-toggle-layers]');
     await new Promise(resolve=>setTimeout(resolve,180));
-    assert.equal(await evaluate(`document.querySelectorAll('#clab-panel .clab-card:not([hidden])').length===12&&document.querySelectorAll('.clab-xy-layer-title').length===3&&window.nativeZToggle===document.querySelector('[data-xy-toggle-layers]')&&window.nativeZToggle.getAttribute('aria-pressed')==='true'&&getComputedStyle(window.nativeZToggle).backgroundColor!==window.nativeZToggleBackground&&document.activeElement===window.nativeZToggle&&!document.querySelector('.clab-xy-options:popover-open')`),true);await shot('z-all');
+    assert.equal(await evaluate(`document.querySelectorAll('#clab-panel .clab-card:not([hidden])').length===12&&document.querySelectorAll('.clab-xy-layer-title').length===3&&window.nativeZToggle===document.querySelector('[data-xy-toggle-layers]')&&window.nativeZToggle.getAttribute('aria-pressed')==='true'&&getComputedStyle(window.nativeZToggle).backgroundColor!==window.nativeZToggleBackground&&document.activeElement!==window.nativeZToggle&&!document.querySelector('.clab-xy-options:popover-open')`),true);await shot('z-all');
     for(const type of ['keyDown','keyUp'])await send('Input.dispatchKeyEvent',{type,key:' ',code:'Space',windowsVirtualKeyCode:32},sessionId);
-    assert.equal(await evaluate(`!document.querySelector('#clab-cards-container').classList.contains('clab-xy-grabbing')&&window.xyzModeDemo.view.xy.z.display==='single'&&window.nativeZToggle.getAttribute('aria-pressed')==='false'&&document.querySelectorAll('#clab-panel .clab-card:not([hidden])').length===4`),true,'Space on the layer toggle started the hand tool or failed to return to single-layer mode');
+    assert.equal(await evaluate(`!document.querySelector('#clab-cards-container').classList.contains('clab-xy-grabbing')&&window.xyzModeDemo.view.xy.z.display==='all'&&window.nativeZToggle.getAttribute('aria-pressed')==='true'&&document.querySelectorAll('#clab-panel .clab-card:not([hidden])').length===12`),true,'Space unexpectedly activated the layer toggle');
     if(screenshotPrefix){await click('[data-xy-origin=top]');await shot('z-down');await click('[data-xy-origin=bottom]');}
-    console.log('PASS native Z wheel zooms the canvas; its square toggle lights for flat view, preserves focus and returns to a single layer with Space');
+    await click('[data-xy-toggle-layers]');
+    console.log('PASS native Z wheel zooms the canvas; its square toggle changes layers only by clicking and ignores Space activation');
     await evaluate(`window.nativeAxisOrderBefore=window.xyzModeDemo.cards.map(card=>{const output=card.areas.find(area=>area.id===card.xyOutputId);return{card,output,history:JSON.stringify(output.history),snapshots:JSON.stringify(output.inputHistorySnapshots),image:document.querySelector('.clab-card[data-card-id="'+card.id+'"] img')};});window.nativeAxisOrderCamera=JSON.stringify([window.xyzModeDemo.view.xy.panX,window.xyzModeDemo.view.xy.panY,window.xyzModeDemo.view.xy.zoom]);`);
     await click('.axis-x');await type('[data-xy-values=x]','20,broken');await click('[data-xy-value-tab=order]');
     assert.equal(await evaluate(`window.xyzModeDemo.view.xy.x.values.join(',')==='20,30'&&!document.querySelector('[data-xy-value-page=input]').hidden&&document.querySelector('[data-xy-values=x]').value==='20,broken'&&document.querySelector('.clab-xy-popup-error').textContent.length>0`),true);
@@ -76,5 +82,5 @@ export async function runXYZBrowserChecks(send,sessionId,screenshotPrefix) {
     assert.equal(await evaluate(`document.querySelector('.clab-z-tick').textContent==='blurry, low resolution'&&document.querySelector('.clab-z-tick').querySelector('span').scrollWidth>document.querySelector('.clab-z-tick').querySelector('span').clientWidth`),true);
     console.log('PASS native unified batch editors preserve text commas, split paragraphs, retain JSON multiline groups and display actual-content ellipsis without aliases');
     await evaluate(`window.showXYZDemo();document.querySelector('[data-xy-reset]').click();`);
-    return 6+toolbarChecks;
+    return 6+toolbarChecks+await runXYFocusChecks(send,sessionId,click)+await runXYLabelChecks(send,sessionId,click,screenshotPrefix);
 }
