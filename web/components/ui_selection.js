@@ -45,7 +45,7 @@ export function handleDeselectAll(forceExitPainter = false) {
 }
 
 export function handleSelectionMouseDown(event, panelContainer) {
-    if(panelContainer?.dataset.workspaceMode==='xy')return false;
+    if(['xy','table'].includes(panelContainer?.dataset.workspaceMode))return false;
     const isInteractive = isInteractiveTarget(event.target);
 
     if (state.painterMode) {
@@ -170,10 +170,12 @@ export function handleSelectionMouseDown(event, panelContainer) {
 
 export function updateSelectionUI() {
     try {
+        const selectedCards = new Set(state.selectedCardIds);
+        const selectedAreas = new Set(state.selectedAreaIds);
         // 1. 遍历卡片 DOM，修改高亮
         document.querySelectorAll(".clab-card:not(.clab-add-card-inline)").forEach((card) => {
             const cardId = card.dataset.cardId;
-            if (state.selectedCardIds && state.selectedCardIds.includes(cardId)) {
+            if (selectedCards.has(cardId)) {
                 card.classList.add("active", "selected");
                 card.style.borderColor = "var(--clab-theme-card, #4CAF50)";
             } else {
@@ -185,7 +187,7 @@ export function updateSelectionUI() {
         // 2. 遍历模块 DOM，修改高亮
         document.querySelectorAll(".clab-area").forEach((area) => {
             const areaId = area.dataset.areaId;
-            if (state.selectedAreaIds && state.selectedAreaIds.includes(areaId)) {
+            if (selectedAreas.has(areaId)) {
                 area.classList.add("active");
                 area.classList.add("selected");
                 area.style.borderColor = "var(--clab-theme-module, #2196F3)";

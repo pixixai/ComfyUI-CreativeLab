@@ -2,7 +2,7 @@
  * 文件: comp_modulearea.js
  * 职责: 负责输入/输出区域渲染、拖拽排序与局部刷新。
  */
-import { remapHistoryModuleIds } from "./modules/media_types/media_utils.js";
+import { remapHistoryModuleIds, getAreaResultType } from "./modules/media_types/media_utils.js";
 import { state, appState, dragState, saveAndRender } from "./ui_state.js";
 import { injectDnDCSS, bindComboSelectEvents } from "./ui_utils.js";
 import { generateInputHTML, attachInputEvents, refreshInputAreaInPlace } from "./modules/module_input.js";
@@ -50,6 +50,10 @@ export function surgicallyUpdateArea(areaId) {
         if (a) { targetCard = c; targetArea = a; }
     });
     if (targetCard && targetArea) {
+        if (areaEl.closest('#clab-panel')?.dataset.workspaceMode === 'table' && targetArea.type === 'preview' && !targetArea.isManageMode && !areaEl.querySelector('.clab-history-grid') && !areaEl.hasAttribute('data-clab-table-media-ready') && ['video', 'audio', 'model'].includes(getAreaResultType(targetArea))) {
+            areaEl.dataset.clabPendingRefresh = '';
+            return;
+        }
         if (targetArea.type === 'edit' && areaEl.querySelector('.clab-input-body') && refreshInputAreaInPlace(areaEl, targetArea, targetCard)) return;
         if (targetArea.type === 'preview' && refreshOutputAreaInPlace(areaEl, targetArea, targetCard)) return;
         const mediaEl = areaEl.querySelector('.clab-media-target');

@@ -5,20 +5,15 @@ import { axisValueTabsHTML, attachAxisValueTabs } from './axis_value_order.js';
 import { workflowParameters } from './parameters.js';
 import { axisLabelControlsHTML, attachAxisLabelControls } from './axis_label_controls.js';
 import { state } from '../ui_state.js';
+import { availableValueChoices, valueChoicesHTML, checkValueChoices, selectAllValues, clearChoiceValues } from './value_choices.js';
 
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
-const label=value=>typeof value==='boolean'?value?'True':'False':String(value);
 const unique=values=>[...new Map(values.map(value=>[JSON.stringify(value),value])).values()];
 
 export function openXYValues(container,name,getXY,commit,bind,trigger,previewLabels,commitLabels) {
     const axis=getXY()[name],parameters=workflowParameters();
     const fields=axis.bindings.map(key=>parameters.find(parameter=>parameter.key===key)||{key,label:`绑定已失效 · ${key}`,type:'string',choices:[]});
-    const choices=fields.map((field,index)=>{
-        const available=[...field.choices];
-        if(available.length)for(const row of axis.values){const value=fields.length===1?row:row[index];if(!available.some(choice=>same(choice,value)))available.push(value);}
-        return available;
-    });
-    const groups=fields.map((field,index)=>choices[index].length?`<section class="clab-xy-value-choices">${fields.length>1?`<div>${esc(field.displayName||field.name)}</div>`:''}${choices[index].map((choice,option)=>`<label><input type="checkbox" data-xy-choice="${index}:${option}"><span>${esc(label(choice))}${field.choices.some(value=>same(value,choice))?'':'（已失效）'}</span></label>`).join('')}</section>`:'').join('');
+    const choices=availableValueChoices(fields,axis.values),groups=valueChoicesHTML(fields,choices);
     const singleChoice=fields.length===1&&choices[0].length>0,types=fields.map(field=>field.type);
     const hint=fields.length===1?singleChoice?'点击名称或复选框添加、移除取值。':types[0]==='string'?'每个非空行作为一条文本，逗号保留；也支持 JSON 数组。单条文本包含换行时请使用 JSON。':'支持逗号、换行或 JSON 数组，可混用逗号和换行。':`组合顺序：${fields.map(field=>field.displayName||field.name).join(' × ')}。每行一组，参数用逗号分隔，或填写 JSON 二维数组；文本含逗号、换行时请使用 JSON。勾选选项新增一组，其余参数沿用最后一组或工作流值。`;
     const placeholder=fields.length>1?'[[512,768],[768,1024]]':types[0]==='string'?'每行一条文本，或 ["森林, 小屋","城市, 雨夜"]':'20,30,40 或每行一个数值';
@@ -34,11 +29,7 @@ export function openXYValues(container,name,getXY,commit,bind,trigger,previewLab
     const read=()=>singleChoice?parseValues(textarea.value,types):parseAxisValues(textarea.value,types);
     const checks=()=>{
         if(!textarea)return;
-        const values=read();
-        for(const input of panel.popup.querySelectorAll('[data-xy-choice]')){
-            const [index,option]=input.dataset.xyChoice.split(':').map(Number),choice=choices[index][option];
-            input.checked=values.some(row=>same(fields.length===1?row:row[index],choice));
-        }
+        checkValueChoices(panel.popup,read(),fields,choices);
     };
     const clearSelection=()=>{state.selectedCardIds=[];state.selectedAreaIds=[];state.activeCardId=null;};
     let tabs;
@@ -65,6 +56,10 @@ export function openXYValues(container,name,getXY,commit,bind,trigger,previewLab
             const [index,option]=input.dataset.xyChoice.split(':').map(Number);
             textarea.value=JSON.stringify(toggleChoiceValue(read(),fields,index,choices[index][option],input.checked));checks();apply();
         }catch(problem){input.checked=!input.checked;error.textContent=problem.message;}
+    });
+    panel.popup.addEventListener('click',event=>{
+        const button=event.target.closest('[data-xy-choice-all],[data-choice-clear]');if(!button)return;
+        try{textarea.value=JSON.stringify(button.matches('[data-choice-clear]')?clearChoiceValues(read(),fields,Number(button.dataset.choiceClear)):selectAllValues(read(),fields,Number(button.dataset.xyChoiceAll)));checks();apply();}catch(problem){error.textContent=problem.message;}
     });
     textarea?.addEventListener('input',()=>{try{checks();tabs.preview(unique(validateChoiceValues(read(),fields)));}catch{tabs.preview(null);}});
     textarea?.addEventListener('keydown',event=>{if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();apply();}});

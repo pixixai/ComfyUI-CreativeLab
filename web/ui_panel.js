@@ -120,6 +120,10 @@ function getRenderedCardsState(cardsContainer) {
     const wrapper = cardsContainer?.querySelector(".clab-cards-wrapper");
     if (!wrapper) return { wrapper: null, cardEls: [] };
     const cardEls = Array.from(wrapper.querySelectorAll(":scope > .clab-card[data-card-id]"));
+    if (wrapper.getAttribute('role') === 'table') {
+        const order = new Map(state.cards.map((card, index) => [card.id, index]));
+        cardEls.sort((a, b) => (order.get(a.dataset.cardId) ?? Infinity) - (order.get(b.dataset.cardId) ?? Infinity));
+    }
     return { wrapper, cardEls };
 }
 

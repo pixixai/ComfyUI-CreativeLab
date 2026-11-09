@@ -10,6 +10,7 @@ import { runXYZBrowserChecks } from './xyz.browser.mjs';
 import { runXYEditingChecks } from './xy_editing.browser.mjs';
 import { runUndoBrowserChecks } from './undo.browser.mjs';
 import { runXYPerformanceChecks } from './xy_performance.browser.mjs';
+import { runTableBrowserChecks } from './table.browser.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const requests = [];
@@ -676,12 +677,13 @@ try {
     const xyEditingChecks=await runXYEditingChecks(send,sessionId);
     const undoChecks=await runUndoBrowserChecks(send,sessionId);
     const xyPerformanceChecks=await runXYPerformanceChecks(send,sessionId);
+    const tableChecks=await runTableBrowserChecks(send,sessionId,process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX);
     if(process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX)for(const mode of ['cards','table','xy']){
         await send('Runtime.evaluate',{expression:`window.showWorkspaceModeDemo('${mode}');if('${mode}'==='xy')document.querySelector('[data-xy-reset]').click();`},sessionId);await new Promise(resolve=>setTimeout(resolve,100));
         const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX}-${mode}.png`,Buffer.from(screenshot.data,'base64'));
     }
     await send('Runtime.evaluate',{expression:'window.releaseReviewAssets?.()'},sessionId);
-    console.log(`${report.passed.length+31+xyzChecks+undoChecks+xyPerformanceChecks+xyEditingChecks} browser checks passed; ${requests.length} media requests`);
+    console.log(`${report.passed.length+31+xyzChecks+undoChecks+xyPerformanceChecks+xyEditingChecks+tableChecks} browser checks passed; ${requests.length} media requests`);
 } finally {
     socket?.close();
     browser.kill();

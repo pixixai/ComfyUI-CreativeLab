@@ -76,16 +76,23 @@ function selectModule(areaEl) {
     updateSelectionUI();
 }
 
-function startModulePick(areaEl, restorePanel = false) {
+function startModulePick(areaEl, restorePanel = false, trigger, preserveValues = false) {
     if (appState.isBindingMode) return;
     const area = state.cards.find(c => c.id === areaEl.dataset.cardId)?.areas?.find(a => a.id === areaEl.dataset.areaId);
     if (!area) return;
+    if (preserveValues) {
+        const values = state.cards.flatMap(card => card.areas || []).filter(area => state.selectedAreaIds.includes(area.id) && area.value !== undefined && area.value !== null && area.value !== '').map(area => [area, area.value]);
+        document.addEventListener('clab_binding_finished', () => {
+            values.forEach(([area, value]) => { area.value = value; window._clabRefreshAreaForContext(area.id); });
+            window._clabJustSave();
+        }, { once: true });
+    }
     if (restorePanel) {
         const { areaId, cardId } = areaEl.dataset;
         document.addEventListener('clab_binding_finished', () => requestAnimationFrame(() => {
             const currentArea = [...document.querySelectorAll('.clab-area')]
                 .find(el => el.dataset.areaId === areaId && el.dataset.cardId === cardId);
-            if (currentArea && document.getElementById('clab-panel')?.classList.contains('visible')) showBindingPanel(currentArea);
+            if (currentArea && document.getElementById('clab-panel')?.classList.contains('visible')) showBindingPanel(currentArea, trigger?.isConnected ? trigger : undefined, preserveValues);
         }), { once: true });
     }
     openPanel?.close();
@@ -93,7 +100,7 @@ function startModulePick(areaEl, restorePanel = false) {
     document.dispatchEvent(new CustomEvent('clab_enter_binding_mode', { detail: area.type }));
 }
 
-function showBindingPanel(areaEl) {
+export function showBindingPanel(areaEl, trigger = areaEl.querySelector('.clab-module-binding-summary'), preserveValues = false) {
     const areaId = areaEl.dataset.areaId;
     if (openPanel?.areaId === areaId) { openPanel.close(); return; }
     openPanel?.close();
@@ -107,7 +114,6 @@ function showBindingPanel(areaEl) {
         const bindings = selectedAreas.map(getBindings);
         return { ids: [...new Set(bindings.flatMap(b => b.ids))], widgets: [...new Set(bindings.flatMap(b => b.widgets))] };
     };
-    const trigger = areaEl.querySelector('.clab-module-binding-summary');
     const popup = document.createElement('div');
     popup.className = `clab-module-binding-popover${isOutput ? ' clab-output-binding-popover' : ''}`;
     popup.setAttribute('popover', 'auto');
@@ -139,7 +145,7 @@ function showBindingPanel(areaEl) {
     const pickButton = popup.querySelector('.clab-binding-start-pick');
     const shortcut = window._clabPickShortcutRaw ?? 'P';
     pickButton.title = `拾取节点${isOutput ? '' : '或参数'}${shortcut ? `（快捷键：${shortcut}）` : ''}；也可在模块任意位置中键单击`;
-    pickButton.onclick = () => startModulePick(areaEl, true);
+    pickButton.onclick = () => startModulePick(areaEl, true, trigger, preserveValues);
     const position = () => {
         if (!trigger.isConnected) { close(); return; }
         const rect = trigger.getBoundingClientRect(), bounds = popup.getBoundingClientRect();
@@ -233,7 +239,9 @@ function showBindingPanel(areaEl) {
                     widgets = widgets.filter(w => !w.startsWith(`${target.nodeIdStr}||`));
                 } else widgets = widgets.filter(w => w !== key);
             }
+            const value = selected.value;
             setBindings(selected, ids, widgets);
+            if (preserveValues && value !== undefined && value !== null && value !== '') selected.value = value;
             window._clabRefreshAreaForContext(selected.id);
         }
         updateSelectionUI();
@@ -339,6 +347,7 @@ export function attachModulePickEvents(container) {
 
 export function attachModuleBindingEvents(container) {
     container.querySelectorAll('.clab-module-binding').forEach(controls => {
+        if (!controls.closest('.clab-area')) return;
         controls.onpointerdown = controls.onmousedown = controls.onmouseup = e => e.stopPropagation();
         controls.ondragstart = e => { e.preventDefault(); e.stopPropagation(); };
         const summary = controls.querySelector('.clab-module-binding-summary');

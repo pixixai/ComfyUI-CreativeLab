@@ -3,13 +3,15 @@
  * 负责动态悬浮工具栏渲染、模块属性配置、克隆与格式刷逻辑
  */
 import { clearPreviewHistory, remapHistoryModuleIds } from "../modules/media_types/media_utils.js";
-import { state, appState, saveAndRender } from "../ui_state.js";
+import { state, appState, saveAndRender, getActiveWorkspace } from "../ui_state.js";
 import { getOutputSettingsLabel, attachOutputSettingsEvents, outputSettingsIcon } from "../modules/module_output_settings.js";
 import { execSyncParams } from "./action_batch_sync.js";
 
 // 引入无感卡片生成引擎
 import { generateSingleCardHTML, attachCardEvents } from "../comp_taskcard.js";
 import { restoreToolbarOverflow, scheduleToolbarLayout } from "../toolbar_layout.js";
+import { cellSettingsIcon } from "../workspace_modes/table_icons.js";
+import { selectedDraftColumn } from "../workspace_modes/table_sheet.js";
 
 export function renderDynamicToolbar(toolbarHandleContainer) {
     restoreToolbarOverflow(toolbarHandleContainer);
@@ -18,9 +20,14 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
     if (!tb || !separator) return;
 
     const isAnySelected = (state.selectedCardIds?.length > 0) || (state.selectedAreaIds?.length > 0);
+    const view = getActiveWorkspace()?.view;
+    const isTable = view?.mode === 'table';
+    const divider = '<div style="width:1px; height:16px; background:rgba(255,255,255,0.25); margin:0 2px;"></div>';
+    const cellSettings = isTable ? `<button type="button" class="clab-btn clab-table-toolbar-settings" id="tb-table-cell-settings" aria-haspopup="dialog" aria-label="单元格设置" title="设置所选单元格的尺寸与外观">${cellSettingsIcon}<span>单元格设置</span></button>` : '';
     if (!isAnySelected) {
-        tb.style.display = 'none';
-        separator.style.display = 'none';
+        tb.style.display = isTable ? 'flex' : 'none';
+        separator.style.display = isTable ? 'block' : 'none';
+        if (isTable) tb.innerHTML = cellSettings;
         scheduleToolbarLayout(toolbarHandleContainer);
         return;
     }
@@ -29,6 +36,7 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
     separator.style.display = 'block';
 
     let html = ``;
+    const cellTools = cellSettings ? divider + cellSettings : '';
     let mainType = null;
     let mainArea = null;
     const cloneTools = `
@@ -42,24 +50,33 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
         </div>
     `;
 
+    const typeTools = type => `
+                <div class="clab-toolbar-type" data-clab-overflow-label="模块类型" data-clab-overflow-priority="7" style="display:flex; border: 1px dashed rgba(255,255,255,0.3); border-radius: 20px; padding: 2px; gap: 2px;">
+                    <div class="clab-type-btn ${type === 'edit' ? 'active' : ''}" data-type="edit" style="padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; transition: all 0.2s; ${type === 'edit' ? 'background: rgba(255,255,255,0.2); color: #fff; font-weight: bold;' : 'color: #aaa;'}">输入</div>
+                    <div class="clab-type-btn ${type === 'preview' ? 'active' : ''}" data-type="preview" style="padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; transition: all 0.2s; ${type === 'preview' ? 'background: rgba(255,255,255,0.2); color: #fff; font-weight: bold;' : 'color: #aaa;'}">输出</div>
+                </div>
+    `;
+
     if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
+        const selectedIds = new Set(state.selectedAreaIds);
         const selectedAreas = [];
         state.cards.forEach(c => {
-            c.areas?.forEach(a => { if (state.selectedAreaIds.includes(a.id)) selectedAreas.push({ card: c, area: a }); });
+            c.areas?.forEach(a => { if (selectedIds.has(a.id)) selectedAreas.push({ card: c, area: a }); });
         });
+
+        if (!selectedAreas.length && isTable) {
+            const sheet = view.table?.sheets?.find(sheet => sheet.id === view.table.sheetId);
+            const draft = selectedDraftColumn(sheet, selectedIds);
+            if (draft) html = typeTools(draft.type) + cloneTools + cellTools;
+        }
 
         if (selectedAreas.length > 0) {
             mainType = selectedAreas[0].area.type;
             mainArea = selectedAreas[0].area;
 
-            html += `
-                <div class="clab-toolbar-type" data-clab-overflow-label="模块类型" data-clab-overflow-priority="7" style="display:flex; border: 1px dashed rgba(255,255,255,0.3); border-radius: 20px; padding: 2px; gap: 2px;">
-                    <div class="clab-type-btn ${mainType === 'edit' ? 'active' : ''}" data-type="edit" style="padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; transition: all 0.2s; ${mainType === 'edit' ? 'background: rgba(255,255,255,0.2); color: #fff; font-weight: bold;' : 'color: #aaa;'}">输入</div>
-                    <div class="clab-type-btn ${mainType === 'preview' ? 'active' : ''}" data-type="preview" style="padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; transition: all 0.2s; ${mainType === 'preview' ? 'background: rgba(255,255,255,0.2); color: #fff; font-weight: bold;' : 'color: #aaa;'}">输出</div>
-                </div>
-            `;
+            html += typeTools(mainType);
 
-            html += cloneTools + `<div style="width:1px; height:16px; background:rgba(255,255,255,0.25); margin:0 2px;"></div>`;
+            html += cloneTools + cellTools + divider;
 
             html += `
                 <div data-clab-overflow-label="重置与同步" data-clab-overflow-priority="4" style="display:flex; align-items:center; margin-left: 4px; gap: 2px;">
@@ -99,7 +116,7 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
         }
     }
 
-    if (!html) html = cloneTools;
+    if (!html) html = cloneTools + cellTools;
 
     if (mainType === 'preview') {
         html += `
@@ -120,8 +137,9 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
     if (!tb) return;
 
     if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
+        const selectedIds = new Set(state.selectedAreaIds);
         const selectedAreas = [];
-        state.cards.forEach(c => c.areas?.forEach(a => { if (state.selectedAreaIds.includes(a.id)) selectedAreas.push({ card: c, area: a }); }));
+        state.cards.forEach(c => c.areas?.forEach(a => { if (selectedIds.has(a.id)) selectedAreas.push({ card: c, area: a }); }));
         const mainType = selectedAreas[0]?.area.type;
         const mainArea = selectedAreas[0]?.area;
 
@@ -144,7 +162,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
             updateSelected(a => { a.isManageMode = targetState; });
         });
 
-        tb.querySelectorAll('.clab-type-btn').forEach(btn => {
+        if (getActiveWorkspace()?.view?.mode !== 'table') tb.querySelectorAll('.clab-type-btn').forEach(btn => {
             btn.onclick = (e) => {
                 e.stopPropagation();
                 const newType = btn.dataset.type;

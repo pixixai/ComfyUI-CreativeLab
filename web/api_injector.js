@@ -33,7 +33,7 @@ export function setupAPIInjector(app) {
         return [...cards].map(([cardId, progress]) => ({ cardId, progress }));
     };
     window.CLab.getRunningCardIds = workspaceId => window.CLab.getRunningCardProgress(workspaceId).map(task => task.cardId);
-    const notifyActivity = task => document.dispatchEvent(new CustomEvent('clab_task_activity', { detail: { workspaceId: task.workspaceId, cardId: task.cardId } }));
+    const notifyActivity = (task, completed = false) => document.dispatchEvent(new CustomEvent('clab_task_activity', { detail: { workspaceId: task.workspaceId, cardId: task.cardId, completed } }));
     const setTaskProgress = (task, percentage) => {
         if (!task || task.finished) return;
         const progress = Math.max(0, Math.min(100, percentage));
@@ -59,12 +59,18 @@ export function setupAPIInjector(app) {
         if (window._clabTaskMap[task.promptId] === task) delete window._clabTaskMap[task.promptId];
         task.batch.promptIds = task.batch.promptIds.filter(id => id !== task.promptId);
     };
-    const finishTask = (promptId) => {
+    const finishTask = (promptId, completed = false) => {
         const task = window._clabTaskMap[promptId];
-        if (task) { task.finished = true; releaseTask(task); }
+        if (!task || task.finished) return;
+        task.finished = true;
+        if (completed) {
+            runningTasks.delete(task);
+            notifyActivity(task, true);
+        }
+        releaseTask(task);
     };
     for (const type of ['execution_success', 'execution_interrupted']) {
-        api.addEventListener(type, event => finishTask(event.detail?.prompt_id));
+        api.addEventListener(type, event => finishTask(event.detail?.prompt_id, type === 'execution_success'));
     }
 
     const getTaskCard = (task) => {
@@ -255,7 +261,7 @@ export function setupAPIInjector(app) {
             const area = card?.areas.find(a => a.id === areaId);
             if (area?.type === 'preview' && area.resultUrl && new URL(element.currentSrc || element.src, window.location.origin).href !== new URL(area.resultUrl, window.location.origin).href) return;
 
-            if (area?.type === 'preview' && areaEl.closest('#clab-panel')?.dataset.workspaceMode === 'xy' && area.resultUrl && (area.mediaSize?.url !== area.resultUrl || area.mediaSize.width !== width || area.mediaSize.height !== height)) {
+            if (area?.type === 'preview' && ['xy','table'].includes(areaEl.closest('#clab-panel')?.dataset.workspaceMode) && area.resultUrl && (area.mediaSize?.url !== area.resultUrl || area.mediaSize.width !== width || area.mediaSize.height !== height)) {
                 area.mediaSize = { url: area.resultUrl, width, height };
                 StateManager.scheduleSyncToNode(app.graph);
             }
@@ -633,7 +639,7 @@ export function setupAPIInjector(app) {
             window._clabHideTimers[task.cardId] = setTimeout(() => {
                 setUIProgress(task.cardId, 0, true);
             }, 800);
-            finishTask(pid);
+            finishTask(pid, true);
         }
     });
 

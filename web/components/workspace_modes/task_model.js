@@ -53,10 +53,3 @@ export function taskCoordinates(card,xy) {
     };
     return {x:at(xy.x),y:at(xy.y),...(xy.z?.enabled?{z:at(xy.z)}:{})};
 }
-
-export function importTaskRows(template,rows) {
-    if(!Array.isArray(rows)||rows.some(row=>!row||typeof row!=='object'||Array.isArray(row)))throw new Error('请使用 JSON 对象数组，每个对象对应一张任务。');
-    const fields=template.areas.filter(area=>area.type==='edit');
-    for(const row of rows)for(const name of Object.keys(row))if(fields.filter(area=>area.title===name||area.id===name).length!==1)throw new Error(`字段“${name}”不存在或名称重复，请使用明确的字段名称或模块 ID。`);
-    return rows.map(row=>{const card=cloneTask(template);for(const [name,value] of Object.entries(row)){const index=template.areas.findIndex(area=>area.type==='edit'&&(area.title===name||area.id===name));card.areas[index].value=copy(value);}return card;});
-}

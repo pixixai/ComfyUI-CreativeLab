@@ -15,9 +15,10 @@ import { updateSelectionUI } from "../ui_selection.js";
 // =========================================================================
 // 核心网络请求：上传本地文件到服务器并返回文件名
 // =========================================================================
-export async function uploadImageToServer(file) {
+export async function uploadImageToServer(file, subfolder = '') {
     const formData = new FormData();
     formData.append('image', file);
+    if (subfolder) formData.append('subfolder', subfolder);
     const resp = await fetch('/upload/image', {
         method: 'POST',
         body: formData

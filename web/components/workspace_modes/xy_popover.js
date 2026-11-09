@@ -1,6 +1,6 @@
 let active;
 export function closeXYPopover(){active?.close();}
-export function openXYPopover(getAnchor,title,body,className='',side='',boundary) {
+export function openXYPopover(getAnchor,title,body,className='',side='',boundary,point) {
     active?.close();
     const popup=document.createElement('div');popup.className=`clab-module-binding-popover ${className}`;popup.setAttribute('popover','auto');popup.setAttribute('role','dialog');popup.setAttribute('aria-label',title);
     popup.innerHTML=`<div class="clab-binding-panel-head"><span></span><button class="clab-xy-popup-close" title="关闭">×</button></div>${body}`;popup.querySelector('.clab-binding-panel-head>span').textContent=title;document.body.append(popup);
@@ -16,7 +16,7 @@ export function openXYPopover(getAnchor,title,body,className='',side='',boundary
             const available=side==='top'?r.top-16:side==='bottom'?h-r.bottom-16:0;
             if(side==='top'||side==='bottom')popup.style.maxHeight=`${available>=110?Math.min(440,available):440}px`;
         }
-        const p=popup.getBoundingClientRect();let left=r.left,top=r.bottom+p.height+4<bounds.bottom?r.bottom+4:r.top-p.height-4;
+        const p=popup.getBoundingClientRect();let left=point?.x??r.left,top=point?.y??(r.bottom+p.height+4<bounds.bottom?r.bottom+4:r.top-p.height-4);
         if(side==='left'){left=r.left-p.width-8;top=(r.top+r.bottom-p.height)/2;}
         if(side==='end')left=r.right-p.width;
         if(side==='top'||side==='bottom'){left=(r.left+r.right-p.width)/2;top=side==='top'?r.top-p.height-8:r.bottom+8;}

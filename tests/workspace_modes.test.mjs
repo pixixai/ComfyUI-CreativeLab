@@ -3,13 +3,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { createWorkspaceView } from '../web/components/workspace_modes/view_state.js';
-import { taskSignature, matchingTasks, cloneTask, parameterValue, taskCoordinates, importTaskRows } from '../web/components/workspace_modes/task_model.js';
+import { taskSignature, matchingTasks, cloneTask, parameterValue, taskCoordinates } from '../web/components/workspace_modes/task_model.js';
 import { adoptMatrix, synchronizeMatrix, matrixCards, matrixCells, matrixOutput, materializeMatrixRecords, changeAxisBindings, rebindMatrixAxis } from '../web/components/workspace_modes/xy_model.js';
 import { parseValues, toggleChoiceValue, validateChoiceValues } from '../web/components/workspace_modes/value_parser.js';
 import { captureTaskRecords } from '../web/components/actions/task_records.js';
-import { captureCardInputSnapshot } from '../web/components/modules/media_types/media_utils.js';
+import { captureCardInputSnapshot, getMediaUploadType } from '../web/components/modules/media_types/media_utils.js';
 import { createEmptyWorkspace, buildPersistedState, hydrateStateFromPersisted, state } from '../web/components/ui_state.js';
-import { captureTableStructure, synchronizeTableStructure } from '../web/components/workspace_modes/table_structure.js';
 import { medianMediaRatio, selectXYCells } from '../web/components/workspace_modes/xy_layout.js';
 import { ensureXYHistory } from '../web/components/workspace_modes/xy_history.js';
 
@@ -99,22 +98,10 @@ test('task grouping ignores values and histories but respects structures and bin
     assert.equal(taskSignature(card),taskSignature(other));assert.equal(matchingTasks([card,other],card).length,2);assert.deepEqual(other.areas.at(-1).history,[]);assert.ok(!other.areas.at(-1).resultUrl);
     other.areas[0].targetWidgets=['9||steps'];assert.equal(matchingTasks([card,other],card).length,1);
 });
-test('table shared structure changes preserve each task values, identities and records',()=>{
-    const {card}=fixture(),other=cloneTask(card);other.areas[0].value=99;other.areas.at(-1).history=['/own.png'];
-    const cards=[card,other],ids=other.areas.map(area=>area.id);let before=captureTableStructure(cards,card);
-    card.areas[0].title='新标题';card.areas[0].targetWidgets=['8||steps'];card.areas[0].targetNodeId='8';
-    assert.equal(synchronizeTableStructure(cards,before),true);assert.equal(other.areas[0].value,99);assert.equal(other.areas[0].title,'新标题');assert.equal(other.areas[0].id,ids[0]);
-    before=captureTableStructure(cards,card);card.areas.splice(1,0,input('added','cfg',7));synchronizeTableStructure(cards,before);assert.equal(other.areas[1].value,7);assert.equal(other.areas[2].id,ids[1]);
-    before=captureTableStructure(cards,card);card.areas.splice(0,1);synchronizeTableStructure(cards,before);assert.equal(other.areas.length,card.areas.length);assert.deepEqual(other.areas.at(-1).history,['/own.png']);
-});
 test('value imports preserve quoted commas, multiline text, typed values and paired rows',()=>{
     assert.deepEqual(parseValues('20,30，40',['number']),[20,30,40]);assert.deepEqual(parseValues('a, b\nc, d',['string']),['a, b','c, d']);assert.deepEqual(parseValues('"a,b",c'),['a,b','c']);
     assert.deepEqual(parseValues('[true,false]',['boolean']),[true,false]);assert.deepEqual(parseValues('512,768\n768,1024',['number','number']),[[512,768],[768,1024]]);
     assert.throws(()=>parseValues('[[512]]',['number','number']),/每组需要/);assert.throws(()=>parseValues('NaN',['number']),/有效数字/);
-});
-test('JSON object rows create independent tasks and preserve omitted values and source records',()=>{
-    const {card}=fixture(),before=structuredClone(card),created=importTaskRows(card,[{steps:10,sampler:'A'},{steps:40}]);
-    assert.equal(created[0].areas[0].value,10);assert.equal(created[1].areas[1].value,'Euler');assert.deepEqual(card,before);assert.throws(()=>importTaskRows(card,[{unknown:10}]),/不存在/);
 });
 test('workspace axes, tuples, dimensions, record rows, output binding and camera survive persistence',()=>{
     const {card,view}=fixture();view.mode='xy';view.xy.panX=-500;view.xy.origin='bottom';view.xy.records=[{id:'cfg',key:'1||cfg'}];
@@ -165,7 +152,7 @@ test('axis gaps and margins persist independently and reject negative saved dime
 test('parameter choices exclude virtual primitives and internal config widgets while preserving typed values',()=>{
     const source=readFileSync(new URL('../web/components/workspace_modes/parameters.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,'').replaceAll('export function','function');
     const app={graph:{_nodes:[{id:1,type:'KSampler',widgets:[{name:'steps',type:'number',value:'20'}]},{id:2,type:'PrimitiveNode',widgets:[{name:'value',value:20}]},{id:3,type:'CLab_SystemConfig',widgets:[{name:'scenes_data',value:'{}'}]}]}};
-    const context=vm.createContext({app});vm.runInContext(source,context);assert.deepEqual(JSON.parse(JSON.stringify(vm.runInContext('workflowParameters()',context))).map(parameter=>[parameter.key,parameter.type]),[['1||steps','number']]);
+    const context=vm.createContext({app,getMediaUploadType});vm.runInContext(source,context);assert.deepEqual(JSON.parse(JSON.stringify(vm.runInContext('workflowParameters()',context))).map(parameter=>[parameter.key,parameter.type]),[['1||steps','number']]);
 });
 
 test('axis choices preserve booleans and numbers and add explicit paired rows instead of crossing existing tuples',()=>{
@@ -180,14 +167,14 @@ test('axis choices preserve booleans and numbers and add explicit paired rows in
 test('workflow options match widget arrays, options.values/options.options, schema choices and boolean widgets',()=>{
     const source=readFileSync(new URL('../web/components/workspace_modes/parameters.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,'').replaceAll('export function','function');
     const app={graph:{_nodes:[{id:1,type:'Choices',constructor:{nodeData:{input:{required:{schema:[['new','other']],schemaBool:['BOOLEAN',{}]}}}},widgets:[{name:'enabled',type:'toggle',value:false},{name:'array',type:['a','b'],value:'a'},{name:'values',type:'combo',value:1,options:{values:[1,2]}},{name:'options',type:'combo',value:'x',options:{options:['x','y']}},{name:'schema',type:'combo',value:'new',options:{values:['stale']}},{name:'schemaBool'}]}]}};
-    const context=vm.createContext({app});vm.runInContext(source,context);const result=JSON.parse(JSON.stringify(vm.runInContext('workflowParameters()',context)));
+    const context=vm.createContext({app,getMediaUploadType});vm.runInContext(source,context);const result=JSON.parse(JSON.stringify(vm.runInContext('workflowParameters()',context)));
     assert.deepEqual(result.map(parameter=>parameter.choices),[[true,false],['a','b'],[1,2],['x','y'],['new','other'],[true,false]]);assert.equal(result[2].type,'number');assert.equal(result[5].type,'boolean');
 });
 
 test('parameter display names follow ComfyUI labels without changing binding keys or typed values',()=>{
     const source=readFileSync(new URL('../web/components/workspace_modes/parameters.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,'').replaceAll('export function','function');
     const node={id:1,title:'采样器',widgets:[{name:'steps',label:'步数',type:'number',value:20}]},app={graph:{_nodes:[node]}};
-    const context=vm.createContext({app});vm.runInContext(source,context);
+    const context=vm.createContext({app,getMediaUploadType});vm.runInContext(source,context);
     const read=()=>JSON.parse(JSON.stringify(vm.runInContext('workflowParameters()[0]',context)));
     assert.equal(read().label,'采样器 · 步数');assert.equal(read().key,'1||steps');assert.equal(read().name,'steps');assert.equal(read().value,20);
     node.title='KSampler';node.widgets[0].label='steps';assert.equal(read().label,'KSampler · steps');

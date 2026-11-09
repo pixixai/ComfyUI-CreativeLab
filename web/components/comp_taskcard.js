@@ -8,6 +8,7 @@ import { state, dragState, appState, getActiveWorkspace } from "./ui_state.js";
 import { generateAreaHTML, generateDeferredAreaHTML, syncAreaDOMOrder, justSave, attachAreaEvents } from "./comp_modulearea.js";
 import { updateSelectionUI } from "./ui_selection.js";
 import { moveModuleDOM } from "./modules/module_lifecycle.js";
+import { escapeHtml } from "./contextmenu/content/shared.js";
 
 // 【全新动态布局引擎】：同步精确计算纯卡片宽度，控制自适应居中与左对齐
 export function updateCardsLayout() {
@@ -62,7 +63,7 @@ export function generateSingleCardHTML(card, index) {
     const isCardSelected = state.selectedCardIds && state.selectedCardIds.includes(card.id);
     const borderStyle = isCardSelected ? 'border-color: var(--clab-theme-card, #4CAF50);' : '';
     const activeClass = isCardSelected ? 'active selected' : '';
-    const renderArea = getActiveWorkspace()?.view?.mode === 'xy' ? generateDeferredAreaHTML : generateAreaHTML;
+    const renderArea = ['xy','table'].includes(getActiveWorkspace()?.view?.mode) ? generateDeferredAreaHTML : generateAreaHTML;
     let areasHtml = (card.areas || []).map(area => renderArea(area, card)).join('');
     const defaultTitle = `#${index + 1}`;
     const displayTitle = card.title ? card.title : defaultTitle;
@@ -71,7 +72,7 @@ export function generateSingleCardHTML(card, index) {
     return `
         <div class="clab-card ${activeClass}" style="${borderStyle}" data-card-id="${card.id}" draggable="true">
             <div class="clab-card-title-bar" style="cursor: grab; position: relative;">
-                <input class="clab-card-title-input" type="text" data-id="${card.id}" data-default="${defaultTitle}" value="${displayTitle}" placeholder="${defaultTitle}" size="${Math.max(displayTitle.length, 2)}" style="width: unset; max-width: 240px; min-width: 30px;" />
+                <input class="clab-card-title-input" type="text" data-id="${card.id}" data-default="${defaultTitle}" value="${escapeHtml(displayTitle)}" placeholder="${defaultTitle}" size="${Math.max(displayTitle.length, 2)}" style="width: unset; max-width: 240px; min-width: 30px;" />
                 
                 <div class="clab-card-progress-container" data-card-prog-id="${card.id}" style="position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; opacity: 0; transition: opacity 0.3s ease; z-index: 5;">
                     <div class="clab-card-progress-bar" style="height: 100%; width: 0%; background: var(--clab-theme-card, #4CAF50); transition: width 0.1s ease-out, background-color 0.2s; box-shadow: 0 0 5px var(--clab-theme-card-alpha, rgba(76,175,80,0.5));"></div>

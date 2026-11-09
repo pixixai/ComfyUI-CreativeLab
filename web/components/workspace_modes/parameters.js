@@ -1,4 +1,5 @@
 import { app } from '../../../../scripts/app.js';
+import { getMediaUploadType } from '../modules/media_types/media_utils.js';
 
 export function nodeName(node) {
     return node?.title||node?.constructor?.nodeData?.display_name||node?.type||'节点已失效';
@@ -11,7 +12,8 @@ function describeParameter(node,widget) {
     const rawType=String(widget.type||definition?.[0]||'').toLowerCase();
     const type=['number','int','float'].includes(rawType)||typeof widget.value==='number'?'number':['toggle','boolean'].includes(rawType)||typeof widget.value==='boolean'?'boolean':'string';
     const displayName=widget.label||options.display_name||widget.name;
-    return {key:`${node.id}||${widget.name}`,label:`${nodeName(node)} · ${displayName}`,name:widget.name,displayName,type,value:widget.value,choices:choices.length?[...choices]:type==='boolean'?[true,false]:[]};
+    const uploadType = getMediaUploadType(node.type, widget.name, options, rawType === 'combo' || choices.length > 0);
+    return {key:`${node.id}||${widget.name}`,label:`${nodeName(node)} · ${displayName}`,name:widget.name,displayName,type,value:widget.value,choices:choices.length?[...choices]:type==='boolean'?[true,false]:[],uploadType};
 }
 
 export function workflowParameters() {

@@ -6,12 +6,13 @@ import { state, saveAndRender } from "../ui_state.js";
 import { buildCustomSelect, getWidgetDef } from "../ui_utils.js";
 import { generateModuleBindingHTML, refreshModuleBindingSummary, attachModuleBindingEvents } from "./module_binding.js";
 import { uploadImageToServer } from "../actions/action_data_io.js";
+import { bindMediaClipboard, isUploadTypeMatch } from "./module_clipboard.js";
 import { app } from "../../../../scripts/app.js";
 import { renderVideo } from "./media_types/media_video.js";
 import { renderAudio } from "./media_types/media_audio.js";
 import { attachMediaEvents } from "./module_media.js";
 import { onModuleRemoved } from "./module_lifecycle.js";
-import { getMediaType, isModelFile } from './media_types/media_utils.js';
+import { getMediaType, isModelFile, getMediaUploadType } from './media_types/media_utils.js';
 import { renderModelViewer } from './media_types/media_model.js';
 
 export function generateInputHTML(area, card) {
@@ -46,8 +47,6 @@ export function generateInputHTML(area, card) {
     
     let inputHtml = '';
     let uploadToggleHtml = '';
-    let isUpload = false;
-    let uploadType = 'file';
     let comboValues = [];
     
     // 关键修复：即使 widgetDef 暂时为空，也提前初始化 opts/wType，避免后续分支漏判。
@@ -81,17 +80,8 @@ export function generateInputHTML(area, card) {
         }
     }
 
-    // 当前 Load3D 的接口将 model 上传标记序列化为 file_upload。
-    const isModelUpload = opts.upload === 'model' || (primaryWidget === 'model_file' && ['Load3D', 'Load3DAdvanced', 'Load3DAnimation'].includes(node?.type));
-    // 只要 options 中带 upload 标记，就强制走媒体上传组件渲染（不依赖 widgetDef 是否可用）。
-    if (opts.image_upload || opts.upload === 'image_upload' || opts.upload === 'image') { isUpload = true; uploadType = 'image'; }
-    else if (opts.video_upload || opts.upload === 'video_upload' || opts.upload === 'video') { isUpload = true; uploadType = 'video'; }
-    else if (opts.audio_upload || opts.upload === 'audio_upload' || opts.upload === 'audio') { isUpload = true; uploadType = 'audio'; }
-    else if (isModelUpload || opts.file_upload || opts.upload === 'file_upload' || opts.upload === true) { isUpload = true; uploadType = 'file'; }
-    else if (node && isComboWidget) {
-        if (primaryWidget === 'image' && node.type === 'LoadImage') { isUpload = true; uploadType = 'image'; }
-        else if (primaryWidget === 'video' && node.type === 'VHS_LoadVideo') { isUpload = true; uploadType = 'video'; }
-    }
+    const uploadType = getMediaUploadType(node?.type, primaryWidget, opts, isComboWidget);
+    const isUpload = !!uploadType;
 
     if (!comboValues.length) {
         if (Array.isArray(wType)) {
@@ -119,7 +109,7 @@ export function generateInputHTML(area, card) {
         const slash = filePath.lastIndexOf('/');
         const fileUrl = filePath ? `/view?${new URLSearchParams({ filename: filePath.slice(slash + 1), type: sourceType, subfolder: filePath.slice(0, Math.max(0, slash)) })}` : '';
         const previewType = uploadType === 'file'
-            ? (isModelUpload || isModelFile(filePath) ? 'model' : getMediaType(fileUrl)) : uploadType;
+            ? (isModelFile(filePath) ? 'model' : getMediaType(fileUrl)) : uploadType;
         const previewLabel = { image: '图片', video: '视频', audio: '音频', model: '3D' }[previewType];
         const previewEnabled = !!previewLabel && area.showUploadPreview === true;
         uploadToggleHtml = previewLabel ? `<label class="clab-upload-preview-option" title="开启后加载预览，关闭后释放预览资源"><input type="checkbox" class="clab-upload-preview-toggle" ${previewEnabled ? 'checked' : ''}><span>查看${previewLabel}</span></label>` : '';
@@ -170,7 +160,7 @@ export function generateInputHTML(area, card) {
             <button class="clab-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="删除输入">&#10006;</button>
             
             <div class="clab-input-header" style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:4px; padding: 8px 8px 0 8px;">
-                <input class="clab-area-title-input" data-card="${card.id}" data-area="${area.id}" type="text" value="${displayTitle}" placeholder="${defaultTitle}" size="${Math.max(displayTitle.length, 2)}" style="max-width:150px; min-width:15px; background:transparent; border:none; color:#ddd; font-weight:normal; font-size:12px; outline:none; font-family:sans-serif; padding:0; margin:0;" />
+                <input class="clab-area-title-input" data-card="${card.id}" data-area="${area.id}" type="text" value="${escapeHtml(displayTitle)}" placeholder="${defaultTitle}" size="${Math.max(displayTitle.length, 2)}" style="max-width:150px; min-width:15px; background:transparent; border:none; color:#ddd; font-weight:normal; font-size:12px; outline:none; font-family:sans-serif; padding:0; margin:0;" />
                 
                 ${uploadToggleHtml}${generateModuleBindingHTML(area)}
             </div>
@@ -449,38 +439,6 @@ export function attachInputEvents(container) {
         document.head.appendChild(btnStyle);
     }
 
-    const EXT_MAP = {
-        image: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'tif', 'tiff', 'svg'],
-        video: ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v'],
-        audio: ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'],
-    };
-
-    const getFileExt = (file) => {
-        const name = (file?.name || '').toLowerCase();
-        const dot = name.lastIndexOf('.');
-        return dot >= 0 ? name.slice(dot + 1) : '';
-    };
-
-    const isUploadTypeMatch = (file, uploadType) => {
-        if (!file || !uploadType) return false;
-        if (uploadType === 'file') return true;
-
-        const mime = (file.type || '').toLowerCase();
-        const ext = getFileExt(file);
-
-        if (uploadType === 'image') {
-            return mime.startsWith('image/') || EXT_MAP.image.includes(ext);
-        }
-        if (uploadType === 'video') {
-            return mime.startsWith('video/') || EXT_MAP.video.includes(ext);
-        }
-        if (uploadType === 'audio') {
-            return mime.startsWith('audio/') || EXT_MAP.audio.includes(ext);
-        }
-        return false;
-    };
-
-
     const isVideoAutoplayEnabled = () => {
         const raw = window._clabVideoAutoplay;
         if (typeof raw === 'string') {
@@ -550,41 +508,7 @@ export function attachInputEvents(container) {
         }
     };
 
-    if (!window._clabMediaPasteUploadBoundV2) {
-        document.addEventListener('paste', (e) => {
-            if (e.defaultPrevented) return;
-            const active = document.activeElement;
-            if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
-
-            const selectedAreaIds = Array.isArray(state.selectedAreaIds) ? state.selectedAreaIds : [];
-            if (!selectedAreaIds.length) return;
-
-            const itemFiles = Array.from(e.clipboardData?.items || [])
-                .filter(item => item.kind === 'file')
-                .map(item => item.getAsFile())
-                .filter(Boolean);
-            const clipboardFiles = [...itemFiles, ...Array.from(e.clipboardData?.files || [])].filter(Boolean);
-            if (!clipboardFiles.length) return;
-
-            for (const areaId of selectedAreaIds) {
-                const handlerEntry = window._clabUploadHandlers?.get(areaId);
-                if (!handlerEntry || typeof handlerEntry.upload !== 'function') continue;
-
-                const matchedFile = clipboardFiles.find(file => isUploadTypeMatch(file, handlerEntry.uploadType));
-                if (!matchedFile) continue;
-
-                const areaEl = document.querySelector(`.clab-area[data-area-id="${areaId}"]`);
-                const zone = areaEl?.querySelector(`.clab-upload-zone[data-upload-type="${handlerEntry.uploadType}"]`);
-                if (!zone) continue;
-
-                e.preventDefault();
-                e.stopPropagation();
-                handlerEntry.upload(matchedFile);
-                return;
-            }
-        }, true);
-        window._clabMediaPasteUploadBoundV2 = true;
-    }
+    bindMediaClipboard();
 
     container.querySelectorAll('.clab-upload-zone').forEach(zone => {
         const fileInput = zone.querySelector('.clab-file-input');
@@ -640,7 +564,7 @@ export function attachInputEvents(container) {
 
         const handleUpload = async (file) => {
             if(!file) return;
-            if (!isUploadTypeMatch(file, uploadType)) {
+            if (!isUploadTypeMatch(file, uploadType === 'model' ? 'file' : uploadType)) {
                 if (uploadType === 'image') alert('Only image files are supported.');
                 else if (uploadType === 'video') alert('Only video files are supported.');
                 else if (uploadType === 'audio') alert('Only audio files are supported.');
@@ -664,12 +588,12 @@ export function attachInputEvents(container) {
             `);
 
             try {
-                const data = await uploadImageToServer(file);
+                const data = await uploadImageToServer(file, uploadType === 'model' ? '3d' : '');
                 if (data.name) {
                     const card = state.cards.find(c => c.id === cardId);
                     const area = card?.areas.find(a => a.id === areaId);
                     if (area) {
-                        area.value = data.name;
+                        area.value = data.subfolder ? data.subfolder + '/' + data.name : data.name;
                         state.selectedAreaIds = [areaId];
                         state.selectedCardIds = [];
                         applySurgicalUpdate(areaId);

@@ -483,6 +483,17 @@ export function formatTimeWithFrames(seconds, fps = 30) {
     return `${m}:${s}:${f}`;
 }
 
+export function getMediaUploadType(nodeType, widgetName, options, isCombo) {
+    for (const type of ['image', 'video', 'audio']) {
+        if (options[`${type}_upload`] || [type, `${type}_upload`].includes(options.upload)) return type;
+    }
+    if (options.upload === 'model' || (widgetName === 'model_file' && ['Load3D', 'Load3DAdvanced', 'Load3DAnimation'].includes(nodeType))) return 'model';
+    if (options.file_upload || options.upload === 'file_upload' || options.upload === true) return 'file';
+    if (isCombo && nodeType === 'LoadImage' && widgetName === 'image') return 'image';
+    if (isCombo && nodeType === 'VHS_LoadVideo' && widgetName === 'video') return 'video';
+    return null;
+}
+
 export function getMediaType(url) {
     if (!url) return "none";
     const cleanUrl = url.split("?")[0].toLowerCase();

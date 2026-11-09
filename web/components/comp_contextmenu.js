@@ -43,6 +43,9 @@ export function setupContextMenu(panelContainer) {
 
     // 监听全局点击以关闭菜单
     window.addEventListener("mousedown", closeMenuGlobally, true);
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape') closeMenu();
+    }, true);
     
     // 2. 核心渲染函数
     const positionMenu=(x,y)=>{
@@ -50,6 +53,21 @@ export function setupContextMenu(panelContainer) {
         const rect=menuEl.getBoundingClientRect();
         menuEl.style.left=`${Math.max(8,Math.min(x,window.innerWidth-rect.width-8))}px`;
         menuEl.style.top=`${Math.max(8,Math.min(y,window.innerHeight-rect.height-8))}px`;
+    };
+    const showTableMenu = (x, y, areaId) => {
+        const show = openSettings => {
+            menuEl.innerHTML = '<div class="clab-context-menu-item" role="menuitem" tabindex="0" data-table-context-settings>单元格设置</div>';
+            const item = menuEl.firstElementChild;
+            item.onclick = () => { closeMenu(); openSettings(); };
+            item.onkeydown = event => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                event.stopPropagation();
+                item.click();
+            };
+            positionMenu(x, y);
+        };
+        panelContainer.dispatchEvent(new CustomEvent('clab_table_cell_menu', {detail:{areaId, show, point:{x,y}}}));
     };
     const showMenu = (x, y, areaId) => {
         const selectedAreaObjs = collectSelectedAreaObjs();
@@ -93,6 +111,11 @@ export function setupContextMenu(panelContainer) {
             return;
         }
 
+        if (panelContainer.dataset.workspaceMode === 'table') {
+            showTableMenu(x, y, areaId);
+            return;
+        }
+
         if (!state.selectedAreaIds.includes(areaId)) {
             state.selectedAreaIds = [areaId];
             updateSelectionUI();
@@ -110,6 +133,15 @@ export function setupContextMenu(panelContainer) {
             document.getElementById("clab-panel")?.classList.remove("clab-painter-active");
             updateSelectionUI();
             if (window._clabJustSave) window._clabJustSave();
+            return;
+        }
+
+        if (panelContainer.dataset.workspaceMode === 'table') {
+            const cell = e.target.closest('[role=cell][data-area-id]');
+            if (!cell || e.target.closest('[data-table-editing] textarea:not([readonly]),[data-table-editing] input:not([readonly])')) return;
+            e.preventDefault();
+            e.stopPropagation();
+            showTableMenu(e.clientX, e.clientY, cell.dataset.areaId);
             return;
         }
 
