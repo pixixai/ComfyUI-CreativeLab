@@ -5,6 +5,7 @@ import { removePreviewHistoryIndex } from "../modules/media_types/media_utils.js
 import { state, saveAndRender } from "../ui_state.js";
 import { attachCardEvents, generateSingleCardHTML } from "../comp_taskcard.js";
 import { attachAreaEvents } from "../comp_modulearea.js";
+import { workspacePreferences } from "../workspace_preferences.js";
 import {
     updateSelectionUI,
     handleSelectionMouseDown,
@@ -12,13 +13,6 @@ import {
     isInteractiveTarget,
     isMediaTarget,
 } from "../ui_selection.js";
-
-function isToolbarInteractiveTarget(target) {
-    const tagName = target?.tagName;
-    const hasClosest = target && typeof target.closest === "function";
-    return ["BUTTON", "INPUT", "LABEL", "SELECT"].includes(tagName) ||
-        !!(hasClosest && target.closest("button, input, label, select, .clab-custom-select, .clab-type-btn"));
-}
 
 function setupBatchCountControl(panelContainer) {
     const countInput = panelContainer.querySelector("#clab-run-batch-count");
@@ -43,7 +37,7 @@ function setupBatchCountControl(panelContainer) {
 }
 
 function setupPanelDrag(panelContainer) {
-    const handle = panelContainer.querySelector("#clab-toolbar-handle");
+    const handle = panelContainer.querySelector(".clab-workspace-strip");
     if (!handle) return;
 
     let isDragging = false;
@@ -51,9 +45,7 @@ function setupPanelDrag(panelContainer) {
     let offsetY = 0;
 
     handle.addEventListener("mousedown", (event) => {
-        const blocked = ["BUTTON", "SELECT", "INPUT", "LABEL"].includes(event.target.tagName) ||
-            event.target.closest("button, select, input, label, .clab-custom-select");
-        if (blocked) return;
+        if (event.button !== 0 || !event.target.matches('.clab-workspace-strip,.clab-workspace-shell')) return;
 
         isDragging = true;
         const rect = panelContainer.getBoundingClientRect();
@@ -83,14 +75,15 @@ function setupCardWidthControl(panelContainer) {
     const widthCtrlNode = panelContainer.querySelector("#clab-card-width-ctrl");
     if (!widthSlider || !widthInput || !widthResetBtn) return;
 
-    const savedWidth = localStorage.getItem("clab-card-width-v1") || "320";
+    const widthKey = "clab-card-width-v1";
+    const savedWidth = localStorage.getItem(widthKey) || workspacePreferences.cardWidth;
     widthSlider.value = savedWidth <= 600 ? savedWidth : 600;
     widthInput.value = savedWidth;
     panelContainer.style.setProperty("--clab-card-width", `${savedWidth}px`);
 
-    const updateWidth = (value) => {
+    const updateWidth = (value, remember = true) => {
         let numericValue = parseInt(value, 10);
-        if (Number.isNaN(numericValue)) numericValue = 320;
+        if (Number.isNaN(numericValue)) numericValue = workspacePreferences.cardWidth;
         if (numericValue < 260) numericValue = 260;
         if (numericValue > 1200) numericValue = 1200;
 
@@ -103,7 +96,7 @@ function setupCardWidthControl(panelContainer) {
         widthSlider.value = Math.min(numericValue, 600);
         widthInput.value = numericValue;
         panelContainer.style.setProperty("--clab-card-width", `${numericValue}px`);
-        localStorage.setItem("clab-card-width-v1", numericValue);
+        if (remember) localStorage.setItem(widthKey, numericValue);
 
         // Sync layout immediately to update scrollWidth
         if (window._clabUpdateCardsLayout) {
@@ -161,7 +154,11 @@ function setupCardWidthControl(panelContainer) {
 
     widthResetBtn.addEventListener("click", (event) => {
         event.stopPropagation();
-        updateWidth(320);
+        localStorage.removeItem(widthKey);
+        updateWidth(workspacePreferences.cardWidth, false);
+    });
+    document.addEventListener("clab_card_width_default_change", () => {
+        if (!localStorage.getItem(widthKey)) updateWidth(workspacePreferences.cardWidth, false);
     });
 
     const stopPropagation = (event) => event.stopPropagation();
@@ -390,7 +387,7 @@ export function setupPanelEvents(panelContainer) {
         if (!state.painterMode) return;
         if (event.target.closest("#tb-format-painter")) return;
 
-        const isToolbar = event.target.closest("#clab-toolbar-handle");
+        const isToolbar = event.target.closest(".clab-tool-dock");
         const isAddCardBtn = event.target.closest(".clab-add-card-inline");
         if (!isToolbar && !isAddCardBtn) return;
 
@@ -435,8 +432,8 @@ export function setupPanelEvents(panelContainer) {
         }
     }, true);
 
-    toolbar.addEventListener("click", (event) => {
-        if (!isToolbarInteractiveTarget(event.target)) handleDeselectAll(true);
+    panelContainer.querySelector(".clab-tool-dock").addEventListener("click", event => {
+        if (event.target.matches('.clab-tool-dock,.clab-toolbar-left,.clab-toolbar-right')) handleDeselectAll(true);
     });
 
     cardsContainer.addEventListener("wheel", (event) => {
@@ -466,7 +463,7 @@ export function setupPanelEvents(panelContainer) {
         const cardEl = cardsContainer.querySelector(".clab-card:not(.clab-add-card-inline)");
         const panelWidth = parseInt(getComputedStyle(panelContainer).getPropertyValue("--clab-card-width"), 10) || 320;
         const cardWidth = cardEl ? cardEl.offsetWidth : panelWidth;
-        const scrollDistance = cardWidth + 20;
+        const scrollDistance = cardWidth + workspacePreferences.cardGap;
         cardsContainer.scrollBy({ left: Math.sign(event.deltaY) * scrollDistance, behavior: "smooth" });
     }, { passive: false });
 

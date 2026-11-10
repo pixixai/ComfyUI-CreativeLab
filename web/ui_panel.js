@@ -9,7 +9,6 @@ import { renderCardsList, attachCardEvents } from "./components/comp_taskcard.js
 import { attachAreaEvents } from "./components/comp_modulearea.js";
 import { observeModuleRemoval } from "./components/modules/module_lifecycle.js";
 import { renderWorkspaceBar, attachWorkspaceEvents } from "./components/comp_workspace.js";
-import { renderChannelBar, attachChannelEvents } from "./components/comp_channel.js";
 import { setupWorkspaceModes, refreshWorkspaceModes } from './components/workspace_modes/workspace_modes.js';
 
 import { setupGlobalEvents } from "./components/events/event_global.js";
@@ -222,7 +221,6 @@ function performPanelRender() {
     if (!panelContainer) return;
 
     const toolbarHandle = panelContainer.querySelector("#clab-toolbar-handle");
-    const channelBar = panelContainer.querySelector("#clab-channel-bar");
     const cardsContainer = panelContainer.querySelector("#clab-cards-container");
     const workspaceBar = panelContainer.querySelector("#clab-workspace-bar");
 
@@ -240,7 +238,6 @@ function performPanelRender() {
     if (!canReuse && window.CLab?.stashMedia) window.CLab.stashMedia();
 
     renderDynamicToolbar(toolbarHandle);
-    renderChannelBar(channelBar);
     const reused = canReuse && refreshCardsInPlace(cardsContainer);
     if (!reused) renderCardsList(cardsContainer);
     renderWorkspaceBar(workspaceBar);
@@ -256,7 +253,6 @@ function performPanelRender() {
     if (!reused && window.CLab?.restoreMedia) window.CLab.restoreMedia();
 
     attachDynamicToolbarEvents(toolbarHandle);
-    attachChannelEvents(channelBar);
     if (!reused) {
         attachCardEvents(cardsContainer);
         attachAreaEvents(cardsContainer);
@@ -271,23 +267,18 @@ function refreshContextView(options = {}) {
     if (!panelContainer) return;
 
     if (window.CLab && typeof window.CLab.saveState === "function") {
-        window.CLab.saveState(state);
+        window.CLab.saveState(state, { createAnchor:false });
     } else if (window.StateManager && typeof window.StateManager.syncToNode === "function" && window.app?.graph) {
         window.StateManager.syncToNode(window.app.graph);
     }
 
     const toolbarHandle = panelContainer.querySelector("#clab-toolbar-handle");
-    const channelBar = panelContainer.querySelector("#clab-channel-bar");
     const cardsContainer = panelContainer.querySelector("#clab-cards-container");
     const workspaceBar = panelContainer.querySelector("#clab-workspace-bar");
 
     if (toolbarHandle) {
         renderDynamicToolbar(toolbarHandle);
         attachDynamicToolbarEvents(toolbarHandle);
-    }
-    if (channelBar) {
-        renderChannelBar(channelBar);
-        attachChannelEvents(channelBar);
     }
     if (workspaceBar) {
         renderWorkspaceBar(workspaceBar);
@@ -329,82 +320,6 @@ export function setupUI() {
             -moz-appearance: textfield;
         }
 
-        #clab-channel-strip {
-            height: 28px;
-            min-height: 28px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            padding: 0;
-            display: flex;
-            align-items: stretch;
-            background: rgba(0, 0, 0, 0.25);
-        }
-        #clab-channel-bar {
-            width: 100%;
-            display: flex;
-            align-items: stretch;
-            gap: 0;
-            overflow-x: auto;
-            overflow-y: hidden;
-            scrollbar-width: none;
-        }
-        #clab-channel-bar::-webkit-scrollbar {
-            display: none;
-        }
-        .clab-channel-tab {
-            font-size: 11px !important;
-            opacity: 0.8;
-            height: 100%;
-            border: none !important;
-            border-radius: 0 !important;
-            padding: 0 16px !important;
-            background: transparent !important;
-            color: rgb(100, 100, 100) !important;
-            display: flex;
-            align-items: center;
-            cursor: pointer;
-            transition: all 0.2s;
-            border-right: 1px solid rgba(255,255,255,0.05) !important;
-            white-space: nowrap;
-        }
-        .clab-channel-tab:hover {
-            background: rgba(255, 255, 255, 0.05) !important;
-            opacity: 1;
-            color: #fff !important;
-        }
-        .clab-channel-tab.active {
-            background: rgb(24, 24, 24) !important;
-            opacity: 1;
-            color: #fff !important;
-            font-weight: normal;
-            box-shadow: inset 0 -2px 0 var(--clab-theme-card, #4CAF50);
-        }
-        .clab-channel-tab.selected {
-            background: rgb(24, 24, 24) !important;
-            opacity: 1 !important;
-        }
-        .clab-channel-tab.clab-dragging {
-            opacity: 0.4 !important;
-            background: rgba(255, 255, 255, 0.05) !important;
-            border: 1px dashed rgba(255, 255, 255, 0.3) !important;
-        }
-        .clab-channel-tab.clab-drag-over-tab-left {
-            border-left: 2px solid var(--clab-theme-card, #4CAF50) !important;
-            background: rgba(255, 255, 255, 0.08) !important;
-        }
-        .clab-channel-tab.clab-drag-over-tab-right {
-            border-right: 2px solid var(--clab-theme-card, #4CAF50) !important;
-            background: rgba(255, 255, 255, 0.08) !important;
-        }
-        #clab-channel-add {
-            font-size: 14px !important;
-            padding: 0 10px !important;
-            position: sticky !important;
-            right: 0 !important;
-            background: rgb(24, 24, 24) !important; /* Fully opaque background */
-            opacity: 1 !important;
-            z-index: 15 !important;
-            border-left: 1px solid rgba(255, 255, 255, 0.15) !important;
-        }
     `;
     document.head.appendChild(overrideStyle);
 
@@ -469,19 +384,18 @@ function createPanelDOM() {
     panelContainer.id = "clab-panel";
 
     panelContainer.innerHTML = `
+        <div class="clab-tool-dock" data-dock="top" role="toolbar" aria-label="工作区工具栏">
         <div class="clab-toolbar" id="clab-toolbar-handle">
             <div class="clab-toolbar-left">
                 <button class="clab-btn" id="clab-global-add-card" title="新建空白任务卡片">+ 新建任务</button>
                 <button class="clab-btn" id="clab-global-add-module" title="在当前任务内添加新模块">+ 新建模块</button>
-                <div id="clab-module-toolbar-separator" style="width:1px; height:20px; background:rgba(255,255,255,0.2); margin:0 5px; display:none;"></div>
-                <div id="clab-module-toolbar" class="clab-module-toolbar" style="display:none;"></div>
             </div>
+            <div id="clab-module-toolbar" role="group" aria-label="选中项工具" style="display:none;"></div>
 
             <div class="clab-toolbar-right">
-                <div style="display:inline-flex; align-items:stretch; height: 34px;">
+                <div id="clab-run-group">
                     <div id="clab-run-btn-wrapper" class="clab-run-wrapper" style="border-top-right-radius: 0; border-bottom-right-radius: 0; height: 100%;">
                         <button class="clab-btn run-btn-main" id="clab-btn-run" title="按规则运行选中任务（局部）" style="height: 100%;">运行</button>
-                        <div style="width:1px; height:16px; background:rgba(255,255,255,0.4); margin: 0 4px; align-self: center;"></div>
                         <button class="clab-btn run-btn-toggle" id="clab-run-dropdown-toggle" title="展开更多运行选项" style="height: 100%;">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="6 9 12 15 18 9"></polyline>
@@ -498,7 +412,7 @@ function createPanelDOM() {
                         </div>
                     </div>
 
-                    <div style="display:flex; align-items:center; background: rgba(0,0,0,0.5); border: 1px solid #555; border-left: none; border-top-right-radius: 6px; border-bottom-right-radius: 6px; padding-left: 6px; height: 100%; box-sizing: border-box;" title="循环运行次数（排队执行）">
+                    <div id="clab-run-count-control" title="循环运行次数（排队执行）">
                         <input type="number" id="clab-run-batch-count" value="1" min="1" max="999" style="width: 24px; background: transparent; border: none; color: #eee; font-size: 14px; text-align: center; outline: none; font-family: sans-serif; -moz-appearance: textfield; padding: 0;">
                         <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; height: 100%; margin-left: 2px; gap: 2px;">
                             <div id="clab-run-count-up" style="cursor:pointer; display:flex; align-items:center; justify-content:center; padding: 2px 6px;" onmouseover="this.querySelector('svg').style.stroke='#fff'" onmouseout="this.querySelector('svg').style.stroke='#aaa'">
@@ -510,12 +424,23 @@ function createPanelDOM() {
                         </div>
                     </div>
                 </div>
-
-                <button class="clab-btn" id="clab-btn-config" title="在画布创建配置锚点">创建配置锚点</button>
+                <div id="clab-preview-mode-switch" class="clab-toolbar-type" role="group" aria-label="工作区与预览切换">
+                    <button type="button" class="clab-type-btn" aria-pressed="true">工作区</button>
+                    <button type="button" class="clab-type-btn" id="clab-btn-preview" aria-pressed="false" aria-haspopup="dialog">预览</button>
+                </div>
+                <div id="clab-maintenance-slot"></div>
             </div>
         </div>
-        <div id="clab-channel-strip">
-            <div id="clab-channel-bar"></div>
+        </div>
+        <div class="clab-workspace-strip">
+            <div class="clab-workspace-shell">
+                <div class="clab-workspace-tabs" id="clab-workspace-bar"></div>
+            </div>
+            <div class="clab-mode-menu" id="clab-workspace-mode-menu" role="menu" aria-label="工作区模式" hidden>
+                <button type="button" data-workspace-mode="cards" role="menuitemradio" aria-checked="true">任务卡片</button>
+                <button type="button" data-workspace-mode="table" role="menuitemradio" aria-checked="false">参数表</button>
+                <button type="button" data-workspace-mode="xy" role="menuitemradio" aria-checked="false">XY 矩阵</button>
+            </div>
         </div>
         <div class="clab-cards-container" id="clab-cards-container"></div>
         <div id="clab-card-width-ctrl" class="clab-card-width-ctrl">
@@ -525,13 +450,6 @@ function createPanelDOM() {
             </svg>
             <input type="range" id="clab-card-width-slider" min="260" max="600" value="320" style="width: 80px; accent-color: #888; cursor: pointer; height: 4px; background: rgba(255,255,255,0.2); outline: none; border-radius: 2px; -webkit-appearance: none;">
             <input type="number" id="clab-card-width-input" title="手动输入宽度（回车确认）" style="width: 36px; background: transparent; border: none; color: #888; font-size: 12px; outline: none; text-align: left; padding: 0; margin: 0; font-family: monospace; transition: color 0.2s;" onfocus="this.style.color='#fff'" onblur="this.style.color='#888'">
-        </div>
-
-        <div class="clab-panel-footer">
-            <div class="clab-workspace-shell">
-                <div class="clab-mode-switch"><button data-mode-toggle aria-haspopup="menu" aria-expanded="false">任务卡片 ▴</button><div class="clab-mode-menu" role="menu" hidden><button data-workspace-mode="cards" role="menuitemradio" aria-checked="true">任务卡片</button><button data-workspace-mode="table" role="menuitemradio" aria-checked="false">参数表</button><button data-workspace-mode="xy" role="menuitemradio" aria-checked="false">XY 矩阵</button></div></div>
-                <div class="clab-workspace-tabs" id="clab-workspace-bar"></div>
-            </div>
         </div>
     `;
 

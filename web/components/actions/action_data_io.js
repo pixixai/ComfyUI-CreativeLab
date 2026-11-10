@@ -277,9 +277,9 @@ export function attachDataIOEvents(panelContainer) {
     // ----------------------------------------------------
     // 2. 导出与媒体下载功能
     // ----------------------------------------------------
-    const configBtn = panelContainer.querySelector("#clab-btn-config");
-    if (configBtn && !panelContainer.querySelector("#clab-export-json-wrapper")) {
-        configBtn.insertAdjacentHTML('beforebegin', `
+    const maintenanceSlot = panelContainer.querySelector("#clab-maintenance-slot");
+    if (maintenanceSlot && !panelContainer.querySelector("#clab-export-json-wrapper")) {
+        maintenanceSlot.insertAdjacentHTML('beforebegin', `
             <div id="clab-export-json-wrapper" style="position:relative; display:inline-flex; align-items:center;">
                 <button class="clab-btn" id="clab-export-json-btn" title="导出与下载" style="padding: 0; width: 34px; height: 34px; display:flex; align-items:center; justify-content:center;">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

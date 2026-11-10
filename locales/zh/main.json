@@ -6,6 +6,9 @@
     "3-FileIO": "文件与数据流转",
     "4-Automation": "自动化行为",
     "5-CardApp": "任务卡片选中态外观",
-    "6-ModuleApp": "模块选中态外观"
+    "6-ModuleApp": "模块选中态外观",
+    "7-TaskCards": "任务卡片",
+    "8-ParameterTable": "参数表",
+    "9-XYMatrix": "XY 矩阵"
   }
 }

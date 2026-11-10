@@ -4,24 +4,48 @@
 import {
     state,
     buildPersistedState,
-    createEmptyWorkspace,
     hydrateStateFromPersisted,
     ensureWorkspaceRuntime,
-    applyWorkspaceToState,
+    WORKSPACE_SCHEMA_VERSION,
 } from "./components/ui_state.js";
 import { loadAllTextHistory, ensureInputSnapshotState } from "./components/modules/media_types/media_utils.js";
 import { prepareConfigStorage } from "./config_storage.js";
+
+function placeConfigNode(node, graph, canvas) {
+    const view = canvas.ds?.visible_area;
+    const visible = view && view[2] > 0 && view[3] > 0;
+    const [x, y, width, height] = visible ? view : [0, 0, window.innerWidth || 1100, window.innerHeight || 800];
+    const [nodeWidth, nodeHeight] = node.size || [300, 100];
+    const center = [x + (width - nodeWidth) / 2, y + (height - nodeHeight) / 2];
+    const gap = 24;
+    const overlaps = ([left, top]) => graph._nodes.some(other => other.pos && other.size &&
+        left < other.pos[0] + other.size[0] + gap && left + nodeWidth + gap > other.pos[0] &&
+        top < other.pos[1] + other.size[1] + gap && top + nodeHeight + gap > other.pos[1]);
+    if (!overlaps(center)) return center;
+    for (let step = 1; step <= 3; step++) {
+        const dx = step * (nodeWidth + gap), dy = step * (nodeHeight + gap);
+        const offsets = [[0,dy],[dx,0],[-dx,0],[0,-dy],[dx,dy],[-dx,dy],[dx,-dy],[-dx,-dy]];
+        for (const [offsetX, offsetY] of offsets) {
+            const pos = [center[0] + offsetX, center[1] + offsetY];
+            if (pos[0] >= x && pos[1] >= y && pos[0] + nodeWidth <= x + width &&
+                pos[1] + nodeHeight <= y + height && !overlaps(pos)) return pos;
+        }
+    }
+    return center;
+}
 
 export const StateManager = {
     state,
     _lastSyncedJSON: "",
     _watchdogTimer: null,
     _saveTimer: null,
+    _pendingAnchorCanvas: null,
     _loadTimer: null,
 
     scheduleLoadFromNode(graph) {
         clearTimeout(this._saveTimer);
         this._saveTimer = null;
+        this._pendingAnchorCanvas = null;
         clearTimeout(this._loadTimer);
         // Graph configure clears and repopulates nodes in the same turn.
         this._loadTimer = setTimeout(() => {
@@ -30,7 +54,8 @@ export const StateManager = {
         }, 0);
     },
 
-    scheduleSyncToNode(graph) {
+    scheduleSyncToNode(graph, canvas) {
+        if (canvas) this._pendingAnchorCanvas = canvas;
         if (this._saveTimer !== null) return;
         this._saveTimer = setTimeout(() => this.syncToNode(graph), 250);
     },
@@ -80,11 +105,13 @@ export const StateManager = {
         return nodes[nodes.length - 1];
     },
 
-    syncToNode(graph) {
+    syncToNode(graph, canvas) {
+        const anchorCanvas = canvas || this._pendingAnchorCanvas;
         clearTimeout(this._saveTimer);
         this._saveTimer = null;
+        this._pendingAnchorCanvas = null;
         if (this._loadTimer !== null) return;
-        const node = this.getConfigNode(graph);
+        const node = this.getConfigNode(graph) || (anchorCanvas && this.createConfigNode(graph, anchorCanvas));
         if (node) {
             const widget = node.widgets?.find((w) => w.name === "scenes_data");
             if (widget) {
@@ -103,26 +130,10 @@ export const StateManager = {
         this._loadTimer = null;
         clearTimeout(this._saveTimer);
         this._saveTimer = null;
-        const node = this.getConfigNode(graph);
-        if (!node) {
-            const blank = createEmptyWorkspace();
-            state.schemaVersion = 3;
-            state.workspaces = [blank];
-            state.activeWorkspaceId = blank.id;
-            applyWorkspaceToState(blank);
-            this._lastSyncedJSON = "";
-            document.dispatchEvent(new CustomEvent("clab_state_cleared"));
-            this.startWatchdog(graph);
-            return;
-        }
-
-        const widget = node.widgets?.find((w) => w.name === "scenes_data");
-        if (!widget || !widget.value) {
-            const blank = createEmptyWorkspace();
-            state.schemaVersion = 3;
-            state.workspaces = [blank];
-            state.activeWorkspaceId = blank.id;
-            applyWorkspaceToState(blank);
+        this._pendingAnchorCanvas = null;
+        const widget = this.getConfigNode(graph)?.widgets?.find((w) => w.name === "scenes_data");
+        if (!widget?.value) {
+            hydrateStateFromPersisted();
             this._lastSyncedJSON = "";
             document.dispatchEvent(new CustomEvent("clab_state_cleared"));
             this.startWatchdog(graph);
@@ -133,20 +144,7 @@ export const StateManager = {
             this._lastSyncedJSON = widget.value;
             const parsed = JSON.parse(widget.value);
             hydrateStateFromPersisted(parsed);
-
-            state.cards.forEach((card) => {
-                if (!card.areas) {
-                    card.areas = [];
-                    if (card.previewAreas) {
-                        card.areas.push(...card.previewAreas.map((area) => ({ ...area, type: "preview", matchMedia: false, ratio: "16:9" })));
-                        delete card.previewAreas;
-                    }
-                    if (card.editAreas) {
-                        card.areas.push(...card.editAreas.map((area) => ({ ...area, type: "edit", dataType: "string", autoHeight: true })));
-                        delete card.editAreas;
-                    }
-                }
-            });
+            if (parsed.schemaVersion !== WORKSPACE_SCHEMA_VERSION) this.scheduleSyncToNode(graph);
 
             await this.syncLocalHistoryToOutputAreas();
             await this.reloadTextHistoriesFromFiles();
@@ -210,48 +208,17 @@ export const StateManager = {
         }
     },
 
-    showToast(msg, bg = "rgba(76, 175, 80, 0.95)") {
-        const toast = document.createElement("div");
-        toast.style.cssText = `
-            position: fixed; top: 30px; left: 50%; transform: translateX(-50%);
-            background: ${bg}; color: white; padding: 12px 24px;
-            border-radius: 8px; z-index: 10005; font-size: 14px; font-weight: bold;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.4); pointer-events: none;
-            opacity: 0; transition: opacity 0.3s ease; backdrop-filter: blur(4px);
-        `;
-        toast.innerText = msg;
-        document.body.appendChild(toast);
-
-        requestAnimationFrame(() => (toast.style.opacity = "1"));
-        setTimeout(() => {
-            toast.style.opacity = "0";
-            setTimeout(() => toast.remove(), 300);
-        }, 2500);
-    },
-
-    createConfigNode(graph) {
-        if (this.getConfigNode(graph)) {
-            this.showToast("Configuration node already exists in the graph.", "rgba(255, 152, 0, 0.95)");
-            return;
-        }
-
+    createConfigNode(graph, canvas) {
         const node = LiteGraph.createNode("CLab_SystemConfig");
+        if (!node) return null;
         prepareConfigStorage(node);
-
-        let posX = 400;
-        let posY = 300;
-        try {
-            posX = (window.innerWidth / 2) - 150;
-            posY = (window.innerHeight / 2) - 100;
-        } catch (e) {}
-
-        node.pos = [posX, posY];
+        node.pos = placeConfigNode(node, graph, canvas);
         graph.add(node);
 
+        // The node-created callback queues a load; this fresh node has no saved data yet.
         clearTimeout(this._loadTimer);
         this._loadTimer = null;
-        this.syncToNode(graph);
-        this.showToast("Configuration node created.");
+        return node;
     },
 
     getActiveCard() {

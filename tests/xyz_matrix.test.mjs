@@ -88,6 +88,16 @@ test('XYZ run scopes distinguish all layers, current layer and selected cells wi
     assert.deepEqual(matrixRunCards(cards,xy,visible,[layer[1]]),[layer[1]]);
     assert.equal(matrixRunCards(cards,xy,visible,[layer[1]],'all').length,12);
     assert.deepEqual(matrixRunCards(cards,xy,visible,[],'selected'),[]);
+    const reversed=[...cards].reverse();
+    const coordinates=list=>list.map(card=>taskCoordinates(card,xy));
+    const order=(pairs,z)=>pairs.map(([x,y])=>({x,y,z}));
+    const xFirst=[[0,0],[1,0],[0,1],[1,1]],yFirst=[[0,0],[0,1],[1,0],[1,1]];
+    assert.deepEqual(coordinates(matrixRunCards(reversed,xy,visible,[])),order(xFirst,1));
+    xy.runAxis='y';
+    assert.deepEqual(coordinates(matrixRunCards(reversed,xy,visible,[])),order(yFirst,1));
+    assert.deepEqual(coordinates(matrixRunCards(reversed,xy,visible,[], 'all')),[0,1,2].flatMap(z=>order(yFirst,z)));
+    const selected=[layer[2],cards.find(card=>taskCoordinates(card,xy).z===0),layer[0]];
+    assert.deepEqual(coordinates(matrixRunCards(reversed,xy,visible,selected)),[{x:0,y:0,z:0},...order([[0,0],[0,1]],1)]);
 });
 
 test('Z paired values, full prompts and history snapshots survive conversion to ordinary task cards',()=>{

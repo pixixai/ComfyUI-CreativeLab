@@ -16,6 +16,7 @@ import {
 } from "../modules/media_types/media_utils.js";
 import { ensureUniqueDownloadName } from "./content/shared.js";
 import { createPreviewModalApi } from "./content/preview_modal.js";
+import { workspacePreviewSources } from "./content/preview_browse.js";
 import { createEditorLogic } from "./content/editor_logic.js";
 import { bindOpenActions } from "./content/actions_open.js";
 import { bindDownloadActions } from "./content/actions_download.js";
@@ -54,10 +55,28 @@ const previewModalApi = createPreviewModalApi({
     getPreviewTextState,
 });
 
-export function openCardPreview(cards) {
-    const sources=cards.flatMap(card=>(card.areas||[]).filter(area=>area.type==='preview').map(area=>({card,area})));
+function openSourcesPreview(sources, fallbackCard, opener) {
     const main=sources.find(source=>source.area.resultUrl||source.area.history?.length)||sources[0];
-    previewModalApi.openPreviewModal(main?.card||cards[0],main?.area,main?.area.resultUrl,main?.area.historyIndex,sources);
+    previewModalApi.openPreviewModal(main?.card||fallbackCard,main?.area,main?.area.resultUrl,main?.area.historyIndex,sources,opener);
+}
+
+export function openCardPreview(cards) {
+    openSourcesPreview(workspacePreviewSources(cards), cards[0]);
+}
+
+export function openWorkspacePreview(opener) {
+    const sources = workspacePreviewSources(state.cards);
+    const areaIds = new Set(state.selectedAreaIds);
+    const selected = sources.filter(({ area }) => areaIds.has(area.id));
+    if (selected.length) {
+        openSourcesPreview(selected, state.cards[0], opener);
+    } else if (state.selectedCardIds.length) {
+        const cardIds = new Set(state.selectedCardIds);
+        const card = state.cards.find(item => cardIds.has(item.id));
+        openSourcesPreview(sources.filter(({ card }) => cardIds.has(card.id)), card, opener);
+    } else {
+        openSourcesPreview(sources, state.cards[0], opener);
+    }
 }
 
 export function renderContentGroup(showContentGroup) {

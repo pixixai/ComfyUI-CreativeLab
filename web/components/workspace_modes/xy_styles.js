@@ -2,7 +2,7 @@ import { xyToolbarStyles } from './xy_toolbar_styles.js';
 import { axisLabelStyles } from './axis_label_styles.js';
 
 export const xyStyles=`
-    #clab-panel[data-workspace-mode=xy] :is(#clab-toolbar-handle,#clab-channel-strip,#clab-card-width-ctrl){display:none!important}
+    #clab-panel[data-workspace-mode=xy] :is(#clab-toolbar-handle,#clab-card-width-ctrl){display:none!important}
     #clab-panel[data-workspace-mode=xy] #clab-cards-container{display:block;position:relative;overflow:hidden;padding:0;min-height:240px;background:#181818 radial-gradient(#343434 .7px,transparent .7px) 0 0/20px 20px;cursor:grab}
     #clab-panel[data-workspace-mode=xy] #clab-cards-container.clab-xy-grabbing,#clab-panel[data-workspace-mode=xy] .clab-xy-grabbing *{cursor:grabbing!important;user-select:none!important}
     #clab-panel[data-workspace-mode=xy] .clab-cards-wrapper{position:absolute!important;left:0;top:0;display:block!important;min-width:0!important;margin:0!important;transform-origin:0 0;cursor:default;will-change:transform}

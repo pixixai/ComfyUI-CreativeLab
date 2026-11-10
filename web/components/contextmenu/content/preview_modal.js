@@ -34,6 +34,7 @@ export function createPreviewModalApi({
     let compare = { a: '', b: '', slot: 'a', layout: 'side', view: { x: 0, y: 0, zoom: 1, split: .5 } };
     let table = { layout: 'xy', fields: null, width: 200, textLimit: 200, x: '', y: '', z: '', zValue: '', source: '', filters: {} };
     let allSources = [], browseLayout, detailView, renderedBrowseKey = '', renderedCompareKey = '', renderedMode = '';
+    let returnFocus;
     const browse = { search: '', sort: 'source', customOrder: [], height: 164, thumbSize: 120, sourceWidth: window.innerWidth < 1100 ? 180 : 220, parameterWidth: window.innerWidth < 1100 ? 240 : 300 };
     const safeSetupAudioWaveform = typeof setupAudioWaveform === "function" ? setupAudioWaveform : () => { };
     const safeBindPreviewTextEditor = typeof bindPreviewTextEditor === "function" ? bindPreviewTextEditor : () => { };
@@ -154,7 +155,11 @@ export function createPreviewModalApi({
                     <div class="clab-preview-modal-title">预览模式</div>
                     <div class="clab-review-modes clab-review-segment">${[['browse','浏览'],['compare','比较'],['detail','明细表'],['xy','XY 矩阵']].map(([key,label])=>`<button data-review-mode="${key}" aria-pressed="${key==='browse'}">${label}</button>`).join('')}</div>
                     <div class="clab-review-head-actions">
-                    <button class="clab-preview-modal-close" type="button">关闭</button></div>
+                        <div class="clab-review-segment" role="group" aria-label="工作区与预览切换">
+                            <button class="clab-preview-modal-close" type="button" aria-label="返回工作区" aria-pressed="false">工作区</button>
+                            <button type="button" aria-pressed="true">预览</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="clab-review-notice" role="status"></div>
                 <div class="clab-preview-modal-body">
@@ -184,6 +189,8 @@ export function createPreviewModalApi({
             previewModalStore.imageSpacePressed = false;
             resetPreviewImageTransform();
             sources=[];allSources=[];previewModalStore.entries=[];tableModel=null;
+            returnFocus?.focus({ preventScroll:true });
+            returnFocus = null;
         };
         root.querySelector(".clab-preview-modal-backdrop").addEventListener("click", close);
         root.querySelector(".clab-preview-modal-close").addEventListener("click", close);
@@ -578,8 +585,9 @@ export function createPreviewModalApi({
         right.innerHTML=rows.length?rows.map(row=>`<div class="clab-preview-modal-param"><div class="clab-preview-modal-param-key">${escapeHtml(row.key)}</div><div class="clab-preview-modal-param-meta">Node: ${escapeHtml(row.node||'-')} | Type: ${escapeHtml(row.type||'string')}</div><pre class="clab-preview-modal-param-value">${escapeHtml(row.value||'')}</pre></div>`).join(''):'<div class="clab-preview-modal-empty">此记录没有保存输入参数快照</div>';
     }
 
-    function openPreviewModal(card, area, preferredUrl, preferredIndex, selectedSources) {
+    function openPreviewModal(card, area, preferredUrl, preferredIndex, selectedSources, opener) {
         const root = ensurePreviewModal();
+        returnFocus = opener;
         teardownPreviewEnhancers();
         previewModalStore.activeCardId = card?.id || "";
         previewModalStore.activeAreaId = area?.id || "";
@@ -610,6 +618,7 @@ export function createPreviewModalApi({
         renderPreviewModal();
         root.classList.add("visible");
         browseLayout.applyLayout();
+        if (opener) root.querySelector(".clab-preview-modal-close").focus({ preventScroll:true });
     }
 
     return {

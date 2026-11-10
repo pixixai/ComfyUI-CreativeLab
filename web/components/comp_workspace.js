@@ -9,6 +9,8 @@ import {
     makeId,
     deepClone,
 } from "./ui_state.js";
+import { escapeHtml } from "./contextmenu/content/shared.js";
+import { newWorkspaceView } from "./workspace_preferences.js";
 
 function workspaceStructureMatches(currentWorkspace, targetWorkspace) {
     const currentCards = currentWorkspace?.cards || [];
@@ -28,8 +30,14 @@ function collectAllAreaIds(cards) {
     return (cards || []).flatMap((card) => (card.areas || []).map((area) => area.id));
 }
 
-function getWorkspaceLabel(index) {
-    return `工作区 ${index + 1}`;
+const modeLabels = { cards: "任务卡片", table: "参数表", xy: "XY 矩阵" };
+
+function getWorkspaceModeLabel(workspace) {
+    return modeLabels[workspace.view?.mode] || modeLabels.cards;
+}
+
+function getWorkspaceLabel(workspace) {
+    return workspace.autoName ? `${getWorkspaceModeLabel(workspace)}·${workspace.name}` : workspace.name;
 }
 
 export function renderWorkspaceBar(container) {
@@ -61,28 +69,32 @@ export function renderWorkspaceBar(container) {
 
                 const nameSpan = tabEl.querySelector(".clab-workspace-tab-name");
                 if (nameSpan && nameSpan.contentEditable !== "true") {
-                    const label = ws.name || getWorkspaceLabel(i);
+                    const label = getWorkspaceLabel(ws);
                     if (nameSpan.textContent !== label) nameSpan.textContent = label;
                     tabEl.title = label;
                 }
+                const modeSpan = tabEl.querySelector(".clab-workspace-tab-mode");
+                const mode = getWorkspaceModeLabel(ws);
+                if (modeSpan.textContent !== mode) modeSpan.textContent = mode;
             });
             return;
         }
     }
     // -----------------------------------------------------------
 
-    const tabsHtml = workspaces.map((workspace, index) => {
+    const tabsHtml = workspaces.map(workspace => {
         const isActive = workspace.id === activeWorkspaceId;
         const isSelected = selectedIds.includes(workspace.id);
         const classes = ["clab-workspace-tab"];
         if (isActive) classes.push("active");
         if (isSelected) classes.push("selected");
 
-        const label = workspace.name || getWorkspaceLabel(index);
+        const label = getWorkspaceLabel(workspace);
         return `
-            <button class="${classes.join(" ")}" data-workspace-id="${workspace.id}" title="${label}" draggable="true">
-                <span class="clab-workspace-tab-name">${label}</span>
-            </button>
+            <div class="${classes.join(" ")}" data-workspace-id="${escapeHtml(workspace.id)}" title="${escapeHtml(label)}" draggable="true">
+                <button type="button" class="clab-workspace-tab-select"><span class="clab-workspace-tab-name">${escapeHtml(label)}</span></button>
+                <button type="button" data-mode-toggle aria-label="切换工作区模式" aria-haspopup="menu" aria-expanded="false" aria-controls="clab-workspace-mode-menu" title="切换工作区模式"><span class="clab-workspace-tab-mode">${getWorkspaceModeLabel(workspace)}</span></button>
+            </div>
         `;
     }).join("");
 
@@ -92,7 +104,7 @@ export function renderWorkspaceBar(container) {
     `;
 }
 
-function switchWorkspace(workspaceId, isMultiSelect = false) {
+export function switchWorkspace(workspaceId, isMultiSelect = false) {
     if (!isMultiSelect) {
         appState.selectedWorkspaceIds = [workspaceId];
     }
@@ -117,7 +129,7 @@ function switchWorkspace(workspaceId, isMultiSelect = false) {
 
 function addWorkspace(insertAfterId = null) {
     syncStateToActiveWorkspace();
-    const workspace = createEmptyWorkspace(getWorkspaceLabel((state.workspaces || []).length));
+    const workspace = createEmptyWorkspace(`工作区 ${(state.workspaces || []).length + 1}`, { view: newWorkspaceView() });
 
     if (insertAfterId) {
         const index = state.workspaces.findIndex(w => w.id === insertAfterId);
@@ -156,7 +168,8 @@ function duplicateSelectedWorkspaces() {
         const index = state.workspaces.indexOf(ws);
         const dup = normalizeWorkspace(deepClone(ws));
         dup.id = makeId("workspace");
-        dup.name = `${ws.name || getWorkspaceLabel(index)} 副本`;
+        dup.name = `${getWorkspaceLabel(ws)} 副本`;
+        dup.autoName = false;
 
         state.workspaces.splice(index + 1, 0, dup);
         lastCreatedId = dup.id;
@@ -228,6 +241,7 @@ function bulkRenameWorkspaces() {
 
     sortedTargets.forEach((ws, i) => {
         ws.name = i === 0 ? name : `${name} (${i})`;
+        ws.autoName = false;
     });
 
     saveAndRender();
@@ -267,11 +281,12 @@ function startInlineRename(tabEl, workspaceId) {
         workspace = getTargetWorkspace();
         if (!workspace) return;
 
-        if (nextName && nextName !== workspace.name) {
+        if (nextName && nextName !== getWorkspaceLabel(workspace)) {
             workspace.name = nextName;
+            workspace.autoName = false;
             saveAndRender();
         } else {
-            nameSpan.textContent = workspace.name || getWorkspaceLabel(state.workspaces.indexOf(workspace));
+            nameSpan.textContent = getWorkspaceLabel(workspace);
         }
     };
 
@@ -282,7 +297,7 @@ function startInlineRename(tabEl, workspaceId) {
         } else if (e.key === "Escape") {
             e.preventDefault();
             workspace = getTargetWorkspace();
-            nameSpan.textContent = workspace ? (workspace.name || getWorkspaceLabel(state.workspaces.indexOf(workspace))) : "";
+            nameSpan.textContent = workspace ? getWorkspaceLabel(workspace) : "";
             finishEdit();
         }
     };
@@ -348,6 +363,7 @@ export function attachWorkspaceEvents(container) {
     });
 
     container.addEventListener("click", (event) => {
+        if (event.target.closest("[data-mode-toggle]")) return;
         const tab = event.target.closest(".clab-workspace-tab[data-workspace-id]");
         if (tab) {
             const wsId = tab.dataset.workspaceId;
@@ -473,6 +489,7 @@ export function attachWorkspaceEvents(container) {
     });
 
     container.addEventListener("dblclick", (event) => {
+        if (event.target.closest("[data-mode-toggle]")) return;
         const tab = event.target.closest(".clab-workspace-tab[data-workspace-id]");
         if (!tab) return;
         startInlineRename(tab, tab.dataset.workspaceId);

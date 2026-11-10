@@ -105,9 +105,46 @@ test('value imports preserve quoted commas, multiline text, typed values and pai
 });
 test('workspace axes, tuples, dimensions, record rows, output binding and camera survive persistence',()=>{
     const {card,view}=fixture();view.mode='xy';view.xy.panX=-500;view.xy.origin='bottom';view.xy.records=[{id:'cfg',key:'1||cfg'}];
-    const a=createEmptyWorkspace('A',{cards:[card],view}),b=createEmptyWorkspace('B');state.workspaces=[a,b];state.activeWorkspaceId=a.id;state.cards=a.cards;state.channels=a.channels;state.activeChannelId=a.activeChannelId;
+    const a=createEmptyWorkspace('A',{cards:[card],view}),b=createEmptyWorkspace('B');state.workspaces=[a,b];state.activeWorkspaceId=a.id;state.cards=a.cards;
     const persisted=buildPersistedState();hydrateStateFromPersisted(persisted);assert.deepEqual(state.workspaces[0].view,view);assert.equal(state.workspaces[1].view.mode,'cards');
     assert.equal(createWorkspaceView().xy.origin,'bottom');assert.equal(createWorkspaceView().xy.size,undefined);assert.equal(createWorkspaceView().xy.x.gap,4);assert.equal(createWorkspaceView().xy.y.margin,10);
+});
+
+test('legacy channels become independent workspaces with the selected channel and complete history', () => {
+    const {card, view} = fixture();
+    const legacy = {
+        schemaVersion: 3,
+        activeWorkspaceId: 'group',
+        workspaces: [{
+            id: 'group', name: '实验', cards: [card], view, activeChannelId: 'b',
+            channels: [
+                { id: 'a', name: '采样器 A', bindings: { steps: { targetWidgets: ['4||steps'] }, output: { targetNodeId: '20' } } },
+                { id: 'b', name: '采样器 B', bindings: { steps: { targetWidgets: ['5||steps'] }, output: { targetNodeId: '21' } } },
+            ],
+        }, {
+            id: 'group_channel_1', name: '单通道', cards: [{ ...card, areas: structuredClone(card.areas) }],
+            channels: [{ id: 'one', bindings: { steps: { targetWidgets: ['6||steps'] } } }],
+        }],
+    };
+    hydrateStateFromPersisted(legacy);
+    const [a, b, single] = state.workspaces;
+    assert.deepEqual(state.workspaces.map(workspace => workspace.name), ['实验 · 采样器 A', '实验 · 采样器 B', '单通道']);
+    assert.equal(new Set(state.workspaces.map(workspace => workspace.id)).size, 3);
+    assert.equal(state.activeWorkspaceId, b.id);
+    assert.deepEqual(state.workspaces.map(workspace => workspace.cards[0].areas[0].targetWidgets), [['4||steps'], ['5||steps'], ['6||steps']]);
+    assert.deepEqual([a,b].map(workspace => workspace.cards[0].areas[2].targetNodeId), ['20', '21']);
+    assert.deepEqual(a.cards[0].areas[2].inputHistorySnapshots, card.areas[2].inputHistorySnapshots);
+    assert.deepEqual(a.cards[0].areas[2].historyRuns, card.areas[2].historyRuns);
+    a.cards[0].areas[0].value = 30;
+    a.cards[0].areas[2].history.push('/b.png');
+    assert.equal(b.cards[0].areas[0].value, 20);
+    assert.deepEqual(b.cards[0].areas[2].history, ['/a.png']);
+    assert.notEqual(a.view.xy, b.view.xy);
+    const saved = buildPersistedState();
+    assert.equal(saved.schemaVersion, 4);
+    assert.ok(saved.workspaces.every(workspace => !Object.hasOwn(workspace, 'channels')));
+    hydrateStateFromPersisted(saved);
+    assert.deepEqual(buildPersistedState(), saved);
 });
 
 test('median preview ratios select the middle real ratio and default to square until media loads',()=>{

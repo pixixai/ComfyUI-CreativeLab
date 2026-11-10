@@ -137,7 +137,7 @@ test('undo cancels pending edits and cannot save stale UI state before restore',
     assert.equal(h.builds, 1);
 });
 
-test('creating a config anchor saves existing tasks instead of loading its empty default', () => {
+test('first data save creates one centered config anchor and view saves alone never create it', () => {
     const h = persistenceFixture();
     const element = { value: '{}' };
     h.widget.element = element;
@@ -146,13 +146,21 @@ test('creating a config anchor saves existing tasks instead of loading its empty
         get() { return this.options.getValue(); }, set(value) { this.options.setValue(value); },
     });
     h.graph._nodes = [];
-    h.context.LiteGraph = { createNode: () => ({ type: 'CLab_SystemConfig', widgets: [h.widget] }) };
+    h.context.LiteGraph = { createNode: () => ({ type: 'CLab_SystemConfig', size: [300, 120], widgets: [h.widget] }) };
     h.graph.add = node => {
         h.graph._nodes.push(node);
         h.manager.scheduleLoadFromNode(h.graph);
     };
-    h.manager.showToast = () => {};
-    h.manager.createConfigNode(h.graph);
+    const canvas = { ds: { visible_area: new Float64Array([-600, 250, 1000, 720]) } };
+    h.manager.scheduleViewSyncToNode(h.graph);
+    h.manager.flushPendingSave(h.graph);
+    assert.equal(h.graph._nodes.length, 0);
+    h.manager.scheduleSyncToNode(h.graph, canvas);
+    h.manager.scheduleViewSyncToNode(h.graph);
+    h.manager.flushPendingSave(h.graph);
+    assert.deepEqual(Array.from(h.graph._nodes[0].pos), [-250, 550]);
+    h.manager.syncToNode(h.graph, canvas);
+    assert.equal(h.graph._nodes.length, 1);
     assert.equal(h.timers.size, 0);
     assert.equal(h.manager._loadTimer, null);
     assert.equal(JSON.parse(h.widget.value).value, 'initial');

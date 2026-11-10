@@ -1,20 +1,42 @@
+import { attachToolbarDocking } from './toolbar_docking.js';
+import { moreIcon, prepareToolbarItems } from './toolbar_items.js';
+import { closeXYPopover } from './workspace_modes/xy_popover.js';
+
 const layouts = new WeakMap();
+
+function closeMenus(dock) {
+    for (const menu of dock.querySelectorAll('.clab-toolbar-menu')) menu.style.display = 'none';
+    const more = dock.querySelector('.clab-toolbar-overflow-menu');
+    if (more.matches(':popover-open')) more.hidePopover();
+}
+
+function positionToolbarPopup(menu, anchor, dock) {
+    const rect = anchor.getBoundingClientRect();
+    const { width, height } = menu.getBoundingClientRect();
+    const { clientWidth, clientHeight } = document.documentElement;
+    const side = dock.dataset.dock;
+    const vertical = dock.hasAttribute('data-vertical');
+    const dockRect = dock.getBoundingClientRect();
+    const toLeft = side === 'right';
+    const above = side === 'bottom' || (!vertical && rect.bottom + height + 4 > clientHeight && rect.top > height + 4);
+    const x = vertical ? (toLeft ? dockRect.left - width - 4 : dockRect.right + 4) : rect.left;
+    const y = vertical ? rect.top : (above ? rect.top - height - 4 : rect.bottom + 4);
+    const left = Math.round(Math.max(4, Math.min(x, clientWidth - width - 4))) + 'px';
+    const top = Math.round(Math.max(4, Math.min(y, clientHeight - height - 4))) + 'px';
+    if (menu.style.left !== left) menu.style.left = left;
+    if (menu.style.top !== top) menu.style.top = top;
+}
 
 export function restoreToolbarOverflow(toolbar) {
     const layout = layouts.get(toolbar);
-    if (!layout) return;
-    if (layout.menu.matches(':popover-open')) layout.menu.hidePopover();
+    if (!layout || !layout.moved.length) return;
+    closeMenus(layout.dock);
     for (const { node, placeholder, entry } of layout.moved) {
-        node.querySelectorAll('.clab-custom-select.open').forEach((select) => select.classList.remove('open'));
-        node.querySelectorAll('.clab-custom-select-dropdown').forEach((dropdown) => {
-            if (dropdown.parentElement.classList.contains('clab-custom-select')) dropdown.style.removeProperty('display');
-            else dropdown.style.display = 'none';
-        });
         placeholder.replaceWith(node);
         entry.remove();
     }
     layout.moved = [];
-    layout.wrapper.hidden = true;
+    layout.more.hidden = true;
 }
 
 export function scheduleToolbarLayout(toolbar) {
@@ -26,94 +48,122 @@ export function scheduleToolbarLayout(toolbar) {
     });
 }
 
+export function refreshToolbarItems(toolbar) {
+    const layout = layouts.get(toolbar);
+    if (!layout) return;
+    layout.prepare();
+    scheduleToolbarLayout(toolbar);
+}
+
 export function setupResponsiveToolbar(toolbar) {
     if (!toolbar || layouts.has(toolbar)) return;
-    const left = toolbar.querySelector('.clab-toolbar-left');
-    const right = toolbar.querySelector('.clab-toolbar-right');
-    const wrapper = document.createElement('div');
-    wrapper.className = 'clab-toolbar-overflow';
-    wrapper.hidden = true;
-    wrapper.innerHTML = `
-        <button type="button" class="clab-btn" id="clab-toolbar-more" aria-expanded="false" aria-controls="clab-toolbar-more-menu" title="更多工具">更多 ▾</button>
-        <div id="clab-toolbar-more-menu" class="clab-toolbar-overflow-menu" popover="auto" aria-label="更多工具"></div>
-    `;
-    right.appendChild(wrapper);
-    const button = wrapper.querySelector('button');
-    const menu = wrapper.querySelector('[popover]');
-    const staticItems = [
-        ['clab-config-btn-wrapper', '配置与维护', 1],
-        ['clab-import-json-wrapper', '导入', 2],
-        ['clab-export-json-wrapper', '导出与下载', 2],
-        ['clab-global-add-card', '新建任务', 6],
-        ['clab-global-add-module', '新建模块', 6],
-    ];
-    for (const [id, label, priority] of staticItems) {
-        const node = toolbar.querySelector(`#${id}`);
-        if (!node) continue;
-        node.dataset.clabOverflowLabel = label;
-        node.dataset.clabOverflowPriority = priority;
-    }
-
-    const positionMenu = () => {
-        const rect = button.getBoundingClientRect();
-        const bounds = menu.getBoundingClientRect();
-        const viewport = document.documentElement;
-        menu.style.left = `${Math.max(8, Math.min(rect.right - bounds.width, viewport.clientWidth - bounds.width - 8))}px`;
-        menu.style.top = `${Math.max(8, Math.min(rect.bottom + 6, viewport.clientHeight - bounds.height - 8))}px`;
-    };
-    button.onclick = (event) => {
+    const dock = toolbar.closest('.clab-tool-dock');
+    const panel = dock.closest('#clab-panel');
+    dock.insertAdjacentHTML('afterbegin',
+        '<div class="clab-tool-resize" title="拖动调整工具栏宽度"></div>');
+    toolbar.querySelector('.clab-toolbar-right').insertAdjacentHTML('beforeend',
+        '<div class="clab-toolbar-overflow" hidden>' +
+        '<button type="button" class="clab-tool-button clab-tool-menu-button" id="clab-toolbar-more" aria-haspopup="menu" aria-expanded="false" title="更多工具" aria-label="更多工具"><span class="clab-tool-icon">' + moreIcon + '</span><span class="clab-tool-label">更多工具</span><span class="clab-tool-short-label" aria-hidden="true">更多</span></button>' +
+        '<div class="clab-toolbar-overflow-menu" id="clab-toolbar-more-menu" popover="auto"></div></div>');
+    const more = dock.querySelector('.clab-toolbar-overflow');
+    const contextual = toolbar.querySelector('#clab-module-toolbar');
+    const moreButton = more.querySelector('button');
+    const moreMenu = more.querySelector('[popover]');
+    moreButton.onclick = event => {
         event.stopPropagation();
-        if (menu.matches(':popover-open')) menu.hidePopover();
+        if (moreMenu.matches(':popover-open')) moreMenu.hidePopover();
         else {
-            menu.showPopover();
-            positionMenu();
+            closeMenus(dock);
+            moreMenu.showPopover();
+            positionToolbarPopup(moreMenu, moreButton, dock);
         }
     };
-    menu.addEventListener('toggle', () => button.setAttribute('aria-expanded', String(menu.matches(':popover-open'))));
-    menu.addEventListener('mousedown', (event) => event.stopPropagation());
-    menu.addEventListener('click', (event) => event.stopPropagation());
-    const menuObserver = new ResizeObserver(() => {
-        if (menu.matches(':popover-open')) positionMenu();
-    });
-    menuObserver.observe(menu);
+    moreMenu.addEventListener('toggle', () => moreButton.setAttribute('aria-expanded', String(moreMenu.matches(':popover-open'))));
+    moreMenu.addEventListener('mousedown', event => event.stopPropagation());
+    new ResizeObserver(() => {
+        if (moreMenu.matches(':popover-open')) positionToolbarPopup(moreMenu, moreButton, dock);
+    }).observe(moreMenu);
+
+    const legacyMenus = [...dock.querySelectorAll('.clab-toolbar-menu')];
+    const updateMenus = () => {
+        for (const menu of legacyMenus) {
+            const open = menu.style.display === 'block' && !moreMenu.contains(menu) && menu.parentElement.getClientRects().length;
+            if (open) {
+                if (!menu.matches(':popover-open')) menu.showPopover();
+                positionToolbarPopup(menu, menu.parentElement, dock);
+            } else if (menu.matches(':popover-open')) menu.hidePopover();
+        }
+    };
+    const menuObserver = new MutationObserver(updateMenus);
+    for (const menu of legacyMenus) {
+        menu.setAttribute('popover', 'manual');
+        menuObserver.observe(menu, { attributes:true, attributeFilter:['style'] });
+    }
 
     const layout = {
-        wrapper, menu, moved: [], frame: 0,
+        dock, more, moved:[], frame:0,
+        prepare: () => prepareToolbarItems(dock),
         fit() {
-            if (toolbar.clientWidth === 0) return;
             restoreToolbarOverflow(toolbar);
-            const fits = () => left.scrollWidth <= left.clientWidth + 1 && right.scrollWidth <= right.clientWidth + 1;
-            for (const density of ['normal', 'compact', 'dense']) {
-                toolbar.dataset.density = density;
-                if (fits()) return;
-            }
-            const candidates = [...toolbar.querySelectorAll('[data-clab-overflow-priority]')]
-                .filter((node) => node.getClientRects().length > 0)
-                .sort((a, b) => Number(a.dataset.clabOverflowPriority) - Number(b.dataset.clabOverflowPriority));
-            wrapper.hidden = false;
+            if (!dock.clientWidth) return;
+            const items = this.prepare();
+            const floating = dock.dataset.dock === 'float';
+            const vertical = dock.hasAttribute('data-vertical');
+            const axisSize = vertical ? 'height' : 'width';
+            const end = vertical ? 'bottom' : 'right';
+            const visible = () => items.filter(node => node.getClientRects().length &&
+                !moreMenu.contains(node) && (!floating || !contextual.contains(node)));
+            const fits = () => {
+                docking.clamp();
+                const bounds = dock.getBoundingClientRect();
+                const style = getComputedStyle(dock);
+                // The panel scales while opening, but computed CSS padding is unscaled.
+                const scale = bounds[axisSize] / parseFloat(style[axisSize]);
+                const endPadding = parseFloat(style[vertical ? 'paddingBottom' : 'paddingRight']);
+                const limit = Math.min(bounds[end], panel.getBoundingClientRect()[end]) - Math.max(endPadding, 2) * scale;
+                const controls = [...visible()];
+                if (!more.hidden) controls.push(more);
+                return controls.every(node => node.getBoundingClientRect()[end] <= limit + 0.5);
+            };
+            dock.removeAttribute('data-dense');
+            more.hidden = true;
+            if (fits()) return;
+            dock.setAttribute('data-dense', '');
+            if (fits()) return;
+            const candidates = visible().sort((a,b) =>
+                (vertical ? Number(contextual.contains(b)) - Number(contextual.contains(a)) : 0) ||
+                Number(a.dataset.toolbarPriority) - Number(b.dataset.toolbarPriority));
+            more.hidden = false;
             for (const node of candidates) {
                 const placeholder = document.createComment('toolbar item');
                 const entry = document.createElement('div');
                 entry.className = 'clab-toolbar-overflow-entry';
-                const label = document.createElement('div');
-                label.className = 'clab-toolbar-overflow-label';
-                label.textContent = node.dataset.clabOverflowLabel;
                 node.replaceWith(placeholder);
-                entry.append(label, node);
-                menu.appendChild(entry);
+                entry.append(node);
+                moreMenu.append(entry);
                 layout.moved.push({ node, placeholder, entry });
                 if (fits()) break;
             }
+            [...moreMenu.children].sort((a,b) => items.indexOf(a.firstElementChild) - items.indexOf(b.firstElementChild))
+                .forEach(entry => moreMenu.append(entry));
         },
     };
     layouts.set(toolbar, layout);
-    let lastWidth = -1;
-    const observer = new ResizeObserver(([entry]) => {
-        if (entry.contentRect.width === lastWidth) return;
-        lastWidth = entry.contentRect.width;
-        scheduleToolbarLayout(toolbar);
+    const schedule = () => scheduleToolbarLayout(toolbar);
+    const docking = attachToolbarDocking(dock, panel, contextual, {
+        closeMenus: () => { closeMenus(dock); closeXYPopover(); },
+        fit: schedule,
     });
-    observer.observe(toolbar);
-    document.fonts.ready.then(() => scheduleToolbarLayout(toolbar));
-    scheduleToolbarLayout(toolbar);
+    new ResizeObserver(() => { docking.clamp(); schedule(); updateMenus(); }).observe(panel);
+    new MutationObserver(records => {
+        if (records.some(record => record.attributeName === 'data-workspace-mode')) {
+            closeMenus(dock);
+            schedule();
+        } else if (!panel.classList.contains('visible')) {
+            closeMenus(dock);
+            if (panel.dataset.workspaceMode !== 'xy') closeXYPopover();
+        }
+    }).observe(panel, { attributes:true, attributeFilter:['data-workspace-mode','class'] });
+    document.fonts.ready.then(schedule);
+    schedule();
 }

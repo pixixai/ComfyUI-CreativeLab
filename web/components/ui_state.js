@@ -4,9 +4,9 @@
 import { syncTextContentWithSelection, remapPreviewHistory } from "./modules/media_types/media_utils.js";
 
 const DEFAULT_WORKSPACE_NAME = "工作区 1";
-const DEFAULT_CHANNEL_NAME = "通道 1";
+export const WORKSPACE_SCHEMA_VERSION = 4;
 const DEFAULT_PREVIEW_FILL_MODE = "显示全部";
-const CHANNEL_BINDING_KEYS = [
+const LEGACY_BINDING_KEYS = [
     "targetNodeId",
     "targetWidget",
     "targetNodeIds",
@@ -35,45 +35,6 @@ export function deepClone(value) {
     return JSON.parse(JSON.stringify(value));
 }
 
-function normalizeBindingMap(bindings) {
-    if (!bindings || typeof bindings !== "object" || Array.isArray(bindings)) return {};
-    return deepClone(bindings);
-}
-
-function extractAreaBinding(area) {
-    const binding = {};
-    if (!area || typeof area !== "object") return binding;
-
-    CHANNEL_BINDING_KEYS.forEach((key) => {
-        if (area[key] === undefined) return;
-        if (Array.isArray(area[key])) {
-            binding[key] = [...area[key]];
-            return;
-        }
-        if (area[key] && typeof area[key] === "object") {
-            binding[key] = deepClone(area[key]);
-            return;
-        }
-        binding[key] = area[key];
-    });
-
-    return binding;
-}
-
-function buildBindingsFromCards(cards) {
-    const bindings = {};
-    if (!Array.isArray(cards)) return bindings;
-
-    cards.forEach((card) => {
-        card?.areas?.forEach((area) => {
-            if (!area?.id) return;
-            bindings[area.id] = extractAreaBinding(area);
-        });
-    });
-
-    return bindings;
-}
-
 function resetAreaBindingFields(area) {
     if (!area || typeof area !== "object") return;
 
@@ -96,77 +57,38 @@ function resetAreaBindingFields(area) {
     }
 }
 
-function applyAreaBinding(area, binding) {
-    if (!area || !binding || typeof binding !== "object") return;
-
-    CHANNEL_BINDING_KEYS.forEach((key) => {
-        if (!(key in binding)) return;
-        const value = binding[key];
-        if (Array.isArray(value)) {
-            area[key] = [...value];
-            return;
-        }
-        if (value && typeof value === "object") {
-            area[key] = deepClone(value);
-            return;
-        }
-        area[key] = value;
-    });
-}
-
-function applyChannelBindingsToCards(channel, cards) {
-    if (!Array.isArray(cards)) return;
-    const bindings = channel?.bindings && typeof channel.bindings === "object" ? channel.bindings : {};
-
-    cards.forEach((card) => {
-        card?.areas?.forEach((area) => {
+function applyLegacyChannel(cards, channel) {
+    for (const card of cards) {
+        for (const area of card.areas || []) {
             resetAreaBindingFields(area);
-            const binding = bindings[area.id];
-            if (binding) applyAreaBinding(area, binding);
-        });
-    });
+            const binding = channel?.bindings?.[area.id];
+            if (!binding || typeof binding !== "object") continue;
+            for (const key of LEGACY_BINDING_KEYS) {
+                if (Object.hasOwn(binding, key)) area[key] = deepClone(binding[key]);
+            }
+        }
+    }
 }
 
-function syncChannelBindingsFromCards(channel, cards) {
-    if (!channel) return;
-    channel.bindings = buildBindingsFromCards(cards);
-}
-
-export function createEmptyChannel(name = DEFAULT_CHANNEL_NAME, seed = {}) {
-    return {
-        id: seed.id || makeId("channel"),
-        name: seed.name || name,
-        bindings: normalizeBindingMap(seed.bindings),
-        toolbarState: seed.toolbarState && typeof seed.toolbarState === "object" && !Array.isArray(seed.toolbarState)
-            ? deepClone(seed.toolbarState)
-            : {},
-    };
-}
-
-export function normalizeChannel(channel, index = 0) {
-    const fallbackName = `${DEFAULT_CHANNEL_NAME} ${index + 1}`;
-    const normalized = createEmptyChannel(channel?.name || fallbackName, channel || {});
-    normalized.bindings = normalizeBindingMap(channel?.bindings);
-    normalized.toolbarState = channel?.toolbarState && typeof channel.toolbarState === "object" && !Array.isArray(channel.toolbarState)
-        ? deepClone(channel.toolbarState)
-        : {};
-    return normalized;
+function upgradeLegacyCards(cards) {
+    for (const card of cards) {
+        if (Array.isArray(card.areas)) continue;
+        card.areas = [
+            ...(card.previewAreas || []).map(area => ({ ...area, type:"preview", matchMedia:false, ratio:"16:9" })),
+            ...(card.editAreas || []).map(area => ({ ...area, type:"edit", dataType:"string", autoHeight:true })),
+        ];
+        delete card.previewAreas;
+        delete card.editAreas;
+    }
 }
 
 export function createEmptyWorkspace(name = DEFAULT_WORKSPACE_NAME, seed = {}) {
-    const cards = Array.isArray(seed.cards) ? seed.cards : [];
-    const channels = Array.isArray(seed.channels) && seed.channels.length > 0
-        ? seed.channels.map((channel, index) => normalizeChannel(channel, index))
-        : [createEmptyChannel(DEFAULT_CHANNEL_NAME, { bindings: buildBindingsFromCards(cards) })];
-
-    const activeChannelId = seed.activeChannelId && channels.some((channel) => channel.id === seed.activeChannelId)
-        ? seed.activeChannelId
-        : channels[0].id;
-
+    const workspaceName = seed.name || name;
     return {
         id: seed.id || makeId("workspace"),
-        name: seed.name || name,
-        cards,
+        name: workspaceName,
+        autoName: typeof seed.autoName === 'boolean' ? seed.autoName : /^工作区 [1-9]\d*$/.test(workspaceName),
+        cards: Array.isArray(seed.cards) ? seed.cards : [],
         view: seed.view && typeof seed.view === 'object' ? deepClone(seed.view) : { mode: 'cards' },
         activeCardId: seed.activeCardId || null,
         selectedCardIds: Array.isArray(seed.selectedCardIds) ? seed.selectedCardIds : [],
@@ -174,39 +96,50 @@ export function createEmptyWorkspace(name = DEFAULT_WORKSPACE_NAME, seed = {}) {
         painterMode: !!seed.painterMode,
         painterSource: seed.painterSource || null,
         scrollLeft: Number.isFinite(seed.scrollLeft) ? seed.scrollLeft : 0,
-        activeChannelId,
-        channels,
     };
 }
 
 export function normalizeWorkspace(workspace, index = 0) {
-    const normalized = createEmptyWorkspace(workspace?.name || `${DEFAULT_WORKSPACE_NAME} ${index + 1}`, workspace || {});
-    normalized.cards = Array.isArray(workspace?.cards) ? workspace.cards : [];
-    normalized.activeCardId = workspace?.activeCardId || null;
-    normalized.selectedCardIds = Array.isArray(workspace?.selectedCardIds) ? workspace.selectedCardIds : [];
-    normalized.selectedAreaIds = Array.isArray(workspace?.selectedAreaIds) ? workspace.selectedAreaIds : [];
-    normalized.painterMode = !!workspace?.painterMode;
-    normalized.painterSource = workspace?.painterSource || null;
-    normalized.scrollLeft = Number.isFinite(workspace?.scrollLeft) ? workspace.scrollLeft : 0;
+    return createEmptyWorkspace(workspace?.name || `工作区 ${index + 1}`, workspace || {});
+}
 
-    if (Array.isArray(workspace?.channels) && workspace.channels.length > 0) {
-        normalized.channels = workspace.channels.map((channel, channelIndex) => normalizeChannel(channel, channelIndex));
-    } else {
-        normalized.channels = [createEmptyChannel(DEFAULT_CHANNEL_NAME, { bindings: buildBindingsFromCards(normalized.cards) })];
-    }
-    normalized.activeChannelId = workspace?.activeChannelId && normalized.channels.some((channel) => channel.id === workspace.activeChannelId)
-        ? workspace.activeChannelId
-        : normalized.channels[0].id;
+function migrateWorkspaces(entries) {
+    const normalized = entries.map((entry, index) => normalizeWorkspace(entry, index));
+    const ids = new Set(normalized.map(workspace => workspace.id));
+    const workspaces = normalized.flatMap((workspace, index) => {
+        const channels = entries[index]?.channels;
+        if (!Array.isArray(channels) || !channels.length) {
+            upgradeLegacyCards(workspace.cards);
+            return [workspace];
+        }
 
-    return normalized;
+        const selected = Math.max(0, channels.findIndex(channel => channel?.id === entries[index]?.activeChannelId));
+        return channels.map((channel, channelIndex) => {
+            const copy = channels.length === 1 ? workspace : deepClone(workspace);
+            upgradeLegacyCards(copy.cards);
+            applyLegacyChannel(copy.cards, channel);
+            if (channels.length > 1) {
+                copy.name = `${workspace.name} · ${channel?.name || `通道 ${channelIndex + 1}`}`;
+                copy.autoName = false;
+                if (channelIndex !== selected) {
+                    const base = `${workspace.id}_channel_${channelIndex + 1}`;
+                    copy.id = base;
+                    let suffix = 1;
+                    while (ids.has(copy.id)) copy.id = `${base}_${suffix++}`;
+                    ids.add(copy.id);
+                }
+            }
+            return copy;
+        });
+    });
+    return { workspaces, firstId: normalized[0].id };
 }
 
 const initialWorkspace = createEmptyWorkspace(DEFAULT_WORKSPACE_NAME);
-const initialChannel = initialWorkspace.channels[0];
 
 // Runtime mirror: legacy code still reads/writes state.cards and friends.
 export const state = {
-    schemaVersion: 3,
+    schemaVersion: WORKSPACE_SCHEMA_VERSION,
     activeWorkspaceId: initialWorkspace.id,
     workspaces: [initialWorkspace],
 
@@ -217,9 +150,6 @@ export const state = {
     selectedAreaIds: initialWorkspace.selectedAreaIds,
     painterMode: initialWorkspace.painterMode,
     painterSource: initialWorkspace.painterSource,
-    activeChannelId: initialWorkspace.activeChannelId,
-    channels: initialWorkspace.channels,
-    toolbarState: initialChannel?.toolbarState || {},
 };
 
 export const dragState = {
@@ -239,8 +169,6 @@ export const appState = {
     lastClickedAreaId: null,
     selectedWorkspaceIds: [],
     lastClickedWorkspaceId: null,
-    selectedChannelIds: [],
-    lastClickedChannelId: null,
 };
 
 export function getWorkspaceIndexById(workspaceId = state.activeWorkspaceId) {
@@ -257,16 +185,6 @@ export function getActiveWorkspaceIndex() {
     return getWorkspaceIndexById();
 }
 
-export function getChannelIndexById(channelId = state.activeChannelId) {
-    return (state.channels || []).findIndex((channel) => channel.id === channelId);
-}
-
-export function getActiveChannel() {
-    const idx = getChannelIndexById();
-    if (idx === -1) return null;
-    return state.channels[idx];
-}
-
 export function syncStateToActiveWorkspace() {
     const workspace = getActiveWorkspace();
     if (!workspace) return null;
@@ -277,21 +195,6 @@ export function syncStateToActiveWorkspace() {
     workspace.selectedAreaIds = [];
     workspace.painterMode = false;
     workspace.painterSource = null;
-    if (Array.isArray(state.channels) && state.channels.length > 0) {
-        workspace.channels = state.channels;
-    } else if (!Array.isArray(workspace.channels) || workspace.channels.length === 0) {
-        workspace.channels = [createEmptyChannel(DEFAULT_CHANNEL_NAME)];
-    }
-    workspace.activeChannelId = state.activeChannelId && workspace.channels.some((channel) => channel.id === state.activeChannelId)
-        ? state.activeChannelId
-        : workspace.channels[0].id;
-
-    const activeChannel = workspace.channels.find((channel) => channel.id === workspace.activeChannelId) || workspace.channels[0];
-    syncChannelBindingsFromCards(activeChannel, workspace.cards);
-
-    state.channels = workspace.channels;
-    state.activeChannelId = workspace.activeChannelId;
-    state.toolbarState = activeChannel?.toolbarState || {};
 
     return workspace;
 }
@@ -305,64 +208,9 @@ export function applyWorkspaceToState(workspace) {
     state.selectedAreaIds = [];
     state.painterMode = false;
     state.painterSource = null;
-    state.channels = normalized.channels;
-    state.activeChannelId = normalized.activeChannelId;
-
-    const activeChannel = normalized.channels.find((channel) => channel.id === normalized.activeChannelId) || normalized.channels[0];
-    state.toolbarState = activeChannel?.toolbarState || {};
-    applyChannelBindingsToCards(activeChannel, state.cards);
-
     appState.lastClickedCardId = null;
     appState.lastClickedAreaId = null;
-    appState.selectedChannelIds = [state.activeChannelId];
-    appState.lastClickedChannelId = state.activeChannelId;
     return normalized;
-}
-
-export function applyChannelToState(channelId) {
-    const workspace = getActiveWorkspace();
-    if (!workspace) return null;
-
-    if (!Array.isArray(workspace.channels) || workspace.channels.length === 0) {
-        workspace.channels = [createEmptyChannel(DEFAULT_CHANNEL_NAME)];
-    }
-
-    const targetId = channelId && workspace.channels.some((channel) => channel.id === channelId)
-        ? channelId
-        : workspace.channels[0].id;
-    workspace.activeChannelId = targetId;
-
-    state.channels = workspace.channels;
-    state.activeChannelId = targetId;
-
-    const channel = workspace.channels.find((item) => item.id === targetId) || workspace.channels[0];
-    state.toolbarState = channel?.toolbarState || {};
-    applyChannelBindingsToCards(channel, state.cards);
-
-    appState.selectedChannelIds = [targetId];
-    appState.lastClickedChannelId = targetId;
-    return channel;
-}
-
-export function createWorkspaceFromCurrent(name) {
-    syncStateToActiveWorkspace();
-    const current = deepClone(getActiveWorkspace() || initialWorkspace);
-    const workspace = normalizeWorkspace({
-        ...current,
-        id: makeId("workspace"),
-        name: name || `${DEFAULT_WORKSPACE_NAME} ${state.workspaces.length + 1}`,
-    });
-    workspace.cards = deepClone(current.cards || []);
-    workspace.channels = (current.channels || []).map((channel, index) => {
-        const normalized = normalizeChannel(channel, index);
-        normalized.id = makeId("channel");
-        return normalized;
-    });
-    if (workspace.channels.length === 0) {
-        workspace.channels = [createEmptyChannel(DEFAULT_CHANNEL_NAME, { bindings: buildBindingsFromCards(workspace.cards) })];
-    }
-    workspace.activeChannelId = workspace.channels[0].id;
-    return workspace;
 }
 
 export function resetTransientState() {
@@ -395,22 +243,26 @@ export function ensureWorkspaceRuntime() {
 export function buildPersistedState() {
     syncStateToActiveWorkspace();
     return {
-        schemaVersion: state.schemaVersion || 3,
+        schemaVersion: WORKSPACE_SCHEMA_VERSION,
         activeWorkspaceId: state.activeWorkspaceId,
         workspaces: state.workspaces.map((workspace, index) => normalizeWorkspace(workspace, index)),
     };
 }
 
 export function hydrateStateFromPersisted(persisted = {}) {
-    const workspaces = Array.isArray(persisted.workspaces) && persisted.workspaces.length > 0
-        ? persisted.workspaces.map((workspace, index) => normalizeWorkspace(workspace, index))
-        : [normalizeWorkspace(persisted, 0)];
+    const entries = Array.isArray(persisted.workspaces) && persisted.workspaces.length > 0
+        ? persisted.workspaces
+        : [persisted];
+    const { workspaces, firstId } = migrateWorkspaces(entries);
 
-    state.schemaVersion = persisted.schemaVersion || 3;
+    state.schemaVersion = WORKSPACE_SCHEMA_VERSION;
     state.workspaces = workspaces;
-    state.activeWorkspaceId = persisted.activeWorkspaceId && workspaces.some((workspace) => workspace.id === persisted.activeWorkspaceId)
-        ? persisted.activeWorkspaceId
-        : workspaces[0].id;
+    const previousId = persisted.activeWorkspaceId || firstId;
+    state.activeWorkspaceId = workspaces.some(workspace => workspace.id === previousId)
+        ? previousId
+        : firstId;
+    appState.selectedWorkspaceIds = [state.activeWorkspaceId];
+    appState.lastClickedWorkspaceId = state.activeWorkspaceId;
 
     ensureWorkspaceRuntime();
     return state;

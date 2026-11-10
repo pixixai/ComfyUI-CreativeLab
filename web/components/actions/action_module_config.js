@@ -4,56 +4,50 @@
  */
 import { clearPreviewHistory, remapHistoryModuleIds } from "../modules/media_types/media_utils.js";
 import { state, appState, saveAndRender, getActiveWorkspace } from "../ui_state.js";
-import { getOutputSettingsLabel, attachOutputSettingsEvents, outputSettingsIcon } from "../modules/module_output_settings.js";
 import { execSyncParams } from "./action_batch_sync.js";
 
 // 引入无感卡片生成引擎
 import { generateSingleCardHTML, attachCardEvents } from "../comp_taskcard.js";
-import { restoreToolbarOverflow, scheduleToolbarLayout } from "../toolbar_layout.js";
+import { restoreToolbarOverflow, refreshToolbarItems } from "../toolbar_layout.js";
 import { cellSettingsIcon } from "../workspace_modes/table_icons.js";
 import { selectedDraftColumn } from "../workspace_modes/table_sheet.js";
 
 export function renderDynamicToolbar(toolbarHandleContainer) {
     restoreToolbarOverflow(toolbarHandleContainer);
-    const separator = toolbarHandleContainer.querySelector('#clab-module-toolbar-separator');
     const tb = toolbarHandleContainer.querySelector('#clab-module-toolbar');
-    if (!tb || !separator) return;
+    if (!tb) return;
 
     const isAnySelected = (state.selectedCardIds?.length > 0) || (state.selectedAreaIds?.length > 0);
     const view = getActiveWorkspace()?.view;
     const isTable = view?.mode === 'table';
-    const divider = '<div style="width:1px; height:16px; background:rgba(255,255,255,0.25); margin:0 2px;"></div>';
     const cellSettings = isTable ? `<button type="button" class="clab-btn clab-table-toolbar-settings" id="tb-table-cell-settings" aria-haspopup="dialog" aria-label="单元格设置" title="设置所选单元格的尺寸与外观">${cellSettingsIcon}<span>单元格设置</span></button>` : '';
     if (!isAnySelected) {
         tb.style.display = isTable ? 'flex' : 'none';
-        separator.style.display = isTable ? 'block' : 'none';
         if (isTable) tb.innerHTML = cellSettings;
-        scheduleToolbarLayout(toolbarHandleContainer);
+        refreshToolbarItems(toolbarHandleContainer);
         return;
     }
 
     tb.style.display = 'flex';
-    separator.style.display = 'block';
 
     let html = ``;
-    const cellTools = cellSettings ? divider + cellSettings : '';
     let mainType = null;
     let mainArea = null;
     const cloneTools = `
-        <div data-clab-overflow-label="克隆与格式刷" data-clab-overflow-priority="4" style="display:flex; align-items:center; gap:2px;">
+        <div class="clab-tool-pair">
             <button id="tb-clone-btn" class="clab-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;" title="原样克隆选中项" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
             </button>
-            <button id="tb-format-painter" class="clab-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; ${state.painterMode ? 'background:#ff9800; border-color:#ff9800; color:#fff;' : 'background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;'}" title="格式刷：连续点击覆盖参数或在空白处插入克隆 (ESC/右键/工具栏点击退出)" onmouseover="if(!${state.painterMode}) this.style.color='#fff'" onmouseout="if(!${state.painterMode}) this.style.color='#aaa'">
+            <button id="tb-format-painter" class="clab-btn" aria-pressed="${state.painterMode}" title="格式刷：连续点击覆盖参数或在空白处插入克隆 (ESC/右键/工具栏点击退出)" onmouseover="if(!${state.painterMode}) this.style.color='#fff'" onmouseout="if(!${state.painterMode}) this.style.color='#aaa'">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"></path><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"></path></svg>
             </button>
         </div>
     `;
 
     const typeTools = type => `
-                <div class="clab-toolbar-type" data-clab-overflow-label="模块类型" data-clab-overflow-priority="7" style="display:flex; border: 1px dashed rgba(255,255,255,0.3); border-radius: 20px; padding: 2px; gap: 2px;">
-                    <div class="clab-type-btn ${type === 'edit' ? 'active' : ''}" data-type="edit" style="padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; transition: all 0.2s; ${type === 'edit' ? 'background: rgba(255,255,255,0.2); color: #fff; font-weight: bold;' : 'color: #aaa;'}">输入</div>
-                    <div class="clab-type-btn ${type === 'preview' ? 'active' : ''}" data-type="preview" style="padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; transition: all 0.2s; ${type === 'preview' ? 'background: rgba(255,255,255,0.2); color: #fff; font-weight: bold;' : 'color: #aaa;'}">输出</div>
+                <div class="clab-toolbar-type" role="group" aria-label="模块类型">
+                    <button type="button" class="clab-type-btn ${type === 'edit' ? 'active' : ''}" data-type="edit" aria-pressed="${type === 'edit'}">输入</button>
+                    <button type="button" class="clab-type-btn ${type === 'preview' ? 'active' : ''}" data-type="preview" aria-pressed="${type === 'preview'}">输出</button>
                 </div>
     `;
 
@@ -67,7 +61,7 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
         if (!selectedAreas.length && isTable) {
             const sheet = view.table?.sheets?.find(sheet => sheet.id === view.table.sheetId);
             const draft = selectedDraftColumn(sheet, selectedIds);
-            if (draft) html = typeTools(draft.type) + cloneTools + cellTools;
+            if (draft) html = typeTools(draft.type) + cloneTools + cellSettings;
         }
 
         if (selectedAreas.length > 0) {
@@ -76,11 +70,11 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
 
             html += typeTools(mainType);
 
-            html += cloneTools + cellTools + divider;
+            html += cloneTools + cellSettings;
 
             html += `
-                <div data-clab-overflow-label="重置与同步" data-clab-overflow-priority="4" style="display:flex; align-items:center; margin-left: 4px; gap: 2px;">
-                    <button id="tb-reset-module" style="background:transparent; border:none; color:#aaa; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; transition:color 0.2s, transform 0.2s; width: 28px; height: 28px;" title="重置模块参数到新建状态" onmouseover="this.style.color='#fff'; this.style.transform='rotate(-45deg)'" onmouseout="this.style.color='#aaa'; this.style.transform='rotate(0deg)'">
+                <div class="clab-tool-pair">
+                    <button id="tb-reset-module" style="background:transparent; border:none; color:#aaa; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; transition:color 0.2s, transform 0.2s; width: 28px; height: 28px;" title="重置模块参数到新建状态" >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
                     </button>
 
@@ -93,22 +87,13 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
                         </svg>
                     </button>
                 </div>
-                <div style="width:1px; height:16px; background:rgba(255,255,255,0.25); margin:0 2px;"></div>
             `;
 
-            if (mainType === 'preview') {
+            if (mainType === 'edit') {
                 html += `
-                    <div class="clab-toolbar-output-settings" data-clab-overflow-label="尺寸与显示" data-clab-overflow-priority="3">
-                        <button type="button" id="tb-output-settings" title="尺寸与显示：比例、宽高、显示方式、匹配媒体比例" aria-haspopup="dialog" aria-expanded="false" aria-controls="clab-output-settings-popover">
-                            <span class="clab-output-settings-label">${getOutputSettingsLabel(selectedAreas.filter(sa => sa.area.type === 'preview').map(sa => sa.area))}</span>${outputSettingsIcon}
-                        </button>
-                    </div>
-                `;
-            } else if (mainType === 'edit') {
-                html += `
-                    <div data-clab-overflow-label="输入设置" data-clab-overflow-priority="3" style="display:flex; align-items:center; gap:6px;">
-                        <label style="font-size:13px; color:#ccc; display:flex; align-items:center; gap:4px; margin-left:8px; cursor:pointer;">
-                            <input id="tb-auto-height" type="checkbox" ${mainArea.autoHeight ? 'checked' : ''} style="margin:0; width:14px; height:14px;"> 参数框高度适配
+                    <div class="clab-tool-pair">
+                        <label class="clab-auto-height" title="参数框高度适配">
+                            <input id="tb-auto-height" type="checkbox" ${mainArea.autoHeight ? 'checked' : ''} > 参数框高度适配
                         </label>
                     </div>
                 `;
@@ -116,12 +101,12 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
         }
     }
 
-    if (!html) html = cloneTools + cellTools;
+    if (!html) html = cloneTools + cellSettings;
 
     if (mainType === 'preview') {
         html += `
-            <div data-clab-overflow-label="历史记录" data-clab-overflow-priority="4" style="display:flex; align-items:center; gap:2px;">
-                <button id="tb-manage-history" class="clab-btn" style="padding:4px 8px; display:flex; align-items:center; justify-content:center; ${mainArea?.isManageMode ? 'background:#4CAF50; border-color:#4CAF50; color:#fff;' : 'background:rgba(255,255,255,0.1); border-color:transparent; color:#aaa;'}" title="管理生成记录 (网格视图与拖拽排序)" onmouseover="if(!${mainArea?.isManageMode}) this.style.color='#fff'" onmouseout="if(!${mainArea?.isManageMode}) this.style.color='#aaa'">
+            <div class="clab-tool-pair">
+                <button id="tb-manage-history" class="clab-btn" aria-pressed="${Boolean(mainArea?.isManageMode)}" title="管理生成记录 (网格视图与拖拽排序)" onmouseover="if(!${mainArea?.isManageMode}) this.style.color='#fff'" onmouseout="if(!${mainArea?.isManageMode}) this.style.color='#aaa'">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
                 </button>
             </div>
@@ -129,7 +114,7 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
     }
 
     tb.innerHTML = html;
-    scheduleToolbarLayout(toolbarHandleContainer);
+    refreshToolbarItems(toolbarHandleContainer);
 }
 
 export function attachDynamicToolbarEvents(toolbarHandleContainer) {
@@ -206,7 +191,6 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
         const autoCb = tb.querySelector('#tb-auto-height');
         if (autoCb) autoCb.onchange = e => updateSelected(a => a.autoHeight = e.target.checked);
     }
-    attachOutputSettingsEvents(tb);
 
     tb.querySelector('#tb-clone-btn')?.addEventListener('click', (e) => {
         e.stopPropagation();

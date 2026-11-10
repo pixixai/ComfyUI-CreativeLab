@@ -3,6 +3,10 @@
     "name": "恢复全部默认设置",
     "tooltip": "⚠️ 警告：点击此开关将立即重置 CLab 的所有设置为出厂默认状态。"
   },
+  "CLab_1-General_defaultMode": {
+    "name": "新建工作区的默认模式",
+    "tooltip": "设置新建工作区时打开的模式。"
+  },
   "CLab_1-General_Shortcut": {
     "name": "快捷键",
     "tooltip": "支持组合键，例如: C, Shift+C, Ctrl+M, Alt+X (不区分大小写)"
@@ -95,5 +99,45 @@
   "CLab_6-ModuleApp_Glow": {
     "name": "发光强度",
     "tooltip": "模块被选中时的外发光模糊半径，设为 0 关闭发光。"
+  },
+
+  "CLab_7-TaskCards_cardGap": {
+    "name": "卡片间距 (px)"
+  },
+  "CLab_7-TaskCards_moduleGap": {
+    "name": "模块间距 (px)"
+  },
+  "CLab_7-TaskCards_cardPadding": {
+    "name": "卡片内边距 (px)"
+  },
+  "CLab_7-TaskCards_cardWidth": {
+    "name": "默认卡片宽度 (px)",
+    "tooltip": "用于卡片宽度的初始值和恢复默认。"
+  },
+
+  "CLab_8-ParameterTable_columnWidth": {
+    "name": "默认列宽 (px)",
+    "tooltip": "用于新建工作区。"
+  },
+  "CLab_8-ParameterTable_rowHeight": {
+    "name": "默认行高 (px)",
+    "tooltip": "用于新建工作区。"
+  },
+  "CLab_8-ParameterTable_cellPadding": {
+    "name": "默认单元格内边距 (px)",
+    "tooltip": "用于新建工作区，四边使用同一个默认值。"
+  },
+
+  "CLab_9-XYMatrix_xyOrigin": {
+    "name": "默认 Y 轴方向",
+    "tooltip": "用于新建工作区。"
+  },
+  "CLab_9-XYMatrix_xyGap": {
+    "name": "默认格子间距 (px)",
+    "tooltip": "用于新建工作区的 X、Y 两轴。"
+  },
+  "CLab_9-XYMatrix_xyMargin": {
+    "name": "默认轴到格子的距离 (px)",
+    "tooltip": "用于新建工作区的 X、Y 两轴。"
   }
 }

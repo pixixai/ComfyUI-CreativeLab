@@ -40,9 +40,7 @@ export async function runXYEditingChecks(send,sessionId) {
     }
     await click('[data-xy-toggle-layers]');assert.equal(await evaluate(`window.xyzModeDemo.view.xy.z.display===window.editLayerBefore`),true);
     console.log('PASS flat-layer toggle releases mouse focus and ignores native Space/Enter activation');
-    await evaluate(`window.editCreateNode=window.CLab.createNode;window.editCreateCount=0;window.CLab.createNode=()=>{window.editCreateCount++;window.editCreateNode();};`);
-    await click('[data-xy-config]');assert.equal(await evaluate(`window.editCreateCount===1&&window.testApp.graph._nodes.filter(node=>node.type==='CLab_SystemConfig').length===1`),true);await evaluate(`window.CLab.createNode=window.editCreateNode`);
-    await click('[data-xy-config-options]');assert.equal(await evaluate(`(()=>{const p=document.querySelector('.clab-xy-options:popover-open'),a=document.querySelector('[data-xy-config-options]').getBoundingClientRect();return p.querySelectorAll('[data-xy-option]').length===2&&p.getBoundingClientRect().bottom<a.top;})()`),true);
+    await click('[data-xy-config-options]');assert.equal(await evaluate(`(()=>{const p=document.querySelector('.clab-xy-options:popover-open'),a=document.querySelector('[data-xy-config-options]').getBoundingClientRect();return !document.querySelector('[data-xy-config]')&&p.querySelectorAll('[data-xy-option]').length===2&&p.getBoundingClientRect().bottom<a.top;})()`),true);
     await evaluate(`(()=>{const output=window.xyzModeDemo.cards[0].areas.find(area=>area.id===window.xyzModeDemo.cards[0].xyOutputId);window.editMaintOutput=output;window.editMaintHistory=[...output.history];output.history.push('/view?filename=missing/nested.png');output.historyRuns??=[];output.historyRuns.push({id:'missing'});output.inputHistorySnapshots??=[];output.inputHistorySnapshots.push(null);})()`);
     await click('.clab-xy-options [data-xy-option=clean]');
     assert.equal(await evaluate(`new Promise(resolve=>{let attempts=0;const check=()=>{if(!window.editMaintOutput.history.some(url=>url.includes('missing/')))resolve(true);else if(++attempts>150)resolve(false);else setTimeout(check,20);};check();})`),true);
@@ -50,6 +48,6 @@ export async function runXYEditingChecks(send,sessionId) {
     await click('[data-xy-config-options]');await click('.clab-xy-options [data-xy-option=resync]');
     assert.equal(await evaluate(`new Promise(resolve=>{let attempts=0;const check=()=>{if(window.editMaintOutput.history.length&&window.editMaintOutput.history.every(url=>new URL(url,location.origin).searchParams.has('t')))resolve(true);else if(++attempts>150)resolve(false);else setTimeout(check,20);};check();})`),true);
     await evaluate(`window.xyzModeDemo.view.xy.y.bindings=['110||sampler'];window.xyzModeDemo.view.xy.y.values=['Euler','DPM'];delete window.xyzModeDemo.view.xy.y.inputText;window.showXYZDemo();document.querySelector('[data-xy-reset]').click();`);
-    console.log('PASS XY anchor uses the existing creation action and its upward menu runs shared cleanup/resync with aligned histories');
+    console.log('PASS XY maintenance menu opens upward and runs shared cleanup/resync with aligned histories');
     return 6;
 }

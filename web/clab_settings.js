@@ -4,6 +4,8 @@
  * 注意: ComfyUI 的设置项渲染逻辑是先进后出 (LIFO)，即在数组中越靠前，显示在 UI 上就越靠下。
  */
 import { app } from "../../scripts/app.js";
+import { workspacePreferences } from "./components/workspace_preferences.js";
+import { tableSizes } from "./components/workspace_modes/table_layout.js";
 
 // --- 全局配置默认值与解析引擎 ---
 function parseShortcut(shortcutStr) {
@@ -133,12 +135,52 @@ window._clabApplyPanelLayout = function() {
     panel.style.left = `${leftPercent}vw`;
     panel.style.width = `${widthPercent}vw`;
     panel.style.height = `${heightPercent}vh`;
-    panel.style.borderRadius = '12px';
     panel.style.border = '';
 };
 
+const workspaceSettings = [
+    { group: '9-XYMatrix', key: 'xyMargin', name: 'Default Axis Margin (px)', range: [0, 200] },
+    { group: '9-XYMatrix', key: 'xyGap', name: 'Default Cell Gap (px)', range: [0, 100] },
+    { group: '9-XYMatrix', key: 'xyOrigin', name: 'Default Y Axis Direction', options: [
+        { text: 'Y ↑', value: 'bottom' }, { text: 'Y ↓', value: 'top' },
+    ] },
+    { group: '8-ParameterTable', key: 'cellPadding', name: 'Default Cell Padding (px)', range: [0, 64] },
+    { group: '8-ParameterTable', key: 'rowHeight', name: 'Default Row Height (px)', range: [tableSizes.height.min, tableSizes.height.max] },
+    { group: '8-ParameterTable', key: 'columnWidth', name: 'Default Column Width (px)', range: [tableSizes.width.min, tableSizes.width.max] },
+    { group: '7-TaskCards', key: 'cardWidth', name: 'Default Card Width (px)', range: [260, 1200] },
+    { group: '7-TaskCards', key: 'cardPadding', name: 'Card Padding (px)', range: [0, 40], css: '--clab-card-padding' },
+    { group: '7-TaskCards', key: 'moduleGap', name: 'Module Gap (px)', range: [0, 60], css: '--clab-module-gap' },
+    { group: '7-TaskCards', key: 'cardGap', name: 'Card Gap (px)', range: [0, 80], css: '--clab-card-gap' },
+    { group: '1-General', key: 'defaultMode', name: 'Default Mode for New Workspaces', options: [
+        { text: '任务卡片 / Task Cards', value: 'cards' }, { text: '参数表 / Parameter Table', value: 'table' }, { text: 'XY 矩阵 / XY Matrix', value: 'xy' },
+    ] },
+].map(({group, key, name, range, options, css}) => {
+    const defaultValue = workspacePreferences[key];
+    return {
+        id: `CLab.${group}.${key}`,
+        category: ['Creative Lab', group, key],
+        name,
+        defaultValue,
+        ...(range ? { type: 'slider', attrs: { min: range[0], max: range[1], step: 1 } } : { type: 'combo', options }),
+        onChange(value) {
+            let next = defaultValue;
+            if (range) {
+                const number = Number(value);
+                if (value != null && Number.isFinite(number)) next = Math.max(range[0], Math.min(range[1], Math.round(number)));
+            } else if (options.some(option => option.value === value)) {
+                next = value;
+            }
+            workspacePreferences[key] = next;
+            if (css) document.documentElement.style.setProperty(css, `${next}px`);
+            if (key === 'cardGap') window._clabUpdateCardsLayout?.();
+            if (key === 'cardWidth') document.dispatchEvent(new Event('clab_card_width_default_change'));
+        },
+    };
+});
+
 // LIFO 倒序数组：代码越靠前，UI 界面显示越靠下
 const clabSettings = [
+    ...workspaceSettings.filter(setting => setting.category[1] !== '1-General'),
     
     // =========================================================================
     // 6. 模块选中态外观 (Module Appearance) - 显示在最底部
@@ -356,6 +398,7 @@ const clabSettings = [
     // =========================================================================
     // 1. 常规 (General) - 显示在最顶部 (由于 LIFO 机制，倒序排列)
     // =========================================================================
+    workspaceSettings.find(setting => setting.category[1] === '1-General'),
     {
         id: "CLab.1-General.BgOpacity",
         name: "Panel Opacity (%)",
@@ -476,6 +519,9 @@ app.registerExtension({
     settings: [...clabSettings, resetSetting],
     
     setup() {
+        for (const setting of workspaceSettings) {
+            setting.onChange(app.extensionManager.setting.get(setting.id));
+        }
         setTimeout(() => {
             try {
                 const getSet = (id, defaultVal) => {

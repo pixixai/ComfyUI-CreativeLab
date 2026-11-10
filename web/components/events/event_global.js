@@ -3,6 +3,7 @@
  * 职责: 处理全局级别的生命周期事件、快捷键、以及系统级点击防误触护盾
  */
 import { state, appState, createEmptyWorkspace, applyWorkspaceToState, saveAndRender } from "../ui_state.js";
+import { newWorkspaceView } from "../workspace_preferences.js";
 import { updateSelectionUI } from "../ui_selection.js";
 import { enterBindingModeForSelected } from "../actions/action_binding.js";
 import { selectOutputHistory } from "../modules/module_history.js";
@@ -329,7 +330,7 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
         const loadedState = e.detail || { cards: [], activeCardId: null, selectedCardIds: [], selectedAreaIds: [] };
         Object.assign(state, loadedState);
         if (!Array.isArray(state.workspaces) || state.workspaces.length === 0) {
-            const workspace = createEmptyWorkspace();
+            const workspace = createEmptyWorkspace(undefined, { view: newWorkspaceView() });
             state.workspaces = [workspace];
             state.activeWorkspaceId = workspace.id;
             applyWorkspaceToState(workspace);
@@ -354,7 +355,7 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
     });
 
     document.addEventListener("clab_state_cleared", () => {
-        const workspace = createEmptyWorkspace();
+        const workspace = createEmptyWorkspace(undefined, { view: newWorkspaceView() });
         state.workspaces = [workspace];
         state.activeWorkspaceId = workspace.id;
         applyWorkspaceToState(workspace);

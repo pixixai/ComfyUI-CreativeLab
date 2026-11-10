@@ -83,7 +83,6 @@ export const tableStyles=`
     .clab-table-column-panel{width:380px}.clab-table-column-body{display:flex;flex-direction:column;gap:10px;padding:10px;color:#aaa;font:12px/1.5 sans-serif;overflow:auto;scrollbar-width:thin}.clab-table-column-body button{border:0;background:transparent;color:#aaa;cursor:pointer}.clab-table-column-body button:not(:disabled):hover{color:#fff}.clab-table-column-body button:disabled{opacity:.4;cursor:default}
     .clab-table-setting-line{display:flex;align-items:center;gap:10px}.clab-table-setting-line>label{display:flex;align-items:center;gap:6px;white-space:nowrap}.clab-table-size-field input,.clab-table-setting-line input[data-table-padding]{box-sizing:border-box;width:64px;min-width:0;padding:4px 6px;border:1px solid #444;border-radius:3px;background:#202020;color:#ccc;font:12px sans-serif}.clab-table-setting-line .clab-xy-label-anchor{margin-left:0}
     .clab-table-toolbar-settings{display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
-    #clab-toolbar-handle[data-density=dense] .clab-table-toolbar-settings span{display:none}
     .clab-table-column-body[hidden]{display:none}
     .clab-table-selection-summary{color:#aaa;font-size:12px}
     .clab-table-size-controls{display:grid;grid-template-columns:max-content minmax(0,1fr);grid-template-areas:"width preview" "height preview" "slider slider";align-items:center;column-gap:10px;row-gap:5px}

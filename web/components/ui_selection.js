@@ -206,10 +206,10 @@ export function updateSelectionUI() {
         }
 
         // 4. 静默保存状态到节点（不触发全量渲染）
-        if (window.CLab?.scheduleSave) window.CLab.scheduleSave();
+        if (window.CLab?.scheduleSave) window.CLab.scheduleSave({ createAnchor:false });
     } catch (err) {
         console.error("[CLab] Selection local refresh failed, falling back to full render:", err);
-        if (window.CLab && window.CLab.saveState) window.CLab.saveState(state);
+        if (window.CLab && window.CLab.saveState) window.CLab.saveState(state, { createAnchor:false });
         document.dispatchEvent(new CustomEvent("clab_render_ui"));
     }
 }

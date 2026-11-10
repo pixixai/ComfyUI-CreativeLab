@@ -172,17 +172,19 @@ export function setupStaticToolbarEvents(panelContainer) {
 
     attachDataIOEvents(panelContainer);
     attachRunEvents(panelContainer);
+    const previewButton = panelContainer.querySelector("#clab-btn-preview");
+    previewButton.onclick = async () => {
+        const { openWorkspacePreview } = await import("./contextmenu/group_content.js");
+        const overflow = previewButton.closest(".clab-toolbar-overflow-menu:popover-open");
+        if (overflow) overflow.hidePopover();
+        openWorkspacePreview(overflow ? panelContainer.querySelector("#clab-toolbar-more") : previewButton);
+    };
 
-    const configBtn = panelContainer.querySelector("#clab-btn-config");
-    if (configBtn && !panelContainer.querySelector("#clab-config-btn-wrapper")) {
-        configBtn.outerHTML = `
+    const maintenanceSlot = panelContainer.querySelector("#clab-maintenance-slot");
+    if (maintenanceSlot) {
+        maintenanceSlot.outerHTML = `
             <div id="clab-config-btn-wrapper" class="clab-btn-group" style="position:relative; display:inline-flex; align-items:stretch; height: 34px;">
-                <button class="clab-btn" id="clab-btn-config" title="创建配置锚点 (将数据保存至工作流)" style="border-top-right-radius:0; border-bottom-right-radius:0; padding:0 10px; border-right:1px solid rgba(255,255,255,0.1); height: 100%; display: flex; align-items: center;">
-                    ⚓ 创建配置锚点
-                </button>
-                <button class="clab-btn" id="clab-config-dropdown-trigger" style="border-top-left-radius:0; border-bottom-left-radius:0; width:24px; padding:0; display:flex; align-items:center; justify-content:center; height: 100%;">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                </button>
+                <button type="button" class="clab-btn" id="clab-config-dropdown-trigger" title="数据维护">数据维护</button>
                 <div id="clab-config-dropdown" class="clab-custom-select-dropdown clab-toolbar-menu" style="display:none; top:calc(100% + 4px); right:0; min-width:180px; z-index:10002;">
                     <div class="clab-custom-select-group-title">数据维护中心</div>
                     <div class="clab-custom-select-item" id="clab-maint-clean-dead">清理失效记录 (404)</div>
@@ -204,10 +206,6 @@ export function setupStaticToolbarEvents(panelContainer) {
 
         const wrapper = panelContainer.querySelector("#clab-config-btn-wrapper");
         
-        wrapper.querySelector("#clab-btn-config").onclick = () => {
-            if(window.CLab) window.CLab.createNode();
-        };
-
         wrapper.querySelector("#clab-config-dropdown-trigger").onclick = (e) => {
             e.stopPropagation();
             const dropdown = wrapper.querySelector("#clab-config-dropdown");

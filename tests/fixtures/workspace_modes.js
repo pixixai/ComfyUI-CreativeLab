@@ -11,7 +11,10 @@ export async function checkWorkspaceModes({state,passed,assert,delay}) {
         for(const node of nodes)if(!window.testApp.graph._nodes.includes(node))window.testApp.graph._nodes.push(node);
         if(!state.workspaces.includes(demo))state.workspaces.push(demo);applyWorkspaceToState(demo);document.dispatchEvent(new Event('clab_render_ui'));
     };
-    const mode=name=>q(`[data-workspace-mode="${name}"]`).click();
+    const mode=name=>{
+        q('.clab-workspace-tab.active [data-mode-toggle]').click();
+        q(`[data-workspace-mode="${name}"]`).click();
+    };
     const popup=()=>document.querySelector('.clab-module-binding-popover:popover-open');
     const orientation=value=>q(`[data-xy-origin="${value}"]`).click();
     const recordPanel=()=>{q('[data-xy-records]').click();return popup();};

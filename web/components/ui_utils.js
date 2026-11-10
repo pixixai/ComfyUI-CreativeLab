@@ -4,6 +4,7 @@
  */
 import { app } from "../../../scripts/app.js";
 import { appState } from "./ui_state.js";
+import { toolbarStyles } from "./toolbar_styles.js";
 
 // =========================================================================
 // --- DOM 杈呭姪鏋勫缓鏂规硶 ---
@@ -251,7 +252,7 @@ export function injectCSS() {
             background: rgba(30, 30, 30, 0.45); 
             backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
             color: var(--fg-color, #eee); font-family: sans-serif;
-            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0;
             box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 9999;
             display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden;
             opacity: 0; pointer-events: none; transform: scale(0.95);
@@ -262,62 +263,6 @@ export function injectCSS() {
         #clab-panel.clab-painter-active, #clab-panel.clab-painter-active * {
             cursor: crosshair !important;
         }
-
-        .clab-toolbar {
-            --clab-toolbar-gap: 10px;
-            --clab-module-gap: 12px;
-            --clab-toolbar-font: 13px;
-            --clab-toolbar-height: 34px;
-            --clab-toolbar-capsule-height: 30px;
-            --clab-toolbar-padding: 15px;
-            --clab-toolbar-type-padding: 14px;
-            padding: 15px 20px; background: rgba(0, 0, 0, 0.3); border-bottom: 1px solid rgb(8, 8, 8);
-            display: flex; justify-content: space-between; align-items: center; gap: 10px;
-            cursor: grab; user-select: none; flex-wrap: nowrap; flex-shrink: 0; white-space: nowrap;
-        }
-        .clab-toolbar[data-density="compact"] {
-            --clab-toolbar-gap: 6px;
-            --clab-module-gap: 6px;
-            --clab-toolbar-font: 12px;
-            --clab-toolbar-height: 32px;
-            --clab-toolbar-capsule-height: 28px;
-            --clab-toolbar-padding: 10px;
-            --clab-toolbar-type-padding: 10px;
-            padding: 10px 12px;
-        }
-        .clab-toolbar[data-density="dense"] {
-            --clab-toolbar-gap: 4px;
-            --clab-module-gap: 4px;
-            --clab-toolbar-font: 12px;
-            --clab-toolbar-height: 30px;
-            --clab-toolbar-capsule-height: 28px;
-            --clab-toolbar-padding: 8px;
-            --clab-toolbar-type-padding: 8px;
-            padding: 8px 10px;
-        }
-        .clab-toolbar:active { cursor: grabbing; }
-        .clab-toolbar button, .clab-toolbar input { cursor: pointer; }
-        .clab-toolbar-left,
-        .clab-toolbar-right {
-            display: flex;
-            align-items: center;
-            gap: var(--clab-toolbar-gap);
-            min-width: 0;
-        }
-        .clab-toolbar-left {
-            flex: 1 1 auto;
-        }
-        .clab-toolbar-right {
-            flex: 0 0 auto;
-            margin-left: auto;
-        }
-        .clab-module-toolbar {
-            display: flex;
-            align-items: center;
-            gap: var(--clab-module-gap);
-            min-width: 0;
-        }
-        .clab-toolbar-left > *, .clab-toolbar-right > *, .clab-module-toolbar > * { flex-shrink: 0; }
 
         .clab-btn {
             background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 6px;
@@ -342,13 +287,15 @@ export function injectCSS() {
             flex: 1; overflow-x: auto; overflow-y: hidden; padding: 20px; 
             display: flex; flex-direction: row; gap: 20px; align-items: stretch;
         }
-        .clab-panel-footer {
+        .clab-workspace-strip {
+            position:relative;
+            z-index:65;
             display: flex;
             align-items: stretch;
             justify-content: flex-start;
             gap: 0;
             padding: 0;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             background: rgba(0, 0, 0, 0.4);
             flex: 0 0 auto;
             height: 27px;
@@ -359,7 +306,7 @@ export function injectCSS() {
         #clab-card-width-ctrl {
             position: absolute;
             right: 20px;
-            bottom: 44px;
+            bottom: 17px;
             background: transparent;
             padding: 0;
             border: none;
@@ -376,6 +323,7 @@ export function injectCSS() {
             flex: 1 1 auto;
             justify-content: flex-start;
             height: 100%;
+            cursor: grab;
         }
         .clab-workspace-tabs {
             display: flex;
@@ -412,7 +360,7 @@ export function injectCSS() {
         .clab-workspace-tab.active {
             background: rgb(24, 24, 24);
             color: #fff;
-            box-shadow: inset 0 -2px 0 var(--clab-theme-card, #4CAF50);
+            box-shadow: inset 0 2px 0 var(--clab-theme-card, #4CAF50);
         }
         .clab-workspace-tab.selected {
             background: rgb(24, 24, 24);
@@ -482,6 +430,8 @@ export function injectCSS() {
             flex: 0 0 340px; display: flex; flex-direction: column;
             max-height: 100%; overflow: hidden; position: relative;
         }
+        #clab-panel[data-workspace-mode="cards"] :is(.clab-card,.clab-area) { border-radius:0; }
+        #clab-panel[data-workspace-mode="cards"] .clab-card-title-input { font-size:14px; }
         .clab-card.active { 
             border-color: var(--clab-theme-card, #4CAF50) !important;
             border-width: var(--clab-theme-card-border, 1px) !important;
@@ -540,14 +490,6 @@ export function injectCSS() {
         .clab-output-settings-fields option { background:var(--comfy-menu-bg, #292929); color:#ddd; }
         .clab-output-settings-fields :disabled { opacity:0.4; cursor:not-allowed; }
         .clab-output-settings-fields select:focus-visible, .clab-output-dimensions input:focus-visible { outline:1px solid var(--clab-theme-module, #2196f3); outline-offset:1px; }
-        .clab-toolbar-type, #tb-output-settings { height:var(--clab-toolbar-capsule-height, 30px); box-sizing:border-box; }
-        .clab-toolbar-type .clab-type-btn { display:flex; align-items:center; }
-        .clab-toolbar-left > .clab-module-toolbar:has(.clab-toolbar-output-settings) { flex-shrink:1; }
-        .clab-toolbar-output-settings { display:flex; align-items:center; gap:var(--clab-module-gap); flex-shrink:1; min-width:0; }
-        #tb-output-settings { display:flex; align-items:center; justify-content:center; gap:6px; width:auto; min-width:0; max-width:160px; padding:0; border:0; background:transparent; box-shadow:none; color:#aaa; font:var(--clab-toolbar-font, 13px)/1 sans-serif; cursor:pointer; transition:color 0.15s; }
-        #tb-output-settings svg { display:block; width:1em; height:1em; flex-shrink:0; }
-        #tb-output-settings:hover, #tb-output-settings:active, #tb-output-settings[aria-expanded="true"] { color:#fff; }
-        .clab-output-settings-label { display:block; line-height:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .clab-module-binding-popover { position:fixed; inset:auto; margin:0; padding:0; width:min(460px, calc(100vw - 16px)); max-height:min(440px, calc(100dvh - 16px)); overflow:hidden; }
         .clab-output-binding-popover { width:min(320px, calc(100vw - 16px)); }
         .clab-output-binding-popover .clab-binding-columns { grid-template-columns:minmax(0, 1fr); }
@@ -580,11 +522,15 @@ export function injectCSS() {
         .clab-binding-empty { padding:7px 2px; font-size:11px; color:#999; }
         .clab-binding-panel-foot { padding:8px 10px; border-top:1px solid rgba(255,255,255,0.1); flex-shrink:0; }
 
+        #clab-panel:not([data-workspace-mode=table],[data-workspace-mode=xy]) {
+            --clab-card-body-padding: var(--clab-card-padding, 10px);
+            --clab-area-list-gap: var(--clab-module-gap, 10px);
+        }
         .clab-card-body {
             flex: 1; overflow-y: auto; overflow-y: overlay; overflow-x: hidden; 
             /* Extend the scroll viewport above the first module without moving its content. */
-            padding: 10px;
-            margin-top: -10px;
+            padding: var(--clab-card-body-padding, 10px);
+            margin-top: calc(-1 * min(var(--clab-card-body-padding, 10px), 10px));
             display: flex; flex-direction: column;
             min-height: 50px; 
         }
@@ -616,7 +562,7 @@ export function injectCSS() {
         .clab-card:hover > .clab-del-card-btn { opacity: 0.6; }
         .clab-area:hover > .clab-del-area-btn { opacity: 0.6; }
 
-        .clab-area-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; min-height: 20px; transition: background 0.2s;}
+        .clab-area-list { display: flex; flex-direction: column; gap: var(--clab-area-list-gap, 10px); margin-bottom: 15px; min-height: 20px; transition: background 0.2s;}
         
         .clab-area { 
             --clab-area-border-width:1px;
@@ -699,59 +645,7 @@ export function injectCSS() {
         .clab-menu-actions button:hover { background:rgba(255,255,255,0.08); color:#ccc; }
         .clab-menu-actions button[aria-pressed="true"] { background:rgba(255,255,255,0.12); color:#ddd; border-color:#555; }
 
-        #clab-toolbar-handle .clab-btn {
-            font-size: var(--clab-toolbar-font);
-            padding-left: var(--clab-toolbar-padding);
-            padding-right: var(--clab-toolbar-padding);
-            min-height: var(--clab-toolbar-height);
-            transition-property: background, color, border-color, box-shadow, opacity;
-        }
-        #clab-toolbar-handle .clab-btn-group,
-        #clab-toolbar-handle .clab-toolbar-right > div:not(.clab-toolbar-overflow) {
-            height: var(--clab-toolbar-height) !important;
-        }
-        #clab-toolbar-handle .clab-toolbar-type .clab-type-btn {
-            padding-left: var(--clab-toolbar-type-padding) !important;
-            padding-right: var(--clab-toolbar-type-padding) !important;
-            transition-property: background, color;
-        }
-        #clab-toolbar-handle .clab-capsule {
-            height: var(--clab-toolbar-capsule-height) !important;
-            min-height: var(--clab-toolbar-capsule-height) !important;
-            line-height: calc(var(--clab-toolbar-capsule-height) - 2px) !important;
-            padding-left: var(--clab-toolbar-padding) !important;
-            padding-right: var(--clab-toolbar-padding) !important;
-        }
-        #clab-toolbar-handle label { font-size: var(--clab-toolbar-font) !important; white-space: nowrap; }
-        #clab-toolbar-handle[data-density="dense"] .clab-capsule { padding-left: 6px !important; padding-right: 6px !important; }
-        #clab-toolbar-handle[data-density="compact"] .clab-module-toolbar svg { max-width: 16px; max-height: 16px; }
-        #clab-toolbar-handle[data-density="dense"] .clab-module-toolbar svg { max-width: 14px; max-height: 14px; }
-        .clab-toolbar-overflow { display: flex; align-items: center; flex: 0 0 auto; }
-        .clab-toolbar-overflow[hidden] { display: none !important; }
-        .clab-toolbar-overflow-menu {
-            position: fixed; inset: auto; margin: 0;
-            width: min(460px, calc(100vw - 16px)); max-height: calc(100dvh - 16px);
-            box-sizing: border-box; overflow: auto; padding: 12px;
-            background: #262729; border: 1px solid #555; border-radius: 8px; color: #eee;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.5); white-space: normal;
-            scrollbar-width: thin;
-        }
-        .clab-toolbar-overflow-menu:popover-open { display: flex; flex-direction: column; gap: 12px; }
-        .clab-toolbar-overflow-label { font: 11px/1.4 sans-serif; color: #aaa; margin-bottom: 5px; }
-        .clab-toolbar-overflow-entry > [data-clab-overflow-priority] {
-            width: 100%; max-width: 100%; height: auto !important; margin-left: 0 !important;
-            box-sizing: border-box; flex-wrap: wrap !important; gap: 8px !important;
-        }
-        #clab-toolbar-more-menu .clab-toolbar-type { height:var(--clab-toolbar-capsule-height, 30px) !important; }
-        #clab-toolbar-more-menu button:not(#tb-output-settings) { height: 32px !important; }
-        #clab-toolbar-more-menu .clab-menu-actions button { height: 24px !important; }
-        #clab-toolbar-more-menu .clab-custom-select { flex-wrap: wrap; height: auto !important; }
-        #clab-toolbar-more-menu .clab-custom-select-value { height: 26px; }
-        #clab-toolbar-more-menu .clab-custom-select-dropdown {
-            position: static !important; flex: 0 0 100%; width: 100%; min-width: 0 !important;
-            max-height: min(240px, 30vh); box-sizing: border-box; line-height: 1.4; margin-top: 4px;
-        }
-        #clab-toolbar-more-menu .clab-custom-select-item { white-space: normal; overflow-wrap: anywhere; }
+        ${toolbarStyles}
 
         .clab-preview-bg {
             background: #191919;

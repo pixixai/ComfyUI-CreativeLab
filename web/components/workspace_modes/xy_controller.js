@@ -22,7 +22,7 @@ import { matrixRunCards } from './xy_layers.js';
 import { updateSelectionUI } from '../ui_selection.js';
 import { synchronizeModeMedia } from './mode_media.js';
 
-export function createXYController(container,getView,save) {
+export function createXYController(container,getView,save,saveView) {
     let controls,visibleIds=new Set(),controlsHTML='',recordSequence=0,mediaFrame=0,mediaRatio=1;
     const getXY=()=>getView().xy,active=()=>container.closest('#clab-panel').dataset.workspaceMode==='xy';
     const selected=()=>matrixCards(state.cards,getXY()).filter(card=>visibleIds.has(card.id)&&(state.selectedCardIds.includes(card.id)||card.areas.some(area=>state.selectedAreaIds.includes(area.id))));
@@ -40,10 +40,10 @@ export function createXYController(container,getView,save) {
         refreshXYActivity(container,state.activeWorkspaceId);
         const button=controls.querySelector('[data-xy-run]');if(button)button.textContent=xyRunLabel(xy,selected().length);
         synchronizeModeMedia(wrapper);
-        if(!xy.cameraReady){fitXYCanvas(container,xy);xy.cameraReady=true;save();}
+        if(!xy.cameraReady){fitXYCanvas(container,xy);xy.cameraReady=true;saveView();}
     };
-    const commit=(fit=false)=>{
-        synchronizeMatrix(state.cards,getXY(),workflowParameters());appendWorkspaceTasks(container,state.cards);render();if(fit)fitXYCanvas(container,getXY());save();
+    const commit=(fit=false,persist=save)=>{
+        synchronizeMatrix(state.cards,getXY(),workflowParameters());appendWorkspaceTasks(container,state.cards);render();if(fit)fitXYCanvas(container,getXY());persist();
     };
     const bind=(key,trigger)=>openXYBinding(container,key,getXY,()=>commit(),'',trigger);
     const swap=(first,second)=>{
@@ -54,7 +54,7 @@ export function createXYController(container,getView,save) {
     };
     const recordActions={bind,add(){const entry={id:`record_${Date.now()}_${++recordSequence}`,key:''};getXY().records.push(entry);save();bind(`record:${entry.id}`);},remove(id){getXY().records=getXY().records.filter(entry=>entry.id!==id);commit();}};
     const clearSelection=()=>{state.selectedCardIds=[];state.selectedAreaIds=[];state.activeCardId=null;};
-    const showLayer=index=>{getXY().z.current=Number(index);clearSelection();render();updateSelectionUI();save();};
+    const showLayer=index=>{getXY().z.current=Number(index);clearSelection();render();updateSelectionUI();saveView();};
     const run=(scope='auto')=>{
         try{
             const xy=getXY();if(!matrixReady(xy))throw new Error(`请分别绑定 ${xy.z.enabled?'X、Y、Z':'X、Y'} 轴参数并填写取值。`);
@@ -71,16 +71,25 @@ export function createXYController(container,getView,save) {
         if(target.matches('[data-xy-bind]')){bind(target.dataset.xyBind,target);return;}
         if(target.matches('[data-xy-z-layer]')){showLayer(target.dataset.xyZLayer);return;}
         if(target.matches('[data-xy-z-more]')){openZLayerOptions(container,getXY(),showLayer);return;}
-        if(target.matches('[data-xy-toggle-layers]')){target.blur();closeXYPopover();getXY().z.display=getXY().z.display==='all'?'single':'all';clearSelection();commit(true);updateSelectionUI();return;}
+        if(target.matches('[data-xy-toggle-layers]')){target.blur();closeXYPopover();getXY().z.display=getXY().z.display==='all'?'single':'all';clearSelection();commit(true,saveView);updateSelectionUI();return;}
         if(target.matches('[data-xy-run-options]')){openXYRunOptions(container,run);return;}
-        if(target.matches('[data-xy-config]')){window.CLab?.createNode();return;}
         if(target.matches('[data-xy-config-options]')){openXYConfigOptions(container,value=>{void (value==='clean'?cleanDeadRecords():resyncRecords()).catch(error=>notice(error.message));});return;}
         if(target.matches('[data-xy-edit-values]')){openXYValues(container,target.dataset.xyEditValues,getXY,fit=>commit(!!fit),bind,target,()=>syncAxisLabelSettings(container.querySelector('.clab-xy-overlay'),getXY()),()=>{render();save();});return;}
-        if(target.matches('[data-xy-origin]')){const origin=target.dataset.xyOrigin;if(getXY().origin===origin)return;getXY().origin=origin;closeXYPopover();render();fitXYCanvas(container,getXY());save();if(event.detail===0)controls.querySelector(`[data-xy-origin=${origin}]`).focus({preventScroll:true});return;}
+        if(target.matches('[data-xy-origin]')){const origin=target.dataset.xyOrigin;if(getXY().origin===origin)return;getXY().origin=origin;closeXYPopover();render();fitXYCanvas(container,getXY());saveView();if(event.detail===0)controls.querySelector(`[data-xy-origin=${origin}]`).focus({preventScroll:true});return;}
         if(target.matches('[data-xy-reassign]')){openXYAxisPanel(container,getXY,swap);return;}
         if(target.matches('[data-xy-records]')){openXYRecords(container,getXY,recordActions);return;}
+        if(target.matches('[data-xy-run-axis]')){
+            const xy=getXY(),axis=target.dataset.xyRunAxis;
+            if(xy.runAxis!==axis){
+                xy.runAxis=axis;
+                for(const button of controls.querySelectorAll('[data-xy-run-axis]'))button.setAttribute('aria-pressed',String(button===target));
+                controlsHTML=xyToolbar(xy,0);
+                saveView();
+            }
+            return;
+        }
         if(target.matches('[data-xy-run]')){run();return;}
-        if(target.matches('[data-xy-reset]')){fitXYCanvas(container,getXY());save();return;}
+        if(target.matches('[data-xy-reset]')){fitXYCanvas(container,getXY());saveView();return;}
     });
     container.addEventListener('pointerdown',event=>{if(active()&&event.button===0&&event.target.closest('button')?.closest('.clab-xy-overlay,.clab-xy-toolbar')){event.preventDefault();if(container.contains(document.activeElement)&&document.activeElement.matches('button'))document.activeElement.blur();}});
     for(const type of ['keydown','keyup'])container.addEventListener(type,event=>{if(active()&&['Space','Enter'].includes(event.code)&&event.target.closest('[data-xy-toggle-layers]'))event.preventDefault();});
@@ -95,7 +104,7 @@ export function createXYController(container,getView,save) {
     };
     container.addEventListener('load',scheduleMediaLayout,true);
     container.addEventListener('loadedmetadata',scheduleMediaLayout,true);
-    const canvas=attachXYCanvas(container,getView,save,run,()=>window.CLab?.scheduleViewSave());
+    const canvas=attachXYCanvas(container,getView,saveView,run,()=>window.CLab?.scheduleViewSave());
     attachXYSelection(container,getXY);attachXYHistoryKeys(container,getXY,selected,render);
     document.addEventListener('clab_task_activity',event=>{if(active()&&event.detail.workspaceId===state.activeWorkspaceId)refreshXYActivity(container,state.activeWorkspaceId);});
     return {render,exportRecords(){ensureXYHistory(state.cards,getXY());materializeMatrixRecords(state.cards,getXY(),workflowParameters());appendWorkspaceTasks(container,state.cards);},leave(){cancelAnimationFrame(mediaFrame);mediaFrame=0;canvas.stop();closeXYPopover();controls?.remove();container.querySelector('.clab-xy-overlay')?.remove();controls=null;}};

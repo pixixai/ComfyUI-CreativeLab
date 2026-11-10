@@ -3,20 +3,11 @@ import { getRatioCSS } from "../ui_utils.js";
 import { updateSelectionUI } from "../ui_selection.js";
 import { generateModuleBindingHTML } from "./module_binding.js";
 import { getAreaResultType } from "./media_types/media_utils.js";
-import { outputSettingValues as settings, outputSettingFieldsHTML, refreshOutputSettingFields, outputSettingChange } from './module_output_fields.js';
+import { outputSettingFieldsHTML, refreshOutputSettingFields, outputSettingChange } from './module_output_fields.js';
 
 export const outputSettingsIcon = `<svg width="14" height="14" viewBox="0 0 1024 1024" fill="currentColor" aria-hidden="true"><path d="M919.6 405.6l-57.2-8c-12.7-1.8-23-10.4-28-22.1-11.3-26.7-25.7-51.7-42.9-74.5-7.7-10.2-10-23.5-5.2-35.3l21.7-53.5c6.7-16.4 0.2-35.3-15.2-44.1L669.1 96.6c-15.4-8.9-34.9-5.1-45.8 8.9l-35.4 45.3c-7.9 10.2-20.7 14.9-33.5 13.3-14-1.8-28.3-2.8-42.8-2.8-14.5 0-28.8 1-42.8 2.8-12.8 1.6-25.6-3.1-33.5-13.3l-35.4-45.3c-10.9-14-30.4-17.8-45.8-8.9L230.4 168c-15.4 8.9-21.8 27.7-15.2 44.1l21.7 53.5c4.8 11.9 2.5 25.1-5.2 35.3-17.2 22.8-31.7 47.8-42.9 74.5-5 11.8-15.3 20.4-28 22.1l-57.2 8C86 408 72.9 423 72.9 440.8v142.9c0 17.7 13.1 32.7 30.6 35.2l57.2 8c12.7 1.8 23 10.4 28 22.1 11.3 26.7 25.7 51.7 42.9 74.5 7.7 10.2 10 23.5 5.2 35.3l-21.7 53.5c-6.7 16.4-0.2 35.3 15.2 44.1L354 927.8c15.4 8.9 34.9 5.1 45.8-8.9l35.4-45.3c7.9-10.2 20.7-14.9 33.5-13.3 14 1.8 28.3 2.8 42.8 2.8 14.5 0 28.8-1 42.8-2.8 12.8-1.6 25.6 3.1 33.5 13.3l35.4 45.3c10.9 14 30.4 17.8 45.8 8.9l123.7-71.4c15.4-8.9 21.8-27.7 15.2-44.1l-21.7-53.5c-4.8-11.8-2.5-25.1 5.2-35.3 17.2-22.8 31.7-47.8 42.9-74.5 5-11.8 15.3-20.4 28-22.1l57.2-8c17.6-2.5 30.6-17.5 30.6-35.2V440.8c0.2-17.8-12.9-32.8-30.5-35.2z m-408 245.5c-76.7 0-138.9-62.2-138.9-138.9s62.2-138.9 138.9-138.9 138.9 62.2 138.9 138.9-62.2 138.9-138.9 138.9z"/></svg>`;
 
 let openPanel = null;
-
-export function getOutputSettingsLabel(areas) {
-    if (!areas.length) return '尺寸与显示';
-    const values = areas.map(settings);
-    const key = value => JSON.stringify([value.matchMedia, value.fillMode, ...(value.matchMedia ? [] : [value.ratio, ...(value.ratio === '自定义比例' ? [value.width, value.height] : [])])]);
-    if (values.some(value => key(value) !== key(values[0]))) return '多种设置';
-    const first = values[0];
-    return first.matchMedia ? '媒体比例' : first.ratio === '自定义比例' ? `${first.width} × ${first.height}` : first.ratio;
-}
 
 export function generateOutputControlsHTML(area) {
     return `<div class="clab-output-controls">
@@ -95,8 +86,6 @@ export function showOutputSettings(trigger, areaEl) {
     const refresh = () => {
         refreshOutputSettingFields(popup, areas);
         popup.querySelector('.clab-binding-panel-foot').textContent = areas.length > 1 ? `即时应用到 ${areas.length} 个已选输出模块` : '即时应用到当前输出模块';
-        const label = document.querySelector('#tb-output-settings .clab-output-settings-label');
-        if (label) label.textContent = getOutputSettingsLabel(selectedOutputs());
         schedulePosition();
     };
     const apply = updater => {
@@ -131,7 +120,7 @@ export function showOutputSettings(trigger, areaEl) {
 }
 
 export function attachOutputSettingsEvents(container) {
-    container.querySelectorAll('.clab-output-settings-trigger, #tb-output-settings').forEach(trigger => {
+    container.querySelectorAll('.clab-output-settings-trigger').forEach(trigger => {
         trigger.onpointerdown = trigger.onmousedown = trigger.onmouseup = e => e.stopPropagation();
         trigger.ondragstart = e => { e.preventDefault(); e.stopPropagation(); };
         trigger.onclick = e => { e.stopPropagation(); showOutputSettings(trigger, trigger.closest('.clab-area')); };

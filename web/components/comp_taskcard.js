@@ -9,6 +9,7 @@ import { generateAreaHTML, generateDeferredAreaHTML, syncAreaDOMOrder, justSave,
 import { updateSelectionUI } from "./ui_selection.js";
 import { moveModuleDOM } from "./modules/module_lifecycle.js";
 import { escapeHtml } from "./contextmenu/content/shared.js";
+import { workspacePreferences } from "./workspace_preferences.js";
 
 // 【全新动态布局引擎】：同步精确计算纯卡片宽度，控制自适应居中与左对齐
 export function updateCardsLayout() {
@@ -34,7 +35,7 @@ export function updateCardsLayout() {
         }
     }
 
-    const gap = 20;
+    const gap = workspacePreferences.cardGap;
     const totalWidth = count > 0 ? (count * cardWidth + (count - 1) * gap) : 0;
 
     // 核心排版：如果连卡片都没有，直接占满；如果有，严丝合缝地包裹
@@ -110,7 +111,7 @@ export function renderCardsList(container) {
     wrapper.className = "clab-cards-wrapper";
     
     wrapper.style.cssText = `
-        display: flex; gap: 20px; position: relative;
+        display: flex; gap: var(--clab-card-gap, 20px); position: relative;
         height: 100%; align-items: stretch;
     `;
 

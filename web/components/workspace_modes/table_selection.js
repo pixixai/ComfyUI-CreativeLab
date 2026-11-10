@@ -125,7 +125,7 @@ export function attachTableSelection(panel,actions) {
         const cell=event.target.closest('.clab-area,.clab-table-draft-cell');if(cell&&(event.ctrlKey||event.metaKey||event.shiftKey)){event.preventDefault();event.stopImmediatePropagation();}
         const row=event.target.closest('[data-table-row-header]');if(row&&event.detail===0)selectRow(row.closest('[data-table-row]').dataset.tableRow,event);
         const gridBlank = event.target.closest('#clab-cards-container') && !event.target.closest('[role=cell],.clab-table-head,.clab-card-title-bar,.clab-table-fixed-controls');
-        const toolbarBlank = event.target.matches('#clab-toolbar-handle,.clab-toolbar-left,.clab-toolbar-right,#clab-module-toolbar,#clab-module-toolbar-separator');
+        const toolbarBlank = event.target.matches('.clab-tool-dock,.clab-toolbar-left,.clab-toolbar-right');
         if ((gridBlank || toolbarBlank) && (kind || state.selectedAreaIds.length || state.selectedCardIds.length)) deselect();
     },true);
     const clear = () => {stopRange();pendingHeader=null;headerPress=false;rowAnchor=cellAnchor=columnAnchor=kind='';selectAllStage=0;selectedColumns.clear();};

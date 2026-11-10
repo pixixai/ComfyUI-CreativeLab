@@ -115,15 +115,12 @@ app.registerExtension({
  * 暴露全局方法给 UI 层调用
  */
 window.CLab = {
-    createNode() {
-        StateManager.createConfigNode(app.graph);
-    },
-    saveState(newState) {
+    saveState(newState, { createAnchor = true } = {}) {
         Object.assign(StateManager.state, newState);
-        StateManager.syncToNode(app.graph);
+        StateManager.syncToNode(app.graph, createAnchor ? app.canvas : null);
     },
-    scheduleSave() {
-        StateManager.scheduleSyncToNode(app.graph);
+    scheduleSave({ createAnchor = true } = {}) {
+        StateManager.scheduleSyncToNode(app.graph, createAnchor ? app.canvas : null);
     },
     scheduleViewSave() {
         StateManager.scheduleViewSyncToNode(app.graph);

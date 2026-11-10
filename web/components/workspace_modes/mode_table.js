@@ -29,7 +29,7 @@ export function createTableController(container,getView,save) {
         if (active() && sheet && workspaceId === state.activeWorkspaceId) activity.refresh(workspaceId, cardId, completed);
     });
     let sheet,rows=[],columns=[],settings,controls,frame=0,pending=false,schemaChanged=false;const ready=new Set(),dirty=new Set();let observed=new WeakSet();
-    const layoutView = () => ({...view(), columnWidth:sheet.columnWidth, rowHeight:sheet.rowHeight ?? view().rowHeight,
+    const layoutView = () => ({...view(), columnWidth:sheet.columnWidth ?? view().columnWidth, rowHeight:sheet.rowHeight ?? view().rowHeight,
         padding:sheet.padding ?? view().padding, alignment:sheet.alignment, cellAppearance:sheet.cellAppearance});
     const notice=(message,error=false)=>showBindingToast(message,error),group=()=>rows;
     const mediaObserver=new IntersectionObserver(entries=>{if(!active()||!sheet)return;let changed=false;for(const entry of entries)if(entry.isIntersecting){ready.add(entry.target.dataset.areaId);mediaObserver.unobserve(entry.target);changed=true;}if(changed)render();},{root:container,rootMargin:'120px'});
@@ -171,7 +171,7 @@ export function createTableController(container,getView,save) {
         show(() => openCellSettings(panel.querySelector('#tb-table-cell-settings') || cell, point));
     });
     panel.addEventListener('click', event => {
-        const type = event.target.closest('#clab-toolbar-handle .clab-type-btn')?.dataset.type;
+        const type = event.target.closest('.clab-tool-dock .clab-type-btn')?.dataset.type;
         if (!active() || !sheet || !['edit','preview'].includes(type)) return;
         event.preventDefault();
         event.stopImmediatePropagation();
