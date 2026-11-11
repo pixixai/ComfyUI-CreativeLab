@@ -243,11 +243,29 @@ try {
     assert.ok(outsideDrag.result.value>0,'dragging outside the 3D viewport no longer drags the module');
     console.log('PASS inline output gestures rotate/pan without dragging modules or opening menus; right click and dragging outside the viewport remain available');
     await send('Emulation.setDeviceMetricsOverride',{width:1024,height:768,deviceScaleFactor:1,mobile:false},sessionId);
-    const browseBounds=await send('Runtime.evaluate',{
-        expression:`(()=>{window.showReviewDemo('browse');const root=document.querySelector('.clab-preview-modal.visible'),panel=root.querySelector('.clab-preview-modal-panel').getBoundingClientRect(),center=root.querySelector('.clab-preview-modal-center').getBoundingClientRect(),footer=root.querySelector('.clab-browse-footer').getBoundingClientRect(),handle=root.querySelector('[data-filmstrip-resize]').getBoundingClientRect();window.nativeBrowseImage=root.querySelector('.clab-preview-modal-main-image');return{panelBottom:panel.bottom,footerBottom:footer.bottom,footerWidth:footer.width,panelWidth:panel.width,centerHeight:center.height,height:footer.height,x:handle.x+handle.width/2,y:handle.y+handle.height/2};})()`,returnByValue:true,
-    },sessionId);
-    const bounds=browseBounds.result.value;
-    assert.ok(bounds.centerHeight>200&&Math.abs(bounds.footerWidth-bounds.panelWidth)<3&&bounds.footerBottom<=bounds.panelBottom+1,'laptop browse layout overflowed or lost its full-width filmstrip');
+    await send('Runtime.evaluate',{expression:`(()=>{window.showReviewDemo('browse');const root=document.querySelector('.clab-preview-modal.visible');window.nativeBrowseImage=root.querySelector('.clab-preview-modal-main-image');return !!root.querySelector('.clab-source-media-tree')&&!root.querySelector('.clab-browse-footer');})()`,returnByValue:true},sessionId).then(result=>assert.equal(result.result.value,true));
+    const dragPreview=async (surface, transform, point)=>{
+        const evaluate=async expression=>(await send('Runtime.evaluate',{expression,returnByValue:true},sessionId)).result.value;
+        const read=()=>evaluate(`(()=>{
+            const stage=document.querySelector(${JSON.stringify(surface)}),r=stage.getBoundingClientRect();
+            const offsets=[...stage.querySelectorAll(${JSON.stringify(transform)})].map(element=>{const matrix=new DOMMatrix(getComputedStyle(element).transform);return [matrix.e,matrix.f];});
+            return {x:r.x+r.width*.28,y:r.y+r.height*.32,offsets,cursor:getComputedStyle(stage).cursor,split:stage.style.getPropertyValue('--compare-split')};
+        })()`);
+        const {x,y}=point||await read();
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',x,y},sessionId);
+        const before=await read();
+        assert.equal(before.cursor,'grab');
+        await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x,y},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,x:x+28,y:y+16},sessionId);
+        const dragging=await read();
+        assert.equal(dragging.cursor,'grabbing');
+        assert.equal(dragging.split,before.split);
+        assert.equal(dragging.offsets.length,before.offsets.length);
+        assert.ok(before.offsets.length&&dragging.offsets.every(([dx,dy],index)=>Math.abs(dx-before.offsets[index][0]-28)<.1&&Math.abs(dy-before.offsets[index][1]-16)<.1));
+        await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:x+28,y:y+16},sessionId);
+        assert.equal((await read()).cursor,'grab');
+    };
+    await dragPreview('.clab-preview-modal.visible .clab-preview-modal-image-stage','.clab-preview-modal-main-image');
     for(const side of ['sources','parameters']) {
         const handle=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible'),handle=root.querySelector('[data-browse-resize="${side}"]').getBoundingClientRect(),pane=root.querySelector('${side==='sources'?'.clab-preview-modal-left':'.clab-preview-modal-right'}').getBoundingClientRect();return{x:handle.x+handle.width/2,y:handle.y+handle.height/2,width:pane.width};})()`,returnByValue:true},sessionId);
         const p=handle.result.value,dx=side==='sources'?28:-28;
@@ -258,56 +276,72 @@ try {
         const pane=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible');return{width:root.querySelector('${side==='sources'?'.clab-preview-modal-left':'.clab-preview-modal-right'}').getBoundingClientRect().width,same:root.querySelector('.clab-preview-modal-main-image')===window.nativeBrowseImage};})()`,returnByValue:true},sessionId);
         assert.ok(pane.result.value.width>p.width+20&&pane.result.value.same,`native ${side} resize failed or replaced the preview`);
     }
-    await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:bounds.x,y:bounds.y},sessionId);
-    await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:bounds.x,y:bounds.y},sessionId);
-    await send('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,x:bounds.x,y:bounds.y-36},sessionId);
-    await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:bounds.x,y:bounds.y-36},sessionId);
-    const resized=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible'),size=root.querySelector('[data-browse-size]');size.value=176;size.dispatchEvent(new Event('input',{bubbles:true}));const strip=root.querySelector('.clab-browse-filmstrip'),r=strip.getBoundingClientRect();strip.scrollLeft=0;return{height:root.querySelector('.clab-browse-footer').getBoundingClientRect().height,same:root.querySelector('.clab-preview-modal-main-image')===window.nativeBrowseImage,x:r.x+r.width/2,y:r.y+r.height/2};})()`,returnByValue:true},sessionId);
-    assert.ok(resized.result.value.height>bounds.height&&resized.result.value.same,'native filmstrip resizing rebuilt the active preview');
-    await send('Runtime.evaluate',{expression:'document.querySelector("[data-browse-sort]").value="source";document.querySelector("[data-browse-sort]").dispatchEvent(new Event("change",{bubbles:true}));document.querySelector(".clab-browse-filmstrip").scrollLeft=0'},sessionId);
-    const dragPoints=await send('Runtime.evaluate',{expression:`(()=>{const thumbs=document.querySelectorAll('.clab-browse-filmstrip .clab-filmstrip-thumb'),a=thumbs[0].getBoundingClientRect(),b=thumbs[2].getBoundingClientRect();return{x:a.x+a.width/2,y:a.y+a.height/2,targetX:b.right-2,targetY:b.y+b.height/2};})()`,returnByValue:true},sessionId);
-    const points=dragPoints.result.value;
+    const crossPoints=await send('Runtime.evaluate',{expression:`(()=>{
+        const root=document.querySelector('.clab-preview-modal.visible'),source=root.querySelector('.clab-filmstrip-thumb[data-index="3"]');
+        root.querySelector('.clab-filmstrip-thumb[data-index="1"]').click();
+        const target=[...root.querySelectorAll('[data-browse-source]')].find(input=>JSON.parse(input.dataset.browseSource)[1]==='review-b').closest('[data-filmstrip-section]').querySelector('.clab-source-cover');
+        source.scrollIntoView({block:'center'});const a=source.getBoundingClientRect(),b=target.getBoundingClientRect();
+        return{x:a.x+a.width/2,y:a.y+a.height/2,toX:b.x+b.width/2,toY:b.top+12};
+    })()`,returnByValue:true},sessionId);
+    const cross=crossPoints.result.value;
     await send('Input.setInterceptDrags',{enabled:true},sessionId);
-    const intercepted=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('native thumbnail drag was not initiated')),5000);onDragIntercepted=data=>{clearTimeout(timer);onDragIntercepted=null;resolve(data);};});
-    await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:points.x,y:points.y},sessionId);
-    await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:points.x,y:points.y},sessionId);
-    for(let step=1;step<=5;step++)await send('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,x:points.x+step*6,y:points.y},sessionId);
-    const dragData=await intercepted;
-    for(const type of ['dragEnter','dragOver','drop'])await send('Input.dispatchDragEvent',{type,x:points.targetX,y:points.targetY,data:dragData},sessionId);
-    await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:points.targetX,y:points.targetY},sessionId);
+    const crossing=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('native source-history drag did not start')),5000);onDragIntercepted=value=>{clearTimeout(timer);onDragIntercepted=null;resolve(value);};});
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:cross.x,y:cross.y},sessionId);
+    await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:cross.x,y:cross.y},sessionId);
+    for(let step=1;step<=4;step++)await send('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,x:cross.x+step*6,y:cross.y},sessionId);
+    const payload=await crossing;
+    for(const type of ['dragEnter','dragOver','dragOver','drop'])await send('Input.dispatchDragEvent',{type,x:cross.toX,y:cross.toY,data:payload},sessionId);
+    await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:cross.toX,y:cross.toY},sessionId);
     await send('Input.setInterceptDrags',{enabled:false},sessionId);
-    const draggedOrder=await send('Runtime.evaluate',{expression:`({order:[...document.querySelectorAll('.clab-browse-filmstrip [data-index]')].map(button=>Number(button.dataset.index)),sort:document.querySelector('[data-browse-sort]').value,same:document.querySelector('.clab-preview-modal-main-image')===window.nativeBrowseImage})`,returnByValue:true},sessionId);
-    assert.deepEqual(draggedOrder.result.value.order.slice(0,3),[1,2,0],'native dragging did not insert the thumbnail at the target seam');
-    assert.ok(draggedOrder.result.value.sort==='custom'&&draggedOrder.result.value.same,'native sorting replaced the preview or did not enter custom mode');
-    await send('Input.dispatchMouseEvent',{type:'mouseWheel',x:resized.result.value.x,y:resized.result.value.y,deltaX:0,deltaY:400},sessionId);
-    await new Promise(resolve=>setTimeout(resolve,100));
-    const scroll=await send('Runtime.evaluate',{expression:'document.querySelector(".clab-browse-filmstrip").scrollLeft',returnByValue:true},sessionId);
-    assert.ok(scroll.result.value>0,'the filmstrip did not scroll horizontally on a laptop viewport');
-    for(const side of ['sources','parameters','filmstrip']) {
-        const collapse=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible'),side='${side}',handle=root.querySelector(side==='filmstrip'?'[data-filmstrip-resize]':'[data-browse-resize="'+side+'"]'),rect=handle.getBoundingClientRect(),pane=root.querySelector(side==='sources'?'.clab-preview-modal-left':side==='parameters'?'.clab-preview-modal-right':'.clab-browse-footer').getBoundingClientRect();return{x:rect.x+rect.width/2,y:rect.y+rect.height/2,size:side==='filmstrip'?pane.height:pane.width};})()`,returnByValue:true},sessionId);
-        const p=collapse.result.value;
-        const target=side==='filmstrip'?{x:p.x,y:p.y+p.size-50}:{x:p.x+(p.size-60)*(side==='sources'?-1:1),y:p.y};
+    const custom=await send('Runtime.evaluate',{expression:`(()=>{
+        const root=document.querySelector('.clab-preview-modal.visible'),find=id=>[...root.querySelectorAll('[data-browse-source]')].find(input=>JSON.parse(input.dataset.browseSource)[1]===id).closest('[data-filmstrip-section]');
+        const read=()=>[...find('review-b').querySelectorAll('.clab-filmstrip-thumb')].map(button=>Number(button.dataset.index));
+        const reverse=()=>find('review-b').querySelector('[data-browse-reverse]').click(),before=read();reverse();reverse();
+        const restored=read(),from=find('review-b').querySelector('[data-index="3"]'),to=find('review-a').querySelector('.clab-source-history'),transfer=new DataTransfer(),r=to.getBoundingClientRect();
+        from.dispatchEvent(new DragEvent('dragstart',{bubbles:true,cancelable:true,dataTransfer:transfer}));
+        to.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:transfer,clientX:r.right,clientY:r.bottom}));
+        to.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:transfer}));
+        return{before,restored};
+    })()`,returnByValue:true},sessionId);
+    assert.ok(custom.result.value.before.includes(3),'native cross-module drag did not move the history into its target group');
+    assert.deepEqual(custom.result.value.before,custom.result.value.restored,'custom source grouping did not survive another sorting mode');
+    for(const side of ['sources','parameters']) {
+        const point=await send('Runtime.evaluate',{expression:`(()=>{
+            const root=document.querySelector('.clab-preview-modal.visible'),side='${side}',handle=root.querySelector('[data-browse-resize="'+side+'"]'),rect=handle.getBoundingClientRect();
+            const pane=root.querySelector(side==='sources'?'.clab-preview-modal-left':'.clab-preview-modal-right').getBoundingClientRect();
+            return{x:rect.x+rect.width/2,y:rect.y+rect.height/2,size:pane.width};
+        })()`,returnByValue:true},sessionId);
+        const p=point.result.value,target={x:p.x+(p.size-60)*(side==='sources'?-1:1),y:p.y};
         await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:p.x,y:p.y},sessionId);
         await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:p.x,y:p.y},sessionId);
         await send('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,...target},sessionId);
         await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,...target},sessionId);
-        const collapsed=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible'),button=root.querySelector('[data-browse-restore="${side}"]'),r=button.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;return{collapsed:root.dataset.${side==='sources'?'sourceCollapsed':side==='parameters'?'parameterCollapsed':'filmCollapsed'},same:root.querySelector('.clab-preview-modal-main-image')===window.nativeBrowseImage,visible:!button.hidden&&r.width>0,hit:document.elementFromPoint(x,y)?.closest('[data-browse-restore]')===button,x,y};})()`,returnByValue:true},sessionId);
-        const arrow=collapsed.result.value;
-        assert.ok(arrow.collapsed==='true'&&arrow.same&&arrow.visible&&arrow.hit,`native ${side} collapsing failed or its restore triangle cannot be clicked`);
-        await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:arrow.x,y:arrow.y},sessionId);
-        await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:arrow.x,y:arrow.y},sessionId);
-        await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:arrow.x,y:arrow.y},sessionId);
-        const restored=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible');return{size:parseFloat(root.style.getPropertyValue('${side==='sources'?'--browse-source-width':side==='parameters'?'--browse-parameter-width':'--browse-film-height'}')),hidden:root.querySelector('[data-browse-restore="${side}"]').hidden,same:root.querySelector('.clab-preview-modal-main-image')===window.nativeBrowseImage};})()`,returnByValue:true},sessionId);
-        assert.equal(restored.result.value.size,side==='sources'?180:side==='parameters'?240:164,`native ${side} arrow did not restore the default size`);
-        assert.ok(restored.result.value.hidden&&restored.result.value.same,`native ${side} restore lost the preview or left its triangle visible`);
+        const arrow=await send('Runtime.evaluate',{expression:`(()=>{
+            const root=document.querySelector('.clab-preview-modal.visible'),button=root.querySelector('[data-browse-restore="${side}"]'),rect=button.getBoundingClientRect();
+            return{x:rect.x+rect.width/2,y:rect.y+rect.height/2,visible:!button.hidden,collapsed:root.dataset.${side==='sources'?'sourceCollapsed':'parameterCollapsed'}};
+        })()`,returnByValue:true},sessionId);
+        assert.ok(arrow.result.value.visible&&arrow.result.value.collapsed==='true','resized source/parameter panel did not collapse');
+        const hit=arrow.result.value;
+        await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:hit.x,y:hit.y},sessionId);
+        await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:hit.x,y:hit.y},sessionId);
+        const restored=await send('Runtime.evaluate',{expression:`document.querySelector('.clab-preview-modal').style.getPropertyValue('${side==='sources'?'--browse-source-width':'--browse-parameter-width'}')`,returnByValue:true},sessionId);
+        assert.equal(parseFloat(restored.result.value),side==='sources'?280:240);
     }
-    if(process.env.CLAB_REVIEW_SCREENSHOT_PREFIX){const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-laptop.png`,Buffer.from(screenshot.data,'base64'));}
     await send('Runtime.evaluate',{expression:'document.querySelector(".clab-preview-modal-close").click()'},sessionId);
     await send('Emulation.setDeviceMetricsOverride',{width:1366,height:1000,deviceScaleFactor:1,mobile:false},sessionId);
-    console.log('PASS laptop browse keeps its preview during native resizing, seam dragging, plain-wheel scrolling and collapsing/restoring all three panes');
+    console.log('PASS laptop unified sources preserve native preview panning, cross-module history dragging, custom order and both resizable panels');
+    await send('Runtime.evaluate',{expression:`(()=>{window.showReviewDemo('browse');document.querySelector('[data-browse-reverse*="review-a"]').click();document.querySelector('.clab-filmstrip-thumb[data-index="2"]').click();document.querySelector('.clab-filmstrip-thumb[data-index="5"]').click();})()`},sessionId);
+    for(const [key,windowsVirtualKeyCode,index] of [['ArrowDown',40,6],['ArrowUp',38,5],['ArrowRight',39,6],['ArrowRight',39,6],['ArrowLeft',37,5],['ArrowLeft',37,4]]) {
+        for(const type of ['keyDown','keyUp'])await send('Input.dispatchKeyEvent',{type,key,code:key,windowsVirtualKeyCode},sessionId);
+        const active=await send('Runtime.evaluate',{expression:"document.querySelector('.clab-filmstrip-thumb.active')?.dataset.index",returnByValue:true},sessionId);
+        assert.equal(Number(active.result.value),index,'native history navigation did not follow the displayed module ordering');
+    }
+    await send('Runtime.evaluate',{expression:`(()=>{document.querySelector('[data-browse-reverse*="review-a"]').click();document.querySelector('.clab-preview-modal-close').click();})()`},sessionId);
+    console.log('PASS native source history arrows move between modules and retain each module browsing position');
     await send('Runtime.evaluate',{expression:"window.showReviewDemo('compare')"},sessionId);
+    await dragPreview('.clab-preview-modal.visible .clab-compare-stage','.clab-compare-transform');
     for(const [layout,index,slot] of [['side',2,'a'],['split',6,'b']]) {
-        const target=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible');root.querySelector('[data-compare-layout="${layout}"]').click();const thumb=root.querySelector('.clab-filmstrip-thumb[data-index="${index}"]');thumb.scrollIntoView({inline:'center',block:'nearest'});const from=thumb.getBoundingClientRect(),stage=root.querySelector('.clab-compare-stage'),to=stage.getBoundingClientRect(),split=parseFloat(stage.style.getPropertyValue('--compare-split'))/100;return{x:from.x+from.width/2,y:from.y+from.height/2,toX:to.x+to.width*(${slot==='a'?'split/2':'(1+split)/2'}),toY:to.y+to.height*.65};})()`,returnByValue:true},sessionId);
+        const target=await send('Runtime.evaluate',{expression:`(()=>{const root=document.querySelector('.clab-preview-modal.visible');root.querySelector('[data-compare-layout="${layout}"]').click();const thumb=root.querySelector('.clab-filmstrip-thumb[data-index="${index}"]');const group=thumb.closest('[data-filmstrip-section]');thumb.scrollIntoView({inline:'center',block:'center'});const from=thumb.getBoundingClientRect(),stage=root.querySelector('.clab-compare-stage'),to=stage.getBoundingClientRect(),split=parseFloat(stage.style.getPropertyValue('--compare-split'))/100;return{x:from.x+from.width/2,y:from.y+from.height/2,toX:to.x+to.width*(${slot==='a'?'split/2':'(1+split)/2'}),toY:to.y+to.height*.65};})()`,returnByValue:true},sessionId);
         const p=target.result.value;
         await send('Input.setInterceptDrags',{enabled:true},sessionId);
         const data=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('native comparison thumbnail drag did not start')),5000);onDragIntercepted=value=>{clearTimeout(timer);onDragIntercepted=null;resolve(value);};});
@@ -343,6 +377,16 @@ try {
         await new Promise(resolve=>setTimeout(resolve,100));
         const zoom=await send('Runtime.evaluate',{expression:`(()=>{const r=window.nativePreviewTransform.getBoundingClientRect();return{width:r.width,x:r.x,y:r.y,times:window.nativePreviewVideos.map(v=>v.currentTime),scale:window.visualViewport.scale};})()`,returnByValue:true},sessionId);
         assert.ok(zoom.result.value.width>p.width&&Math.abs((p.x-zoom.result.value.x)/zoom.result.value.width-.7)<.002&&zoom.result.value.times.every(t=>Math.abs(t-.25)<.03)&&zoom.result.value.scale===1,`native ${mode} Ctrl+wheel changed playback or failed to zoom about the pointer`);
+        const surface=mode==='compare'?'.clab-preview-modal.visible .clab-compare-stage':'.clab-preview-modal.visible .clab-preview-video';
+        await dragPreview(surface,'.clab-preview-video-transform,.clab-compare-transform',p);
+        const afterDrag=await send('Runtime.evaluate',{expression:'window.nativePreviewVideos.every(v=>v.paused)',returnByValue:true},sessionId);
+        assert.equal(afterDrag.result.value,true,`native ${mode} drag started playback`);
+        for(const type of ['mousePressed','mouseReleased'])await send('Input.dispatchMouseEvent',{type,button:'left',buttons:type==='mousePressed'?1:0,clickCount:1,x:p.x,y:p.y},sessionId);
+        await new Promise(resolve=>setTimeout(resolve,80));
+        const afterClick=await send('Runtime.evaluate',{expression:'window.nativePreviewVideos.every(v=>!v.paused)',returnByValue:true},sessionId);
+        assert.equal(afterClick.result.value,true,`native ${mode} click no longer plays the video`);
+        for(const type of ['mousePressed','mouseReleased'])await send('Input.dispatchMouseEvent',{type,button:'left',buttons:type==='mousePressed'?1:0,clickCount:1,x:p.x,y:p.y},sessionId);
+        assert.equal((await send('Runtime.evaluate',{expression:'window.nativePreviewVideos.every(v=>v.paused)',returnByValue:true},sessionId)).result.value,true);
         for(const type of ['keyDown','keyUp'])await send('Input.dispatchKeyEvent',{type,key:' ',code:'Space',windowsVirtualKeyCode:32},sessionId);
         await new Promise(resolve=>setTimeout(resolve,80));
         const playing=await send('Runtime.evaluate',{expression:'window.nativePreviewVideos.every(v=>!v.paused)',returnByValue:true},sessionId);
@@ -356,7 +400,7 @@ try {
         if(process.env.CLAB_REVIEW_SCREENSHOT_PREFIX){const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-video-${mode}.png`,Buffer.from(screenshot.data,'base64'));}
         await send('Runtime.evaluate',{expression:'window.closeReviewVideo()'},sessionId);
     }
-    console.log('PASS native browse/compare video Ctrl+wheel zooms at the pointer, Space plays/pauses and plain wheel seeks');
+    console.log('PASS native browse and compare images/videos pan on left drag; video click, Space, wheel seek and Ctrl+wheel zoom remain available');
     const exportedFiles=await send('Runtime.evaluate',{expression:`Object.fromEntries([...window.detailArchiveFiles].map(([name,bytes])=>{let text='';for(let i=0;i<bytes.length;i+=32768)text+=String.fromCharCode(...bytes.subarray(i,i+32768));return[name,btoa(text)];}))`,returnByValue:true},sessionId);
     const offlineFolder=fs.mkdtempSync(path.join(os.tmpdir(),'clab-detail-offline-'));
     for(const [name,base64] of Object.entries(exportedFiles.result.value)){const target=path.resolve(offlineFolder,name);assert.ok(target.startsWith(offlineFolder+path.sep),'offline archive path escapes its export folder');fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,Buffer.from(base64,'base64'));}
@@ -538,20 +582,20 @@ try {
     console.log('PASS native add/remove buttons immediately reconcile record rows, and blank canvas clicks deselect empty placeholders');
     await send('Runtime.evaluate',{expression:`document.querySelector('[data-xy-reset]').click();window.nativeXYExecute=window.CLab.executeTasks;window.CLab.executeTasks=tasks=>{window.nativeXYQueue=tasks;};`},sessionId);
     await clickDetailElement('#clab-panel .clab-card:not([hidden]) .clab-preview-bg');
-    await clickDetailElement('[data-xy-run]');
-    const selectedXY=await send('Runtime.evaluate',{expression:`window.nativeXYQueue?.length===1&&document.querySelector('[data-xy-run]').textContent.includes('运行选中')`,returnByValue:true},sessionId);assert.equal(selectedXY.result.value,true,'native cell selection did not scope the blue run button to one task');
+    await clickDetailElement('#clab-btn-run');
+    const selectedXY=await send('Runtime.evaluate',{expression:`window.nativeXYQueue?.length===1&&document.querySelector('#clab-btn-run').textContent.includes('运行选中')`,returnByValue:true},sessionId);assert.equal(selectedXY.result.value,true,'native cell selection did not scope the blue run button to one task');
     const blankXY=await send('Runtime.evaluate',{expression:`(()=>{const r=document.querySelector('#clab-cards-container').getBoundingClientRect();return{x:r.right-18,y:r.top+20};})()`,returnByValue:true},sessionId);
     for(const type of ['mousePressed','mouseReleased'])await send('Input.dispatchMouseEvent',{type,...blankXY.result.value,button:'left',clickCount:1},sessionId);
-    await clickDetailElement('[data-xy-run]');
-    const allXY=await send('Runtime.evaluate',{expression:`window.nativeXYQueue?.length===4&&document.querySelector('[data-xy-run]').textContent.includes('运行 · 4 项')`,returnByValue:true},sessionId);assert.equal(allXY.result.value,true,'native blank click did not clear selection and restore matrix-wide run');
+    await clickDetailElement('#clab-btn-run');
+    const allXY=await send('Runtime.evaluate',{expression:`window.nativeXYQueue?.length===4&&document.querySelector('#clab-btn-run').textContent.includes('运行 · 4 项')`,returnByValue:true},sessionId);assert.equal(allXY.result.value,true,'native blank click did not clear selection and restore matrix-wide run');
     await send('Runtime.evaluate',{expression:`window.CLab.executeTasks=window.nativeXYExecute;`},sessionId);
     await clickDetailElement('.axis-x');
     const axisEditor=await send('Runtime.evaluate',{expression:`document.querySelector('.clab-xy-values:popover-open textarea').value`,returnByValue:true},sessionId);assert.equal(axisEditor.result.value,'20\n30','native axis click did not open its unified numeric batch editor');
     await clickDetailElement('.clab-module-binding-popover:popover-open .clab-xy-popup-close');
-    await clickDetailElement('[data-xy-origin=top]');
+    await clickDetailElement('[data-xy-origin-options]');await clickDetailElement('.clab-xy-options [data-xy-option=top]');
     const topXY=await send('Runtime.evaluate',{expression:`window.workspaceModeDemo.view.xy.origin==='top'&&!document.querySelector('.axis-y').classList.contains('points-up')`,returnByValue:true},sessionId);assert.equal(topXY.result.value,true,'native orientation toggle did not reverse the Y axis');
-    await clickDetailElement('[data-xy-origin=bottom]');
-    console.log('PASS native XY cells run individually, blank clicks restore full-matrix run, axis lines edit values and toolbar direction capsule reverses Y');
+    await clickDetailElement('[data-xy-origin-options]');await clickDetailElement('.clab-xy-options [data-xy-option=bottom]');
+    console.log('PASS native XY cells run individually, blank clicks restore full-matrix run, axis lines edit values and toolbar direction menu reverses Y');
     await send('Runtime.evaluate',{expression:`document.querySelector('[data-xy-reset]').click();window.nativeCanvasZoom=window.workspaceModeDemo.view.xy.zoom;window.nativeAxisConfig=JSON.stringify([window.workspaceModeDemo.view.xy.x,window.workspaceModeDemo.view.xy.y,window.workspaceModeDemo.view.xy.size]);window.nativeTaskValues=JSON.stringify(window.workspaceModeDemo.cards.map(card=>card.areas.filter(area=>area.type==='edit').map(area=>area.value)));`},sessionId);
     await clickDetailElement('[data-xy-bind="x"]');
     await clickDetailElement('.clab-module-binding-popover:popover-open button[data-xy-node="91"]');
@@ -584,13 +628,13 @@ try {
     console.log('PASS XY axes and binding summaries repaint at the zoomed font size outside the scaled media layer');
     await send('Runtime.evaluate',{expression:`document.querySelector('[data-xy-reset]').click();window.nativeXYIds=[...document.querySelectorAll('#clab-panel .clab-card:not([hidden])')].map(card=>card.dataset.cardId);window.nativeXYExecute=window.CLab.executeTasks;window.CLab.executeTasks=tasks=>{window.nativeXYQueue=tasks;};`},sessionId);
     const xyIds=await send('Runtime.evaluate',{expression:`window.nativeXYIds`,returnByValue:true},sessionId),xyCell=index=>`.clab-card[data-card-id="${xyIds.result.value[index]}"] .clab-preview-bg`;
-    await clickDetailElement(xyCell(0));await clickDetailElement(xyCell(1),2);await clickDetailElement('[data-xy-run]');
+    await clickDetailElement(xyCell(0));await clickDetailElement(xyCell(1),2);await clickDetailElement('#clab-btn-run');
     const ctrlXY=await send('Runtime.evaluate',{expression:`window.nativeXYQueue.map(task=>task.cardId)`,returnByValue:true},sessionId);assert.deepEqual(ctrlXY.result.value.sort(),xyIds.result.value.slice(0,2).sort(),'native Ctrl selection did not run exactly the selected two XY cells');
-    await clickDetailElement(xyCell(0),2);await clickDetailElement('[data-xy-run]');
+    await clickDetailElement(xyCell(0),2);await clickDetailElement('#clab-btn-run');
     const toggledXY=await send('Runtime.evaluate',{expression:`window.nativeXYQueue.map(task=>task.cardId)`,returnByValue:true},sessionId);assert.deepEqual(toggledXY.result.value,[xyIds.result.value[1]],'Ctrl click did not remove an already selected XY cell');
-    await clickDetailElement(xyCell(0));await clickDetailElement(xyCell(3),2);await clickDetailElement(xyCell(0));await clickDetailElement(xyCell(1),8);await clickDetailElement('[data-xy-run]');
+    await clickDetailElement(xyCell(0));await clickDetailElement(xyCell(3),2);await clickDetailElement(xyCell(0));await clickDetailElement(xyCell(1),8);await clickDetailElement('#clab-btn-run');
     const resetAnchorXY=await send('Runtime.evaluate',{expression:`window.nativeXYQueue.map(task=>task.cardId)`,returnByValue:true},sessionId);assert.deepEqual(resetAnchorXY.result.value.sort(),xyIds.result.value.slice(0,2).sort(),'clicking an already selected cell did not replace the old Ctrl-selection anchor before Shift selection');
-    await clickDetailElement(xyCell(0));await clickDetailElement(xyCell(3),8);await clickDetailElement('[data-xy-run]');
+    await clickDetailElement(xyCell(0));await clickDetailElement(xyCell(3),8);await clickDetailElement('#clab-btn-run');
     const shiftXY=await send('Runtime.evaluate',{expression:`window.nativeXYQueue.length`,returnByValue:true},sessionId);assert.equal(shiftXY.result.value,4,'Shift selection did not cover the XY coordinate rectangle');
     console.log('PASS native XY Ctrl toggles and Shift rectangular selection restrict execution to the chosen cells');
     await send('Runtime.evaluate',{expression:`(async()=>{window.CLab.executeTasks=window.nativeXYExecute;const {pushPreviewHistoryEntry,captureCardInputSnapshot}=await import('/extensions/clab/components/modules/media_types/media_utils.js');const {state}=await import('/extensions/clab/components/ui_state.js');window.nativeXYAreas=window.nativeXYIds.map(id=>{const card=state.cards.find(card=>card.id===id);return card.areas.find(area=>area.id===card.xyOutputId);});for(let i=0;i<2;i++){const card=state.cards.find(card=>card.id===window.nativeXYIds[i]),area=window.nativeXYAreas[i];for(let run=0;run<3;run++)pushPreviewHistoryEntry(area,'/view?filename=xy-history-'+i+'-'+run+'.png',{run:{id:'native-'+i+'-'+run,order:run+1,areaIds:[area.id]},inputSnapshot:captureCardInputSnapshot(card)});window._clabSurgicallyUpdateArea(area.id);}document.querySelector('[data-xy-reset]').click();})()`,awaitPromise:true},sessionId);
@@ -685,7 +729,7 @@ try {
         const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX}-${mode}.png`,Buffer.from(screenshot.data,'base64'));
     }
     await send('Runtime.evaluate',{expression:'window.releaseReviewAssets?.()'},sessionId);
-    console.log(`${report.passed.length+31+xyzChecks+undoChecks+xyPerformanceChecks+xyEditingChecks+tableChecks+toolbarChecks} browser checks passed; ${requests.length} media requests`);
+    console.log(`${report.passed.length+32+xyzChecks+undoChecks+xyPerformanceChecks+xyEditingChecks+tableChecks+toolbarChecks} browser checks passed; ${requests.length} media requests`);
 } finally {
     socket?.close();
     browser.kill();

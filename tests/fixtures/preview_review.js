@@ -15,8 +15,9 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     const card={id:'review-card',title:'采样参数测试',areas:[current,a,b,empty]};
     for(const [i,[steps,sampler,cfg]] of [[20,'Euler',5],[30,'Euler',5],[20,'DPM++',5],[30,'DPM++',7]].entries()) {
         const run={id:`review-${i}`,order:i+1,areaIds:i===1?['review-a']:['review-a','review-b']};
-        a.history.push(`/view?filename=review-${i%2?'b':'a'}.png&run=${i}`);a.historyRuns.push(run);a.inputHistorySnapshots.push(params(steps,sampler,cfg));
-        if(i===0||i===3) {b.history.push(`/view?filename=review-b.png&run=${i}`);b.historyRuns.push(run);b.inputHistorySnapshots.push(params(steps,sampler,cfg));}
+        const [width,height]=[[100,200],[160,90],[120,120],[210,90]][i];
+        a.history.push(`/view?filename=review-${i%2?'b':'a'}.png&run=${i}&rw=${width}&rh=${height}`);a.historyRuns.push(run);a.inputHistorySnapshots.push(params(steps,sampler,cfg));
+        if(i===0||i===3) {b.history.push(`/view?filename=review-b.png&run=${i}&rw=${i===0?150:200}&rh=100`);b.historyRuns.push(run);b.inputHistorySnapshots.push(params(steps,sampler,cfg));}
     }
     a.resultUrl=a.history[0];b.resultUrl=b.history[0];
     const old={id:'review-old',title:'旧版图像',type:'preview',history:[a.history[0]],historyIndex:0,resultUrl:a.history[0]};
@@ -24,70 +25,220 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     const previousSelection=[...state.selectedAreaIds];state.cards.push(card,other);state.selectedAreaIds=[a.id,b.id,old.id];
     const open=()=>{window.CLab.showPreviewContextMenu(100,100,card.id,a.id,a.resultUrl);document.querySelector('#clab-ctx-preview-mode').click();return document.querySelector('.clab-preview-modal.visible');};
     const root=open(),q=selector=>root.querySelector(selector);
-    assert(previewModalStore.entries.length===7 && root.querySelectorAll('.clab-browse-source-tree details').length===state.cards.length,'multi-module preview omitted records or source groups');
-    assert(previewModalStore.entries.filter(entry=>entry.url===a.history[0]).length===2,'same URL in different modules lost its identity');
-    assert(root.querySelectorAll('.clab-browse-filmstrip .clab-preview-modal-thumb').length===7&&!q('.clab-preview-modal-left .clab-preview-modal-thumb'),'browse thumbnails are not in the bottom filmstrip');
-    const sourceCheck=id=>[...root.querySelectorAll('[data-browse-source]')].find(input=>JSON.parse(input.dataset.browseSource)[1]===id);
-    assert(sourceCheck('review-empty').disabled&&!sourceCheck('model').checked,'source tree hid empty modules or checked unselected output modules');
-    const unchanged=JSON.stringify([card,other]);
-    const task=()=>q('[data-browse-card="review-card"]');
-    assert(task().querySelector('[data-browse-card-name]').textContent===card.title&&sourceCheck(a.id).nextElementSibling.textContent===a.title,'source labels differ from task/module titles');
-    task().querySelector('[data-browse-card-name]').click();assert(previewModalStore.entries.length===1&&task().open,'task name did not deselect its outputs or incorrectly collapsed the task');
-    task().querySelector('[data-browse-card-name]').click();sourceCheck(a.id).click();assert(q('[data-browse-card-check="review-card"]').indeterminate,'partially selected task is not indeterminate');sourceCheck(a.id).click();
-    task().querySelector('[data-browse-fold]').click();assert(!task().open&&previewModalStore.entries.length===7,'fold arrow changed source selection or failed to collapse');
-    task().querySelector('[data-browse-fold]').click();assert(task().open,'fold arrow did not expand the task');
-    const search=q('[data-browse-search]');search.value='最终图像';search.dispatchEvent(new Event('input',{bubbles:true}));assert(q('[data-browse-search]')===search&&root.querySelectorAll('[data-browse-source]').length===1,'source search replaced its focused input or failed to filter modules');
-    search.value='';search.dispatchEvent(new Event('input',{bubbles:true}));
-    const tools=q('.clab-browse-tools'),status=q('.clab-browse-status'),sizeControl=q('.clab-browse-thumb-size');
-    assert(!q('.clab-browse-media-count')&&status.textContent.startsWith('共 7 条'),'unfiltered media count is redundant or unclear');
-    assert(q('[data-browse-sort]').parentElement.nextElementSibling===status&&status.nextElementSibling===sizeControl&&tools.lastElementChild===sizeControl,'browse status and thumbnail size controls are in the wrong positions');
-    const mediaFilter=q('[data-review-type]');mediaFilter.value='audio';mediaFilter.dispatchEvent(new Event('change',{bubbles:true}));
-    assert(q('.clab-browse-status').textContent.startsWith('显示 0 条，共 7 条'),'filtered count did not distinguish visible records from selected-source totals');
-    mediaFilter.value='';mediaFilter.dispatchEvent(new Event('change',{bubbles:true}));
-    assert(getComputedStyle(q('.clab-browse-filmstrip'),'::-webkit-scrollbar').height==='6px','filmstrip scrollbar is not narrow');
-    passed.push('browse toolbar shows clear filtered counts beside sorting, keeps the size control at the right edge and uses a thin scrollbar');
-    const image=q('.clab-preview-modal-main-image'),centerWidth=q('.clab-preview-modal-center').getBoundingClientRect().width;
-    assert(!q('[data-browse-panel]')&&!q('.clab-browse-tools [data-review-run]'),'removed browse buttons or run filter remain visible');
     const resize=(side,key)=>q(`[data-browse-resize="${side}"]`).dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));
-    resize('sources','ArrowRight');assert(q('.clab-preview-modal-center').getBoundingClientRect().width<centerWidth,'resizing sources did not change the preview width');resize('sources','ArrowLeft');
-    resize('parameters','ArrowLeft');resize('parameters','ArrowRight');
-    assert(root.querySelectorAll('.clab-filmstrip-group').length===3&&q('[data-filmstrip-group]').textContent.includes(a.title),'default filmstrip did not group records by module');
-    const sort=q('[data-browse-sort]');sort.value='newest';sort.dispatchEvent(new Event('change',{bubbles:true}));assert(Number(q('.clab-browse-filmstrip [data-index]').dataset.index)===3,'filmstrip run sorting did not update its order');
-    const thumbSize=q('[data-browse-size]');thumbSize.value=176;thumbSize.dispatchEvent(new Event('input',{bubbles:true}));assert(root.style.getPropertyValue('--browse-thumb-width')==='176px','filmstrip size slider did not resize thumbnails');
-    q('[data-browse-size-reset]').click();assert(root.style.getPropertyValue('--browse-thumb-width')==='120px'&&getComputedStyle(thumbSize).height==='2px','thumbnail icon did not reset size or range track remains oversized');
-    const height=parseFloat(root.style.getPropertyValue('--browse-film-height'));q('[data-filmstrip-resize]').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true,cancelable:true}));assert(parseFloat(root.style.getPropertyValue('--browse-film-height'))>height,'filmstrip resize handle did not change its height');
-    assert(q('.clab-preview-modal-main-image')===image&&JSON.stringify([card,other])===unchanged,'browse layout/source changes rebuilt the preview or modified task parameters');
-    sort.value='source';sort.dispatchEvent(new Event('change',{bubbles:true}));thumbSize.value=120;thumbSize.dispatchEvent(new Event('input',{bubbles:true}));
-    passed.push('browse task/module titles, name selection, arrow folding, search and resizable panes preserve the active preview');
-    const changeSort=value=>{sort.value=value;sort.dispatchEvent(new Event('change',{bubbles:true}));};
-    const order=()=>[...root.querySelectorAll('.clab-browse-filmstrip [data-index]')].map(button=>Number(button.dataset.index));
-    const drag=async(from,to,after=false)=>{
-        const dataTransfer=new DataTransfer();from.dispatchEvent(new DragEvent('dragstart',{bubbles:true,cancelable:true,dataTransfer}));
-        const bounds=to.getBoundingClientRect();to.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer,clientX:after?bounds.right-2:bounds.left+2,clientY:bounds.top+5}));
-        assert(q('.drop-before,.drop-after'),'dragging did not show an insertion marker');
-        to.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer}));
-        await delay(0);
+    const sourceCheck=id=>[...root.querySelectorAll('[data-browse-source]')].find(input=>JSON.parse(input.dataset.browseSource)[1]===id);
+    const module=id=>sourceCheck(id).closest('[data-filmstrip-section]');
+    const reverseOf=area=>module(area.id).querySelector('[data-browse-reverse]');
+    const thumbs=()=>[...root.querySelectorAll('.clab-filmstrip-thumb')];
+    assert(previewModalStore.entries.length===7&&thumbs().length===7&&!q('.clab-browse-footer'),'merged source panel omitted history or left the bottom filmstrip');
+    assert(root.querySelectorAll('.clab-browse-source-tree details').length===state.cards.length,'source tasks are missing');
+    assert(module(a.id).querySelector('.clab-source-cover').dataset.index==='3'&&module(b.id).querySelector('.clab-source-cover').dataset.index==='5','module covers did not default to the newest history');
+    assert(q('[data-filmstrip-cover="3"]').getAttribute('aria-pressed')==='true'&&q('[data-filmstrip-cover="3"] svg rect')&&q('[data-filmstrip-cover="3"] svg circle'),'default cover mark is not the detail-cover icon');
+    assert([a,b,old].every(area=>module(area.id).classList.contains('is-expanded')),'checked modules are not expanded by default');
+    module(old.id).scrollIntoView({block:'center'});
+    for(let i=0;i<100&&module(old.id).style.getPropertyValue('--source-media-ratio')!=='1';i++)await delay(20);
+    module(a.id).scrollIntoView({block:'center'});
+    for(let i=0;i<100&&[a,b].some(area=>module(area.id).style.getPropertyValue('--source-media-ratio')!==String(area===a?1:1.5));i++)await delay(20);
+    for(const [area,ratio] of [[a,1],[b,1.5],[old,1]]) {
+        const cover=module(area.id).querySelector('.clab-source-cover'),thumb=module(area.id).querySelector('.clab-filmstrip-item');
+        const aspect=element=>{const [width,height=1]=getComputedStyle(element).aspectRatio.split('/').map(Number);return width/height;};
+        assert(aspect(cover)===ratio&&aspect(thumb)===ratio,`cover and thumbnails do not share their source median ratio clamped to square: ${area.id}, ${aspect(cover)}, ${aspect(thumb)}`);
+    }
+    const frame=module(a.id).querySelector('.clab-source-cover-frame').getBoundingClientRect(),caption=module(a.id).querySelector('.clab-source-module-caption');
+    const nameBounds=caption.querySelector('span').getBoundingClientRect(),countBounds=caption.querySelector('small').getBoundingClientRect(),checkBounds=sourceCheck(a.id).getBoundingClientRect();
+    const reverseBounds=reverseOf(a).getBoundingClientRect();
+    assert(nameBounds.left===frame.left+6&&Math.abs((nameBounds.top+nameBounds.bottom-countBounds.top-countBounds.bottom)/2)<.1&&countBounds.left>=nameBounds.right+4&&countBounds.right===reverseBounds.right&&countBounds.bottom===reverseBounds.bottom&&reverseBounds.right===frame.right-4&&reverseBounds.bottom===frame.bottom-4&&checkBounds.right<frame.left,'module title is not bottom-left or count does not share the bottom-right history button slot');
+    const captionName=caption.querySelector('span'),shortName=captionName.textContent;
+    captionName.textContent='很长的输出模块名称'.repeat(20);
+    assert(captionName.scrollWidth>captionName.clientWidth&&getComputedStyle(captionName).textOverflow==='ellipsis'&&captionName.getBoundingClientRect().right<caption.querySelector('small').getBoundingClientRect().left,'long module names did not truncate while retaining the count and history button slot');
+    captionName.textContent=shortName;
+    const taskBounds=module(a.id).closest('[data-browse-card]').getBoundingClientRect(),railStyle=getComputedStyle(module(a.id).closest('[data-browse-card]'),'::before');
+    const foldBounds=module(a.id).closest('[data-browse-card]').querySelector('[data-browse-fold]').getBoundingClientRect();
+    const railX=taskBounds.left+parseFloat(railStyle.left)+.5;
+    const taskCheck=module(a.id).closest('[data-browse-card]').querySelector('[data-browse-card-check]').getBoundingClientRect(),taskName=module(a.id).closest('[data-browse-card]').querySelector('[data-browse-card-name]').getBoundingClientRect();
+    assert(railStyle.borderLeftStyle==='dashed'&&Math.abs(railX-(foldBounds.left+foldBounds.width/2))<1&&checkBounds.left>railX&&Math.abs(checkBounds.left-taskCheck.left)<1&&Math.abs(frame.left-taskName.left)<1&&Math.abs(checkBounds.top-frame.top)<1,'task rail, module checkbox or cover alignment is incorrect');
+    assert(q('.clab-browse-source-actions').getBoundingClientRect().top>=q('.clab-browse-thumb-size').getBoundingClientRect().bottom,'source selection actions are not below the thumbnail column slider');
+    const actions=q('.clab-browse-source-actions'),status=q('.clab-browse-status'),sourceWidth=root.style.getPropertyValue('--browse-source-width');
+    assert(status.parentElement===actions&&getComputedStyle(status).textAlign==='right'&&q('[data-review-type]').closest('.clab-source-search')===q('[data-browse-search]').parentElement,'source count or type filter is not in its shared row');
+    root.style.setProperty('--browse-source-width','150px');
+    assert(status.scrollWidth>status.clientWidth&&getComputedStyle(status).textOverflow==='ellipsis'&&actions.scrollWidth<=actions.clientWidth,'narrow source statistics did not truncate within the button row');
+    root.style.setProperty('--browse-source-width',sourceWidth);
+    assert(!q('[data-browse-history-toggle]'),'module cover still has a fold button');
+    const original=JSON.stringify([card,other]);
+    sourceCheck(b.id).click();
+    assert(!module(b.id).querySelector('.clab-filmstrip-thumb')&&module(b.id).querySelector('.clab-source-cover').disabled&&module(b.id).classList.contains('is-unchecked'),'unchecking a module did not retain a dimmed cover and hide its history');
+    assert(q('[data-browse-card-check="review-card"]').indeterminate,'task checkbox is not partially checked');
+    sourceCheck(b.id).click();
+    assert(module(a.id).classList.contains('is-expanded')&&module(b.id).classList.contains('is-expanded'),'rechecking a module did not restore its expanded history');
+    const task=()=>q('[data-browse-card="review-card"]');
+    task().querySelector('[data-browse-fold]').click();assert(!task().open&&previewModalStore.entries.length===7,'folding a task changed its source checks');
+    reverseOf(a).click();reverseOf(a).click();
+    assert(!task().open,'sorting reopened a manually collapsed task');
+    task().querySelector('[data-browse-fold]').click();
+    const search=q('[data-browse-search]');search.value='最终图像';search.dispatchEvent(new Event('input',{bubbles:true}));
+    assert(q('[data-browse-search]')===search&&root.querySelectorAll('[data-browse-source]').length===1,'source search replaced its input or left unrelated modules visible');
+    search.value='';search.dispatchEvent(new Event('input',{bubbles:true}));
+    const image=q('.clab-preview-modal-main-image'),mediaFilter=q('[data-review-type]');
+    mediaFilter.value='image';mediaFilter.dispatchEvent(new Event('change',{bubbles:true}));
+    search.value='最终图像';search.dispatchEvent(new Event('input',{bubbles:true}));
+    assert(mediaFilter.value==='image'&&root.querySelectorAll('[data-browse-source]').length===1&&module(a.id).querySelectorAll('.clab-filmstrip-thumb').length===4,'source search did not combine with the selected media type');
+    search.value='';search.dispatchEvent(new Event('input',{bubbles:true}));
+    mediaFilter.value='';mediaFilter.dispatchEvent(new Event('change',{bubbles:true}));
+    const reverse=()=>reverseOf(a).click(),history=a.history.slice(),runs=a.historyRuns.slice(),snapshots=a.inputHistorySnapshots.slice();
+    const otherHistory=JSON.stringify([b.history,b.historyRuns,b.inputHistorySnapshots]),inputValue=current.value;
+    const groupIndices=()=>[a,b,old].map(area=>[...module(area.id).querySelectorAll('.clab-filmstrip-thumb')].map(button=>Number(button.dataset.index)));
+    assert(!q('[data-browse-sort]')&&!q('.clab-source-controls [data-browse-reverse]')&&reverseOf(a).parentElement===module(a.id).querySelector('.clab-source-cover-frame'),'reverse button is not inside the module cover');
+    reverse();
+    assert(reverseOf(a).getAttribute('aria-pressed')==='true'&&a.history.every((url,index)=>url===history[3-index])&&a.historyRuns[0]===runs[3]&&a.inputHistorySnapshots[0]===snapshots[3]&&a.historyIndex===3&&a.resultUrl===history[0],'reversing preview histories did not synchronize workspace arrays and preserve the active result');
+    assert(JSON.stringify([b.history,b.historyRuns,b.inputHistorySnapshots])===otherHistory&&current.value===inputValue,'module history button changed another output or opened its cover and restored input parameters');
+    reverse();assert(JSON.stringify(a.history)===JSON.stringify(history)&&JSON.stringify(groupIndices())==='[[0,1,2,3],[4,5],[6]]','reversing twice did not restore the workspace and displayed order');
+    const columns=q('[data-browse-columns]'),grid=()=>module(a.id).querySelector('.clab-source-history');
+    const columnCount=()=>getComputedStyle(grid()).gridTemplateColumns.split(' ').length;
+    assert(columns.value==='2'&&columnCount()===2,'thumbnail grid did not default to two columns');
+    for (const value of [1,3,6]) {
+        const first=thumbs()[0];columns.value=value;columns.dispatchEvent(new Event('input',{bubbles:true}));
+        assert(columnCount()===value&&q('[data-browse-columns-label]').textContent===`${value} 列`&&thumbs()[0]===first,'column slider did not update the grid directly');
+    }
+    q('[data-browse-columns-reset]').click();assert(columns.value==='2'&&columnCount()===2,'thumbnail reset did not restore two columns');
+    const centerWidth=q('.clab-preview-modal-center').getBoundingClientRect().width;
+    q('[data-browse-resize=sources]').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}));
+    assert(q('.clab-preview-modal-center').getBoundingClientRect().width<centerWidth,'resizing the unified sources panel did not resize the center');
+    q('[data-browse-resize=sources]').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true,cancelable:true}));
+    assert(q('.clab-preview-modal-main-image')===image&&JSON.stringify([card,other])===original,'source layout and sorting rebuilt the central preview or changed tasks');
+    q('[data-filmstrip-cover="1"]').click();
+    assert(module(a.id).querySelector('.clab-source-cover').dataset.index==='1'&&module(a.id).querySelectorAll('.clab-filmstrip-thumb').length===4&&q('[data-filmstrip-cover="1"]').getAttribute('aria-pressed')==='true','setting a cover removed its original history record');
+    const mark=q('[data-filmstrip-cover="1"]'),markStyle=getComputedStyle(mark);
+    assert(markStyle.opacity==='1'&&parseFloat(markStyle.left)<8&&parseFloat(markStyle.top)<8,'selected cover icon is not always lit at the upper-left');
+    mark.click();
+    image.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:450,clientY:220}));
+    q('[data-review-cover]').click();
+    assert(module(a.id).querySelector('.clab-source-cover').dataset.index==='0','preview context menu did not set the same source cover');
+    q('[data-filmstrip-cover="0"]').click();
+    const drag=async(from,to,before=false)=>{
+        const dataTransfer=new DataTransfer();
+        from.dispatchEvent(new DragEvent('dragstart',{bubbles:true,cancelable:true,dataTransfer}));
+        to.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer,clientX:1,clientY:1}));
+        assert(to.closest('.is-expanded')&&from.closest('.is-expanded'),'dragging into a module unexpectedly collapsed another module');
+        const bounds=to.getBoundingClientRect();
+        to.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer,clientX:before?bounds.left:bounds.right,clientY:before?bounds.top:bounds.bottom}));
+        to.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer}));await delay(0);
     };
-    await drag(q('.clab-filmstrip-thumb[data-index="0"]'),q('.clab-filmstrip-thumb[data-index="6"]'),true);
-    assert(sort.value==='custom'&&order().join(',')==='1,2,3,4,5,6,0','dragging a thumbnail across sources did not set the custom order');
-    changeSort('source');changeSort('custom');assert(order().at(-1)===0,'custom order was lost after switching sort modes');
-    changeSort('source');
-    q('.clab-filmstrip-thumb[data-index="1"]').dispatchEvent(new MouseEvent('click',{bubbles:true,ctrlKey:true}));
-    await drag(q('.clab-filmstrip-thumb[data-index="1"]'),q('.clab-filmstrip-thumb[data-index="3"]'),true);
-    assert(order().slice(0,4).join(',')==='2,3,0,1','multi-selected thumbnail dragging lost its order');
-    changeSort('source');
-    await drag(root.querySelectorAll('[data-filmstrip-group]')[1],q('.clab-filmstrip-thumb[data-index="0"]'));
-    assert(order().slice(0,2).join(',')==='4,5'&&q('.clab-browse-status').textContent.includes('已选 2 条'),'module section dragging did not move the selected group');
-    assert(q('.clab-preview-modal-main-image')===image&&JSON.stringify([card,other])===unchanged,'custom sorting changed task/history data or rebuilt the active preview');
-    changeSort('source');
-    passed.push('grouped filmstrip supports custom single, multi-record and whole-section seam dragging without altering stored history');
-    q('.clab-preview-modal-thumb[data-index="1"]').click();assert(a.historyIndex===1 && current.value===30,'ordinary browsing no longer selects the owning module and restores its snapshot');
-    passed.push('multi-module preview groups all histories by source, preserves duplicate URLs and keeps ordinary history restoration');
+    await drag(q('.clab-filmstrip-thumb[data-index="0"]'),q('.clab-filmstrip-thumb[data-index="6"]'));
+    assert(module(old.id).querySelectorAll('.clab-filmstrip-thumb').length===2&&JSON.stringify(a.history)===JSON.stringify(history),'cross-module preview grouping modified the underlying histories');
+    const custom=JSON.stringify(groupIndices());reverse();reverse();
+    assert(JSON.stringify(groupIndices())===custom,'custom grouping was lost after reversing twice');
+    await drag(q('.clab-filmstrip-thumb[data-index="0"]'),q('.clab-filmstrip-thumb[data-index="1"]'),true);
+    const taskOrder=()=>[...root.querySelectorAll('[data-browse-card]')].map(task=>task.dataset.browseCard).join();
+    const fixedOrder=taskOrder();
+    await drag(q('.clab-filmstrip-thumb[data-index="6"]'),q('.clab-filmstrip-thumb[data-index="3"]'));
+    assert(!module(old.id).querySelector('.clab-filmstrip-thumb')&&taskOrder()===fixedOrder,'emptying the only output moved its task or removed its source module');
+    await drag(q('.clab-filmstrip-thumb[data-index="6"]'),module(old.id).querySelector('.clab-source-cover'));
+    await drag(q('.clab-filmstrip-thumb[data-index="0"]'),q('.clab-filmstrip-thumb[data-index="3"]'));
+    assert(a.history[3]===history[0]&&a.historyRuns[3]===runs[0]&&a.inputHistorySnapshots[3]===snapshots[0]&&a.resultUrl===history[0]&&a.historyIndex===3,'internal dragging did not synchronize history order without changing the active result');
+    await drag(q('.clab-filmstrip-thumb[data-index="3"]'),q('.clab-filmstrip-thumb[data-index="0"]'),true);
+    assert(JSON.stringify(a.history)===JSON.stringify(history)&&taskOrder()===fixedOrder,'restoring record order changed the task order');
+    q('.clab-filmstrip-thumb[data-index="1"]').click();assert(a.historyIndex===1&&current.value===30,'history selection did not restore its owning module snapshot');
+    module(a.id).querySelector('.clab-source-module-caption>span').click();
+    assert(a.historyIndex===3&&sourceCheck(a.id).checked,'clicking the overlaid module title did not open the cover independently of the checkbox');
+    q('.clab-filmstrip-thumb[data-index="1"]').click();
+    task().querySelector('[data-browse-fold]').click();
+    q('.clab-filmstrip-thumb[data-index="2"]').click();
+    assert(!task().open,'selecting another record reopened a manually collapsed task');
+    task().querySelector('[data-browse-fold]').click();
+    q('.clab-filmstrip-thumb[data-index="1"]').click();
+    passed.push('unified source/media tree retains task and module checks, latest covers, independent expansion, search, local history sorting and resizable sides');
+    passed.push('detail-style cover icons stay lit at the upper-left, preserve the original record and share the central preview context action');
+    passed.push('left-panel cross-module dragging expands its target and preserves custom membership without modifying task histories');
+
+    const selectedDownload=()=>q('[data-review-download=selected]');
+    assert(selectedDownload().closest('.clab-preview-modal-right')&&!q('#clab-export-media-all'),'media downloads were not moved from the top menu');
+    const taskNumber=String(state.cards.indexOf(card)+1).padStart(3,'0');
+    const otherNumber=String(state.cards.indexOf(other)+1).padStart(3,'0');
+    const taskFile=(module,record)=>taskNumber+'-00'+module+'-00'+record+'.png';
+    const clickAnchor=HTMLAnchorElement.prototype.click;
+    let browseArchive;
+    HTMLAnchorElement.prototype.click=function(){
+        if(this.download==='浏览-媒体.zip') browseArchive=fetch(this.href).then(response=>response.arrayBuffer());
+        else clickAnchor.call(this);
+    };
+    try {
+        q('[data-filmstrip-cover="1"]').click();
+        q('[data-review-download=all]').click();
+        for(let i=0;i<100&&!browseArchive;i++)await delay(20);
+        assert(browseArchive,'browse did not trigger a ZIP download');
+        const bytes=await browseArchive,view=new DataView(bytes),files=[];
+        for(let offset=0;view.getUint32(offset,true)===0x04034b50;){
+            const nameLength=view.getUint16(offset+26,true);
+            files.push(new TextDecoder().decode(new Uint8Array(bytes,offset+30,nameLength)));
+            offset+=30+nameLength+view.getUint16(offset+28,true)+view.getUint32(offset+18,true);
+        }
+        assert(JSON.stringify(files)===JSON.stringify([taskFile(1,2),taskFile(2,2),otherNumber+'-001-001.png']),'browse ZIP did not contain the three group covers');
+        q('[data-filmstrip-cover="1"]').click();
+    } finally {HTMLAnchorElement.prototype.click=clickAnchor;}
+    const picker=window.showDirectoryPicker,folderRoot=await navigator.storage.getDirectory();
+    const folder=await folderRoot.getDirectoryHandle('preview-download-fixture',{create:true});
+    const oldFile=await folder.getFileHandle(taskFile(1,1),{create:true}),oldStream=await oldFile.createWritable();
+    await oldStream.write('original');await oldStream.close();
+    let picks=0;
+    window.showDirectoryPicker=async options=>{
+        assert(options.mode==='readwrite','folder picker did not ask for write access');
+        picks++;return folder;
+    };
+    try {
+        const format=q('[data-review-download-format]');
+        format.value='folder';format.dispatchEvent(new Event('change',{bubbles:true}));
+        q('[data-review-download-history]').click();
+        selectedDownload().click();
+        for(let i=0;i<100&&selectedDownload().disabled;i++)await delay(20);
+        const names=[];for await(const name of folder.keys())names.push(name);
+        assert(picks===1&&names.length===5&&names.includes(taskFile(1,1).replace('.png','_2.png'))&&names.includes(taskFile(1,4)),'selected history did not save one batch without overwriting the existing file');
+        assert(await (await oldFile.getFile()).text()==='original','directory export overwrote an existing file');
+        q('[data-review-download-history]').click();
+        format.value='zip';format.dispatchEvent(new Event('change',{bubbles:true}));
+    } finally { window.showDirectoryPicker=picker; }
+    passed.push('source/media tree downloads pinned covers as one ZIP and saves module histories to one directory without overwriting');
+
+    assert(q('[data-review-download-format]').parentElement.childNodes[0]===q('[data-review-download-format]'),'save-format control still has a visible title');
+    const downloadHistory=q('[data-review-download-history]').parentElement,jsonHistory=q('[data-review-json-history]').parentElement;
+    assert(q('[data-review-download-format]').parentElement.nextElementSibling===downloadHistory&&downloadHistory.nextElementSibling.querySelector('[data-review-download]'),'download history option is not directly above the download buttons');
+    assert(q('.clab-review-json-kinds').nextElementSibling===jsonHistory&&jsonHistory.nextElementSibling.querySelector('[data-review-data-action]'),'JSON history option is not directly above the action buttons');
+    const exportFetch=window.fetch,writeJSON=navigator.clipboard.writeText;
+    let organized,exportedJSON;
+    window.fetch=async(input,options)=>{
+        if(input==='/clab/organize_files') {
+            organized=JSON.parse(options.body);
+            return new Response(JSON.stringify({status:'success',results:organized.files}),{headers:{'Content-Type':'application/json'}});
+        }
+        return exportFetch(input,options);
+    };
+    navigator.clipboard.writeText=async text=>{exportedJSON=JSON.parse(text);};
+    try {
+        const organize=q('[data-review-data-action=organize]');
+        organize.click();
+        for(let i=0;i<100&&organize.disabled;i++)await delay(10);
+        assert(organized.action==='copy'&&organized.files.length===3&&organized.files.every(file=>file.target_subfolder.startsWith('CLab/')&&file.target_filename.match(/^\d+-\d+-\d+$/)),'organize scope differs from group-cover downloads');
+        q('[data-review-organize-history]').click();
+        organize.click();
+        for(let i=0;i<100&&organize.disabled;i++)await delay(10);
+        assert(organized.files.length===7,'organize history did not expand the current visible groups');
+        q('[data-review-organize-history]').click();
+        q('[data-review-json-kind][value=output]').click();
+        q('[data-review-json-history]').click();
+        const copy=q('[data-review-data-action=copy-json]');
+        copy.click();
+        for(let i=0;i<100&&copy.disabled;i++)await delay(10);
+        assert(exportedJSON.length===2&&exportedJSON[0][a.title].length===4&&exportedJSON[0][b.title].length===2&&!(current.title in exportedJSON[0]),'JSON radio/history controls did not export the visible output histories');
+        q('[data-review-json-history]').click();
+        q('[data-review-json-kind][value=all]').click();
+    } finally {window.fetch=exportFetch;navigator.clipboard.writeText=writeJSON;}
+    passed.push('sidebar organization copies the visible covers or full groups and JSON controls export only their chosen module types and histories');
 
     const before=JSON.stringify([card,other]);
     q('[data-review-mode="compare"]').click();
-    assert(q('.clab-browse-source-tree')&&!q('.clab-browse-footer').hidden&&q('.clab-compare-stage'),'comparison did not use the source tree and bottom filmstrip or has no empty drop regions');
+    assert(q('.clab-source-media-tree')&&!q('.clab-browse-footer')&&q('.clab-compare-stage'),'comparison did not use the merged source/media tree or has no empty drop regions');
+    assert(selectedDownload().disabled&&q('[data-review-download=all]').disabled===false,'empty comparison should allow downloading covers only');
     q('.clab-preview-modal-thumb[data-index="0"]').click();q('.clab-preview-modal-thumb[data-index="4"]').click();
+    assert(!selectedDownload().disabled,'comparison did not enable downloads after choosing A/B');
     assert(q('.clab-compare-stage.side') && q('.clab-compare-stage').querySelectorAll('img').length===2,'image A/B slots did not accept different output modules');
     assert(!q('.clab-compare-slots')&&q('.label-a').textContent.startsWith('A')&&q('.label-b').textContent.endsWith('B'),'A/B information is not in the overlay corner labels');
     const initialStage=q('.clab-compare-stage'),firstPair=[...initialStage.querySelectorAll('img')];
@@ -208,6 +359,9 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     window.CLab.showPreviewContextMenu(100,100,card.id,video.id,videoURL);document.querySelector('#clab-ctx-preview-mode').click();
     const browseVideo=q('.clab-preview-modal-main-video');
     for(let i=0;i<60&&browseVideo.readyState<2;i++)await delay(30);
+    module(video.id).scrollIntoView({block:'center'});
+    for(let i=0;i<100&&Number(module(video.id).style.getPropertyValue('--source-media-ratio'))!==16/9;i++)await delay(20);
+    assert(Number(module(video.id).style.getPropertyValue('--source-media-ratio'))===16/9,'video metadata did not set the source cover and thumbnail ratio');
     assert(!browseVideo.controls && q('.clab-preview-video .clab-video-controls') && !q('.clab-video-play'), 'browse still uses native video controls');
     if (!Number.isFinite(browseVideo.duration)) { q('.clab-preview-video').click();await delay(60);assert(!browseVideo.paused,'video without a duration header could not start');q('.clab-preview-video').click(); }
     Object.defineProperty(browseVideo,'duration',{value:1.3});browseVideo.dispatchEvent(new Event('loadedmetadata'));
@@ -217,7 +371,7 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     for(let i=0;i<32;i++)resize('parameters','ArrowRight');
     assert(getComputedStyle(q('.clab-preview-modal-right')).display==='none'&&!q('[data-browse-restore="parameters"]').hidden,'collapsed parameters did not expose their restore arrow');
     q('[data-browse-restore="parameters"]').click();
-    q('[data-browse-sort]').value='newest';q('[data-browse-sort]').dispatchEvent(new Event('change',{bubbles:true}));
+    reverseOf(video).click();
     assert(q('.clab-preview-modal-main-video')===browseVideo&&browseVideo.paused&&Math.abs(browseVideo.currentTime-position)<.03,'browse layout changes replaced or restarted a paused video');
     passed.push('browse side-panel and sorting changes preserve the real video element, position and paused state');
     const pressSpace = target => target.dispatchEvent(new KeyboardEvent('keydown',{key:' ',code:'Space',bubbles:true,cancelable:true}));

@@ -385,6 +385,7 @@ function createPanelDOM() {
 
     panelContainer.innerHTML = `
         <div class="clab-tool-dock" data-dock="top" role="toolbar" aria-label="工作区工具栏">
+        <div class="clab-xy-toolbar" role="group" aria-label="矩阵工具"></div>
         <div class="clab-toolbar" id="clab-toolbar-handle">
             <div class="clab-toolbar-left">
                 <button class="clab-btn" id="clab-global-add-card" title="新建空白任务卡片">+ 新建任务</button>
@@ -424,11 +425,11 @@ function createPanelDOM() {
                         </div>
                     </div>
                 </div>
+                <div id="clab-maintenance-slot"></div>
                 <div id="clab-preview-mode-switch" class="clab-toolbar-type" role="group" aria-label="工作区与预览切换">
                     <button type="button" class="clab-type-btn" aria-pressed="true">工作区</button>
                     <button type="button" class="clab-type-btn" id="clab-btn-preview" aria-pressed="false" aria-haspopup="dialog">预览</button>
                 </div>
-                <div id="clab-maintenance-slot"></div>
             </div>
         </div>
         </div>

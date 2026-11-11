@@ -1,6 +1,7 @@
 import { escapeHtml as esc } from './shared.js';
 import { renderVideoControls } from '../../modules/media_types/media_video.js';
 import { attachPreviewVideo } from './preview_video.js';
+import { attachPreviewPan } from './preview_pan.js';
 
 export function comparisonHTML(a, b, config) {
     const pair=JSON.stringify([a?.key || '',b?.key || ''].sort());
@@ -17,7 +18,7 @@ export function comparisonHTML(a, b, config) {
         ${slot(a, 'a')}${slot(b, 'b')}
         <button class="clab-compare-swap" data-compare-swap title="交换 A/B" aria-label="交换 A/B"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="11.5" stroke="#222" stroke-opacity=".65" stroke-width="2"/><circle cx="12" cy="12" r="11.5" stroke="currentColor" stroke-width="1"/><path fill="currentColor" stroke="#222" stroke-opacity=".65" stroke-width=".5" stroke-linejoin="round" paint-order="stroke" d="M5 8h8V4l6 6H5V8Zm14 8h-8v4l-6-6h14v2Z"/></svg></button>
         ${valid && a.type === 'video' ? renderVideoControls('<select class="clab-video-controls-interactive" data-compare-audio aria-label="比较视频声音"><option value="mute">静音</option><option value="a">A 声音</option><option value="b">B 声音</option></select>') : ''}
-        <div class="clab-compare-status" role="status">${valid ? a.type === 'image' ? '滚轮同步缩放；中键或空格＋左键同步平移。' : '' : a && b ? '请选择两张图片或两个视频进行对比。' : '点击底部缩略图轮流添加 A/B，也可拖到指定区域。'}</div>
+        <div class="clab-compare-status" role="status">${valid ? a.type === 'image' ? '滚轮同步缩放，左键拖动同步平移。' : '' : a && b ? '请选择两张图片或两个视频进行对比。' : '点击底部缩略图轮流添加 A/B，也可拖到指定区域。'}</div>
         <div class="clab-compare-layout clab-review-segment"><button data-compare-layout="side" aria-pressed="${config.layout === 'side'}">并排比较</button><button data-compare-layout="split" aria-pressed="${config.layout === 'split'}">分屏比较</button></div></div></div>`;
 }
 
@@ -36,7 +37,8 @@ export function attachComparison(container, config) {
     const controller = new AbortController(), { signal } = controller;
     const transforms = [...stage.querySelectorAll('.clab-compare-transform')], videos = [...stage.querySelectorAll('video')];
     const status = container.querySelector('.clab-compare-status');
-    let drag, space = false;
+    const isVideoPlayer = stage.classList.contains('clab-video-player');
+    const canPan = target => !target.closest('button,input,select,.clab-video-controls-interactive');
     const view = config.view;
     const updateView = () => {
         transforms.forEach(el => { el.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.zoom})`; });
@@ -44,29 +46,24 @@ export function attachComparison(container, config) {
     };
     updateView();
     syncComparison(container, config);
-    if (!videos.length) stage.addEventListener('pointerdown', event => {
-        if (event.target.closest('button,input,select,.clab-video-controls-interactive')) return;
-        if (event.button === 1 || event.button === 0 && space) {
-            event.preventDefault(); stage.setPointerCapture(event.pointerId); drag = { x: event.clientX, y: event.clientY, ox: view.x, oy: view.y };
-        }
-    }, { signal });
+    const releasePan = isVideoPlayer ? null : attachPreviewPan(stage, (x,y) => {
+        view.x += x;
+        view.y += y;
+        updateView();
+    }, {canStart:canPan});
     stage.addEventListener('pointermove', event => {
-        if (drag) { view.x = drag.ox + event.clientX - drag.x; view.y = drag.oy + event.clientY - drag.y; updateView(); }
-        else if (config.layout === 'split' && !event.target.closest('button,input,select,.clab-video-controls-interactive')) { const rect = stage.getBoundingClientRect(); view.split = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)); updateView(); }
-    }, { signal });
-    const stopDrag = () => { drag = null; };
-    stage.addEventListener('pointerup', stopDrag, { signal }); stage.addEventListener('pointercancel', stopDrag, { signal });
-    stage.addEventListener('auxclick', event => { if (event.button === 1) event.preventDefault(); }, { signal });
-    if (!videos.length) document.addEventListener('keydown', event => { if (event.code === 'Space' && !event.target.closest('input,textarea,select,button,[contenteditable=true]')) { event.preventDefault(); space = true; } }, { signal });
-    document.addEventListener('keyup', event => { if (event.code === 'Space') space = false; }, { signal });
-    window.addEventListener('blur', () => { space = false; stopDrag(); }, { signal });
+        if (config.layout !== 'split' || stage.classList.contains('is-panning') || !canPan(event.target)) return;
+        const rect = stage.getBoundingClientRect();
+        view.split = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+        updateView();
+    }, {signal});
     if (!videos.length) {
         stage.addEventListener('wheel', event => { event.preventDefault(); view.zoom = Math.max(.2, Math.min(8, view.zoom * (event.deltaY < 0 ? 1.12 : .9))); updateView(); }, { passive: false, signal });
         stage.querySelectorAll('img').forEach(image => image.addEventListener('error', () => { status.textContent = '图片无法读取，请检查历史文件是否仍然存在。'; }, { signal }));
     }
-    const releaseVideo = stage.classList.contains('clab-video-player') ? attachPreviewVideo(stage, { view, playback: config.playback, status }) : null;
+    const releaseVideo = isVideoPlayer ? attachPreviewVideo(stage, { view, playback: config.playback, status, primaryPan:true }) : null;
     return () => {
-        controller.abort(); releaseVideo?.();
+        controller.abort(); releasePan?.(); releaseVideo?.();
         if (!releaseVideo) videos.forEach(video => { video.pause(); video.removeAttribute('src'); video.load(); });
     };
 }

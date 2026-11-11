@@ -6,7 +6,7 @@ export async function runXYLabelChecks(send,sessionId,click,screenshotPrefix) {
     const type=async(selector,text)=>{await click(selector);for(const type of ['keyDown','keyUp'])await send('Input.dispatchKeyEvent',{type,key:'a',code:'KeyA',windowsVirtualKeyCode:65,modifiers:2},sessionId);await send('Input.insertText',{text},sessionId);await click('.clab-xy-values h4');};
     await evaluate(`(async()=>{const {state,createEmptyWorkspace,getActiveWorkspace,syncStateToActiveWorkspace,applyWorkspaceToState}=await import('/extensions/clab/components/ui_state.js');syncStateToActiveWorkspace();window.labelOriginalWorkspace=getActiveWorkspace();const demo=createEmptyWorkspace('刻度方向测试',{cards:[],view:{mode:'xy',xy:{x:{bindings:['110||steps'],values:[20,30]},y:{bindings:['110||sampler'],values:['Euler','DPM']},z:{enabled:true,bindings:['110||cfg'],values:[5,7,9]},outputNodeId:'111'}}});state.workspaces.push(demo);applyWorkspaceToState(demo);document.dispatchEvent(new Event('clab_render_ui'));window.labelDemo=demo;window.labelCardsBefore=JSON.stringify(demo.cards);window.labelImages=[...document.querySelectorAll('#clab-cards-container img')];window.labelAt=name=>document.querySelector(name==='z'?'.clab-z-tick[data-xy-z-layer="0"]':'.clab-axis-label[data-xy-edit-values='+name+'][data-xy-tick="0"]');window.labelPointError=name=>{const tick=window.labelAt(name),style=getComputedStyle(tick),matrix=new DOMMatrix(style.transform),origin=style.transformOrigin.split(' ').map(parseFloat);return Math.max(Math.abs(matrix.e+origin[0]),Math.abs(matrix.f+origin[1]));};})()`);
     for(const origin of ['bottom','top']){
-        await click('[data-xy-origin='+origin+']');
+        await click('[data-xy-origin-options]');await click('.clab-xy-options [data-xy-option='+origin+']');
         for(const name of ['x','y','z']){
             await click('.axis-'+name);
             assert.equal(await evaluate(`(()=>{const h=document.querySelector('.clab-xy-values h4'),controls=h.nextElementSibling;return controls.classList.contains('clab-xy-label-controls')&&controls.nextElementSibling.classList.contains('clab-axis-value-tabs')&&controls.querySelectorAll('[data-xy-label-anchor]').length===9&&Number(controls.querySelector('[aria-pressed=true]').dataset.xyLabelAnchor)===${name==='x'?(origin==='bottom'?1:7):5}&&document.querySelector('[data-xy-label-angle]').value==='0'&&window.labelPointError('${name}')<.001;})()`),true,`wrong default anchor for ${name}/${origin}`);
@@ -14,7 +14,7 @@ export async function runXYLabelChecks(send,sessionId,click,screenshotPrefix) {
         }
     }
     console.log('PASS X/Y/Z alignment controls sit below the value heading and follow both orientation defaults');
-    await click('[data-xy-origin=bottom]');
+    await click('[data-xy-origin-options]');await click('.clab-xy-options [data-xy-option=bottom]');
     for(const name of ['x','y','z']){
         await click('.axis-'+name);await evaluate(`window.labelTick=window.labelAt('${name}');window.labelPoint=JSON.stringify(window.labelTick.xyPosition);window.labelCamera=JSON.stringify([window.labelDemo.view.xy.zoom,window.labelDemo.view.xy.panX,window.labelDemo.view.xy.panY]);`);
         await type('[data-xy-label-angle]','45');

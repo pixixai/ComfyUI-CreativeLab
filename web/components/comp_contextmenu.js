@@ -54,20 +54,40 @@ export function setupContextMenu(panelContainer) {
         menuEl.style.left=`${Math.max(8,Math.min(x,window.innerWidth-rect.width-8))}px`;
         menuEl.style.top=`${Math.max(8,Math.min(y,window.innerHeight-rect.height-8))}px`;
     };
-    const showTableMenu = (x, y, areaId) => {
-        const show = openSettings => {
-            menuEl.innerHTML = '<div class="clab-context-menu-item" role="menuitem" tabindex="0" data-table-context-settings>单元格设置</div>';
-            const item = menuEl.firstElementChild;
-            item.onclick = () => { closeMenu(); openSettings(); };
-            item.onkeydown = event => {
-                if (event.key !== 'Enter' && event.key !== ' ') return;
-                event.preventDefault();
-                event.stopPropagation();
-                item.click();
-            };
+    const showTableMenu = (x, y, target) => {
+        const show = groups => {
+            menuEl.innerHTML = '';
+            groups.forEach((group, index) => {
+                if (index) {
+                    const divider = document.createElement('div');
+                    divider.className = 'clab-context-menu-divider';
+                    menuEl.append(divider);
+                }
+                for (const {action, label, invoke, disabled} of group) {
+                    const item = document.createElement('div');
+                    item.className = 'clab-context-menu-item';
+                    if (action.startsWith('delete')) item.classList.add('clab-danger');
+                    item.dataset.tableAction = action;
+                    item.textContent = label;
+                    item.setAttribute('role', 'menuitem');
+                    if (action === 'settings') item.setAttribute('data-table-context-settings', '');
+                    if (disabled) item.setAttribute('aria-disabled', 'true');
+                    else {
+                        item.tabIndex = 0;
+                        item.onclick = () => { closeMenu(); invoke(); };
+                        item.onkeydown = event => {
+                            if (event.key !== 'Enter' && event.key !== ' ') return;
+                            event.preventDefault();
+                            event.stopPropagation();
+                            item.click();
+                        };
+                    }
+                    menuEl.append(item);
+                }
+            });
             positionMenu(x, y);
         };
-        panelContainer.dispatchEvent(new CustomEvent('clab_table_cell_menu', {detail:{areaId, show, point:{x,y}}}));
+        panelContainer.dispatchEvent(new CustomEvent('clab_table_menu', {detail:{...target, show, point:{x,y}}}));
     };
     const showMenu = (x, y, areaId) => {
         const selectedAreaObjs = collectSelectedAreaObjs();
@@ -112,7 +132,7 @@ export function setupContextMenu(panelContainer) {
         }
 
         if (panelContainer.dataset.workspaceMode === 'table') {
-            showTableMenu(x, y, areaId);
+            showTableMenu(x, y, {areaId});
             return;
         }
 
@@ -138,10 +158,12 @@ export function setupContextMenu(panelContainer) {
 
         if (panelContainer.dataset.workspaceMode === 'table') {
             const cell = e.target.closest('[role=cell][data-area-id]');
-            if (!cell || e.target.closest('[data-table-editing] textarea:not([readonly]),[data-table-editing] input:not([readonly])')) return;
+            const column = e.target.closest('.clab-table-column[data-table-column]');
+            const row = e.target.closest('[role=rowheader]')?.closest('[data-table-row]');
+            if ((!cell && !column && !row) || e.target.closest('[data-table-editing] textarea:not([readonly]),[data-table-editing] input:not([readonly]),[contenteditable=true]')) return;
             e.preventDefault();
             e.stopPropagation();
-            showTableMenu(e.clientX, e.clientY, cell.dataset.areaId);
+            showTableMenu(e.clientX, e.clientY, {areaId:cell?.dataset.areaId, rowId:row?.dataset.tableRow, columnId:column?.dataset.tableColumn});
             return;
         }
 

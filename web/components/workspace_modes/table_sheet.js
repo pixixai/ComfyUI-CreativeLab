@@ -15,12 +15,16 @@ export function tableSelectionIds(rows, columns, effectiveOnly) {
     return includedRows.flatMap(row => includedColumns.map(column => row.areas[column.index].id));
 }
 export const draftAreaId=(row,column)=>`${row.id}__${column.id}`;
-export function selectedDraftColumn(sheet, selectedIds) {
-    for (const row of sheet?.rows || []) {
-        const column = sheet.columns.find(column => selectedIds.has(draftAreaId(row, column)));
-        if (column) return column;
+export function selectedTableColumns(sheet, cards, selectedIds) {
+    if (!sheet || !selectedIds.size) return [];
+    const rows = new Set(sheet.rows.map(row => row.cardId).filter(Boolean));
+    const ids = new Set();
+    for (const card of cards) {
+        if (!rows.has(card.id)) continue;
+        for (const area of card.areas) if (selectedIds.has(area.id)) ids.add(area.tableColumnId);
     }
-    return null;
+    return sheet.columns.filter(column => ids.has(column.id) ||
+        sheet.rows.some(row => selectedIds.has(draftAreaId(row, column))));
 }
 
 export function addSheetColumn(sheet,at=sheet.columns.length) {

@@ -4,6 +4,7 @@ import { runTableGestureChecks } from './table_gestures.browser.mjs';
 import { runTableNavigationChecks } from './table_navigation.browser.mjs';
 import { runTableClipboardChecks } from './table_clipboard.browser.mjs';
 import { runTableMediaChecks } from './table_media.browser.mjs';
+import { runTableContextChecks } from './table_context.browser.mjs';
 
 export async function runTableBrowserChecks(send,sessionId,screenshotPrefix) {
     const evaluate=async expression=>{const result=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true},sessionId);assert.equal(result.exceptionDetails,undefined,JSON.stringify(result.exceptionDetails));return result.result.value;};
@@ -36,7 +37,7 @@ export async function runTableBrowserChecks(send,sessionId,screenshotPrefix) {
     assert.deepEqual(columnsBeforeResize,['0','1'],'both column headers must be selected before resizing');
     await drag(head(0)+' [data-table-resize]',44,0);
     assert.equal(await evaluate(`window.sheet.view.table.widths['sheet-steps']===300&&window.sheet.view.table.widths['sheet-cfg']===300&&!window.sheet.view.table.widths['sheet-seed']`),true,'selected column resize did not apply uniformly');
-    assert.equal(await evaluate(`(()=>{const brush=document.querySelector('#tb-format-painter'),b=document.querySelector('#tb-table-cell-settings');return brush.getBoundingClientRect().right<b.getBoundingClientRect().left&&!brush.hasAttribute('data-toolbar-divider');})()`),true);
+    assert.equal(await evaluate(`(()=>{const reset=document.querySelector('#tb-reset-table-columns'),settings=document.querySelector('#tb-table-cell-settings');return reset.getBoundingClientRect().right<=settings.getBoundingClientRect().left&&!document.querySelector('#tb-format-painter,#tb-clone-btn,#tb-btn-sync-params,.clab-auto-height');})()`),true);
     await click('#tb-table-cell-settings');await type('[data-table-size=width]','350');await key('Tab');
     assert.equal(await evaluate(`window.sheet.view.table.widths['sheet-steps']===350&&window.sheet.view.table.widths['sheet-cfg']===350&&document.querySelector('[data-table-size=height]').getAttribute('aria-label')==='全表行高'&&document.querySelectorAll('[data-table-align]').length===9`),true);
     await type('[data-table-size=height]','48');await key('Tab');await type('[data-table-size=width]','360');await key('Tab');assert.equal(await evaluate(`window.sheet.view.table.widths['sheet-steps']===360&&window.sheet.view.table.widths['sheet-cfg']===360`),true,'column selection did not include newly exposed draft rows');await type('[data-table-size=height]','144');await key('Tab');await type('[data-table-size=width]','350');await key('Tab');
@@ -124,6 +125,7 @@ export async function runTableBrowserChecks(send,sessionId,screenshotPrefix) {
     const navigation=await runTableNavigationChecks({evaluate,click,point,type,key,send,sessionId,wait});
     const clipboard=await runTableClipboardChecks({evaluate,click,point,type,key,send,sessionId,wait});
     const media=await runTableMediaChecks({evaluate,click,wait});
+    const context=await runTableContextChecks({evaluate,click,point,send,sessionId,wait});
     await evaluate(`(async()=>{const {state,applyWorkspaceToState}=await import('/extensions/clab/components/ui_state.js');window.CLab.executeTasks=window.sheetExecute;applyWorkspaceToState(window.sheetOriginal);state.workspaces=state.workspaces.filter(w=>w!==window.sheet&&w!==window.sheetEmpty);for(const node of window.sheetNodes)window.testApp.graph._nodes.splice(window.testApp.graph._nodes.indexOf(node),1);document.dispatchEvent(new Event('clab_render_ui'));})()`);
-    return 7+gestures+navigation+clipboard+media;
+    return 7+gestures+navigation+clipboard+media+context;
 }

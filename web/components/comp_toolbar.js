@@ -16,7 +16,7 @@ import { setupResponsiveToolbar } from "./toolbar_layout.js";
 export function setupStaticToolbarEvents(panelContainer) {
     if (!window._clabGlobalDropdownCatcher) {
         document.addEventListener('mousedown', (e) => {
-            ['clab-import-json-wrapper', 'clab-export-json-wrapper', 'clab-run-btn-wrapper'].forEach(id => {
+            ['clab-import-json-wrapper', 'clab-run-btn-wrapper'].forEach(id => {
                 const wrapper = document.getElementById(id);
                 if (wrapper && !wrapper.contains(e.target)) {
                     const dp = wrapper.querySelector('.clab-custom-select-dropdown');

@@ -16,7 +16,7 @@ export function matrixRunCards(cards,xy,visibleIds,selected,scope='auto') {
         return [];
     } else {
         cells = matrixCells(cards,xy);
-        if (scope === 'layer' || (scope === 'auto' && xy.z?.enabled)) {
+        if (xy.z?.enabled && (scope === 'layer' || scope === 'auto')) {
             cells = cells.filter(cell => cell.z === currentZLayer(xy));
         } else {
             cells = cells.filter(cell => xy.z?.enabled || visibleIds.has(cell.card.id));

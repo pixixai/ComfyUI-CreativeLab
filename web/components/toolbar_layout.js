@@ -15,13 +15,9 @@ function positionToolbarPopup(menu, anchor, dock) {
     const { width, height } = menu.getBoundingClientRect();
     const { clientWidth, clientHeight } = document.documentElement;
     const side = dock.dataset.dock;
-    const vertical = dock.hasAttribute('data-vertical');
-    const dockRect = dock.getBoundingClientRect();
-    const toLeft = side === 'right';
-    const above = side === 'bottom' || (!vertical && rect.bottom + height + 4 > clientHeight && rect.top > height + 4);
-    const x = vertical ? (toLeft ? dockRect.left - width - 4 : dockRect.right + 4) : rect.left;
-    const y = vertical ? rect.top : (above ? rect.top - height - 4 : rect.bottom + 4);
-    const left = Math.round(Math.max(4, Math.min(x, clientWidth - width - 4))) + 'px';
+    const above = side === 'bottom' || (rect.bottom + height + 4 > clientHeight && rect.top > height + 4);
+    const y = above ? rect.top - height - 4 : rect.bottom + 4;
+    const left = Math.round(Math.max(4, Math.min(rect.left, clientWidth - width - 4))) + 'px';
     const top = Math.round(Math.max(4, Math.min(y, clientHeight - height - 4))) + 'px';
     if (menu.style.left !== left) menu.style.left = left;
     if (menu.style.top !== top) menu.style.top = top;
@@ -59,9 +55,7 @@ export function setupResponsiveToolbar(toolbar) {
     if (!toolbar || layouts.has(toolbar)) return;
     const dock = toolbar.closest('.clab-tool-dock');
     const panel = dock.closest('#clab-panel');
-    dock.insertAdjacentHTML('afterbegin',
-        '<div class="clab-tool-resize" title="拖动调整工具栏宽度"></div>');
-    toolbar.querySelector('.clab-toolbar-right').insertAdjacentHTML('beforeend',
+    toolbar.querySelector('#clab-preview-mode-switch').insertAdjacentHTML('beforebegin',
         '<div class="clab-toolbar-overflow" hidden>' +
         '<button type="button" class="clab-tool-button clab-tool-menu-button" id="clab-toolbar-more" aria-haspopup="menu" aria-expanded="false" title="更多工具" aria-label="更多工具"><span class="clab-tool-icon">' + moreIcon + '</span><span class="clab-tool-label">更多工具</span><span class="clab-tool-short-label" aria-hidden="true">更多</span></button>' +
         '<div class="clab-toolbar-overflow-menu" id="clab-toolbar-more-menu" popover="auto"></div></div>');
@@ -108,9 +102,6 @@ export function setupResponsiveToolbar(toolbar) {
             if (!dock.clientWidth) return;
             const items = this.prepare();
             const floating = dock.dataset.dock === 'float';
-            const vertical = dock.hasAttribute('data-vertical');
-            const axisSize = vertical ? 'height' : 'width';
-            const end = vertical ? 'bottom' : 'right';
             const visible = () => items.filter(node => node.getClientRects().length &&
                 !moreMenu.contains(node) && (!floating || !contextual.contains(node)));
             const fits = () => {
@@ -118,21 +109,18 @@ export function setupResponsiveToolbar(toolbar) {
                 const bounds = dock.getBoundingClientRect();
                 const style = getComputedStyle(dock);
                 // The panel scales while opening, but computed CSS padding is unscaled.
-                const scale = bounds[axisSize] / parseFloat(style[axisSize]);
-                const endPadding = parseFloat(style[vertical ? 'paddingBottom' : 'paddingRight']);
-                const limit = Math.min(bounds[end], panel.getBoundingClientRect()[end]) - Math.max(endPadding, 2) * scale;
+                const scale = bounds.width / parseFloat(style.width);
+                const limit = Math.min(bounds.right, panel.getBoundingClientRect().right) - Math.max(parseFloat(style.paddingRight), 2) * scale;
                 const controls = [...visible()];
                 if (!more.hidden) controls.push(more);
-                return controls.every(node => node.getBoundingClientRect()[end] <= limit + 0.5);
+                return controls.every(node => node.getBoundingClientRect().right <= limit + 0.5);
             };
             dock.removeAttribute('data-dense');
             more.hidden = true;
             if (fits()) return;
             dock.setAttribute('data-dense', '');
             if (fits()) return;
-            const candidates = visible().sort((a,b) =>
-                (vertical ? Number(contextual.contains(b)) - Number(contextual.contains(a)) : 0) ||
-                Number(a.dataset.toolbarPriority) - Number(b.dataset.toolbarPriority));
+            const candidates = visible().sort((a,b) => Number(a.dataset.toolbarPriority) - Number(b.dataset.toolbarPriority));
             more.hidden = false;
             for (const node of candidates) {
                 const placeholder = document.createComment('toolbar item');
@@ -155,6 +143,7 @@ export function setupResponsiveToolbar(toolbar) {
         fit: schedule,
     });
     new ResizeObserver(() => { docking.clamp(); schedule(); updateMenus(); }).observe(panel);
+    new ResizeObserver(docking.clamp).observe(dock);
     new MutationObserver(records => {
         if (records.some(record => record.attributeName === 'data-workspace-mode')) {
             closeMenus(dock);

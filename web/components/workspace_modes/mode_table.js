@@ -4,7 +4,8 @@ import { openTableColumnSettings } from './table_column_panel.js';
 import { openTableCellSettings } from './table_cell_panel.js';
 import { tableRowHeight, tableColumnWidth, resizeTableCells, applyTableLayout, tablePadding, tableSizes } from './table_layout.js';
 import { tableAppearance, setTableAppearance, setTableCellAppearance } from './table_appearance.js';
-import { openTableSheet, addSheetColumn, addSheetRow, synchronizeSheet, projectTableSheet, materializeTable, writeSheetCells, sheetRunRows, orderSheetTasks, resetTableColumn } from './table_sheet.js';
+import { openTableSheet, addSheetColumn, addSheetRow, synchronizeSheet, projectTableSheet, materializeTable, writeSheetCells, sheetRunRows, orderSheetTasks, resetTableColumn, selectedTableColumns } from './table_sheet.js';
+import { duplicateTableRow, duplicateTableColumn, removeTableTracks } from './table_structure.js';
 import { promoteDraftRows } from './table_drafts.js';
 import { openTableBinding } from './table_binding.js';
 import { attachTableGestures } from './table_gestures.js';
@@ -79,6 +80,12 @@ export function createTableController(container,getView,save) {
     const write=(row,index,values,expand=false)=>{writeSheetCells(sheet,state.cards,row,index,values,workflowParameters(),expand);for(const item of rows.slice(row,row+values.length))for(const area of item.areas.slice(index,index+(values[0]?.length||0)))dirty.add(area.id);};
     const fill=(index,values,previous)=>{write(0,index,[...values,...Array(Math.max(0,previous-values.length)).fill('')].map(value=>[value]));commit();};
     const configure=(index,updater)=>{markColumn(index);updater(sheet.columns[index]);schemaChanged=true;commit();};
+    const resetColumns = targets => {
+        if (!targets.length) return;
+        for (const column of targets) for (const id of resetTableColumn(sheet,state.cards,view(),column.id)) dirty.add(id);
+        schemaChanged=true;
+        commit();
+    };
     const openColumnSettings = (trigger, index) => {
         if (!selection.columnIndices().includes(index)) selection.selectColumn(index);
         const column = columns[index];
@@ -86,7 +93,7 @@ export function createTableController(container,getView,save) {
             group, view:view(), parameters:workflowParameters(), save,
             fill:(values,previous)=>fill(index,values,previous),
             change:updater=>configure(index,updater),
-            reset:()=>{for(const id of resetTableColumn(sheet,state.cards,view(),column.id))dirty.add(id);schemaChanged=true;commit();}
+            reset:()=>resetColumns([column.area])
         }, panel);
     };
     const openCellSettings = (trigger, point) => {
@@ -111,7 +118,7 @@ export function createTableController(container,getView,save) {
             const sameAlignment = cells.every(({rowId,columnId}) => (tableAppearance(layout, 'alignment', rowId, columnId) ?? 0) === alignment);
             return {padding:samePadding ? padding : null, alignment:sameAlignment ? alignment : null};
         };
-        settings = openTableCellSettings(() => trigger.isConnected ? trigger : panel.querySelector('#tb-table-cell-settings'), target, {
+        settings = openTableCellSettings(() => trigger?.isConnected ? trigger : panel.querySelector('#tb-table-cell-settings'), target, {
             sizes: () => {
                 const layout = layoutView();
                 const width = tableColumnWidth({id:anchor?.columnId}, layout), height = tableRowHeight(layout, {id:anchor?.rowId});
@@ -162,13 +169,86 @@ export function createTableController(container,getView,save) {
             }
         }catch(error){notice(error.message,true);}
     });
-    panel.addEventListener('clab_table_cell_menu', event => {
+    function changeTracks(axis, id, action, menuSheet) {
+        if (!active() || sheet !== menuSheet) return;
+        const tracks = axis === 'row' ? sheet.rows : sheet.columns;
+        const index = tracks.findIndex(track => track.id === id);
+        if (index < 0) return;
+        editing.end();
+        selection.clear();
+        state.selectedCardIds = [];
+        state.selectedAreaIds = [];
+        state.activeCardId = appState.lastClickedAreaId = null;
+        let inserted;
+        if (action === 'before' || action === 'after') {
+            inserted = (axis === 'row' ? addSheetRow : addSheetColumn)(sheet, index + Number(action === 'after'));
+        } else if (action === 'copy') {
+            inserted = (axis === 'row' ? duplicateTableRow : duplicateTableColumn)(sheet,state.cards,getView(),index);
+        } else {
+            const start = action === 'delete-before' ? 0 : index + Number(action === 'delete-after');
+            const count = action === 'delete-before' ? index : action === 'delete-after' ? tracks.length - start : 1;
+            removeTableTracks(sheet,state.cards,getView(),axis,start,count);
+            const retained = new Set(state.cards.flatMap(card => card.areas.map(area => area.id)));
+            for (const cell of wrapper().querySelectorAll('.clab-area[data-area-id]')) {
+                if (retained.has(cell.dataset.areaId)) continue;
+                mediaObserver.unobserve(cell);
+                ready.delete(cell.dataset.areaId);
+            }
+        }
+        commit();
+        if (inserted) {
+            if (axis === 'row') selection.selectRow(inserted.id);
+            else selection.selectColumn(sheet.columns.indexOf(inserted));
+        }
+    }
+
+    panel.addEventListener('clab_table_menu', event => {
         if (!active() || !sheet) return;
-        const {areaId, show, point} = event.detail;
-        const cell = container.querySelector(`[role=cell][data-area-id="${CSS.escape(areaId)}"]`);
-        if (!cell) return;
-        if (!state.selectedAreaIds.includes(areaId) && !state.selectedCardIds.includes(cell.dataset.cardId)) selection.selectCell(areaId);
-        show(() => openCellSettings(panel.querySelector('#tb-table-cell-settings') || cell, point));
+        const {areaId, rowId, columnId, show, point} = event.detail;
+        const cell = areaId && container.querySelector(`[role=cell][data-area-id="${CSS.escape(areaId)}"]`);
+        const row = rows.find(item => item.id === (rowId || cell?.dataset.cardId));
+        const column = columns.find(item => columnId ? item.id === columnId : item.index === Number(cell?.dataset.tableIndex));
+        if (!row && !column) return;
+        if (cell && !state.selectedAreaIds.includes(areaId) && !state.selectedCardIds.includes(row?.id)) selection.selectCell(areaId);
+        else if (rowId && !state.selectedCardIds.includes(rowId)) selection.selectRow(rowId);
+        else if (columnId && !selection.columnIndices().includes(column.index)) selection.selectColumn(column.index);
+
+        const menuSheet = sheet;
+        const menuItem = (axis, id, action, label, disabled = false) => ({
+            action:`${action}-${axis}`, label, disabled,
+            invoke:() => { try { changeTracks(axis,id,action,menuSheet); } catch (error) { notice(error.message,true); } },
+        });
+        const groups = [[{action:'settings',label:'单元格设置',invoke:() => {
+            if (active() && sheet === menuSheet) openCellSettings(panel.querySelector('#tb-table-cell-settings'), point);
+        }}]];
+        if (row) {
+            const items = [
+                menuItem('row',row.id,'before','上方增加行'),
+                menuItem('row',row.id,'after','下方增加行'),
+                menuItem('row',row.id,'delete','删除行'),
+            ];
+            if (rowId) {
+                const index = rows.indexOf(row);
+                items.splice(2,0,menuItem('row',row.id,'copy','复制行'));
+                items.push(menuItem('row',row.id,'delete-before','删除上方行',index === 0),
+                    menuItem('row',row.id,'delete-after','删除下方行',index === rows.length-1));
+            }
+            groups.push(items);
+        }
+        if (column) {
+            const items = [
+                menuItem('column',column.id,'before','左边增加列'),
+                menuItem('column',column.id,'after','右边增加列'),
+                menuItem('column',column.id,'delete','删除列'),
+            ];
+            if (columnId) {
+                items.splice(2,0,menuItem('column',column.id,'copy','复制列'));
+                items.push(menuItem('column',column.id,'delete-before','删除左侧列',column.index === 0),
+                    menuItem('column',column.id,'delete-after','删除右侧列',column.index === columns.length-1));
+            }
+            groups.push(items);
+        }
+        show(groups);
     });
     panel.addEventListener('click', event => {
         const type = event.target.closest('.clab-tool-dock .clab-type-btn')?.dataset.type;
@@ -176,11 +256,11 @@ export function createTableController(container,getView,save) {
         event.preventDefault();
         event.stopImmediatePropagation();
         const selected = new Set(state.selectedAreaIds);
-        const targets = columns.filter(column => column.area.type !== type && rows.some(row => selected.has(row.areas[column.index].id)));
+        const targets = selectedTableColumns(sheet,state.cards,selected).filter(column => column.type !== type);
         if (!targets.length) return;
         for (const column of targets) {
-            markColumn(column.index);
-            column.area.type = type;
+            view().configured[column.id] = true;
+            column.type = type;
         }
         schemaChanged = true;
         commit();
@@ -207,7 +287,7 @@ export function createTableController(container,getView,save) {
     });
     container.addEventListener('change',event=>{if(active()&&event.target.matches('.clab-table-draft-value'))queue(true);});
     panel.addEventListener('mousedown',event=>{if(active()&&event.target.closest('.clab-table-head,[data-table-row-header]'))event.stopPropagation();},true);
-    panel.addEventListener('click',event=>{if(!active())return;const target=event.target.closest('#clab-global-add-card,#clab-global-add-module,#clab-btn-run,#clab-btn-run-all,#tb-table-cell-settings');if(!target)return;event.preventDefault();event.stopImmediatePropagation();try{if(target.id==='tb-table-cell-settings')openCellSettings(target);else if(target.id.includes('run')){panel.querySelector('#clab-run-dropdown-menu').style.display='none';run(target.id==='clab-btn-run-all');}else add(target.id==='clab-global-add-card'?'rows':'columns');}catch(error){notice(error.message,true);}},true);
+    panel.addEventListener('click',event=>{if(!active())return;const target=event.target.closest('#clab-global-add-card,#clab-global-add-module,#clab-btn-run,#clab-btn-run-all,#tb-table-cell-settings,#tb-reset-table-columns');if(!target)return;event.preventDefault();event.stopImmediatePropagation();try{if(target.id==='tb-table-cell-settings')openCellSettings(target);else if(target.id==='tb-reset-table-columns')resetColumns(selectedTableColumns(sheet,state.cards,new Set(state.selectedAreaIds)));else if(target.id.includes('run')){panel.querySelector('#clab-run-dropdown-menu').style.display='none';run(target.id==='clab-btn-run-all');}else add(target.id==='clab-global-add-card'?'rows':'columns');}catch(error){notice(error.message,true);}},true);
     const editing=attachTableEditing(container,{active,select:id=>selection.selectCell(id)});
     const selection=attachTableSelection(panel,{active,group,columns:()=>columns,paint:()=>render(),editing});
     const navigate=(row,index)=>{

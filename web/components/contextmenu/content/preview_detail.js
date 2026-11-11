@@ -16,7 +16,7 @@ const fieldActions=`<span class="clab-detail-field-actions"><button type="button
 const caseIcon = text => icon(`<text x="12" y="17" text-anchor="middle" fill="currentColor" stroke="none" font-family="Arial,sans-serif" font-size="${text==='aa'?17:15}" font-weight="600">${text}</text>`);
 const choices = (attribute, items, value) => `<div class="clab-detail-icon-buttons">${items.map(([key,title,svg,label])=>`<button ${attribute} data-value="${key}" ${label?'class="clab-detail-labelled-option"':''} title="${title}" aria-label="${title}" aria-pressed="${key===value}">${svg}${label?`<span>${label}</span>`:''}</button>`).join('')}</div>`;
 
-export function createDetailView(root) {
+export function createDetailView(root, downloadsChanged = ()=>{}) {
     const left = root.querySelector('.clab-preview-modal-left'), center = root.querySelector('.clab-preview-modal-center'), right = root.querySelector('.clab-preview-modal-right');
     let preferences = {};
     try { preferences = JSON.parse(localStorage.getItem(PREFERENCES) || '{}'); } catch { /* Ignore unavailable storage or an invalid saved preference. */ }
@@ -193,6 +193,7 @@ export function createDetailView(root) {
             <div class="clab-detail-export-buttons"><button data-detail-export="copy" ${exporting||!model.length ? 'disabled' : ''}>复制 PNG</button><button data-detail-export="png" ${exporting||!model.length ? 'disabled' : ''}>下载 PNG</button></div>
             <label class="clab-review-check"><input type="checkbox" data-detail-setting="includeHistory" ${config.includeHistory ? 'checked' : ''}>HTML 包含所选输出的全部历史</label>
             <button data-detail-export="html" ${exporting ? 'disabled' : ''}>打包 HTML</button><p class="clab-review-note">Ctrl/Cmd 加选，Shift 连选字段；方向键切换当前卡片历史。PNG 按当前布局导出范围内的卡片为一张图，使用当前媒体画面。</p></section>`;
+        downloadsChanged();
     }
     function render() { renderSources(); renderBoard(); renderSettings(); }
     function step(id, delta) {
@@ -362,6 +363,16 @@ export function createDetailView(root) {
     return {
         open(nextCards) { cards=nextCards;pool.close();closeApplyMenu();config.tasks=new Set(cards.map(card=>card.id));config.outputs.clear();config.covers.clear();config.inputs.clear();config.histories.clear();config.media.clear();config.search='';config.active='';config.field='';config.selectedFields.clear();config.anchor='';config.scope='name';config.exportStart=1;config.exportEnd=null;config.fieldNames=new Map(cards.flatMap(card=>detailInputs(card).map(field=>[detailFieldKey(card.id,field.id),field.title]))); },
         render(nextCards) {cards=nextCards;render();},
+        downloadRecords(selectedOnly,includeHistory) {
+            return model.flatMap(item=>selectedOnly&&item.id!==config.active?[]:includeHistory?item.records:item.record?[item.record]:[]);
+        },
+        jsonCards() {
+            return model.map(item=>({id:item.id,title:item.title,areas:item.fields.map(field=>{
+                const original=item.card.areas.find(area=>area.id===field.id);
+                const snapshot=item.record?.snapshot?.find(input=>input.sourceAreaId?String(input.sourceAreaId)===field.id:input.title===field.title);
+                return {id:field.id,title:field.title,type:'edit',value:field.missing?null:snapshot?snapshot.value:original?.value};
+            }).concat(item.area||[])}));
+        },
         release() { pool.close();closeApplyMenu();for (const view of views.values()){view.cover?.release();view.cleanup?.();}views.clear();save(); },
     };
 }

@@ -2,7 +2,13 @@ import { handleDeselectAll } from '../ui_selection.js';
 import { projectXYCanvas } from './xy_axes.js';
 
 export function fitXYCanvas(container,xy) {
-    const world=container.querySelector('.clab-cards-wrapper'),left=24,bottom=(container.querySelector('.clab-xy-toolbar')?.offsetHeight||46)+40;
+    const world=container.querySelector('.clab-cards-wrapper'),left=24;
+    const floating=container.closest('#clab-panel')?.querySelector('.clab-tool-dock[data-dock=float]');
+    let bottom=40;
+    if(floating){
+        const canvas=container.getBoundingClientRect(),dock=floating.getBoundingClientRect();
+        if(dock.top>=canvas.top+canvas.height*2/3&&dock.top<canvas.bottom)bottom=Math.max(bottom,canvas.bottom-dock.top+12);
+    }
     const minX=Number(world.dataset.xyMinX)||0,minY=Number(world.dataset.xyMinY)||0,width=world.offsetWidth-minX,height=world.offsetHeight-minY;
     xy.zoom=Math.max(.025,Math.min(1,(container.clientWidth-left-24)/width,(container.clientHeight-bottom-40)/height));
     xy.panX=left-minX*xy.zoom+Math.max(0,container.clientWidth-left-24-width*xy.zoom)*.55;
@@ -12,10 +18,11 @@ export function fitXYCanvas(container,xy) {
 export function attachXYCanvas(container,getView,save,run,scheduleSave) {
     let drag,menu,point,spaceHeld=false,clickGuard=false,frame=0,bounds;
     const world=()=>container.querySelector('.clab-cards-wrapper');
-    const active=()=>{const panel=container.closest('#clab-panel');return panel.dataset.workspaceMode==='xy'&&panel.classList.contains('visible');};
+    const panel=container.closest('#clab-panel'),toolbar=panel.querySelector('.clab-tool-dock');
+    const active=()=>panel.dataset.workspaceMode==='xy'&&panel.classList.contains('visible');
     const background=target=>target===container||target===world()||target.matches('[data-xy-part="axes"]');
-    const canvasTarget=target=>container.contains(target)&&!target.closest('.clab-xy-toolbar,.clab-xy-context');
-    const workspaceTarget=target=>container.contains(target)&&!target.closest('.clab-xy-context');
+    const canvasTarget=target=>container.contains(target)&&!target.closest('.clab-xy-context');
+    const workspaceTarget=target=>canvasTarget(target)||toolbar.contains(target);
     const overWorkspace=p=>p&&workspaceTarget(document.elementFromPoint(p.x,p.y));
     const transform=()=>{frame=0;bounds=null;if(active())projectXYCanvas(container,getView().xy);};
     const scheduleTransform=()=>{if(!frame)frame=requestAnimationFrame(transform);};

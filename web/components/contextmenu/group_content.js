@@ -3,7 +3,7 @@
  * 路径: web/components/contextmenu/group_content.js
  * 职责: 内容分组菜单渲染 + 事件绑定协调（业务逻辑已拆分至 content/* 子模块）
  */
-import { state, saveAndRender } from "../ui_state.js";
+import { state, saveAndRender, getActiveWorkspace } from "../ui_state.js";
 import {
     clearPreviewHistory,
     ensureTextAreaState,
@@ -55,9 +55,9 @@ const previewModalApi = createPreviewModalApi({
     getPreviewTextState,
 });
 
-function openSourcesPreview(sources, fallbackCard, opener) {
+function openSourcesPreview(sources, fallbackCard, opener, mode) {
     const main=sources.find(source=>source.area.resultUrl||source.area.history?.length)||sources[0];
-    previewModalApi.openPreviewModal(main?.card||fallbackCard,main?.area,main?.area.resultUrl,main?.area.historyIndex,sources,opener);
+    previewModalApi.openPreviewModal(main?.card||fallbackCard,main?.area,main?.area.resultUrl,main?.area.historyIndex,sources,opener,mode);
 }
 
 export function openCardPreview(cards) {
@@ -66,16 +66,18 @@ export function openCardPreview(cards) {
 
 export function openWorkspacePreview(opener) {
     const sources = workspacePreviewSources(state.cards);
+    const workspaceMode = getActiveWorkspace()?.view?.mode;
+    const mode = ['table','xy'].includes(workspaceMode) ? workspaceMode : 'browse';
     const areaIds = new Set(state.selectedAreaIds);
     const selected = sources.filter(({ area }) => areaIds.has(area.id));
     if (selected.length) {
-        openSourcesPreview(selected, state.cards[0], opener);
+        openSourcesPreview(selected, state.cards[0], opener, mode);
     } else if (state.selectedCardIds.length) {
         const cardIds = new Set(state.selectedCardIds);
         const card = state.cards.find(item => cardIds.has(item.id));
-        openSourcesPreview(sources.filter(({ card }) => cardIds.has(card.id)), card, opener);
+        openSourcesPreview(sources.filter(({ card }) => cardIds.has(card.id)), card, opener, mode);
     } else {
-        openSourcesPreview(sources, state.cards[0], opener);
+        openSourcesPreview(sources, state.cards[0], opener, mode);
     }
 }
 

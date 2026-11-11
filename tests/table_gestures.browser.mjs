@@ -118,7 +118,8 @@ export async function runTableGestureChecks({evaluate,click,point,type,key,send,
     };
     await click(cell(0,3),0,true);await click(cell(1,2),2,true);const multiple=(await selectionState()).selected;
     const contextPoint=await rightClick(cell(0,3));
-    assert.deepEqual(await evaluate(`[...document.querySelectorAll('.clab-context-menu:has([data-table-context-settings]) .clab-context-menu-item')].map(item=>item.textContent)`),['单元格设置']);
+    assert.deepEqual(await evaluate(`[...document.querySelectorAll('.clab-context-menu:has([data-table-context-settings]) .clab-context-menu-item')].map(item=>item.textContent)`),
+        ['单元格设置','上方增加行','下方增加行','删除行','左边增加列','右边增加列','删除列']);
     assert.deepEqual((await selectionState()).selected,multiple);
     await click('[data-table-context-settings]');
     assert.match(await evaluate(`document.querySelector('.clab-table-selection-summary').textContent`),/^已选 2 格/);

@@ -10,8 +10,9 @@ export function openXYPopover(getAnchor,title,body,className='',side='',boundary
         const anchor=getAnchor();if(!anchor?.isConnected){close();return;}
         anchor.setAttribute('aria-expanded','true');const r=anchor.getBoundingClientRect(),w=document.documentElement.clientWidth,h=document.documentElement.clientHeight,b=boundary?.getBoundingClientRect();
         const dock=anchor.closest('.clab-tool-dock');
-        popup.classList.toggle('clab-tool-popup',!!dock);
-        const preferred=point?'':dock?({top:'bottom',bottom:'top',left:'right',right:'left',float:''})[dock.dataset.dock]:side;
+        const xyToolbar=anchor.closest('.clab-xy-toolbar');
+        popup.classList.toggle('clab-tool-popup',!!dock&&!xyToolbar);
+        let preferred=point?'':dock?({top:'bottom',bottom:'top',float:xyToolbar?side:''})[dock.dataset.dock]:side;
         const bounds={left:Math.max(0,b?.left??0)+8,top:Math.max(0,b?.top??0)+8,right:Math.min(w,b?.right??w)-8,bottom:Math.min(h,b?.bottom??h)-8};
         if(b){popup.style.maxWidth=`${Math.max(0,bounds.right-bounds.left)}px`;popup.style.maxHeight=`${Math.max(0,Math.min(440,bounds.bottom-bounds.top))}px`;}
         else{
@@ -19,7 +20,9 @@ export function openXYPopover(getAnchor,title,body,className='',side='',boundary
             const available=preferred==='top'?r.top-16:preferred==='bottom'?h-r.bottom-16:0;
             if(preferred==='top'||preferred==='bottom')popup.style.maxHeight=`${available>=110?Math.min(440,available):440}px`;
         }
-        const p=popup.getBoundingClientRect();let left=point?.x??r.left,top=point?.y??(r.bottom+p.height+4<bounds.bottom?r.bottom+4:r.top-p.height-4);
+        const p=popup.getBoundingClientRect();
+        if(dock?.dataset.dock==='float'&&preferred==='top'&&r.top-p.height-8<bounds.top&&r.bottom+p.height+8<=bounds.bottom)preferred='bottom';
+        let left=point?.x??r.left,top=point?.y??(r.bottom+p.height+4<bounds.bottom?r.bottom+4:r.top-p.height-4);
         if(preferred==='left'){left=(dock?.getBoundingClientRect().left??r.left)-p.width-8;top=(r.top+r.bottom-p.height)/2;}
         if(preferred==='right'){left=(dock?.getBoundingClientRect().right??r.right)+8;top=r.top;}
         if(preferred==='end')left=r.right-p.width;

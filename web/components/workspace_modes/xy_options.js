@@ -17,11 +17,10 @@ function openOptions(container,selector,title,items,choose,side='end') {
     (panel.popup.querySelector('[aria-checked=true]')||panel.popup.querySelector('[data-xy-option]'))?.focus({preventScroll:true});
 }
 
-export function openXYRunOptions(container,run) {
-    openOptions(container,'[data-xy-run-options]','更多运行选项',[{value:'all',text:'运行全部层'}],run,'top');
-}
-export function openXYConfigOptions(container,choose) {
-    openOptions(container,'[data-xy-config-options]','数据维护',[{value:'clean',text:'清理失效记录 (404)'},{value:'resync',text:'重新同步记录 (强制刷新)'}],choose,'top');
+export function openXYToolbarChoice(container, kind, labels, current, choose) {
+    const title = kind === 'origin' ? '坐标轴方向' : '运行方向';
+    const items = Object.entries(labels).map(([value, text]) => ({value, text, selected: value === current}));
+    openOptions(container, `[data-xy-${kind}-options]`, title, items, choose, 'top');
 }
 export function openZLayerOptions(container,xy,choose) {
     openOptions(container,'.clab-z-more','切换 Z 层',xy.z.values.map((value,index)=>({value:index,text:axisValueLabel(xy.z,index),title:axisValueDescription(value),selected:index===currentZLayer(xy)})),choose);

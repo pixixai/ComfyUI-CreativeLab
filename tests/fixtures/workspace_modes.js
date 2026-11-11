@@ -16,7 +16,7 @@ export async function checkWorkspaceModes({state,passed,assert,delay}) {
         q(`[data-workspace-mode="${name}"]`).click();
     };
     const popup=()=>document.querySelector('.clab-module-binding-popover:popover-open');
-    const orientation=value=>q(`[data-xy-origin="${value}"]`).click();
+    const orientation=value=>{q('[data-xy-origin-options]').click();document.querySelector(`.clab-xy-options [data-xy-option="${value}"]`).click();};
     const recordPanel=()=>{q('[data-xy-records]').click();return popup();};
     const binding=name=>name.startsWith('record:')?recordPanel().querySelector(`[data-xy-bind="${name}"]`):q(`[data-xy-bind="${name}"]`);
     const bind=(name,keys)=>{
@@ -77,7 +77,7 @@ export async function checkWorkspaceModes({state,passed,assert,delay}) {
         passed.push('workspace card/table modes share task identities and media, paste paired rows and bulk values, and preserve heterogeneous tasks');
 
         demo=createEmptyWorkspace('独立 XY 矩阵',{cards:[]});show();mode('xy');
-        assert(getComputedStyle(q('#clab-toolbar-handle')).display==='none'&&q('.axis-x')&&q('.axis-y')&&q('.clab-xy-empty')&&!q('[data-mode-template]'),'empty XY workspace requires a template or has no editable axes/placeholder');
+        assert(getComputedStyle(q('.clab-toolbar-left')).display==='none'&&q('#clab-btn-preview').getClientRects().length&&q('.axis-x')&&q('.axis-y')&&q('.clab-xy-empty')&&!q('[data-mode-template]'),'empty XY workspace requires a template or has no editable axes/placeholder');
         checkAxes();orientation('top');checkAxes();orientation('bottom');
         window.testApp.canvas.graph=window.testApp.graph;
         await pick('x','91','steps');bind('y',['91||sampler']);await pick('output','93');values('x','20,30,20');values('y','Euler,DPM');
@@ -107,9 +107,9 @@ export async function checkWorkspaceModes({state,passed,assert,delay}) {
         await pick('x','91','steps');assert(xy.x.bindings.join(',')==='91||steps'&&state.cards.length===count,'left-click workflow pick did not replace bindings while retaining task identities');
         await pick(`record:${xy.records[0].id}`,'91','cfg');
         orientation('top');assert(getActiveWorkspace().view.xy.origin==='top','upper-left coordinate origin was not saved');orientation('bottom');
-        state.selectedCardIds=[];state.selectedAreaIds=[];let queue;window.CLab.executeTasks=tasks=>{queue=tasks;};q('[data-xy-run]').click();
+        state.selectedCardIds=[];state.selectedAreaIds=[];let queue;window.CLab.executeTasks=tasks=>{queue=tasks;};q('#clab-btn-run').click();
         assert(queue?.length===4&&queue.every(task=>matrixCards.some(card=>card.id===task.cardId)&&task.previewAreaIds.length===1),'unselected XY run did not execute exactly its four output cells');
-        state.selectedAreaIds=[matrixCards[0].xyOutputId];q('[data-xy-run]').click();assert(queue?.length===1&&queue[0].cardId===matrixCards[0].id,'selected XY run escaped the selected cell');state.selectedAreaIds=[];
+        state.selectedAreaIds=[matrixCards[0].xyOutputId];q('#clab-btn-run').click();assert(queue?.length===1&&queue[0].cardId===matrixCards[0].id,'selected XY run escaped the selected cell');state.selectedAreaIds=[];
         const camera=getActiveWorkspace().view.xy;camera.zoom=.6;camera.panX=-50;camera.panY=100;
         mode('cards');
         assert(matrixCards.every(card=>card.areas[0].type==='preview'&&card.areas.find(area=>area.xyRecordKey)?.recordOnly===false&&parameterValue(card,'91||cfg')===7),'XY conversion did not put output first and materialize workflow record values as bound inputs');
@@ -117,7 +117,7 @@ export async function checkWorkspaceModes({state,passed,assert,delay}) {
         mode('table');mode('xy');assert(visible().length===4,'card edits silently removed a matrix member or required rebinding its axes');
         assert(getActiveWorkspace().view.xy.x.bindings[0]==='91||steps'&&getActiveWorkspace().view.xy.zoom===.6&&getActiveWorkspace().view.xy.panX===-50,'view switching lost axes or canvas position');
         assert(buildPersistedState().workspaces.find(workspace=>workspace.id===demo.id).view.xy.x.bindings[0]==='91||steps','axis bindings did not reach persisted workspace state');
-        state.selectedCardIds=[];state.selectedAreaIds=[];q('[data-xy-run]').click();
+        state.selectedCardIds=[];state.selectedAreaIds=[];q('#clab-btn-run').click();
         assert(queue?.length===4&&queue.every(task=>matrixCards.some(card=>card.id===task.cardId)),'matrix run escaped into unrelated task cards');
         mode('cards');const duplicate=cloneTask(matrixCards[0]);state.cards.push(duplicate);document.dispatchEvent(new Event('clab_render_ui'));mode('xy');
         assert(xy.taskIds.includes(duplicate.id),'a compatible task cloned in card view did not return to its XY cell');

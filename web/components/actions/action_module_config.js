@@ -9,21 +9,58 @@ import { execSyncParams } from "./action_batch_sync.js";
 // 引入无感卡片生成引擎
 import { generateSingleCardHTML, attachCardEvents } from "../comp_taskcard.js";
 import { restoreToolbarOverflow, refreshToolbarItems } from "../toolbar_layout.js";
-import { cellSettingsIcon } from "../workspace_modes/table_icons.js";
-import { selectedDraftColumn } from "../workspace_modes/table_sheet.js";
+import { cellSettingsIcon, tableResetIcon } from "../workspace_modes/table_icons.js";
+import { selectedTableColumns } from "../workspace_modes/table_sheet.js";
+
+const typeTools = type => `
+                <div class="clab-toolbar-type" role="group" aria-label="模块类型">
+                    <button type="button" class="clab-type-btn ${type === 'edit' ? 'active' : ''}" data-type="edit" aria-pressed="${type === 'edit'}">输入</button>
+                    <button type="button" class="clab-type-btn ${type === 'preview' ? 'active' : ''}" data-type="preview" aria-pressed="${type === 'preview'}">输出</button>
+                </div>
+    `;
+
+const historyTool = mainArea => `
+            <div class="clab-tool-pair">
+                <button id="tb-manage-history" class="clab-btn" aria-pressed="${Boolean(mainArea?.isManageMode)}" title="管理生成记录 (网格视图与拖拽排序)" onmouseover="if(!${mainArea?.isManageMode}) this.style.color='#fff'" onmouseout="if(!${mainArea?.isManageMode}) this.style.color='#aaa'">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                </button>
+            </div>
+        `;
 
 export function renderDynamicToolbar(toolbarHandleContainer) {
     restoreToolbarOverflow(toolbarHandleContainer);
     const tb = toolbarHandleContainer.querySelector('#clab-module-toolbar');
     if (!tb) return;
 
-    const isAnySelected = (state.selectedCardIds?.length > 0) || (state.selectedAreaIds?.length > 0);
     const view = getActiveWorkspace()?.view;
-    const isTable = view?.mode === 'table';
-    const cellSettings = isTable ? `<button type="button" class="clab-btn clab-table-toolbar-settings" id="tb-table-cell-settings" aria-haspopup="dialog" aria-label="单元格设置" title="设置所选单元格的尺寸与外观">${cellSettingsIcon}<span>单元格设置</span></button>` : '';
+    const mode = view?.mode;
+    if (mode === 'xy') {
+        tb.replaceChildren();
+        tb.style.display = 'none';
+        refreshToolbarItems(toolbarHandleContainer);
+        return;
+    }
+
+    const isAnySelected = state.selectedCardIds.length || state.selectedAreaIds.length;
+    if (mode === 'table') {
+        const table = view.table;
+        const selected = new Set(state.selectedAreaIds);
+        const sheet = selected.size && Array.isArray(table?.sheets) ? table.sheets.find(item => item.id === table.sheetId) : null;
+        const [column] = selectedTableColumns(sheet, state.cards, selected);
+        const output = column?.type === 'preview'
+            ? state.cards.flatMap(card => card.areas).find(area => area.type === 'preview' && selected.has(area.id))
+            : null;
+        tb.style.display = 'flex';
+        tb.innerHTML = (column ? typeTools(column.type) +
+            `<button type="button" class="clab-btn" id="tb-reset-table-columns" title="重置所选列的标题、类型、绑定和取值（保留历史）">${tableResetIcon}</button>` : '') +
+            `<button type="button" class="clab-btn clab-table-toolbar-settings" id="tb-table-cell-settings" aria-haspopup="dialog" title="设置单元格的尺寸与外观">${cellSettingsIcon}<span>单元格设置</span></button>` +
+            (output ? historyTool(output) : '');
+        refreshToolbarItems(toolbarHandleContainer);
+        return;
+    }
     if (!isAnySelected) {
-        tb.style.display = isTable ? 'flex' : 'none';
-        if (isTable) tb.innerHTML = cellSettings;
+        tb.replaceChildren();
+        tb.style.display = 'none';
         refreshToolbarItems(toolbarHandleContainer);
         return;
     }
@@ -44,13 +81,6 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
         </div>
     `;
 
-    const typeTools = type => `
-                <div class="clab-toolbar-type" role="group" aria-label="模块类型">
-                    <button type="button" class="clab-type-btn ${type === 'edit' ? 'active' : ''}" data-type="edit" aria-pressed="${type === 'edit'}">输入</button>
-                    <button type="button" class="clab-type-btn ${type === 'preview' ? 'active' : ''}" data-type="preview" aria-pressed="${type === 'preview'}">输出</button>
-                </div>
-    `;
-
     if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
         const selectedIds = new Set(state.selectedAreaIds);
         const selectedAreas = [];
@@ -58,19 +88,13 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
             c.areas?.forEach(a => { if (selectedIds.has(a.id)) selectedAreas.push({ card: c, area: a }); });
         });
 
-        if (!selectedAreas.length && isTable) {
-            const sheet = view.table?.sheets?.find(sheet => sheet.id === view.table.sheetId);
-            const draft = selectedDraftColumn(sheet, selectedIds);
-            if (draft) html = typeTools(draft.type) + cloneTools + cellSettings;
-        }
-
         if (selectedAreas.length > 0) {
             mainType = selectedAreas[0].area.type;
             mainArea = selectedAreas[0].area;
 
             html += typeTools(mainType);
 
-            html += cloneTools + cellSettings;
+            html += cloneTools;
 
             html += `
                 <div class="clab-tool-pair">
@@ -101,18 +125,9 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
         }
     }
 
-    if (!html) html = cloneTools + cellSettings;
+    if (!html) html = cloneTools;
 
-    if (mainType === 'preview') {
-        html += `
-            <div class="clab-tool-pair">
-                <button id="tb-manage-history" class="clab-btn" aria-pressed="${Boolean(mainArea?.isManageMode)}" title="管理生成记录 (网格视图与拖拽排序)" onmouseover="if(!${mainArea?.isManageMode}) this.style.color='#fff'" onmouseout="if(!${mainArea?.isManageMode}) this.style.color='#aaa'">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-                </button>
-            </div>
-        `;
-    }
-
+    if (mainType === 'preview') html += historyTool(mainArea);
     tb.innerHTML = html;
     refreshToolbarItems(toolbarHandleContainer);
 }

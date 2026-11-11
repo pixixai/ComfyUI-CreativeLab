@@ -25,7 +25,7 @@ function geometry(xy,ratio) {
     const width=320,height=width/ratio;
     return {width,height,stepX:width+(xy.x.gap??4),stepY:height+(xy.y.gap??4),left:120+(xy.x.margin??10),top:xy.origin==='top'?56+(xy.y.margin??10):76};
 }
-export function showXYMode(wrapper,cards,xy,parameters) {
+export function showXYMode(wrapper,cards,xy,parameters,{preview=false} = {}) {
     const all=matrixCells(cards,xy),items=visibleMatrixCells(cards,xy);
     const elements=new Map([...wrapper.querySelectorAll(':scope > .clab-card')].map(element=>[element.dataset.cardId,element])),byId=new Map(items.map(item=>[item.card.id,item]));
     for(const [id,element]of elements){
@@ -33,8 +33,10 @@ export function showXYMode(wrapper,cards,xy,parameters) {
         const output=byId.has(id)?matrixOutput(byId.get(id).card,xy):null;
         element.querySelectorAll('.clab-area').forEach(area=>{area.hidden=area.dataset.areaId!==output?.id;});
     }
-    const outputs=new Set(items.map(item=>matrixOutput(item.card,xy)?.id));
-    hydrateWorkspaceAreas(wrapper,(card,area)=>outputs.has(area.id));
+    if (!preview) {
+        const outputs=new Set(items.map(item=>matrixOutput(item.card,xy)?.id));
+        hydrateWorkspaceAreas(wrapper,(card,area)=>outputs.has(area.id));
+    }
     const g=geometry(xy,xyMediaRatio(wrapper,all,xy)),columns=Math.max(1,xy.x.values.length),rows=Math.max(1,xy.y.values.length),layers=matrixLayers(xy,g),layerByZ=new Map(layers.map(layer=>[layer.z,layer]));
     const row=y=>xy.origin==='bottom'?rows-1-y:y,gridW=(columns-1)*g.stepX+g.width;
     wrapper.style.setProperty('--xy-media-height',`${g.height}px`);
@@ -46,12 +48,12 @@ export function showXYMode(wrapper,cards,xy,parameters) {
         at(element,g.left+layer.dx+item.x*g.stepX,g.top+layer.dy+row(item.y)*g.stepY,g.width);
         const output=matrixOutput(item.card,xy);
         updateXYHistoryLabel(element,output);
-        element.querySelectorAll('.clab-area').forEach(area=>{area.hidden=area.dataset.areaId!==output?.id;area.draggable=false;if(!area.hidden)refreshModuleBindingSummary(area,output);});
+        element.querySelectorAll('.clab-area').forEach(area=>{area.hidden=area.dataset.areaId!==output?.id;area.draggable=false;if(!preview&&!area.hidden)refreshModuleBindingSummary(area,output);});
     }
     const placeholders=new Map([...wrapper.querySelectorAll('.clab-xy-empty')].map(element=>[element.dataset.xyPlaceholder,element]));
     for(const layer of layers)for(let y=0;y<rows;y++)for(let x=0;x<columns;x++)if(!occupied.has(`${x},${y},${layer.z}`)){
         const key=`${x},${y}${xy.z.enabled?`,${layer.z}`:''}`,empty=placeholders.get(key)||document.createElement('button');placeholders.delete(key);
-        empty.classList.add('clab-xy-empty');empty.dataset.xyPlaceholder=key;empty.setAttribute('aria-label','图像占位');empty.title='设置轴参数和取值后，自动建立对应任务';
+        empty.classList.add('clab-xy-empty');empty.dataset.xyPlaceholder=key;empty.setAttribute('aria-label','图像占位');empty.title=preview?'当前组合没有生成记录':'设置轴参数和取值后，自动建立对应任务';
         at(empty,g.left+layer.dx+x*g.stepX,g.top+layer.dy+row(y)*g.stepY,g.width,g.height);if(!empty.isConnected)wrapper.append(empty);
     }
     placeholders.forEach(element=>element.remove());

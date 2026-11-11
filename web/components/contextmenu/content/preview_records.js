@@ -3,6 +3,43 @@ import { getMediaType } from '../../modules/media_types/media_utils.js';
 export const valueKey = value => JSON.stringify(value);
 export const displayValue = value => value == null ? '未记录' : typeof value === 'object' ? JSON.stringify(value) : String(value);
 export const sourceKey = (card, area) => JSON.stringify([card.id, area.id]);
+export const previewRecordLabel = record => `${record.areaLabel} · ${record.index < 0 ? '当前结果' : `历史 ${record.index + 1}`}`;
+
+export function buildPreviewJSON(cards,records,kind,includeHistory,allCards=cards) {
+    const outputs=new Map();
+    for (const record of records) {
+        const key=JSON.stringify([record.cardId,record.areaId]);
+        if (!outputs.has(key)) outputs.set(key,[]);
+        let value=record.url;
+        const url=new URL(value,'http://local/');
+        const filename=url.searchParams.get('filename');
+        if (filename) value=[url.searchParams.get('subfolder')?.replace(/\\/g,'/'),filename].filter(Boolean).join('/');
+        outputs.get(key).push(value);
+    }
+    return cards.flatMap(card=>{
+        const original=allCards.find(item=>item.id===card.id)||card;
+        const fields=card.areas.filter(area=>kind==='all'||area.type===(kind==='input'?'edit':'preview')).map(area=>{
+            const peers=original.areas.filter(item=>item.type===area.type);
+            const index=Math.max(0,peers.findIndex(item=>item.id===area.id));
+            const title=area.title||`##${index+1}`;
+            if (area.type==='edit') return [title,area.value??''];
+            const values=outputs.get(JSON.stringify([card.id,area.id]))||[];
+            return [title,includeHistory||values.length>1?values:values[0]||''];
+        });
+        const reserved=new Set(fields.map(([title])=>title)),used=new Set();
+        const unique=fields.map(([title,value])=>{
+            let name=title;
+            if (used.has(title)) {
+                let suffix=2;
+                do { name=`${title} (${suffix++})`; }
+                while (reserved.has(name)||used.has(name));
+            }
+            used.add(name);
+            return [name,value];
+        });
+        return unique.length?[Object.fromEntries(unique)]:[];
+    });
+}
 
 export function snapshotParameters(snapshot) {
     const parameters = new Map();

@@ -28,13 +28,17 @@ function ratioLabel(width, height) {
 }
 
 export function openTableCellSettings(getTrigger, selection, actions, boundary, point) {
+    const panel = openXYPopover(getTrigger, '单元格设置',
+        '<div class="clab-table-column-body"></div>', 'clab-xy-values clab-table-column-panel clab-table-cell-panel', '', boundary, point);
+    mountTableCellSettings(panel.popup.querySelector('.clab-table-column-body'), selection, actions);
+    panel.position();
+    return panel;
+}
+
+export function mountTableCellSettings(body, selection, actions) {
     const {scope, rows, columns, cells, allWidths, allHeights} = selection;
     const captionFor = key => key === 'width' ? (allWidths ? '全表列宽' : '列宽') : (allHeights ? '全表行高' : '行高');
     const summary = scope === 'table' ? '全表' : `已选 ${cells.length} 格 · 涉及 ${rows.length} 行、${columns.length} 列`;
-    const panel = openXYPopover(getTrigger, '单元格设置',
-        '<div class="clab-table-column-body"></div>', 'clab-xy-values clab-table-column-panel clab-table-cell-panel', '', boundary, point);
-    const {popup} = panel;
-    const body = popup.querySelector('.clab-table-column-body');
     body.innerHTML = `<div class="clab-table-selection-summary">${summary}</div>` + sizeControls(captionFor) + `
         <div class="clab-table-setting-line clab-table-appearance">
             <label>内边距<input type="text" data-table-padding placeholder="上, 下, 左, 右" title="上、下、左、右" aria-label="内边距（上、下、左、右）"></label>
@@ -86,7 +90,7 @@ export function openTableCellSettings(getTrigger, selection, actions, boundary, 
         drag.at = at;
         applyRatio(at, true);
     };
-    popup.addEventListener('pointerdown', event => {
+    body.addEventListener('pointerdown', event => {
         const slider = event.target.closest('[data-table-ratio]');
         if (!slider || event.button !== 0 || drag) return;
         event.preventDefault();
@@ -95,7 +99,7 @@ export function openTableCellSettings(getTrigger, selection, actions, boundary, 
         drag = {slider, pointerId:event.pointerId, at:null};
         moveRatio(event);
     });
-    popup.addEventListener('pointermove', event => {
+    body.addEventListener('pointermove', event => {
         if (drag?.pointerId === event.pointerId) moveRatio(event);
     });
     const finishRatio = event => {
@@ -105,8 +109,8 @@ export function openTableCellSettings(getTrigger, selection, actions, boundary, 
         drag = null;
         applyRatio(at, false);
     };
-    for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) popup.addEventListener(event, finishRatio);
-    popup.addEventListener('input', event => {
+    for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) body.addEventListener(event, finishRatio);
+    body.addEventListener('input', event => {
         if (event.target.matches('[data-table-ratio]')) applyRatio(Math.round(Number(event.target.value)), true);
     });
     const submitPadding = input => {
@@ -117,7 +121,7 @@ export function openTableCellSettings(getTrigger, selection, actions, boundary, 
             refreshAppearance();
         } catch (err) { error.textContent = err.message; }
     };
-    popup.addEventListener('change', event => {
+    body.addEventListener('change', event => {
         const input = event.target;
         if (input.matches('[data-table-ratio]')) applyRatio(Math.round(Number(input.value)), false);
         if (input.matches('[data-table-size]')) {
@@ -126,7 +130,7 @@ export function openTableCellSettings(getTrigger, selection, actions, boundary, 
         }
         if (input.matches('[data-table-padding]')) submitPadding(input);
     });
-    popup.addEventListener('keydown', event => {
+    body.addEventListener('keydown', event => {
         const input = event.target;
         if (event.key === 'Enter' && input.matches('[data-table-title],[data-table-padding],[data-table-size]')) {
             event.preventDefault();
@@ -140,7 +144,7 @@ export function openTableCellSettings(getTrigger, selection, actions, boundary, 
         event.preventDefault();
         applyRatio(Math.max(0, Math.min(last, next)), false);
     });
-    popup.addEventListener('click', event => {
+    body.addEventListener('click', event => {
         const align = event.target.closest('[data-table-align]');
         const edge = event.target.closest('[data-table-dimension]');
         if (edge) {
@@ -156,6 +160,4 @@ export function openTableCellSettings(getTrigger, selection, actions, boundary, 
     refreshSizes();
     refreshDirection();
     refreshAppearance();
-    panel.position();
-    return panel;
 }

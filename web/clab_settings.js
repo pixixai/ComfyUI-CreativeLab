@@ -29,8 +29,8 @@ window._clabShortcutParsed = parseShortcut('C');
 window._clabPickShortcutRaw = 'P';
 window._clabBgBlur = true;
 window._clabBgOpacity = 45;
-window._clabPanelWidthPercent = 80;
-window._clabPanelHeightPercent = 80;
+window._clabPanelWidthPercent = 92;
+window._clabPanelHeightPercent = 92;
 window._clabMaxHistory = 50;
 window._clabVideoAutoplay = false;
 window._clabVideoMuted = true;
@@ -115,7 +115,7 @@ window._clabApplyTheme = function() {
     root.style.setProperty('--clab-theme-module-glow', `${window._clabThemeModuleGlow}px`);
 };
 
-function normalizePanelPercent(value, fallback = 80) {
+function normalizePanelPercent(value, fallback = 92) {
     const num = Number(value);
     if (!Number.isFinite(num)) return fallback;
     return Math.max(40, Math.min(100, Math.round(num)));
@@ -125,8 +125,8 @@ window._clabApplyPanelLayout = function() {
     const panel = document.getElementById('clab-panel');
     if (!panel) return;
 
-    const widthPercent = normalizePanelPercent(window._clabPanelWidthPercent, 80);
-    const heightPercent = normalizePanelPercent(window._clabPanelHeightPercent, 80);
+    const widthPercent = normalizePanelPercent(window._clabPanelWidthPercent, 92);
+    const heightPercent = normalizePanelPercent(window._clabPanelHeightPercent, 92);
 
     const leftPercent = Math.max(0, (100 - widthPercent) / 2);
     const topPercent = Math.max(0, (100 - heightPercent) / 2);
@@ -398,7 +398,7 @@ const clabSettings = [
     // =========================================================================
     // 1. 常规 (General) - 显示在最顶部 (由于 LIFO 机制，倒序排列)
     // =========================================================================
-    workspaceSettings.find(setting => setting.category[1] === '1-General'),
+    ...workspaceSettings.filter(setting => setting.category[1] === '1-General'),
     {
         id: "CLab.1-General.BgOpacity",
         name: "Panel Opacity (%)",
@@ -417,12 +417,12 @@ const clabSettings = [
         id: "CLab.1-General.PanelHeightRatio",
         name: "Panel Height Ratio (%)",
         type: "slider",
-        defaultValue: 80,
+        defaultValue: 92,
         attrs: { min: 40, max: 100, step: 1 },
         category: ["Creative Lab", "1-General", "PanelHeight"],
         tooltip: "Panel height ratio relative to browser viewport height.",
         onChange: (newVal) => {
-            window._clabPanelHeightPercent = normalizePanelPercent(newVal, 80);
+            window._clabPanelHeightPercent = normalizePanelPercent(newVal, 92);
             if (window._clabApplyPanelLayout) window._clabApplyPanelLayout();
         }
     },
@@ -430,12 +430,12 @@ const clabSettings = [
         id: "CLab.1-General.PanelWidthRatio",
         name: "Panel Width Ratio (%)",
         type: "slider",
-        defaultValue: 80,
+        defaultValue: 92,
         attrs: { min: 40, max: 100, step: 1 },
         category: ["Creative Lab", "1-General", "PanelWidth"],
         tooltip: "Panel width ratio relative to browser viewport width.",
         onChange: (newVal) => {
-            window._clabPanelWidthPercent = normalizePanelPercent(newVal, 80);
+            window._clabPanelWidthPercent = normalizePanelPercent(newVal, 92);
             if (window._clabApplyPanelLayout) window._clabApplyPanelLayout();
         }
     },
@@ -536,8 +536,8 @@ app.registerExtension({
                 window._clabPickShortcutRaw = String(getSet("CLab.1-General.PickShortcut", "P")).trim();
 
                 window._clabBgOpacity = getSet("CLab.1-General.BgOpacity", 45);
-                window._clabPanelWidthPercent = normalizePanelPercent(getSet("CLab.1-General.PanelWidthRatio", 80), 80);
-                window._clabPanelHeightPercent = normalizePanelPercent(getSet("CLab.1-General.PanelHeightRatio", 80), 80);
+                window._clabPanelWidthPercent = normalizePanelPercent(getSet("CLab.1-General.PanelWidthRatio", 92), 92);
+                window._clabPanelHeightPercent = normalizePanelPercent(getSet("CLab.1-General.PanelHeightRatio", 92), 92);
                 window._clabBgBlur = getSet("CLab.1-General.BackdropBlur", true);
                 if (window._clabApplyPanelLayout) window._clabApplyPanelLayout();
                 

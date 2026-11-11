@@ -90,10 +90,10 @@ export async function runToolbarDockChecks(send, sessionId) {
         await settle();
     };
     const dockBlank = () => evaluate(`(()=>{
-        const d=document.querySelector('.clab-tool-dock'),r=d.getBoundingClientRect(),vertical=d.hasAttribute('data-vertical');
-        for(let offset=4;offset<(vertical?r.height:r.width)-4;offset+=4){
-            const x=r.left+(vertical?r.width/2:offset),y=r.top+(vertical?offset:r.height/2);
-            if(document.elementFromPoint(x,y)?.matches('.clab-tool-dock,.clab-toolbar-left,.clab-toolbar-right'))return {x,y};
+        const d=document.querySelector('.clab-tool-dock'),r=d.getBoundingClientRect();
+        for(let offset=4;offset<r.width-4;offset+=4){
+            const x=r.left+offset,y=r.top+r.height/2;
+            if(document.elementFromPoint(x,y)?.matches('.clab-tool-dock,.clab-toolbar-left,.clab-toolbar-right,.clab-xy-toolbar'))return {x,y};
         }
         throw Error('No blank space in docked toolbar');
     })()`);
@@ -118,7 +118,7 @@ export async function runToolbarDockChecks(send, sessionId) {
     })()`);
     await evaluate("window.showWorkspaceModeDemo('cards');window.addClicks=0;document.querySelector('#clab-global-add-card').onclick=()=>window.addClicks++;");
     await settle();
-    assert.equal(await evaluate(`(()=>{const panel=document.querySelector('#clab-panel'),dock=panel.querySelector('.clab-tool-dock'),button=panel.querySelector('#clab-global-add-card'),style=getComputedStyle(dock);return dock.dataset.dock==='top'&&dock.offsetHeight<=34&&getComputedStyle(panel).borderRadius==='0px'&&getComputedStyle(button).borderRadius==='6px'&&parseFloat(style.paddingLeft)>=28&&style.paddingLeft===style.paddingRight&&!!button.querySelector('svg')&&getComputedStyle(button.querySelector('.clab-tool-label')).display!=='none';})()`), true);
+    assert.equal(await evaluate(`(()=>{const panel=document.querySelector('#clab-panel'),dock=panel.querySelector('.clab-tool-dock'),button=panel.querySelector('#clab-global-add-card'),style=getComputedStyle(dock);return dock.dataset.dock==='top'&&dock.offsetHeight>=38&&dock.offsetHeight<=41&&getComputedStyle(panel).borderRadius==='0px'&&getComputedStyle(button).borderRadius==='6px'&&style.paddingLeft==='16px'&&style.paddingLeft===style.paddingRight&&!!button.querySelector('svg')&&getComputedStyle(button.querySelector('.clab-tool-label')).display!=='none';})()`), true);
     assert.equal(await evaluate(`(()=>{
         const q=s=>document.querySelector(s),dock=q('.clab-tool-dock'),button=q('#clab-global-add-card'),run=q('#clab-run-group');
         const count=q('#clab-run-batch-count'),icon=button.querySelector('.clab-tool-icon');
@@ -237,72 +237,31 @@ export async function runToolbarDockChecks(send, sessionId) {
     assert.equal(await dock(), 'float');
     assert.ok((await floatBlank()).x>blank.x+20);
     await drag(await floatBlank(), {x:bounds.x+5,y:midY});
-    assert.equal(await dock(), 'left');
-    const checkSide = () => evaluate(`(()=>{
-        const q=s=>document.querySelector(s),box=s=>q(s).getBoundingClientRect();
-        const dock=box('.clab-tool-dock'),context=box('#clab-module-toolbar'),run=box('#clab-run-group');
-        const railStyle=getComputedStyle(q('.clab-tool-dock'));
-        const menuIcon=q('#clab-import-json-btn .clab-tool-icon'),type=q('.clab-toolbar-type');
-        const top=['#clab-global-add-card','#clab-global-add-module','#clab-import-json-btn'];
-        const bottom=['#clab-btn-run','#clab-preview-mode-switch','#clab-export-json-btn','#clab-config-dropdown-trigger'];
-        return q('.clab-tool-dock').getAttribute('aria-orientation')==='vertical'&&
-            [...top,...bottom].filter(s=>s!=='#clab-preview-mode-switch').every(s=>{
-                const button=box(s),icon=box(s+' .clab-tool-icon'),label=box(s+(s==='#clab-btn-run'?' .clab-tool-label':' .clab-tool-short-label'));
-                return label.height>0&&label.top>=icon.bottom&&Math.abs((button.left+button.right-dock.left-dock.right)/2)<1;
-            })&&
-            top.map(box).every((item,i,all)=>item.bottom<=(all[i+1]?.top??context.top))&&
-            bottom.map(box).every((item,i,all)=>item.bottom<=(all[i+1]?.top??dock.bottom))&&
-            run.top>=context.bottom&&run.height>run.width&&getComputedStyle(type).flexDirection==='column'&&
-            [...type.children].every(button=>getComputedStyle(button).writingMode==='vertical-rl'&&getComputedStyle(button).letterSpacing==='2px')&&
-            parseFloat(getComputedStyle(type).gap)>=5&&
-            parseFloat(railStyle.paddingTop)>=8&&parseFloat(railStyle.paddingTop)<=24&&railStyle.paddingTop===railStyle.paddingBottom&&parseFloat(railStyle.gap)>=10&&
-            top.map(box)[0].top-dock.top>=parseFloat(railStyle.paddingTop)-1&&
-            dock.bottom-bottom.map(box).at(-1).bottom>=parseFloat(railStyle.paddingBottom)-1&&
-            menuIcon.offsetWidth===30&&menuIcon.querySelector('svg').getBoundingClientRect().width===21&&
-            getComputedStyle(q('#clab-import-json-btn .clab-tool-short-label')).fontSize==='10px'&&
-            getComputedStyle(menuIcon,'::after').width==='4px';
-    })()`);
-    assert.equal(await checkSide(), true);
-    if (await evaluate("!!document.querySelector('.clab-auto-height').closest('#clab-toolbar-more-menu')")) {
-        await click('#clab-toolbar-more');
-        assert.equal(await evaluate(`(()=>{const item=document.querySelector('.clab-auto-height');return item.getClientRects().length>0&&item.querySelector('input').checked&&getComputedStyle(item).boxShadow==='none';})()`), true);
-        await click('#clab-toolbar-more');
-    } else {
-        assert.equal(await checkAutoHeight(false), true);
+    assert.equal(await dock(), 'float', 'left edge never docks');
+    await drag(await floatBlank(), {x:bounds.right-5,y:midY});
+    assert.equal(await dock(), 'float', 'right edge never docks');
+    assert.equal(await evaluate("document.querySelector('.clab-tool-dock').getAttribute('aria-orientation')"), 'horizontal');
+    await drag(await floatBlank(), {x:midX-160,y:midY});
+    const dockCenter=()=>center('.clab-tool-dock');
+    const originalCenter=await dockCenter();
+    for(const mode of ['table','xy','cards']){
+        await evaluate("window.showWorkspaceModeDemo("+JSON.stringify(mode)+")");
+        await settle();
+        assert.equal(await dock(),'float');
+        const current=await dockCenter();
+        assert.ok(Math.abs(current.x-originalCenter.x)<2&&Math.abs(current.y-originalCenter.y)<2);
+        if(mode==='xy'){
+            assert.equal(await evaluate("getComputedStyle(document.querySelector('.clab-tool-dock')).borderRadius"),'30px');
+            assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-xy-records]>.clab-tool-label')).display"),'none');
+            assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-xy-origin-options]>.clab-tool-label')).display"),'block');
+            await shot('xy-float');
+        }
     }
-    await checkOpeningScale('left');
-    await checkRunHighlight('left');
     await click('#clab-run-count-up');
     assert.equal(await evaluate("document.querySelector('#clab-run-batch-count').value"), '2');
     await click('#clab-run-count-down');
     assert.equal(await evaluate("document.querySelector('#clab-run-batch-count').value"), '1');
-    const resize = await center('.clab-tool-resize');
-    await drag('.clab-tool-resize', {x:resize.x+102,y:resize.y});
-    assert.equal(await evaluate("document.querySelector('.clab-tool-dock').offsetWidth>112"), true);
-    assert.equal(await checkSide(), true);
-    await click('#clab-import-json-btn');
-    assert.equal(await evaluate(`(()=>{const d=document.querySelector('#clab-import-json-dropdown'),t=document.querySelector('.clab-tool-dock');return d.matches(':popover-open')&&d.getBoundingClientRect().left>=t.getBoundingClientRect().right;})()`), true);
-    await shot('left');
-    await evaluate("window.showWorkspaceModeDemo('xy')");
-    await settle();
-    assert.equal(await evaluate(`(()=>{const p=document.querySelector('#clab-panel'),s=getComputedStyle(p),t=p.querySelector('.clab-tool-dock'),c=p.querySelector('#clab-cards-container'),xy=c.querySelector('.clab-xy-toolbar'),r=xy.getBoundingClientRect(),b=c.getBoundingClientRect();return t.dataset.dock==='left'&&getComputedStyle(t).display==='none'&&s.paddingLeft==='0px'&&['TopLeft','TopRight','BottomLeft','BottomRight'].every(corner=>s['border'+corner+'Radius']==='0px')&&Math.abs((r.left+r.right-b.left-b.right)/2)<1&&Math.abs(b.bottom-r.bottom-20)<1&&getComputedStyle(xy).borderRadius==='30px';})()`), true);
-    await evaluate("window.showWorkspaceModeDemo('cards')");
-    await settle();
-    assert.equal(await dock(), 'left');
-    assert.equal(await evaluate("document.querySelector('#clab-module-toolbar').getClientRects().length"), 0);
-    await drag(await dockBlank(), {x:midX,y:midY});
-    assert.equal(await dock(), 'float');
-    assert.equal(await checkFloat(), true);
-    await drag(await floatBlank(), {x:bounds.right-5,y:midY});
-    assert.equal(await dock(), 'right');
-    await select('module');
-    await settle();
-    assert.equal(await checkSide(), true);
-    await checkOpeningScale('right');
-    await checkRunHighlight('right');
-    await click('#clab-run-dropdown-toggle');
-    assert.equal(await evaluate(`(()=>{const d=document.querySelector('#clab-run-dropdown-menu'),t=document.querySelector('.clab-tool-dock');return d.matches(':popover-open')&&d.getBoundingClientRect().right<=t.getBoundingClientRect().left;})()`), true);
-    await drag(await dockBlank(), {x:midX,y:bounds.bottom-4});
+    await drag(await floatBlank(), {x:midX,y:bounds.bottom-4});
     assert.equal(await dock(), 'bottom');
     await evaluate("window.showWorkspaceModeDemo('table')");
     await settle();
@@ -312,6 +271,8 @@ export async function runToolbarDockChecks(send, sessionId) {
     assert.equal(await evaluate(`(()=>{const t=document.querySelector('.clab-tool-dock'),c=document.querySelector('#clab-cards-container'),p=t.closest('#clab-panel');return t.dataset.dock==='bottom'&&getComputedStyle(t.closest('#clab-panel')).borderRadius==='0px'&&Math.abs(t.getBoundingClientRect().bottom-p.getBoundingClientRect().bottom)<2&&c.getBoundingClientRect().bottom<=t.getBoundingClientRect().top+.5&&!!document.querySelector('#tb-table-cell-settings .clab-tool-label');})()`), true);
     await evaluate("window.showWorkspaceModeDemo('xy')");
     await settle();
+    assert.equal(await evaluate("document.querySelector('.clab-tool-dock').offsetHeight"),39);
+    await shot('xy-bottom');
     await click('[data-xy-records]');
     assert.equal(await evaluate(`(()=>{const t=document.querySelector('.clab-xy-toolbar'),p=document.querySelector('.clab-xy-record-panel:popover-open');return p.getBoundingClientRect().bottom<t.getBoundingClientRect().top;})()`), true);
     await click('.clab-xy-popup-close');
@@ -329,15 +290,20 @@ export async function runToolbarDockChecks(send, sessionId) {
     await settle();
     assert.equal(await dock(), 'top');
     assert.equal(await evaluate("JSON.parse(localStorage.getItem('clab-toolbar-dock-v1')).side"), 'top');
-    console.log('PASS floating toolbars are horizontal capsules, side docks stack icons over labels, and auto-height stays inside its highlight');
+    console.log('PASS toolbar floats at a shared center, ignores left and right edges, and docks at top and bottom');
     await evaluate("window.showWorkspaceModeDemo('cards');window.dockTestWidth=document.querySelector('#clab-panel').style.width;document.querySelector('#clab-panel').style.width='285px'");
     await settle();
     await click('#clab-toolbar-more');
     await click('#clab-import-json-btn');
-    assert.equal(await evaluate(`(()=>{const t=document.querySelector('.clab-tool-dock'),p=document.querySelector('#clab-toolbar-more-menu:popover-open'),d=document.querySelector('#clab-import-json-dropdown');return t.offsetHeight<=34&&p.contains(d)&&d.getBoundingClientRect().height>0;})()`), true);
-    await evaluate("document.querySelector('#clab-panel').style.width=window.dockTestWidth");
+    assert.equal(await evaluate(`(()=>{const t=document.querySelector('.clab-tool-dock'),p=document.querySelector('#clab-toolbar-more-menu:popover-open'),d=document.querySelector('#clab-import-json-dropdown');return t.offsetHeight>=38&&t.offsetHeight<=41&&p.contains(d)&&d.getBoundingClientRect().height>0;})()`), true);
+    await evaluate("window.showWorkspaceModeDemo('xy');document.querySelector('#clab-panel').style.width='530px'");
     await settle();
-    console.log('PASS narrow top toolbar stays in one row and controls moved to More keep working');
+    assert.deepEqual(await evaluate(`(()=>{const t=document.querySelector('.clab-tool-dock'),icon=t.querySelector('[data-xy-records]'),preview=t.querySelector('#clab-btn-preview');return {height:t.offsetHeight,label:getComputedStyle(icon.querySelector('.clab-tool-label')).display,within:preview.getBoundingClientRect().right<t.getBoundingClientRect().right};})()`),{height:39,label:'none',within:true});
+    await click('[data-xy-records]');
+    await click('.clab-xy-popup-close');
+    await evaluate("window.showWorkspaceModeDemo('cards');document.querySelector('#clab-panel').style.width=window.dockTestWidth");
+    await settle();
+    console.log('PASS narrow docked toolbars use one row with compact controls and working menus');
 
     const squareAfterSettings = await evaluate(`(async()=>{
         await import('/extensions/clab/clab_settings.js');
@@ -384,7 +350,40 @@ export async function runToolbarDockChecks(send, sessionId) {
     assert.equal(await evaluate("document.querySelector('#clab-panel').dataset.workspaceMode"), 'table');
     assert.equal(await activeName(), defaultName.replace('任务卡片', '参数表'));
     assert.equal(await activeMode(), '参数表');
+    const currentPanel = await evaluate(`(()=>{
+        const box=document.querySelector('#clab-panel').getBoundingClientRect();
+        return {x:(box.left+box.right)/2,top:box.top,bottom:box.bottom,y:(box.top+box.bottom)/2};
+    })()`);
+    await drag(await dockBlank(),{x:currentPanel.x,y:currentPanel.y});
+    const fromTable=await dockCenter();
     await click(tab(original)+' .clab-workspace-tab-select');
+    assert.equal(await dock(),'float');
+    const fromCards=await dockCenter();
+    assert.ok(Math.abs(fromTable.x-fromCards.x)<2&&Math.abs(fromTable.y-fromCards.y)<2);
+    await drag(await dockBlank(),{x:currentPanel.x,y:currentPanel.bottom-4});
+    assert.equal(await dock(),'bottom');
+    const placeTabs = async position => {
+        const point=await evaluate(`(()=>{const strip=document.querySelector('#clab-panel .clab-workspace-strip'),rect=strip.getBoundingClientRect();return {x:rect.right-10,y:(rect.top+rect.bottom)/2};})()`);
+        await mouse('mousePressed',point,{button:'right',buttons:2,clickCount:1});
+        await mouse('mouseReleased',point,{button:'right',clickCount:1});
+        await click(`[data-workspace-bar-position=${position}]`);
+        assert.equal(await evaluate("localStorage.getItem('clab-workspace-tabs-position')"),position);
+    };
+    await placeTabs('bottom');
+    await settle();
+    assert.equal(await evaluate(`(()=>{
+        const tabs=document.querySelector('.clab-workspace-strip').getBoundingClientRect(),canvas=document.querySelector('#clab-cards-container').getBoundingClientRect(),bar=document.querySelector('.clab-tool-dock').getBoundingClientRect();
+        return canvas.bottom<=tabs.top+.5&&tabs.bottom<=bar.top+.5;
+    })()`),true);
+    await click(activeTab+' [data-mode-toggle]');
+    assert.equal(await evaluate("document.querySelector('#clab-workspace-mode-menu').getBoundingClientRect().bottom<document.querySelector('.clab-workspace-strip').getBoundingClientRect().top"),true);
+    for (const type of ['keyDown','keyUp']) {
+        await send('Input.dispatchKeyEvent', {type,key:'Escape',code:'Escape',windowsVirtualKeyCode:27}, sessionId);
+    }
+    await placeTabs('top');
+    await drag(await dockBlank(),{x:currentPanel.x,y:currentPanel.top+4});
+    assert.equal(await dock(),'top');
+    console.log('PASS separate workspaces share docking and the tab bar setting keeps both bars and the workspace menu in bounds');
     const inactiveTrigger = tab(added)+' [data-mode-toggle]';
     const visibility = selector => evaluate(`getComputedStyle(document.querySelector(${JSON.stringify(selector)})).visibility`);
     await mouse('mouseMoved', {x:0,y:0});
@@ -435,7 +434,7 @@ export async function runToolbarDockChecks(send, sessionId) {
         return normalizeWorkspace(saved).autoName;
     })()`), false);
     await click('#clab-btn-preview');
-    assert.equal(await evaluate("!!document.querySelector('.clab-preview-modal.visible')"), true);
+    assert.equal(await evaluate("document.querySelector('.clab-preview-modal.visible').dataset.reviewMode"), 'table');
     await click('.clab-preview-modal-close');
     assert.equal(await evaluate("document.activeElement.id"), 'clab-btn-preview');
     await click(tab(original)+' .clab-workspace-tab-select');
@@ -450,7 +449,8 @@ export async function runToolbarDockChecks(send, sessionId) {
     assert.ok(expected.length>0);
     assert.equal(await evaluate(`(()=>{
         const group=document.querySelector('#clab-preview-mode-switch'),r=group.getBoundingClientRect();
-        return r.width>0&&group.previousElementSibling.id==='clab-run-group'&&group.nextElementSibling.id==='clab-export-json-wrapper';
+        return r.width>0&&group.parentElement.lastElementChild===group&&group.parentElement.matches('.clab-toolbar-right')&&
+            !document.querySelector('#clab-panel #clab-export-json-wrapper');
     })()`), true);
     const previewIds = () => evaluate(`(async()=>{
         const {previewModalStore}=await import('/extensions/clab/components/contextmenu/content/state.js');
@@ -458,7 +458,37 @@ export async function runToolbarDockChecks(send, sessionId) {
     })()`);
     await click('#clab-btn-preview');
     assert.deepEqual(await previewIds(), expected);
-    await click('.clab-preview-modal-close');
+    assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-review-mode] button[data-review-mode]')].map(button=>button.dataset.reviewMode)`),
+        ['browse','compare','detail','table','xy']);
+    assert.equal(await evaluate(`(()=>{
+        const header=document.querySelector('.clab-preview-modal-head'),panel=header.parentElement,workspace=document.querySelector('#clab-panel');
+        const head=header.getBoundingClientRect(),tabs=header.nextElementSibling.getBoundingClientRect(),dock=workspace.querySelector('.clab-tool-dock');
+        const modes=header.querySelector('.clab-review-modes'),current=header.querySelector('.clab-toolbar-type'),original=workspace.querySelector('#clab-preview-mode-switch');
+        return header.firstElementChild.matches('.clab-review-notice')&&header.nextElementSibling.matches('.clab-review-workspaces')&&Math.abs(head.bottom-tabs.top)<1&&
+            header.offsetHeight===dock.offsetHeight&&getComputedStyle(panel).borderRadius==='0px'&&
+            getComputedStyle(header).paddingLeft===getComputedStyle(dock).paddingLeft&&getComputedStyle(header).paddingRight===getComputedStyle(dock).paddingRight&&
+            Math.abs(current.getBoundingClientRect().right-original.getBoundingClientRect().right)<1&&
+            getComputedStyle(modes).backgroundColor==='rgba(0, 0, 0, 0)'&&getComputedStyle(modes).borderTopWidth==='0px'&&
+            getComputedStyle(current).borderTopStyle===getComputedStyle(original).borderTopStyle&&current.offsetHeight===original.offsetHeight&&
+            Math.abs(panel.getBoundingClientRect().width-workspace.getBoundingClientRect().width)<1&&Math.abs(panel.getBoundingClientRect().height-workspace.getBoundingClientRect().height)<1;
+    })()`),true);
+    await shot('preview-tabs');
+    assert.equal(await evaluate("!document.querySelector('#clab-export-json-wrapper')&&!!document.querySelector('.clab-preview-modal-right [data-review-data-action=organize]')"),true);
+    const switchReviewWorkspace = id=>click(`[data-review-workspaces] [data-workspace-id="${id}"] .clab-workspace-tab-select`);
+    const reviewWorkspaces=await evaluate("[...document.querySelectorAll('#clab-workspace-bar [data-workspace-id]')].map(tab=>tab.dataset.workspaceId)");
+    assert.ok(reviewWorkspaces.includes(original)&&reviewWorkspaces.includes(added));
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-review-workspaces] [data-workspace-id]')].map(tab=>tab.dataset.workspaceId)"),reviewWorkspaces);
+    await switchReviewWorkspace(added);
+    assert.equal(await activeId(),added);
+    assert.equal(await evaluate("document.querySelector('.clab-preview-modal.visible').dataset.reviewMode"),'browse');
+    await switchReviewWorkspace(original);
+    assert.equal(await activeId(),original);
+    assert.deepEqual(await previewIds(),expected);
+    assert.equal(await evaluate("document.querySelectorAll('.clab-preview-modal-right [data-review-json-kind]').length"),3);
+    for (const type of ['keyDown','keyUp']) {
+        await send('Input.dispatchKeyEvent', {type,key:'Escape',code:'Escape',windowsVirtualKeyCode:27}, sessionId);
+    }
+    assert.equal(await evaluate("document.querySelector('.clab-preview-modal').classList.contains('visible')"),false);
     assert.equal(await evaluate("document.activeElement.id"), 'clab-btn-preview');
     await evaluate(`(async()=>{
         const {state}=await import('/extensions/clab/components/ui_state.js');
@@ -466,7 +496,9 @@ export async function runToolbarDockChecks(send, sessionId) {
         state.selectedAreaIds=[${JSON.stringify(expected[0])}];
         updateSelectionUI();
     })()`);
+    await settle();
     await click('#clab-btn-preview');
+    assert.equal(await evaluate("document.querySelector('.clab-preview-modal').classList.contains('visible')"),true);
     assert.deepEqual(await previewIds(), expected.slice(0,1));
     await click('.clab-preview-modal-close');
     console.log('PASS segmented preview switch opens from cards and table, scopes output selection and returns focus to the toolbar');
@@ -512,14 +544,34 @@ export async function runToolbarDockChecks(send, sessionId) {
     })()`);
     await settle();
     assert.equal(await evaluate(`(()=>{
+        const bar=document.querySelector('.clab-tool-dock'),tabs=document.querySelector('.clab-workspace-strip');
+        return bar.dataset.dock==='top'&&bar.offsetHeight===39&&bar.getBoundingClientRect().bottom<=tabs.getBoundingClientRect().top+.5;
+    })()`),true);
+    await shot('xy-top');
+    await evaluate(`(async()=>{
+        const {state}=await import('/extensions/clab/components/ui_state.js');
+        const {updateSelectionUI}=await import('/extensions/clab/components/ui_selection.js');
+        state.selectedAreaIds=[state.cards.find(card=>card.xyOutputId).xyOutputId];updateSelectionUI();
+    })()`);
+    await settle();
+    assert.equal(await evaluate(`(()=>{
+        const toolbar=document.querySelector('.clab-tool-dock'),choices=toolbar.querySelectorAll('.clab-xy-choice');
+        return !toolbar.querySelector('#tb-clone-btn,#tb-format-painter,[data-type=edit],[data-type=preview]')&&
+            [...choices].every(button=>getComputedStyle(button).backgroundColor==='rgba(0, 0, 0, 0)');
+    })()`),true);
+    await evaluate(`(async()=>{const {state}=await import('/extensions/clab/components/ui_state.js');state.selectedAreaIds=[];})()`);
+    await click('[data-xy-reassign]');
+    assert.equal(await evaluate("document.querySelector('.clab-xy-axis-panel:popover-open').getBoundingClientRect().top>document.querySelector('.clab-tool-dock').getBoundingClientRect().bottom"),true);
+    await click('.clab-xy-popup-close');
+    assert.equal(await evaluate(`(()=>{
         const menu=document.querySelector('[data-xy-reassign]'),reset=document.querySelector('[data-xy-reset]');
-        return getComputedStyle(menu).borderRadius==='6px'&&getComputedStyle(menu,'::after').width==='4px'&&getComputedStyle(reset,'::after').content==='none';
+        return getComputedStyle(menu).borderRadius==='6px'&&getComputedStyle(menu.querySelector('.clab-tool-icon'),'::after').width==='4px'&&getComputedStyle(reset.querySelector('.clab-tool-icon'),'::after').content==='none'&&getComputedStyle(document.querySelector('[data-xy-origin-options]'),'::after').width==='4px';
     })()`), true);
-    await click('[data-xy-run]');
+    await click('#clab-btn-run');
     assert.deepEqual(await evaluate('window.lastXYRun'), [[0,0],[1,0],[0,1],[1,1]]);
-    await click('[data-xy-run-axis=y]');
-    assert.equal(await evaluate("document.querySelector('[data-xy-run-axis=y]').getAttribute('aria-pressed')"), 'true');
-    await click('[data-xy-run]');
+    await click('[data-xy-run-axis-options]');await click('.clab-xy-options [data-xy-option=y]');
+    assert.equal(await evaluate("document.querySelector('[data-xy-run-axis-options]').textContent"), 'Y 轴优先');
+    await click('#clab-btn-run');
     assert.deepEqual(await evaluate('window.lastXYRun'), [[0,0],[0,1],[1,0],[1,1]]);
     assert.equal(await evaluate(`(async()=>{
         const {buildPersistedState}=await import('/extensions/clab/components/ui_state.js');
@@ -528,5 +580,245 @@ export async function runToolbarDockChecks(send, sessionId) {
     })()`), 'y');
     await evaluate('window.CLab.executeTasks=window.savedXYExecutor');
     console.log('PASS XY toolbar menu indicators and run-direction switch match actual queue order');
-    return 8;
+
+    assert.equal(await evaluate("!!document.querySelector('.clab-toolbar-right > :last-child #clab-btn-preview')"), true);
+    const effectivePreviewRows=await evaluate(`(async()=>{
+        const {state,getActiveWorkspace}=await import('/extensions/clab/components/ui_state.js');
+        const {matrixCells}=await import('/extensions/clab/components/workspace_modes/xy_model.js');
+        const {matchingTasks}=await import('/extensions/clab/components/workspace_modes/task_model.js');
+        const {effectiveTableRow}=await import('/extensions/clab/components/workspace_modes/table_sheet.js');
+        const view=getActiveWorkspace().view,xy=view.xy;
+        const tasks=matrixCells(state.cards,xy).map(cell=>cell.card);
+        view.templateId=tasks[0].id;
+        Object.assign(view.table,{sheets:[],sheetId:'',empty:false});
+        xy.z={...xy.z,enabled:true,bindings:['99||fixture_layer'],values:['First','Second'],current:0,display:'single'};
+        xy.records=[{id:'fixture-record',key:'99||fixture_record'}];
+        tasks.forEach((card,index)=>{
+            card.areas.push({id:'fixture-z-'+index,type:'edit',title:'Layer',targetNodeId:'99',targetWidget:'fixture_layer',value:index<2?'First':'Second'});
+            const output=card.areas.find(area=>area.id===card.xyOutputId)||card.areas.find(area=>area.type==='preview');
+            if(!output.history?.length){output.history=['/view?filename=first.png'];output.historyIndex=0;output.resultUrl=output.history[0];}
+            if(output.history.length===1)output.history.push('/view?filename=alternate-preview.png');
+            output.historyIndex=output.history.length-1;output.resultUrl=output.history.at(-1);
+            output.historyRuns??=[];
+            const at=output.historyIndex??0;
+            output.historyRuns[at]={...output.historyRuns[at],recordParameters:[{key:'99||fixture_record',label:'采样备注',value:'已记录'}]};
+        });
+        window.beforeReviewXY=JSON.stringify(xy);
+        return matchingTasks(state.cards,tasks[0]).filter(effectiveTableRow).map(task=>task.id);
+    })()`);
+    await click('#clab-btn-preview');
+    assert.equal(await evaluate("document.querySelector('.clab-preview-modal.visible').dataset.reviewMode"), 'xy');
+    assert.equal(await evaluate("document.querySelector('[data-sheet-option=matrixSource]').value"), 'workspace');
+    assert.equal(await evaluate(`(()=>{
+        const head=document.querySelector('.clab-preview-modal-head').getBoundingClientRect(),tabs=document.querySelector('.clab-review-modes').getBoundingClientRect();
+        return Math.abs(head.left+head.right-tabs.left-tabs.right)<2;
+    })()`),true);
+    const layerCount=()=>evaluate("document.querySelectorAll('.clab-review-grid .clab-xy-layer-axes').length");
+    assert.equal(await layerCount(),1);
+    const checkPreviewHistory = selector => evaluate(`(()=>{
+        const root=document.querySelector('.clab-preview-modal.visible'),selected=root.querySelector('[data-review-download=selected]');
+        const cell=root.querySelector('${selector}'),url=()=>cell.querySelector('.clab-output-footer').dataset.url;
+        const counter=()=>cell.querySelector('.clab-output-history-position');
+        const before=url(),wasDisabled=selected.disabled,beforeCount=counter().textContent;
+        if(root.dataset.reviewMode==='table'&&getComputedStyle(counter().closest('.clab-output-footer')).display==='none')throw Error('table history counter is hidden');
+        if(root.dataset.reviewMode==='table') {
+            const previous=cell.style.getPropertyValue('--clab-table-padding');
+            try {
+                for(const padding of ['0px','23px 31px 7px 11px']) {
+                    cell.style.setProperty('--clab-table-padding',padding);
+                    const media=cell.querySelector('.clab-preview-bg').getBoundingClientRect(),label=counter().getBoundingClientRect();
+                    if(Math.abs(label.top-media.top-6)>1||Math.abs(media.right-label.right-6)>1)throw Error('history label does not follow the padded media corner');
+                }
+            } finally {cell.style.setProperty('--clab-table-padding',previous);}
+        }
+        cell.dispatchEvent(new MouseEvent('click',{bubbles:true}));
+        cell.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'ArrowUp'}));
+        const stepped=url(),isEnabled=!selected.disabled;
+        if(before!==stepped&&counter().textContent===beforeCount)throw Error('history counter did not follow the displayed record');
+        cell.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'ArrowDown'}));
+        return wasDisabled&&isEnabled&&before!==stepped&&url()===before;
+    })()`);
+    assert.equal(await checkPreviewHistory('.clab-review-grid[data-workspace-mode=xy] .clab-output-area'),true);
+
+    await shot('matrix-preview');
+    await click('[data-review-layer=all]');
+    assert.equal(await layerCount(),2);
+    await click('[data-review-layer="0"]');
+    const stage='.clab-review-grid[data-workspace-mode=xy] .clab-review-grid-stage';
+    const transform=()=>evaluate(`document.querySelector('${stage} .clab-cards-wrapper').style.transform`);
+    const beforeTransform=await transform(),point=await center(stage);
+    await mouse('mouseWheel',point,{deltaX:0,deltaY:-100});
+    assert.notEqual(await transform(),beforeTransform);
+    const beforePan=await transform();
+    await drag({x:point.x-10,y:point.y-10},{x:point.x+24,y:point.y+24});
+    assert.notEqual(await transform(),beforePan);
+    await click('[data-review-xy-show=axes][value=x]');
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('${stage} .axis-x')).visibility`),'hidden');
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('${stage} .axis-y')).visibility`),'visible');
+    await click('[data-review-xy-show=bindings][value=x]');
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('${stage} [data-xy-part=x-binding]')).visibility`),'hidden');
+    assert.equal(await evaluate(`getComputedStyle(document.querySelector('${stage} [data-xy-part=y-binding]')).visibility`),'visible');
+    const change=(selector,value)=>evaluate(`(()=>{
+        const input=document.querySelector(${JSON.stringify(selector)});
+        input.value=${JSON.stringify(value)};
+        input.dispatchEvent(new Event('change',{bubbles:true}));
+    })()`);
+    await click('[data-review-xy-orientation][value=top]');
+    assert.equal(await evaluate(`document.querySelector('${stage} .axis-y').classList.contains('points-up')`),false);
+    await change('[data-review-axis=x] [data-review-xy-spacing=gap]','17');
+    await change('[data-review-axis=x] [data-xy-label-angle]','45');
+    assert.match(await evaluate(`document.querySelector('${stage} .clab-xy-overlay').style.getPropertyValue('--xy-x-label-transform')`),/45deg/);
+    await click('[data-review-xy-swap=xy]');
+    await click('[data-review-xy-record]');
+    assert.match(await evaluate(`document.querySelector('${stage} .clab-review-xy-records').textContent`),/采样备注.*已记录/);
+    assert.equal(await evaluate(`(async()=>{
+        const {getActiveWorkspace}=await import('/extensions/clab/components/ui_state.js');
+        return JSON.stringify(getActiveWorkspace().view.xy)===window.beforeReviewXY;
+    })()`),true);
+    const matrixSource = (source) => evaluate(`(()=>{
+        const select=document.querySelector('[data-sheet-option=matrixSource]');
+        select.value=${JSON.stringify(source)};
+        select.dispatchEvent(new Event('change',{bubbles:true}));
+    })()`);
+    await matrixSource('history');
+    assert.equal(await evaluate("!!document.querySelector('[data-table-option=x]') && !document.querySelector('.clab-preview-modal').hasAttribute('data-workspace-sheet')"), true);
+    await matrixSource('workspace');
+    assert.equal(await layerCount(),1);
+    await click('[data-review-mode=table]');
+    await shot('parameter-preview');
+    assert.ok(await evaluate("document.querySelectorAll('[data-grid-filter=column]').length") >= 2);
+    assert.ok(effectivePreviewRows.length);
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-grid-filter=row]:checked')].map(input=>input.value)"),effectivePreviewRows);
+    const previewTable='.clab-review-grid[data-workspace-mode=table]';
+    assert.equal(await checkPreviewHistory(previewTable+' .clab-output-area'),true);
+    const headCount = () => evaluate(`document.querySelectorAll('${previewTable} [data-review-column-name]').length`);
+    const count = await headCount();
+    await evaluate("[...document.querySelectorAll('[data-grid-filter=column]:checked')].at(-1).click()");
+    assert.equal(await headCount(), count - 1);
+    await evaluate(`(()=>{
+        const title=document.querySelector('${previewTable} [data-review-column-name]');
+        title.dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));
+        const input=document.querySelector('${previewTable} [data-table-row-title]');
+        input.value='预览修改后的列名';
+        input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+    })()`);
+    await click(previewTable+' [data-review-cell]');
+    await change('.clab-review-cell-settings [data-table-size=width]','303');
+    await change('.clab-review-cell-settings [data-table-padding]','4,5,6,7');
+    assert.deepEqual(await evaluate(`(()=>{
+        const cell=document.querySelector('${previewTable} [data-review-cell].active');
+        return [cell.offsetWidth,cell.style.getPropertyValue('--clab-table-padding')];
+    })()`),[303,'4px 7px 5px 6px']);
+    const visibleSheet = await evaluate(`({
+        columns:['任务',...[...document.querySelectorAll('${previewTable} [data-review-column-name]')].map(header=>header.textContent)],
+        values:[...document.querySelectorAll('${previewTable} [data-review-row-name]')].map(row=>row.textContent),
+    })`);
+    await evaluate(`(()=>{
+        window.previewDownloads=[];
+        const click=HTMLAnchorElement.prototype.click,create=URL.createObjectURL,blobs=new Map();
+        URL.createObjectURL=function(blob){const url=create.call(this,blob);blobs.set(url,blob);return url;};
+        HTMLAnchorElement.prototype.click=function(){
+            if(!this.download)return click.call(this);
+            window.previewDownloads.push({name:this.download,blob:blobs.get(this.href)});
+        };
+        window.stopPreviewDownloads=()=>{URL.createObjectURL=create;HTMLAnchorElement.prototype.click=click;};
+    })()`);
+    try {
+        const getDownload = (index) => evaluate(`(async()=>{
+            for(let attempt=0;attempt<400;attempt++){
+                const download=window.previewDownloads[${index}];
+                if(download)return {name:download.name,size:download.blob.size,type:download.blob.type};
+                await new Promise(resolve=>setTimeout(resolve,25));
+            }
+            throw Error(document.querySelector('.clab-review-notice').textContent);
+        })()`);
+        const saveDownload = async (index,extension) => {
+            if (!process.env.CLAB_DOCK_SCREENSHOT_PREFIX) return;
+            const data=await evaluate(`new Promise(resolve=>{
+                const reader=new FileReader();
+                reader.onload=()=>resolve(reader.result.split(',')[1]);
+                reader.readAsDataURL(window.previewDownloads[${index}].blob);
+            })`);
+            fs.writeFileSync(process.env.CLAB_DOCK_SCREENSHOT_PREFIX+extension,Buffer.from(data,'base64'));
+        };
+        await click('[data-review-export=xlsx]');
+        const workbook = await getDownload(0);
+        assert.equal(workbook.name, '参数表.xlsx');
+        const workbookParts = await evaluate(`(async()=>{
+            const bytes=new Uint8Array(await window.previewDownloads[0].blob.arrayBuffer()),view=new DataView(bytes.buffer),entries={};
+            let offset=0;
+            while(view.getUint32(offset,true)===0x04034b50){
+                const size=view.getUint32(offset+18,true),length=view.getUint16(offset+26,true),extra=view.getUint16(offset+28,true),start=offset+30+length+extra;
+                const name=new TextDecoder().decode(bytes.slice(offset+30,offset+30+length));
+                entries[name]=name.endsWith('.xml')?new TextDecoder().decode(bytes.slice(start,start+size)):size;
+                offset=start+size;
+            }
+            return entries;
+        })()`);
+        assert.ok(workbookParts['xl/media/image1.png']>100);
+        assert.match(workbookParts['xl/drawings/drawing1.xml'],/<xdr:oneCellAnchor>/);
+        assert.ok(visibleSheet.columns.every(label=>workbookParts['xl/worksheets/sheet1.xml'].includes(label)));
+        assert.ok(visibleSheet.values.every(value=>workbookParts['xl/worksheets/sheet1.xml'].includes(value)));
+        await saveDownload(0,'-workbook.xlsx');
+        await click('[data-review-export=html]');
+        const html = await getDownload(1);
+        assert.equal(html.name, '参数表-HTML.zip');
+        assert.ok(html.size > 500);
+        await saveDownload(1,'-table-html.zip');
+        await change('[data-review-png-scale]','1');
+        const expectedTablePNG=await evaluate(`(()=>{
+            const grid=document.querySelector('${previewTable}');
+            const head=grid.querySelector('.clab-table-head');
+            return [[...head.children].reduce((sum,col)=>sum+col.offsetWidth,0),head.offsetHeight+
+                [...grid.querySelectorAll('[data-review-row]')].reduce((sum,row)=>sum+row.offsetHeight,0)];
+        })()`);
+        await click('[data-review-export=png]');
+        assert.equal((await getDownload(2)).name,'参数表.png');
+        assert.deepEqual(await evaluate(`(async()=>{
+            const image=await createImageBitmap(window.previewDownloads[2].blob);
+            const size=[image.width,image.height];image.close();return size;
+        })()`),expectedTablePNG);
+        await saveDownload(2,'-table-rendered.png');
+        await evaluate(`(()=>{
+            const clipboard=navigator.clipboard,write=clipboard.write;
+            clipboard.write=async items=>{window.previewCopy=await items[0].getType('image/png');};
+            window.restoreClipboard=()=>{clipboard.write=write;};
+        })()`);
+        try {
+            await click('[data-review-export=copy]');
+            assert.ok(await evaluate(`new Promise(resolve=>{
+                const start=performance.now(),timer=setInterval(()=>{
+                    if(window.previewCopy||performance.now()-start>3000){clearInterval(timer);resolve(window.previewCopy?.size||0);}
+                },25);
+            })`) > 500);
+        } finally { await evaluate('window.restoreClipboard()'); }
+        await click('[data-review-mode=xy]');
+        await change('[data-review-png-scale]','2');
+        await click('[data-review-export=png]');
+        const png = await getDownload(3);
+        assert.equal(png.name, 'XY矩阵.png');
+        assert.equal(png.type,'image/png');
+        assert.ok(png.size > 500);
+        await saveDownload(3,'-matrix-rendered.png');
+        await evaluate("document.querySelector('[data-review-json-kind][value=input]').scrollIntoView({block:'center'})");
+        await click('[data-review-json-kind][value=input]');
+        await evaluate("document.querySelector('[data-review-data-action=download-json]').scrollIntoView({block:'center'})");
+        await click('[data-review-data-action=download-json]');
+        const json = await getDownload(4);
+        assert.match(json.name, /^CLab_Export_input_\d+\.json$/);
+        assert.ok(json.size > 30);
+    } finally {
+        await evaluate('window.stopPreviewDownloads()');
+    }
+    await click('.clab-preview-modal-close');
+    assert.equal(await evaluate("document.activeElement.matches('#clab-btn-preview')"), true);
+    await click(activeTab+' [data-mode-toggle]');
+    await click('#clab-workspace-mode-menu [data-workspace-mode=table]');
+    assert.equal(await evaluate(`(()=>{
+        const header=[...document.querySelectorAll('#clab-panel [data-table-settings]')].find(button=>button.textContent==='预览修改后的列名');
+        const column=header?.closest('.clab-table-column');
+        return column?.offsetWidth===303&&[...document.querySelectorAll('#clab-panel [role=cell]')].some(cell=>cell.dataset.tableColumn===column.dataset.tableColumn&&cell.style.getPropertyValue('--clab-table-padding')==='4px 7px 5px 6px');
+    })()`),true);
+    console.log('PASS preview reuses the workspace matrix and table, preserves matrix state, switches selected output history, and exports selected data');
+    return 10;
 }

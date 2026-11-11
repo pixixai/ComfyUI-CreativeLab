@@ -2,28 +2,28 @@ import { xyToolbarStyles } from './xy_toolbar_styles.js';
 import { axisLabelStyles } from './axis_label_styles.js';
 
 export const xyStyles=`
-    #clab-panel[data-workspace-mode=xy] :is(#clab-toolbar-handle,#clab-card-width-ctrl){display:none!important}
-    #clab-panel[data-workspace-mode=xy] #clab-cards-container{display:block;position:relative;overflow:hidden;padding:0;min-height:240px;background:#181818 radial-gradient(#343434 .7px,transparent .7px) 0 0/20px 20px;cursor:grab}
-    #clab-panel[data-workspace-mode=xy] #clab-cards-container.clab-xy-grabbing,#clab-panel[data-workspace-mode=xy] .clab-xy-grabbing *{cursor:grabbing!important;user-select:none!important}
-    #clab-panel[data-workspace-mode=xy] .clab-cards-wrapper{position:absolute!important;left:0;top:0;display:block!important;min-width:0!important;margin:0!important;transform-origin:0 0;cursor:default;will-change:transform}
-    #clab-panel[data-workspace-mode=xy] .clab-card{position:absolute!important;width:var(--xy-cell-width)!important;box-sizing:border-box;border:0!important;border-radius:0;padding:0;box-shadow:none;overflow:visible;background:#202020}
-    #clab-panel[data-workspace-mode=xy] .clab-card::before{content:'';position:absolute;inset:0;z-index:32;pointer-events:none;box-sizing:border-box;border:1px solid transparent;transition:border-color .15s}
-    #clab-panel[data-workspace-mode=xy] .clab-card:where(:has(.clab-output-area:not([hidden]) .clab-preview-img[src=""]))::before{border-color:#444}
-    #clab-panel[data-workspace-mode=xy] .clab-card:hover::before{border-color:#ffffff52}
-    #clab-panel[data-workspace-mode=xy] .clab-card:is(.selected,:has(.clab-output-area.active))::before{border:1px solid #2196f3}
-    #clab-panel[data-workspace-mode=xy] .clab-card.clab-xy-running::before{display:none}
-    #clab-panel[data-workspace-mode=xy] .clab-card.selected{outline:none;z-index:1}
-    #clab-panel[data-workspace-mode=xy] :is(.clab-card-title-bar,.clab-del-card-btn,.clab-del-area-btn,.clab-output-head,.clab-output-footer,.clab-preview-placeholder){display:none!important}
-    #clab-panel[data-workspace-mode=xy] .clab-card-body{padding:0;margin:0;min-height:0;display:block}
-    #clab-panel[data-workspace-mode=xy] .clab-area-list{min-height:0}
-    #clab-panel[data-workspace-mode=xy] .clab-output-area{border:0!important;margin:0;border-radius:0}
-    #clab-panel[data-workspace-mode=xy] .clab-output-area::before{display:none!important}
-    #clab-panel[data-workspace-mode=xy] .clab-card>.clab-xy-history{position:absolute;right:7px;top:7px;z-index:26;pointer-events:none;color:#bbb;font:12px/18px sans-serif;font-variant-numeric:tabular-nums}
-    #clab-panel[data-workspace-mode=xy] .clab-text-history-position{display:none}
-    #clab-panel[data-workspace-mode=xy] .clab-output-area.active{box-shadow:none;outline:none;z-index:1}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] #clab-card-width-ctrl{display:none!important}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] :is(#clab-cards-container,.clab-review-grid-stage){display:block;position:relative;overflow:hidden;padding:0;min-height:240px;background:#181818 radial-gradient(#343434 .7px,transparent .7px) 0 0/20px 20px;cursor:grab}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] :is(#clab-cards-container,.clab-review-grid-stage).clab-xy-grabbing,:is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-xy-grabbing *{cursor:grabbing!important;user-select:none!important}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-cards-wrapper{position:absolute!important;left:0;top:0;display:block!important;min-width:0!important;margin:0!important;transform-origin:0 0;cursor:default;will-change:transform}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-card{position:absolute!important;width:var(--xy-cell-width)!important;box-sizing:border-box;border:0!important;border-radius:0;padding:0;box-shadow:none;overflow:visible;background:#202020}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-card::before{content:'';position:absolute;inset:0;z-index:32;pointer-events:none;box-sizing:border-box;border:1px solid transparent;transition:border-color .15s}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-card:where(:has(.clab-output-area:not([hidden]) .clab-preview-img[src=""]))::before{border-color:#444}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-card:hover::before{border-color:#ffffff52}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-card:is(.selected,:has(.clab-output-area.active))::before{border:1px solid #2196f3}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-card.clab-xy-running::before{display:none}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-card.selected{outline:none;z-index:1}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] :is(.clab-card-title-bar,.clab-del-card-btn,.clab-del-area-btn,.clab-output-head,.clab-output-footer,.clab-preview-placeholder){display:none!important}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-card-body{padding:0;margin:0;min-height:0;display:block}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-area-list{min-height:0}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-output-area{border:0!important;margin:0;border-radius:0}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-output-area::before{display:none!important}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-card>.clab-xy-history{position:absolute;right:7px;top:7px;z-index:26;pointer-events:none;color:#bbb;font:12px/18px sans-serif;font-variant-numeric:tabular-nums}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-text-history-position{display:none}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-output-area.active{box-shadow:none;outline:none;z-index:1}
     .clab-xy-progress-ring{position:absolute;inset:0;width:100%;height:100%;z-index:33;pointer-events:none;overflow:visible}.clab-xy-progress-path{transition:stroke-dasharray .15s linear}
     @media(prefers-reduced-motion:reduce){.clab-xy-progress-path{transition:none}}
-    #clab-panel[data-workspace-mode=xy] .clab-preview-bg{width:100%!important;height:var(--xy-media-height)!important;min-height:0!important;aspect-ratio:auto!important;margin:0!important;border:0;border-radius:0}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=xy] .clab-preview-bg{width:100%!important;height:var(--xy-media-height)!important;min-height:0!important;aspect-ratio:auto!important;margin:0!important;border:0;border-radius:0}
     .clab-xy-binding{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:0;white-space:nowrap;border:1px solid #444!important;border-radius:4px;background:#242424!important;color:#aaa!important;padding:5px 7px;cursor:pointer;font:12px/1.25 sans-serif}
     .clab-xy-binding:hover,.clab-xy-binding[aria-expanded=true]{color:white!important;background:#303030!important}.clab-xy-binding>b{font-weight:400;color:#888}
     .clab-xy-overlay{position:absolute;inset:0;pointer-events:none;--xy-ui-scale:1}.clab-xy-overlay .clab-xy-binding{font-size:calc(12px * var(--xy-ui-scale));gap:calc(6px * var(--xy-ui-scale));padding:calc(5px * var(--xy-ui-scale)) calc(7px * var(--xy-ui-scale));border-radius:calc(4px * var(--xy-ui-scale))}

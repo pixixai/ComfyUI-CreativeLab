@@ -36,11 +36,11 @@ function getWorkspaceModeLabel(workspace) {
     return modeLabels[workspace.view?.mode] || modeLabels.cards;
 }
 
-function getWorkspaceLabel(workspace) {
+export function getWorkspaceLabel(workspace) {
     return workspace.autoName ? `${getWorkspaceModeLabel(workspace)}·${workspace.name}` : workspace.name;
 }
 
-export function renderWorkspaceBar(container) {
+export function renderWorkspaceBar(container, { navigationOnly = false } = {}) {
     if (!container) return;
 
     const workspaces = state.workspaces || [];
@@ -75,7 +75,7 @@ export function renderWorkspaceBar(container) {
                 }
                 const modeSpan = tabEl.querySelector(".clab-workspace-tab-mode");
                 const mode = getWorkspaceModeLabel(ws);
-                if (modeSpan.textContent !== mode) modeSpan.textContent = mode;
+                if (modeSpan && modeSpan.textContent !== mode) modeSpan.textContent = mode;
             });
             return;
         }
@@ -91,16 +91,16 @@ export function renderWorkspaceBar(container) {
 
         const label = getWorkspaceLabel(workspace);
         return `
-            <div class="${classes.join(" ")}" data-workspace-id="${escapeHtml(workspace.id)}" title="${escapeHtml(label)}" draggable="true">
+            <div class="${classes.join(" ")}" data-workspace-id="${escapeHtml(workspace.id)}" title="${escapeHtml(label)}" draggable="${!navigationOnly}">
                 <button type="button" class="clab-workspace-tab-select"><span class="clab-workspace-tab-name">${escapeHtml(label)}</span></button>
-                <button type="button" data-mode-toggle aria-label="切换工作区模式" aria-haspopup="menu" aria-expanded="false" aria-controls="clab-workspace-mode-menu" title="切换工作区模式"><span class="clab-workspace-tab-mode">${getWorkspaceModeLabel(workspace)}</span></button>
+                ${navigationOnly ? '' : `<button type="button" data-mode-toggle aria-label="切换工作区模式" aria-haspopup="menu" aria-expanded="false" aria-controls="clab-workspace-mode-menu" title="切换工作区模式"><span class="clab-workspace-tab-mode">${getWorkspaceModeLabel(workspace)}</span></button>`}
             </div>
         `;
     }).join("");
 
     container.innerHTML = `
         ${tabsHtml}
-        <button class="clab-workspace-tab clab-workspace-add" id="clab-workspace-add" title="新建工作区">+</button>
+        ${navigationOnly ? '' : '<button class="clab-workspace-tab clab-workspace-add" id="clab-workspace-add" title="新建工作区">+</button>'}
     `;
 }
 
@@ -308,10 +308,31 @@ function startInlineRename(tabEl, workspaceId) {
 }
 
 let workspaceMenuEl = null;
+const workspaceBarPositionKey = 'clab-workspace-tabs-position';
+
+function setWorkspaceBarPosition(position) {
+    document.documentElement.dataset.clabWorkspaceTabs = position;
+    try { localStorage.setItem(workspaceBarPositionKey, position); } catch {}
+}
+
+function showWorkspaceMenu(event) {
+    workspaceMenuEl.style.display = 'block';
+    const {width, height} = workspaceMenuEl.getBoundingClientRect();
+    workspaceMenuEl.style.left = `${Math.max(0, Math.min(event.clientX, window.innerWidth - width))}px`;
+    workspaceMenuEl.style.top = `${Math.max(0, event.clientY + height > window.innerHeight ? event.clientY - height : event.clientY)}px`;
+}
+
+export function scrollWorkspaceTabs(container, event) {
+    if (!event.deltaY) return;
+    container.scrollLeft += event.deltaY * 0.6;
+    event.preventDefault();
+}
 
 export function attachWorkspaceEvents(container) {
     if (!container || container.dataset.clabWorkspaceBound === "1") return;
     container.dataset.clabWorkspaceBound = "1";
+    const strip = container.closest('.clab-workspace-strip');
+    try { document.documentElement.dataset.clabWorkspaceTabs = localStorage.getItem(workspaceBarPositionKey) === 'bottom' ? 'bottom' : 'top'; } catch {}
 
     if (!workspaceMenuEl) {
         workspaceMenuEl = document.createElement("div");
@@ -327,11 +348,22 @@ export function attachWorkspaceEvents(container) {
         window.addEventListener("contextmenu", closeMenu, true);
     }
 
-    container.addEventListener("contextmenu", (event) => {
+    strip.addEventListener("contextmenu", (event) => {
         const tab = event.target.closest(".clab-workspace-tab[data-workspace-id]");
-        if (!tab) return;
+        if (!tab && event.target.closest('button,.clab-mode-menu')) return;
         event.preventDefault();
         event.stopPropagation();
+
+        if (!tab) {
+            const current = document.documentElement.dataset.clabWorkspaceTabs;
+            workspaceMenuEl.innerHTML = [['top','在上方'],['bottom','在下方']].map(([position, label]) =>
+                `<div class="clab-context-menu-item" role="menuitemradio" aria-checked="${position === current}" data-workspace-bar-position="${position}">${position === current ? '✓ ' : ''}${label}</div>`).join('');
+            showWorkspaceMenu(event);
+            for (const item of workspaceMenuEl.querySelectorAll('[data-workspace-bar-position]')) {
+                item.onclick = () => { setWorkspaceBarPosition(item.dataset.workspaceBarPosition); workspaceMenuEl.style.display = 'none'; };
+            }
+            return;
+        }
 
         const wsId = tab.dataset.workspaceId;
         if (!appState.selectedWorkspaceIds.includes(wsId)) {
@@ -347,14 +379,7 @@ export function attachWorkspaceEvents(container) {
             <div class="clab-context-menu-item clab-danger" id="clab-ctx-ws-delete">删除</div>
         `;
 
-        workspaceMenuEl.style.display = "block";
-        let left = event.clientX;
-        let top = event.clientY;
-        const rect = workspaceMenuEl.getBoundingClientRect();
-        if (left + rect.width > window.innerWidth) left -= rect.width;
-        if (top + rect.height > window.innerHeight) top -= rect.height;
-        workspaceMenuEl.style.left = `${left}px`;
-        workspaceMenuEl.style.top = `${top}px`;
+        showWorkspaceMenu(event);
 
         workspaceMenuEl.querySelector("#clab-ctx-ws-add").onclick = () => { workspaceMenuEl.style.display = "none"; addWorkspace(wsId); };
         workspaceMenuEl.querySelector("#clab-ctx-ws-duplicate").onclick = () => { workspaceMenuEl.style.display = "none"; duplicateSelectedWorkspaces(); };
@@ -495,10 +520,5 @@ export function attachWorkspaceEvents(container) {
         startInlineRename(tab, tab.dataset.workspaceId);
     });
 
-    container.addEventListener("wheel", (event) => {
-        if (event.deltaY !== 0) {
-            container.scrollLeft += event.deltaY * 0.6;
-            event.preventDefault();
-        }
-    });
+    container.addEventListener("wheel", event => scrollWorkspaceTabs(container, event));
 }

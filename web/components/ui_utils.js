@@ -238,8 +238,11 @@ export function injectDnDCSS() {
 
 export function injectCSS() {
     const style = document.createElement("style");
+    style.id = "clab-ui-styles";
     // 銆愪富棰樺紩鎿庛€戯細鍏ㄩ潰鎶涘純纭紪鐮侀鑹诧紝鍏ㄧ嚎鍚敤 CSS 鍙橀噺锛?
     style.innerHTML = `
+        :root { --clab-docked-toolbar-height:39px; --clab-toolbar-edge-padding:16px; }
+        @media(max-width:760px) { :root { --clab-toolbar-edge-padding:8px; } }
         #clab-backdrop {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0, 0, 0, 0.6); z-index: 9998; 
@@ -248,7 +251,7 @@ export function injectCSS() {
         #clab-backdrop.visible { opacity: 1; pointer-events: auto; }
 
         #clab-panel {
-            position: fixed; top: 10vh; left: 10vw; width: 80vw; height: 80vh;
+            position: fixed; top: 4vh; left: 4vw; width: 92vw; height: 92vh;
             background: rgba(30, 30, 30, 0.45); 
             backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
             color: var(--fg-color, #eee); font-family: sans-serif;
@@ -289,6 +292,7 @@ export function injectCSS() {
         }
         .clab-workspace-strip {
             position:relative;
+            order:-1;
             z-index:65;
             display: flex;
             align-items: stretch;
@@ -303,10 +307,14 @@ export function injectCSS() {
             width: 100%;
             overflow: visible;
         }
+        :root[data-clab-workspace-tabs=bottom] #clab-panel { --clab-strip-inset:27px; }
+        :root[data-clab-workspace-tabs=bottom] #clab-panel .clab-workspace-strip {
+            order:1; border-bottom:0; border-top:1px solid rgba(255,255,255,0.1);
+        }
         #clab-card-width-ctrl {
             position: absolute;
             right: 20px;
-            bottom: 17px;
+            bottom: calc(17px + var(--clab-strip-inset,0px) + var(--clab-dock-inset,0px));
             background: transparent;
             padding: 0;
             border: none;
@@ -325,6 +333,7 @@ export function injectCSS() {
             height: 100%;
             cursor: grab;
         }
+        #clab-panel .clab-workspace-shell { box-sizing:border-box; padding-inline-end:16px; }
         .clab-workspace-tabs {
             display: flex;
             align-items: stretch;
@@ -721,6 +730,7 @@ export function injectCSS() {
         }
         .clab-context-menu-item.clab-danger { color: #ff6b6b; }
         .clab-context-menu-item.clab-danger:hover { background: rgba(255,107,107,0.12); }
+        .clab-context-menu-item[aria-disabled=true] { opacity:0.4; background:none; cursor:default; }
         .clab-context-menu-divider {
             height: 1px;
             background: rgba(255, 255, 255, 0.1);
@@ -747,7 +757,7 @@ export function injectCSS() {
             inset: 4vh 4vw;
             display: flex;
             flex-direction: column;
-            border-radius: 14px;
+            border-radius: 0;
             border: 1px solid rgba(255, 255, 255, 0.16);
             background: linear-gradient(180deg, rgba(28, 28, 28, 0.96), rgba(20, 20, 20, 0.96));
             box-shadow: 0 28px 60px rgba(0, 0, 0, 0.55);
@@ -758,27 +768,11 @@ export function injectCSS() {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 12px 16px;
+            box-sizing: border-box;
+            height: var(--clab-docked-toolbar-height);
+            padding: 0 var(--clab-toolbar-edge-padding);
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             background: rgba(10, 10, 10, 0.35);
-        }
-        .clab-preview-modal-title {
-            font-size: 15px;
-            font-weight: 700;
-            color: #f2f2f2;
-            letter-spacing: 0.2px;
-        }
-        .clab-preview-modal-close {
-            border: 1px solid rgba(255,255,255,0.18);
-            background: rgba(255,255,255,0.08);
-            color: #f0f0f0;
-            border-radius: 8px;
-            padding: 6px 12px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-        .clab-preview-modal-close:hover {
-            background: rgba(255,255,255,0.16);
         }
         .clab-preview-modal-body {
             flex: 1 1 auto;
@@ -876,13 +870,6 @@ export function injectCSS() {
             justify-content: center;
             overflow: hidden;
             position: relative;
-            cursor: zoom-in;
-        }
-        .clab-preview-modal-image-stage.hand-ready {
-            cursor: grab;
-        }
-        .clab-preview-modal-image-stage.dragging {
-            cursor: grabbing;
         }
         .clab-preview-modal-main-image,
         .clab-preview-modal-main-video {
@@ -1168,9 +1155,6 @@ export function injectCSS() {
             }
         }
         @media (max-width: 900px) {
-            .clab-preview-modal-panel {
-                inset: 2vh 2vw;
-            }
             .clab-preview-modal-body {
                 grid-template-columns: 1fr;
                 grid-template-rows: 180px minmax(260px, 1fr) 220px;

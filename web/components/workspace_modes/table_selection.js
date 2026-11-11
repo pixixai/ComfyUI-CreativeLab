@@ -153,7 +153,7 @@ export function attachTableSelection(panel,actions) {
             selectAllStage = kind === 'effective' ? 1 : 2;
         }
     }, true);
-    return {selectColumn,selectCell,selectAll,deselect,kind:()=>kind,columnIndices:()=>kind==='column'?actions.columns().filter(column=>selectedColumns.has(column.id)).map(column=>column.index):[],sync(){
+    return {selectRow,selectColumn,selectCell,selectAll,deselect,kind:()=>kind,columnIndices:()=>kind==='column'?actions.columns().filter(column=>selectedColumns.has(column.id)).map(column=>column.index):[],sync(){
         if(kind==='column')state.selectedAreaIds=actions.group().flatMap(row=>actions.columns().filter(column=>selectedColumns.has(column.id)).map(column=>row.areas[column.index].id));
         if(kind==='all')state.selectedAreaIds=tableSelectionIds(actions.group(),actions.columns(),false);
     },clear};

@@ -17,13 +17,13 @@ const toolbarDefinitions = [
     ['#tb-format-painter', '格式刷', 4],
     ['#tb-table-cell-settings', '单元格设置', 7],
     ['#tb-reset-module', '重置', 3],
+    ['#tb-reset-table-columns', '重置', 4],
     ['#tb-btn-sync-params', '同步参数', 3],
     ['.clab-auto-height', '高度适配', 3, '<path d="M4 3h16M4 21h16M12 5v14m-3-11 3-3 3 3m-6 8 3 3 3-3"/>'],
     ['#tb-manage-history', '管理记录', 4],
     ['#clab-run-group', '运行', 100, play],
-    ['#clab-preview-mode-switch', '预览', 8],
-    ['#clab-export-json-wrapper', '导出', 3],
     ['#clab-config-btn-wrapper', '数据维护', 4, '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>'],
+    ['#clab-preview-mode-switch', '预览', 90],
 ];
 
 function styleButton(button, label, path) {

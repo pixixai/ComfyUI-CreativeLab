@@ -48,7 +48,7 @@ export function renderXYAxes(wrapper,xy,g,gridW,bottom,parameters,layer=0) {
     overlay.style.setProperty('--xy-ui-scale',xy.zoom);syncAxisLabelSettings(overlay,xy);
     let group=overlay.querySelector(`.clab-xy-layer-axes[data-xy-layer="${layer}"]`);if(!group){group=document.createElement('div');group.className='clab-xy-layer-axes';group.dataset.xyLayer=layer;overlay.append(group);}
     const up=xy.origin==='bottom',axisX=g.left-(xy.x.margin??10),axisY=up?bottom+(xy.y.margin??10):g.top-(xy.y.margin??10),xEnd=g.left+gridW+42,yEnd=up?Math.min(g.top-38,axisY-38):Math.max(bottom+38,axisY+38);
-    const frame=part(group,'axes','<button class="clab-xy-axis axis-x" data-xy-edit-values="x" title="X轴设置"><i></i><b>X</b></button><button class="clab-xy-axis axis-y" data-xy-edit-values="y" title="Y轴设置"><i></i><b>Y</b></button>');
+    const frame=part(group,'axes',`<button class="clab-xy-axis axis-x" data-xy-edit-values="x" title="X轴设置"><i></i><b>X</b></button><button class="clab-xy-axis axis-y" data-xy-edit-values="y" title="Y轴设置"><i></i><b>Y</b></button>`);
     const xLine=frame.querySelector('.axis-x'),yLine=frame.querySelector('.axis-y');
     xyPosition(xLine,axisX,axisY-10,xEnd-axisX,20);xyPosition(yLine,axisX-10,up?yEnd:axisY,20,Math.abs(axisY-yEnd));yLine.classList.toggle('points-up',up);
     const xb=part(group,'x-binding',bindingButton('x',xy.x.bindings,parameters));xb.className='clab-xy-axis-binding';xyPosition(xb,xEnd+10,axisY);xb.style.transform='translateY(-50%)';

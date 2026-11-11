@@ -1,10 +1,15 @@
+import { buildPreviewJSON } from '../web/components/contextmenu/content/preview_records.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { collectPreviewRecords, snapshotParameters, parameterFields, buildResultRows, absentOutputLabel, buildXYMatrix, valueKey } from '../web/components/contextmenu/content/preview_records.js';
 import { buildTableModel } from '../web/components/contextmenu/content/preview_table.js';
 import { buildStandaloneHTML } from '../web/components/contextmenu/content/preview_export.js';
-import { workspacePreviewSources, initialPreviewSources, sourceRecordCount, sortBrowseRecords, moveBrowseRecords } from '../web/components/contextmenu/content/preview_browse.js';
+import { workspaceTableSource } from '../web/components/contextmenu/content/preview_workspace_sheets.js';
+import { buildWorkbook } from '../web/components/contextmenu/content/preview_xlsx.js';
+import { filmstripDownloadRecords, mediaDownloadFiles, outputDownloadRecords } from '../web/components/contextmenu/content/preview_downloads.js';
+import { workspacePreviewSources, initialPreviewSources, sourceRecordCount, groupBrowseRecords, sourceBrowseGroups, snapshotBrowseGroups, moveBrowseGroupRecords, browseGroupCover } from '../web/components/contextmenu/content/preview_browse.js';
 import { comparisonHTML } from '../web/components/contextmenu/content/preview_compare.js';
+import { reorderSourceHistories } from '../web/components/contextmenu/content/preview_history_order.js';
 
 globalThis.window={location:{origin:'http://localhost:8188'}};
 
@@ -88,6 +93,39 @@ test('standalone HTML escapes metadata and references packaged local media witho
     assert.ok(!html.includes('/extensions/'));
 });
 
+test('parameter preview reads existing sheet order and draft values without mutating workspace cards',()=>{
+    const {card,a}=fixture();
+    a.tableColumnId='output';a.historyIndex=2;a.resultUrl=a.history[2];
+    const sheet={id:'sheet',columns:[{id:'draft',type:'edit',title:'草稿'},{id:'output',type:'preview',title:'结果'}],rows:[
+        {id:'row',cardId:card.id,values:{}},{id:'draft-row',values:{draft:false}},{id:'empty',values:{}},
+    ]};
+    const before=JSON.stringify({sheet,card});
+    const {rows,columns}=workspaceTableSource([card],sheet);
+    assert.deepEqual(columns.map(({id})=>id),['draft','output']);
+    assert.equal(rows.length,3);
+    assert.equal(rows[0].areas[1].historyIndex,2);
+    assert.equal(rows[1].areas[0].value,false);
+    assert.equal(JSON.stringify({sheet,card}),before);
+});
+
+test('XLSX stores numeric and boolean values as typed cells, and preserves text as literal strings',async()=>{
+    const rows=[[{value:'任务',style:1},{value:'步数',style:1},{value:'开关',style:1}],[{value:'=文字 & <标签>',style:1},{value:0,style:2},{value:false,style:2}]];
+    const file=buildWorkbook({widths:[52,180,256],heights:[40,144],rows,pictures:[]});
+    const bytes=new Uint8Array(await file.arrayBuffer()),view=new DataView(bytes.buffer),decoder=new TextDecoder();
+    const parts=new Map();
+    for(let at=0;view.getUint32(at,true)===0x04034b50;){
+        const size=view.getUint32(at+18,true),length=view.getUint16(at+26,true),extra=view.getUint16(at+28,true);
+        const offset=at+30+length+extra;
+        parts.set(decoder.decode(bytes.slice(at+30,at+30+length)),decoder.decode(bytes.slice(offset,offset+size)));
+        at=offset+size;
+    }
+    const sheet=parts.get('xl/worksheets/sheet1.xml');
+    assert.match(sheet,/<c r="B2" s="2"><v>0<\/v>/);
+    assert.match(sheet,/<c r="C2" s="2" t="b"><v>0<\/v>/);
+    assert.match(sheet,/=文字 &amp; &lt;标签&gt;/);
+    assert.match(sheet,/ht="108"/);
+});
+
 test('workspace source trees include every task output, retain empty outputs and exclude inputs',()=>{
     const h=fixture(),empty={id:'empty',type:'preview'},input={id:'input',type:'edit'};h.card.areas.push(empty,input);
     const other={id:'other',title:'另一任务',areas:[{id:'c',type:'preview',resultUrl:'/view?filename=c.png'}]};
@@ -100,11 +138,24 @@ test('module entry selects only its sources while card entry selects every outpu
     assert.deepEqual(initialPreviewSources(cards,[],[h.card.id,'other'],h.card.id).map(source=>source.area.id),['a','b','c']);
     assert.deepEqual(initialPreviewSources(cards,[],[],h.card.id).map(source=>source.area.id),['a','b']);
 });
-test('filmstrip sorting uses recorded run order and never reorders stored module history',()=>{
-    const h=fixture(),before=JSON.stringify(h.card),records=h.records;
-    assert.equal(sortBrowseRecords(records,'newest')[0].runId,'r3');
-    assert.equal(sortBrowseRecords(records,'oldest')[0].runId,'r1');
-    assert.equal(sortBrowseRecords(records,'source'),records);assert.equal(JSON.stringify(h.card),before);
+test('filmstrip ranks each module independently, reverses groups and retains stored history order',()=>{
+    const h=fixture();
+    h.a.historyRuns[0].order=9;
+    h.a.historyRuns[2].order=4;
+    const before=JSON.stringify(h.card),records=collectPreviewRecords(h.sources);
+    const read = order => groupBrowseRecords(records,order).map(group=>group.records.map(({areaId,runId})=>`${areaId}:${runId}`));
+    assert.deepEqual(read('newest'),[['a:r1','b:r1'],['a:r3'],['a:r2']]);
+    assert.deepEqual(read('oldest'),[['a:r2'],['a:r3'],['a:r1','b:r1']]);
+    assert.deepEqual(read('source'),[['a:r1','a:r2','a:r3'],['b:r1']]);
+    assert.equal(JSON.stringify(h.card),before);
+});
+
+test('unified media histories keep source groups while sorting records within each module',()=>{
+    const h=fixture(),original=JSON.stringify(h.card);
+    const read=order=>sourceBrowseGroups(h.records,order).map(group=>group.records.map(record=>record.index));
+    assert.deepEqual(read('newest'),[[2,1,0],[0]]);
+    assert.deepEqual(read('oldest'),[[0,1,2],[0]]);
+    assert.equal(JSON.stringify(h.card),original);
 });
 
 test('source labels match custom titles and the actual # / ## default titles',()=>{
@@ -113,20 +164,109 @@ test('source labels match custom titles and the actual # / ## default titles',()
     assert.deepEqual(sources.map(source=>[source.cardLabel,source.areaLabel]),[['#1','##1'],['#1','视频'],['第二任务','##1']]);
 });
 
-test('custom sorting keeps duplicate URL identities, appends new records and leaves histories intact',()=>{
+test('cross-group dragging keeps duplicate URL identities and custom membership without changing histories',()=>{
     const h=fixture(),before=JSON.stringify(h.card),keys=h.records.map(record=>record.key);
-    const moved=moveBrowseRecords(keys,[keys[0],keys[1]],keys[3]);
-    assert.deepEqual(moved,[keys[2],keys[0],keys[1],keys[3]]);
-    assert.deepEqual(sortBrowseRecords(h.records,'custom',moved).map(record=>record.key),moved);
+    const groups=groupBrowseRecords(h.records,'source');
+    const moved=moveBrowseGroupRecords(groups,[keys[1],keys[0]],groups[1].id,keys[3]);
+    const order=snapshotBrowseGroups(moved);
+    assert.deepEqual(order.map(group=>group.keys),[[keys[2]],[keys[0],keys[1],keys[3]]]);
+    assert.deepEqual(snapshotBrowseGroups(groupBrowseRecords(h.records,'source')),snapshotBrowseGroups(groups));
+    assert.deepEqual(snapshotBrowseGroups(groupBrowseRecords(h.records,'custom',order)),order);
+    assert.deepEqual(snapshotBrowseGroups(groupBrowseRecords(h.records.slice(1),'custom',order)).map(group=>group.keys),[[keys[2]],[keys[1],keys[3]]]);
+    const newRecord={...h.records[2],key:'new'};
+    assert.deepEqual(snapshotBrowseGroups(groupBrowseRecords([...h.records,newRecord],'custom',order)).map(group=>group.keys),[[keys[2],'new'],[keys[0],keys[1],keys[3]]]);
     assert.equal(JSON.stringify(h.card),before);
-    assert.deepEqual(sortBrowseRecords(h.records,'custom',[keys[2]]).map(record=>record.key),[keys[2],keys[0],keys[1],keys[3]]);
 });
 
-test('custom dragging supports end insertion, preserves selection order and ignores self drops',()=>{
-    const keys=['a','b','c','d','e'];
-    assert.deepEqual(moveBrowseRecords(keys,['d','b']),['a','c','e','b','d']);
-    assert.equal(moveBrowseRecords(keys,['b','c'],'b'),keys);
-    assert.equal(moveBrowseRecords(keys,['b'],'missing'),keys);
+test('custom dragging supports end insertion and ignores self drops',()=>{
+    const h=fixture(),groups=groupBrowseRecords(h.records,'source');
+    const [a,b,c,d]=h.records.map(record=>record.key),[first,second]=groups;
+    const keys=result=>snapshotBrowseGroups(result).map(group=>group.keys);
+    assert.deepEqual(keys(moveBrowseGroupRecords(groups,[a],first.id)),[[b,c,a],[d]]);
+    assert.equal(moveBrowseGroupRecords(groups,[b,c],first.id,b),groups);
+    assert.equal(moveBrowseGroupRecords(groups,[b],first.id,'missing'),groups);
+});
+
+test('history reordering preserves duplicate identity, holes, active records, text and parameter/run associations',()=>{
+    const h=fixture();h.a.historyRuns[2]=h.a.historyRuns[1];h.a.historyIndex=2;h.a.resultUrl=h.a.history[2];
+    h.a.textHistory=['first','second','third'];h.a.textHistoryStatus=['ready','error','ready'];h.a.selectedThumbIndices=[2];
+    const records=collectPreviewRecords(h.sources),groups=sourceBrowseGroups(records,'source');
+    groups[0].records.reverse();
+    const result=reorderSourceHistories(h.sources,groups),next=collectPreviewRecords(h.sources);
+    assert.deepEqual(result.changed,['a']);assert.equal(h.a.historyIndex,0);assert.equal(h.a.resultUrl,h.a.history[0]);
+    assert.deepEqual(h.a.textHistory,['third','second','first']);assert.equal(h.a.inputHistorySnapshots[0][0].value,20);
+    assert.deepEqual(h.a.selectedThumbIndices,[0]);assert.equal(result.keys.get(records[2].key),next[0].key);
+    assert.equal(result.keys.get(records[1].key),next[1].key);assert.equal(next[0].runId,'r2');
+    h.a.history[1]=null;
+    const remaining=sourceBrowseGroups(collectPreviewRecords(h.sources),'source');remaining[0].records.reverse();
+    reorderSourceHistories(h.sources,remaining);assert.equal(h.a.history[1],null);
+});
+
+test('preview grouping keeps source order and internal sorting never transfers histories between modules',()=>{
+    const h=fixture(),groups=sourceBrowseGroups(h.records,'source'),original=h.b.history.slice();
+    const moved=moveBrowseGroupRecords(groups,[h.records[0].key],groups[1].id);
+    moved[0].records.reverse();reorderSourceHistories(h.sources,moved);
+    assert.deepEqual(h.b.history,original);assert.equal(h.a.history.length,3);
+    const custom=snapshotBrowseGroups(moved).reverse();
+    assert.deepEqual(sourceBrowseGroups(collectPreviewRecords(h.sources),'custom',custom).map(group=>group.source),groups.map(group=>group.source));
+});
+
+test('filmstrip covers default to the newest module record and fall back after filtering a pinned cover',()=>{
+    const h=fixture(),[group]=groupBrowseRecords(h.records,'source');
+    const [first,,latest]=group.records, covers=new Map();
+    assert.equal(browseGroupCover(group,covers),latest);
+    covers.set(group.id,first.key);
+    assert.equal(browseGroupCover(group,covers),first);
+    assert.equal(browseGroupCover({...group,records:group.records.slice(1)},covers),latest);
+    const [rank]=groupBrowseRecords(h.records,'newest');
+    assert.equal(browseGroupCover(rank,covers),rank.records[0]);
+    assert.equal(browseGroupCover({id:'mixed',records:[h.records[3],latest,first]},new Map()),latest);
+});
+
+test('filmstrip downloads use group covers by default and expand only groups containing selected records',()=>{
+    const h=fixture(),groups=groupBrowseRecords(h.records,'source');
+    const [a,b,c,d]=h.records,covers=new Map([[groups[0].id,b.key]]),keys=new Set([a.key]);
+    const records=(selected,history)=>filmstripDownloadRecords(groups,covers,keys,selected,history);
+    assert.deepEqual(records(false,false),[b,d]);
+    assert.deepEqual(records(true,false),[a]);
+    assert.deepEqual(records(true,true),[a,b,c]);
+    assert.deepEqual(records(false,true),[a,b,c,d]);
+    keys.clear();
+    assert.deepEqual(records(true,true),[]);
+});
+
+test('media export preserves actual history positions, including duplicate URLs and sparse histories',()=>{
+    const h=fixture();
+    const area={...h.a,history:[h.a.history[0],'',h.a.history[0]],historyIndex:2,resultUrl:h.a.history[0]};
+    assert.equal(outputDownloadRecords(h.card,area,false)[0].index,2);
+    const records=outputDownloadRecords(h.card,area,true);
+    const files=mediaDownloadFiles([h.card],[...records,...records]);
+    assert.deepEqual(files.map(file=>[file.base,file.extension]),[['001-001-001','png'],['001-001-003','png']]);
+    assert.deepEqual(outputDownloadRecords(h.card,{...area,missingHistoryRun:{}},false),[]);
+    assert.deepEqual(outputDownloadRecords(h.card,{...area,missingHistoryRun:{}},true),records);
+});
+
+test('preview JSON exports visible fields, typed falsy inputs, selected records and ComfyUI subfolders',()=>{
+    const cards=[{id:'one',areas:[
+        {id:'steps',type:'edit',title:'步数',value:0},{id:'bool',type:'edit',title:'开关',value:false},
+        {id:'hidden',type:'edit',title:'隐藏字段',value:99},{id:'output',type:'preview',title:'图像'},
+    ]}];
+    const projected=[{...cards[0],areas:cards[0].areas.filter(area=>area.id!=='hidden')}];
+    const records=[{cardId:'one',areaId:'output',url:'/view?filename=a.png&subfolder=folder%5Cchild',index:0}];
+    assert.deepEqual(buildPreviewJSON(projected,records,'all',false,cards),[{'步数':0,'开关':false,'图像':'folder/child/a.png'}]);
+    assert.deepEqual(buildPreviewJSON(projected,records,'input',true,cards),[{'步数':0,'开关':false}]);
+    assert.deepEqual(buildPreviewJSON(projected,records,'output',true,cards),[{'图像':['folder/child/a.png']}]);
+    assert.deepEqual(buildPreviewJSON(projected,[],'output',false,cards),[{'图像':''}]);
+    assert.deepEqual(buildPreviewJSON([],records,'all',true,cards),[]);
+});
+
+test('combined JSON retains same-name input/output fields and skips existing numbered titles',()=>{
+    const cards=[{id:'one',areas:[
+        {id:'a',title:'参数',type:'edit',value:0},{id:'b',title:'参数 (2)',type:'edit',value:false},
+        {id:'c',title:'参数',type:'preview'},
+    ]}];
+    const records=[{cardId:'one',areaId:'c',url:'/view?filename=test.png'}];
+    assert.deepEqual(buildPreviewJSON(cards,records,'all',false),[{'参数':0,'参数 (2)':false,'参数 (3)':'test.png'}]);
 });
 
 test('comparison offers both drop regions before selecting media and escapes overlay labels',()=>{

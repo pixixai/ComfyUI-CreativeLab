@@ -58,14 +58,7 @@ export function renderTableGrid(wrapper,cards,rows,columns,view,parameters,save,
         for(const column of columns){
             const area=row.areas[column.index],cell=actual.get(area.id)||element.querySelector(`.clab-table-draft-cell[data-table-column="${CSS.escape(column.id)}"]`);if(!cell)continue;
             cell.dataset.tableColumn=column.id;cell.dataset.tableIndex=column.index;cell.setAttribute('role','cell');cell.style.gridColumn=column.index+2;cell.draggable=false;
-            const alignment=tableAppearance(view,'alignment',row.id,column.id);
-            const anchor=alignment??0;
-            cell.style.setProperty('--table-horizontal',['flex-start','center','flex-end'][anchor%3]);cell.style.setProperty('--table-vertical',['flex-start','center','flex-end'][Math.floor(anchor/3)]);cell.style.setProperty('--table-text',['left','center','right'][anchor%3]);
-            cell.style.setProperty('--table-media-position', alignment == null ? 'center' : `${['left','center','right'][anchor%3]} ${['top','center','bottom'][Math.floor(anchor/3)]}`);
-            const padding=tablePadding(tableAppearance(view,'padding',row.id,column.id));
-            cell.style.setProperty('--clab-table-padding', `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`);
-            cell.style.setProperty('--clab-table-padding-right', `${padding.right}px`);
-            cell.classList.toggle('is-effective',effective&&boundColumn(column.area));
+            styleTableCell(cell,view,row.id,column,effective);
             if(cell.classList.contains('clab-area'))updateTableEditor(cell,area,tableParameter(area,parameters));else cell.classList.toggle('clab-table-text-cell',cell.dataset.editor==='text');
             cell.toggleAttribute('data-clab-table-media-ready',ready.has(area.id));
         }
@@ -75,12 +68,12 @@ export function renderTableGrid(wrapper,cards,rows,columns,view,parameters,save,
     applyTableLayout(wrapper,columns,view);
 }
 
-export function editTableRowTitle(button, title, save) {
+export function editTableRowTitle(button, title, save, label = '行标题') {
     if (button.hidden) return;
     const input = document.createElement('input');
     input.type = 'text';
     input.dataset.tableRowTitle = '';
-    input.setAttribute('aria-label', '行标题');
+    input.setAttribute('aria-label', label);
     input.value = title;
     input.placeholder = button.textContent;
     button.hidden = true;
@@ -110,4 +103,15 @@ export function leaveTableGrid(wrapper) {
     wrapper.removeAttribute('role');wrapper.removeAttribute('aria-label');for(const key of ['--clab-table-columns','--clab-table-row-width','--clab-table-height'])wrapper.style.removeProperty(key);delete wrapper.dataset.tableRowLabels;delete wrapper.dataset.tableSelection;
     wrapper.querySelectorAll('[data-table-column],[data-table-row],[role=rowheader]').forEach(element=>{delete element.dataset.tableColumn;delete element.dataset.tableIndex;delete element.dataset.tableRow;delete element.dataset.clabTableMediaReady;element.removeAttribute('role');element.style.removeProperty('grid-column');for(const key of ['--clab-table-height','--table-horizontal','--table-vertical','--table-text','--table-media-position','--clab-table-padding','--clab-table-padding-right','--clab-table-media-padding','--clab-table-media-zoom'])element.style.removeProperty(key);element.classList.remove('clab-table-has-number','clab-table-has-choice','clab-table-text-cell','is-effective');});
     for(const card of state.cards){const element=wrapper.querySelector(`:scope>.clab-card[data-card-id="${CSS.escape(card.id)}"]`);if(element)moveModuleDOM(wrapper,element,null);}
+}
+
+export function styleTableCell(cell,view,rowId,column,effective) {
+    const alignment=tableAppearance(view,'alignment',rowId,column.id);
+    const anchor=alignment??0;
+    cell.style.setProperty('--table-horizontal',['flex-start','center','flex-end'][anchor%3]);cell.style.setProperty('--table-vertical',['flex-start','center','flex-end'][Math.floor(anchor/3)]);cell.style.setProperty('--table-text',['left','center','right'][anchor%3]);
+    cell.style.setProperty('--table-media-position', alignment == null ? 'center' : `${['left','center','right'][anchor%3]} ${['top','center','bottom'][Math.floor(anchor/3)]}`);
+    const padding=tablePadding(tableAppearance(view,'padding',rowId,column.id));
+    cell.style.setProperty('--clab-table-padding', `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`);
+    cell.style.setProperty('--clab-table-padding-right', `${padding.right}px`);
+    cell.classList.toggle('is-effective',effective&&boundColumn(column.area));
 }

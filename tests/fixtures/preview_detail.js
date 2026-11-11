@@ -14,8 +14,9 @@ export async function checkDetailPreview({state,videoURL,assert,delay,passed}) {
     tasks[1].areas.push({...tasks[1].areas[2],id:'detail-video-duplicate-out',history:[videoURL],historyRuns:[{id:'duplicate'}],inputHistorySnapshots:[[{sourceAreaId:'detail-video-prompt',title:'提示词',value:'Duplicate Result'}]]});
     state.cards.push(...tasks);state.selectedAreaIds=tasks.map(card=>card.areas[2].id);
     q('.clab-preview-modal-close').click();window.CLab.showPreviewContextMenu(100,100,tasks[0].id,tasks[0].areas[2].id,tasks[0].areas[2].resultUrl);document.querySelector('#clab-ctx-preview-mode').click();
-    assert([...root.querySelectorAll('.clab-review-modes button')].map(button=>button.textContent).join('|')==='浏览|比较|明细表|XY 矩阵','top-level preview mode names or XY separation are wrong');
+    assert([...root.querySelectorAll('.clab-review-modes button')].map(button=>button.textContent).join('|')==='浏览|比较|明细表|参数表|XY 矩阵','top-level preview mode names are wrong');
     q('[data-review-mode="detail"]').click();
+    assert(q('[data-review-downloads="detail"] [data-review-download=all]')?.disabled===false,'detail preview did not offer downloads for its displayed cards');
     const card=id=>q(`[data-detail-card="${id}"]`),field=(id,name)=>card(id).querySelector(`[data-detail-field="${id}-${name}"]`);
     const change=(selector,value)=>{const element=q(selector);element.value=value;element.dispatchEvent(new Event('change',{bubbles:true}));};
     const before=JSON.stringify(tasks);
@@ -23,7 +24,7 @@ export async function checkDetailPreview({state,videoURL,assert,delay,passed}) {
 
     assert(root.querySelectorAll('.clab-detail-card').length===state.cards.length&&[...root.querySelectorAll('[data-detail-task]')].every(input=>input.checked),'detail did not default to all tasks');
     for(const task of originalCards)q(`[data-detail-task="${task.id}"]`).click();
-    assert(root.querySelectorAll('.clab-detail-card').length===5&&q('[data-detail-search]')&&!q('.clab-browse-footer').checkVisibility(),'detail did not select task cards or still shows the filmstrip');
+    assert(root.querySelectorAll('.clab-detail-card').length===5&&q('[data-detail-search]')&&!q('.clab-browse-footer'),'detail did not select task cards or still shows the filmstrip');
     assert(q('[data-detail-setting="scope"][value="name"]').checked&&root.querySelectorAll('[data-detail-setting="scope"]').length===2,'style scope should default to matching names with two checkboxes');
     assert(getComputedStyle(field('detail-image','prompt').querySelector('.clab-detail-value')).color===getComputedStyle(field('detail-image','prompt').querySelector('.clab-detail-key')).color,'default value and title colors differ');
     const sharedVideo=card('detail-video').querySelector('video'),sharedAudio=card('detail-audio').querySelector('audio'),sharedModel=card('detail-model').querySelector('.clab-glb-viewer');
