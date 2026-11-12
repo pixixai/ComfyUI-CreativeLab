@@ -20,12 +20,6 @@ console.log("[CLab] UI split version loaded (entry/composition mode)");
 let panelContainer = null;
 let backdropContainer = null;
 
-function isVideoAutoplayEnabled() {
-    if (typeof window._clabIsVideoAutoplayEnabled === "function") {
-        return window._clabIsVideoAutoplayEnabled();
-    }
-    return window._clabVideoAutoplay !== false;
-}
 
 function ensureMiniVault() {
     if (window._clabMiniVault) return window._clabMiniVault;
@@ -91,15 +85,11 @@ function setupPanelMediaVault() {
                         info.el.currentTime = info.time;
                     }
                     if (info.el instanceof HTMLVideoElement) {
-                        const autoplayEnabled = isVideoAutoplayEnabled();
-                        info.el.autoplay = autoplayEnabled;
-                        if (autoplayEnabled) info.el.setAttribute("autoplay", "");
-                        else info.el.removeAttribute("autoplay");
-                        if (autoplayEnabled && !info.paused) info.el.play().catch(() => {});
-                        else info.el.pause();
-                    } else if (!info.paused) {
-                        info.el.play().catch(() => {});
+                        info.el.autoplay = false;
+                        info.el.removeAttribute("autoplay");
                     }
+                    if (!info.paused) info.el.play().catch(()=>{});
+                    else info.el.pause();
                 } else {
                     info.el.remove();
                 }

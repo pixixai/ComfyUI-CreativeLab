@@ -116,14 +116,7 @@ export function generateOutputHTML(area, card) {
 
             let media = '';
             if (historyType === 'video' || isVid) {
-                // 【设置项支持】：动态判断是否启用高性能缩略图模式
-                if (window._clabThumbPerfMode !== false) {
-                    // 高性能模式：加入 preload="metadata" 和 #t=0.1，只截取首帧！
-                    media = `<video data-clab-src="${displayUrl}#t=0.1" preload="metadata" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" muted></video>`;
-                } else {
-                    // 动态模式：全量加载并自动循环播放 (极具视觉冲击力但较吃配置)
-                    media = `<video data-clab-src="${displayUrl}" preload="auto" autoplay loop muted style="width:100%; height:100%; object-fit:cover; pointer-events:none;"></video>`;
-                }
+                media = `<video data-clab-src="${displayUrl.split('#')[0]}#t=0.01" preload="metadata" style="width:100%; height:100%; object-fit:cover; pointer-events:none;" muted playsinline></video>`;
             } else if (historyType === 'audio' || isAud) {
                 media = `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#222; color:#fff; font-size:24px;">🎵</div>`;
             } else if (historyType === 'text') {
@@ -220,7 +213,7 @@ export function generateOutputHTML(area, card) {
 }
 
 function historyGridKey(area) {
-    return JSON.stringify([area.history, area.textHistory, area.textHistoryStatus, window._clabThumbPerfMode]);
+    return JSON.stringify([area.history, area.textHistory, area.textHistoryStatus]);
 }
 
 export function refreshOutputAreaInPlace(areaEl, area, card) {

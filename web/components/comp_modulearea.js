@@ -26,12 +26,6 @@ export function justSave() {
     }
 }
 
-function isVideoAutoplayEnabled() {
-    if (typeof window._clabIsVideoAutoplayEnabled === "function") {
-        return window._clabIsVideoAutoplayEnabled();
-    }
-    return window._clabVideoAutoplay !== false;
-}
 
 // 微创更新单个区域：只替换目标 DOM，尽量保留媒体播放状态，避免控件错位。
 export function surgicallyUpdateArea(areaId) {
@@ -104,15 +98,11 @@ export function surgicallyUpdateArea(areaId) {
                         stashedMedia.currentTime = stashedTime;
                     }
                     if (stashedMedia instanceof HTMLVideoElement) {
-                        const autoplayEnabled = isVideoAutoplayEnabled();
-                        stashedMedia.autoplay = autoplayEnabled;
-                        if (autoplayEnabled) stashedMedia.setAttribute("autoplay", "");
-                        else stashedMedia.removeAttribute("autoplay");
-                        if (autoplayEnabled && !stashedPaused) stashedMedia.play().catch(()=>{});
-                        else stashedMedia.pause();
-                    } else if (!stashedPaused) {
-                        stashedMedia.play().catch(()=>{});
+                        stashedMedia.autoplay = false;
+                        stashedMedia.removeAttribute("autoplay");
                     }
+                    if (!stashedPaused) stashedMedia.play().catch(()=>{});
+                    else stashedMedia.pause();
                 } else {
                     stashedMedia.remove();
                 }

@@ -18,7 +18,7 @@ export function createDetailRecordPool(root,{onSelect,onApply,coverApplied}) {
     function position(){
         if(!popover||!trigger?.isConnected)return;
         const anchor=trigger.getBoundingClientRect(),bounds=(root.querySelector('.clab-preview-modal-panel')||root).getBoundingClientRect();
-        const viewport=trigger.closest('.clab-preview-modal-center')?.getBoundingClientRect();
+        const viewport=trigger.closest('.clab-preview-modal-center,.clab-preview-modal-left')?.getBoundingClientRect();
         if(viewport&&(anchor.bottom<=viewport.top||anchor.top>=viewport.bottom||anchor.right<=viewport.left||anchor.left>=viewport.right)){close(false);return;}
         const left=Math.max(8,bounds.left+8),right=Math.min(window.innerWidth-8,bounds.right-8),top=Math.max(8,bounds.top+8),bottom=Math.min(window.innerHeight-8,bounds.bottom-8);
         const spaceBelow=Math.max(80,bottom-anchor.bottom-6),spaceAbove=Math.max(80,anchor.top-top-6);
@@ -35,7 +35,7 @@ export function createDetailRecordPool(root,{onSelect,onApply,coverApplied}) {
         popover.querySelectorAll('video').forEach(video=>{video.removeAttribute('src');video.load();});
         const outputs=card.areas.filter(area=>area.type==='preview'),index=outputs.indexOf(area),label=area?area.title||`##${index+1}`:'未设置封面';records=detailOutputRecords(card,area);
         const sources=outputs.map((output,i)=>{
-            const title=output.title||`##${i+1}`,clear=role==='cover'&&coverApplied(title,{cardId:card.id,areaId:output.id}),action=role==='cover'?(clear?'取消所有任务封面':'应用到所有任务封面'):'应用到所有任务';
+            const title=output.title||`##${i+1}`,clear=role==='cover'&&coverApplied(title,{cardId:card.id,areaId:output.id}),action=role==='cover'?(clear?'取消同名模块封面':'使用同名模块图片作封面'):'将同名模块设为内容';
             return `<div class="clab-detail-pool-source"><button data-detail-pool-source="${esc(output.id)}" aria-pressed="${output===area}">${esc(title)}</button><button data-detail-pool-apply="${esc(title)}" data-area-id="${esc(output.id)}" data-detail-pool-apply-role="${clear?'clear-cover':role}" title="${action}" aria-label="${action}">${detailApplyIcon}</button></div>`;
         }).join('');
         popover.innerHTML=`<section class="clab-detail-pool" role="dialog" aria-label="${role==='cover'?'封面记录':'生成记录'}"><header><strong>${role==='cover'?'封面记录':'生成记录'}</strong><details class="clab-detail-pool-sources"><summary>${esc(label)} ▾</summary><div>${sources}</div></details><button data-detail-pool-close aria-label="关闭记录池">×</button></header><div class="clab-detail-pool-grid">${records.map((record,index)=>`<button data-detail-pool-record="${index}" class="${record.key===selectedKey?'selected':''}" title="${esc(record.name)} · ${index+1}/${records.length}" aria-label="选择记录 ${index+1}" aria-pressed="${record.key===selectedKey}">${record.type==='image'?`<img loading="lazy" draggable="false" src="${esc(record.url)}" alt="">`:record.type==='video'?`<video data-pool-src="${esc(record.url.split('#')[0])}#t=0.01" muted playsinline preload="metadata"></video>`:`<span>${record.type==='text'?esc(record.text?.slice(0,160)||'文本'):({audio:'音频',model:'3D',file:'文件'})[record.type]||'文件'}</span>`}<small>${index+1}</small></button>`).join('')||`<p>${area?'该模块尚无生成记录':'尚未设置封面，可在上方选择输出模块'}</p>`}</div></section>`;
@@ -61,7 +61,7 @@ export function createDetailRecordPool(root,{onSelect,onApply,coverApplied}) {
             selectedKey=key;onSelect(card,area,record,role);
             popover.querySelectorAll('[data-detail-pool-record]').forEach(button=>{const selected=records[Number(button.dataset.detailPoolRecord)].key===selectedKey;button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));});
             if(role==='cover')popover.querySelectorAll('[data-detail-pool-apply]').forEach(button=>{
-                const clear=coverApplied(button.dataset.detailPoolApply,{cardId:card.id,areaId:button.dataset.areaId}),action=clear?'取消所有任务封面':'应用到所有任务封面';
+                const clear=coverApplied(button.dataset.detailPoolApply,{cardId:card.id,areaId:button.dataset.areaId}),action=clear?'取消同名模块封面':'使用同名模块图片作封面';
                 button.dataset.detailPoolApplyRole=clear?'clear-cover':'cover';button.title=action;button.setAttribute('aria-label',action);
             });
             position();

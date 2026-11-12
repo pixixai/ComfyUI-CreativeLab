@@ -3,20 +3,13 @@ import { collectPreviewRecords, sourceKey } from './preview_records.js';
 import { browseGroupCover, sourceBrowseGroups } from './preview_browse.js';
 import { detailCoverIcon } from './preview_detail_pool.js';
 import { createSourceRatios } from './preview_source_ratios.js';
-
-const labels={audio:'音频',text:'文本',model:'3D',file:'文件'};
-function mediaHTML(record) {
-    if (!record) return '<span class="clab-source-empty">暂无记录</span>';
-    if (record.type==='image') return `<img loading="lazy" draggable="false" src="${esc(record.url)}" alt="${esc(record.name)}">`;
-    if (record.type==='video') return `<video data-source-video="${esc(record.url.split('#')[0])}#t=0.01" muted playsinline preload="metadata"></video>`;
-    return `<span class="clab-preview-modal-thumb-badge">${labels[record.type]||record.type}</span>`;
-}
+import { sourceMediaHTML,sourceMediaTypes,createSourceMediaObserver } from './preview_source_media_html.js';
 
 export function createSourceMedia(left,settings,{onReorder}) {
     let cards=[],sources=[],sourceRecords=[],checked=new Set(),groups=[],entries=[],activeKey='',comparison=null,filter='';
-    let signature='',observer,selected=new Set(),anchor='',dragged=[],hoverPoint,drop,suppressClick=false;
+    let signature='',selected=new Set(),anchor='',dragged=[],hoverPoint,drop,suppressClick=false;
     const closedTasks=new Set();
-    const ratios=createSourceRatios(left);
+    const ratios=createSourceRatios(left),media=createSourceMediaObserver(left);
     const groupId=element=>element?.closest('[data-filmstrip-section]')?.dataset.filmstripSection;
     const recordFor=element=>entries[Number(element?.dataset.index)];
     const enabled=group=>checked.has(group.source);
@@ -24,7 +17,7 @@ export function createSourceMedia(left,settings,{onReorder}) {
     const cover=group=>group.records.length?browseGroupCover(group,settings.session.covers):null;
 
     function header() {
-        if (left.querySelector('.clab-source-controls')) return;
+        if (left.querySelector('.clab-source-controls [data-browse-search]')) return;
         left.innerHTML=`<div class="clab-source-controls"><div class="clab-browse-source-head">来源与媒体</div>
             <div class="clab-source-search" role="search"><span class="clab-source-type"><select data-review-type aria-label="浏览媒体类型" title="选择媒体类型"></select></span><input type="search" data-browse-search placeholder="搜索任务或模块" aria-label="搜索任务或模块"></div>
             <label class="clab-browse-thumb-size"><button type="button" data-browse-columns-reset title="恢复默认两列" aria-label="恢复默认两列"><svg viewBox="0 0 20 16" width="16" height="14" aria-hidden="true"><path d="M1 1h8v6H1Zm10 0h8v6h-8ZM1 9h8v6H1Zm10 0h8v6h-8Z" fill="none" stroke="currentColor"/></svg></button><input type="range" min="1" max="6" step="1" data-browse-columns aria-label="缩略图列数"><output data-browse-columns-label></output></label>
@@ -35,21 +28,15 @@ export function createSourceMedia(left,settings,{onReorder}) {
     function historyHTML(group,indices) {
         return group.records.map(record=>{
             const index=indices.get(record.key),title=`${record.cardLabel} / ${record.areaLabel}\n${record.name}\n历史 ${record.index+1}`;
-            return `<div class="clab-filmstrip-item"><button type="button" draggable="true" class="clab-preview-modal-thumb clab-filmstrip-thumb" data-index="${index}" title="${esc(title)}"><div class="clab-preview-modal-thumb-media">${mediaHTML(record)}</div><span class="clab-filmstrip-assignment" hidden></span><span class="clab-filmstrip-history">${record.index<0?'当前':record.index+1}</span></button>
+            return `<div class="clab-filmstrip-item"><button type="button" draggable="true" class="clab-preview-modal-thumb clab-filmstrip-thumb" data-index="${index}" title="${esc(title)}"><div class="clab-preview-modal-thumb-media">${sourceMediaHTML(record)}</div><span class="clab-filmstrip-assignment" hidden></span><span class="clab-filmstrip-history">${record.index<0?'当前':record.index+1}</span></button>
                 <button type="button" data-filmstrip-cover="${index}" title="设为封面" aria-label="设为封面" aria-pressed="false">${detailCoverIcon}</button></div>`;
         }).join('')||'<span class="clab-source-empty">没有符合筛选的记录</span>';
     }
 
-    function observeMedia() {
-        observer?.disconnect();
-        observer=new IntersectionObserver(items=>items.forEach(({target,isIntersecting})=>{
-            if (isIntersecting) {target.src=target.dataset.sourceVideo;observer.unobserve(target);}
-        }),{root:left,rootMargin:'100px 0px'});
-        left.querySelectorAll('video[data-source-video]').forEach(video=>observer.observe(video));
-    }
+    function observeMedia() {media.observe(left.querySelector('.clab-source-media-tree'));}
 
     function paint() {
-        if (!left.querySelector('.clab-source-controls')) return;
+        if (!left.querySelector('.clab-source-controls [data-browse-search]')) return;
         let coverChanged=false;
         for (const section of left.querySelectorAll('[data-filmstrip-section]')) {
             const group=groups.find(item=>item.id===groupId(section));
@@ -58,7 +45,7 @@ export function createSourceMedia(left,settings,{onReorder}) {
             const currentCover=cover(group),button=section.querySelector('.clab-source-cover');
             const coverKey=currentCover?.key||'';
             if (button.dataset.coverKey!==coverKey) {
-                button.dataset.coverKey=coverKey;button.innerHTML=mediaHTML(currentCover);
+                button.dataset.coverKey=coverKey;button.innerHTML=sourceMediaHTML(currentCover);
                 button.title=currentCover?`封面 · ${currentCover.name}`:'暂无记录';
                 coverChanged=true;
             }
@@ -111,7 +98,7 @@ export function createSourceMedia(left,settings,{onReorder}) {
         }
         if (previous!==activeKey) selected=new Set(activeKey?[activeKey]:[]);
         selected=new Set([...selected].filter(key=>entries.some(record=>record.key===key)));
-        const types=comparison?[['','全部'],['image','图片'],['video','视频']]:[['','全部'],['image','图片'],['video','视频'],['audio','音频'],['text','文本'],['model','3D'],['file','文件']];
+        const types=comparison?sourceMediaTypes.filter(([type])=>!type||['image','video'].includes(type)):sourceMediaTypes;
         const select=left.querySelector('[data-review-type]');
         const options=types.map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
         if (select.innerHTML!==options) select.innerHTML=options;
@@ -237,8 +224,7 @@ export function createSourceMedia(left,settings,{onReorder}) {
         render,handleClick,toggleCover,
         release() {
             ratios.release();
-            observer?.disconnect();observer=null;
-            left.querySelectorAll('video[data-source-video]').forEach(video=>{video.pause();video.removeAttribute('src');video.load();});
+            media.release();
             cards=[];sources=[];sourceRecords=[];groups=[];entries=[];activeKey='';signature='';anchor='';
             selected.clear();dragged=[];hoverPoint=null;drop=null;suppressClick=false;
         },

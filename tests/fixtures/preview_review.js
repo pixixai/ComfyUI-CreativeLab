@@ -152,6 +152,8 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
 
     const selectedDownload=()=>q('[data-review-download=selected]');
     assert(selectedDownload().closest('.clab-preview-modal-right')&&!q('#clab-export-media-all'),'media downloads were not moved from the top menu');
+    const downloadSection=q('[data-review-downloads]');
+    assert(downloadSection.querySelector('h3').title&&!downloadSection.querySelector('.clab-review-note')&&[...root.querySelectorAll('[data-review-data-export] h3')].every(heading=>heading.title),'download/data export guidance is not attached to section headings');
     const taskNumber=String(state.cards.indexOf(card)+1).padStart(3,'0');
     const otherNumber=String(state.cards.indexOf(other)+1).padStart(3,'0');
     const taskFile=(module,record)=>taskNumber+'-00'+module+'-00'+record+'.png';

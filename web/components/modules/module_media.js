@@ -406,10 +406,7 @@ function syncThumbnail(media) {
         media.src = media.dataset.clabSrc;
         delete media.dataset.clabSrc;
     }
-    if (media.tagName === 'VIDEO') {
-        if (!visible) media.pause();
-        else if (media.autoplay && media.getAttribute('src')) media.play().catch(() => {});
-    }
+    if (media.tagName === 'VIDEO') media.pause();
 }
 
 function attachMediaVisibility(container) {

@@ -15,7 +15,8 @@ export function attachDetailCover(host,{resources}={}) {
     const enter=()=>{
         if(disposed||document.hidden)return;
         hovering=true;left=false;if(layer)layer.hidden=true;
-        media?.play().catch(()=>{});modelPlaying(true);
+        if(media&&media.tagName!=='VIDEO')media.play().catch(()=>{});
+        modelPlaying(true);
     };
     host.addEventListener('pointerenter',enter,{signal});host.addEventListener('pointerleave',pause,{signal});
     media?.addEventListener('play',()=>{if(disposed||left||document.hidden)media.pause();else if(layer)layer.hidden=true;},{signal});

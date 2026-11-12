@@ -309,17 +309,9 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
             mediaEl.style.display = "block";
             
             if (isVideo) {
-                const autoplayEnabled = (typeof window._clabIsVideoAutoplayEnabled === "function")
-                    ? window._clabIsVideoAutoplayEnabled()
-                    : (window._clabVideoAutoplay !== false);
-                mediaEl.autoplay = autoplayEnabled;
-                if (autoplayEnabled) {
-                    mediaEl.setAttribute("autoplay", "");
-                    mediaEl.play().catch(()=>{});
-                } else {
-                    mediaEl.removeAttribute("autoplay");
-                    mediaEl.pause();
-                }
+                mediaEl.autoplay = false;
+                mediaEl.removeAttribute("autoplay");
+                mediaEl.pause();
             }
 
             if (placeholder) placeholder.style.display = "none";

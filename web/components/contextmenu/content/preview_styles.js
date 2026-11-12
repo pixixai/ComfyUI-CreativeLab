@@ -5,8 +5,7 @@ export function injectReviewStyles() {
         .clab-preview-modal-panel{color-scheme:dark}.clab-preview-modal-head{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(max-content,1fr);align-items:center;gap:8px}
         .clab-review-head-actions{display:flex;align-items:center;gap:8px;min-width:0}
         .clab-review-workspaces{order:0;z-index:1}.clab-review-workspaces .clab-workspace-shell{cursor:default}
-        .clab-review-workspaces .clab-workspace-tab[data-workspace-id]{display:flex;max-width:220px}
-        .clab-review-workspaces .clab-workspace-tab .clab-workspace-tab-select{padding:0 14px}
+        :root[data-clab-workspace-tabs=bottom] .clab-review-workspaces{order:2}
         .clab-review-head-actions{justify-self:end}
         :is(.clab-preview-modal-left,.clab-preview-modal-center,.clab-preview-modal-right){scrollbar-width:thin;scrollbar-color:#555 transparent}
         :is(.clab-preview-modal-left,.clab-preview-modal-center,.clab-preview-modal-right)::-webkit-scrollbar{width:5px;height:5px}
@@ -87,7 +86,10 @@ export function injectReviewStyles() {
         .clab-review-downloads button:disabled{opacity:.45;cursor:default}
         .clab-result-record.is-download-selected{background:#233748;border-radius:3px;outline:1px solid #6289a7}
         .clab-review-sheet-settings h3{margin:0;color:#ddd;font-size:14px}.clab-review-sheet-settings .clab-review-field{margin:0}
-        .clab-review-png-scale{flex-direction:row;align-items:center;justify-content:space-between}.clab-review-png-scale input{width:64px}
+        .clab-review-png-scale{flex-direction:row;align-items:center;justify-content:flex-start;gap:6px}.clab-review-png-scale input{width:64px;flex:none}
+        .clab-review-layout-export{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+        .clab-review-layout-export button{min-width:0;padding:6px 8px}
+        .clab-review-layout-export :is([data-review-export=xlsx],[data-review-export=html]){grid-column:1/-1}
         .clab-review-sheet-settings .clab-review-note{margin:0}
         .clab-result-sheet{font:12px/1.5 sans-serif;color:#ccc;min-width:0}.clab-result-sheet h3{font-size:13px;font-weight:normal;margin:4px 0 8px;overflow-wrap:anywhere}
         .clab-result-table{border-collapse:collapse}.clab-result-table td,.clab-result-table th{border:1px solid #444;vertical-align:top;min-width:var(--review-media-width);max-width:var(--review-media-width);padding:10px;overflow-wrap:anywhere;white-space:pre-wrap;text-align:left}
@@ -156,7 +158,7 @@ export function injectReviewStyles() {
         .clab-browse-source-row{display:flex;align-items:center;gap:6px;margin-left:18px;padding:5px 0;color:#aaa;font:12px/1.5 sans-serif;cursor:pointer;min-width:0}
         .clab-browse-source-row:has(input:checked){color:#ddd}.clab-browse-source-row:has(input:disabled){opacity:.5;cursor:default}
         .clab-source-controls{position:sticky;top:-12px;z-index:4;display:flex;flex-direction:column;gap:8px;flex:none;margin:-12px -12px 0;padding:12px;background:#191919;border-bottom:1px solid #ffffff12}
-        .clab-preview-modal:is([data-review-mode=browse],[data-review-mode=compare]) .clab-preview-modal-left{scroll-padding-top:var(--browse-controls-height,200px);scroll-padding-bottom:12px}
+        .clab-preview-modal:is([data-review-mode=browse],[data-review-mode=compare],[data-review-mode=detail]) .clab-preview-modal-left{scroll-padding-top:var(--browse-controls-height,200px);scroll-padding-bottom:12px}
         .clab-source-search{display:flex;align-items:center;min-width:0;border:1px solid #444;border-radius:4px;background:#242424;overflow:hidden}
         .clab-source-search:focus-within{border-color:#777}
         .clab-source-type{position:relative;flex-shrink:0;border-right:1px solid #444}

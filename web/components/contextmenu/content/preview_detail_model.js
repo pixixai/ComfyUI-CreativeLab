@@ -5,10 +5,6 @@ export const detailFieldKey = (cardId, fieldId) => JSON.stringify([cardId, field
 export const detailHistoryKey = (cardId, areaId) => JSON.stringify([cardId, areaId]);
 export const DETAIL_DEFAULT_STYLE = { row: { align: 'left', layout: 'inline', lineHeight: 1.6, gap: 8, blockGap: 0 }, key: { color: '#999999', size: 12 }, value: { color: '#999999', size: 12 } };
 export const detailCardWidth = config => (config.rowWidth - (config.columns - 1) * 16) / config.columns;
-export function detailExportRange(config,count) {
-    const total=Math.max(1,count);
-    return { start:Math.max(1,Math.min(total,Math.trunc(Number(config.exportStart)||1))),end:Math.max(1,Math.min(total,Math.trunc(Number(config.exportEnd)||total))) };
-}
 
 export function detailInputs(card) {
     const inputs = (card.areas || []).filter(area => area.type === 'edit').map((area, index) => ({ id: String(area.id), title: area.title || `##${index + 1}`, area }));
@@ -68,8 +64,8 @@ export function detailCoverApplied(cards,config,title,source) {
         const outputs=(card.areas||[]).filter(area=>area.type==='preview');
         const matches=outputs.filter((area,index)=>(area.title||`##${index+1}`)===title);
         const selected=config.covers.get(card.id)?.areaId,area=matches.find(area=>card.id===source?.cardId&&area.id===source.areaId)||matches.find(area=>area.id===selected)||matches[0];
-        if(!area||!detailOutputRecords(card,area).length)continue;
-        if(area.id!==selected)return false;
+        if(!area||!detailOutputRecords(card,area).some(record=>record.type==='image'||record.key===config.covers.get(card.id)?.recordKey))continue;
+        if(area.id!==selected||!detailOutputRecords(card,area).some(record=>record.key===config.covers.get(card.id)?.recordKey))return false;
         count++;
     }
     return count>0;
@@ -82,12 +78,24 @@ export function applyDetailOutput(cards,config,title,role,source) {
         const selected=role==='output'?config.outputs.get(card.id):config.covers.get(card.id)?.areaId;
         if(role==='clear-cover'){if(matches.some(area=>area.id===selected))config.covers.delete(card.id);continue;}
         const area=matches.find(area=>card.id===source?.cardId&&area.id===source.areaId)||matches.find(area=>area.id===selected)||matches[0];if(!area)continue;
-        if(role==='cover')setDetailCover(config,card,area);
+        if(role==='cover'){
+            const existing=config.covers.get(card.id),records=detailOutputRecords(card,area);
+            if(card.id===source?.cardId&&existing?.areaId===area.id&&records.some(record=>record.key===existing.recordKey))continue;
+            const image=records.findLast(record=>record.type==='image');if(image)setDetailCover(config,card,area,image);
+        }
         else {
             config.outputs.set(card.id,area.id);
             if(!config.histories.has(detailHistoryKey(card.id,area.id))){const latest=detailOutputRecords(card,area).at(-1);if(latest)config.histories.set(detailHistoryKey(card.id,area.id),latest.key);}
         }
     }
+}
+
+export function detailHistoryTarget(groups,cardId,areaId,key,delta,groupOnly=false) {
+    const available=groups.filter(group=>group.records.length),at=available.findIndex(group=>group.card.id===cardId&&group.area.id===areaId);
+    if(at<0)return null;
+    const group=available[at],index=group.records.findIndex(record=>record.key===key),next=index+delta;
+    if(!groupOnly&&index>=0&&next>=0&&next<group.records.length)return {card:group.card,area:group.area,record:group.records[next]};
+    const adjacent=available[at+delta];return adjacent?{card:adjacent.card,area:adjacent.area,record:adjacent.records[0]}:null;
 }
 
 export function detailStyle(config, cardId, field) {
@@ -107,18 +115,21 @@ export function detailFields(card, record, config) {
     });
 }
 
+export function detailCardMedia(card,config) {
+    const outputs=(card.areas||[]).filter(area=>area.type==='preview');
+    const area=outputs.find(area=>area.id===config.outputs.get(card.id))||outputs[0],records=detailOutputRecords(card,area);
+    const chosen=config.histories.get(detailHistoryKey(card.id,area?.id));
+    const record=records.find(record=>record.key===chosen)||records.find(record=>record.index===area?.historyIndex)||records.at(-1)||null;
+    const cover=config.covers?.get(card.id),coverArea=outputs.find(area=>area.id===cover?.areaId);
+    const coverRecords=coverArea?detailOutputRecords(card,coverArea):records;
+    const coverRecord=coverRecords.find(record=>record.key===cover?.recordKey);
+    return {area,records,record,coverArea:coverRecord?coverArea:area,coverRecords:coverRecord?coverRecords:records,coverRecord:coverRecord||record,customCover:!!coverRecord};
+}
+
 export function buildDetailCards(cards, config) {
     return cards.filter(card => config.tasks.has(card.id)).map(card => {
-        const outputs = (card.areas || []).filter(area => area.type === 'preview');
-        const area = outputs.find(area => area.id === config.outputs.get(card.id)) || outputs[0];
-        const title = card.title || `#${cards.indexOf(card) + 1}`;
-        const records = area ? collectPreviewRecords([{ card, area, cardLabel: title }]) : [];
-        const chosen = config.histories.get(detailHistoryKey(card.id, area?.id));
-        const record = records.find(record => record.key === chosen) || records.find(record => record.index === area?.historyIndex) || records.at(-1) || null;
-        const cover=config.covers?.get(card.id),coverArea=outputs.find(area=>area.id===cover?.areaId);
-        const coverRecords=coverArea?detailOutputRecords(card,coverArea):records;
-        const coverRecord=coverArea?(coverRecords.find(record=>record.key===cover.recordKey)||coverRecords.at(-1)||record):record;
-        return { id: card.id, title, card, area, records, record, coverArea:coverArea||area,coverRecords,coverRecord,customCover:!!coverArea&&!!coverRecord,fields: detailFields(card, record, config), current: !record };
+        const media=detailCardMedia(card,config);
+        return {id:card.id,title:card.title||`#${cards.indexOf(card)+1}`,card,...media,fields:detailFields(card,media.record,config),current:!media.record};
     });
 }
 

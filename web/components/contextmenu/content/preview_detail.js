@@ -1,10 +1,14 @@
-import { buildDetailCards, detailInputs, detailInputGroups, setDetailInputVisible, detailOutputGroups, detailOutputRecords, setDetailCover, detailCoverApplied, applyDetailOutput, detailHistoryKey, detailFieldKey, detailStyle, detailFieldsHTML, setDetailStyle, detailExportRange, DETAIL_CSS } from './preview_detail_model.js';
+import { buildDetailCards, detailHistoryTarget, detailCardMedia, detailOutputRecords, detailInputs, detailInputGroups, setDetailInputVisible, setDetailCover, detailCoverApplied, applyDetailOutput, detailHistoryKey, detailFieldKey, detailStyle, detailFieldsHTML, setDetailStyle, DETAIL_CSS } from './preview_detail_model.js';
 import { detailMediaHTML, attachDetailMedia } from './preview_detail_media.js';
 import { attachDetailCover } from './preview_detail_cover.js';
-import { createDetailRecordPool, detailCoverIcon, detailOutputIcon, detailApplyIcon, DETAIL_POOL_CSS } from './preview_detail_pool.js';
+import { createDetailRecordPool, detailCoverIcon, detailOutputIcon, DETAIL_POOL_CSS } from './preview_detail_pool.js';
 import { moveModuleDOM } from '../../modules/module_lifecycle.js';
 import { downloadPreviewBlob } from './preview_export.js';
 import { escapeHtml as esc } from './shared.js';
+import { createDetailSources } from './preview_detail_sources.js';
+import { state } from '../../ui_state.js';
+import { pruneDetailSession,restoreDetailSession,serializeDetailSession } from './preview_detail_session.js';
+import { DETAIL_SOURCES_CSS } from './preview_detail_sources_html.js';
 
 const PREFERENCES = 'clab-detail-appearance-v1';
 const typing = target => target?.closest?.('input,textarea,select,[contenteditable=true]');
@@ -21,20 +25,28 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
     let preferences = {};
     try { preferences = JSON.parse(localStorage.getItem(PREFERENCES) || '{}'); } catch { /* Ignore unavailable storage or an invalid saved preference. */ }
     const columns = Math.max(1, Math.min(8, Number(preferences.columns) || 3));
-    const config = { columns, rowWidth: Math.max(480,Math.min(2560,Number(preferences.rowWidth)||(preferences.width?Math.round((preferences.width*columns+(columns-1)*16)/10)*10:960))), styles: preferences.styles || {},
-        tasks: new Set(), outputs: new Map(), covers:new Map(), inputs: new Map(), histories: new Map(), media: new Map(), scope: 'name', part: 'row', search: '', active: '', field: '', selectedFields: new Set(), anchor: '', includeHistory: true, exportScale: 3, exportStart:1, exportEnd:null, fieldNames: new Map() };
+    const config = { columns, sourceColumns:Math.max(1,Math.min(6,Number(preferences.sourceColumns)||2)), rowWidth: Math.max(480,Math.min(2560,Number(preferences.rowWidth)||(preferences.width?Math.round((preferences.width*columns+(columns-1)*16)/10)*10:960))), styles: preferences.styles || {},
+        tasks: new Set(), outputs: new Map(), covers:new Map(), inputs: new Map(), histories: new Map(), media: new Map(), scope: 'name', part: 'row', search: '', typeFilter:'', active: '', field: '', selectedFields: new Set(), anchor: '', includeHistory: true, exportScale: 3, fieldNames: new Map() };
+    const defaults={columns:config.columns,rowWidth:config.rowWidth,sourceColumns:config.sourceColumns,styles:structuredClone(config.styles)};
+    let workspace,sessionActive=false,sessionJSON='';
+    const saveSession=()=>{
+        if(!workspace||!sessionActive)return;
+        const saved=serializeDetailSession(cards,config),json=JSON.stringify(saved);if(json===sessionJSON)return;
+        workspace.view.previewDetail=saved;sessionJSON=json;window.CLab?.saveState(state,{createAnchor:false});
+    };
     const views = new Map();
+    const sourcePanel=createDetailSources(left,config,visible=>stackedEye(visible?eyeShape:hiddenEye));
     let cards = [], model = [], exporting = false;
     let applyMenu;
     const rememberHistories=()=>{for(const item of model)if(item.record)config.histories.set(detailHistoryKey(item.id,item.area.id),item.record.key);};
     const closeApplyMenu=()=>{applyMenu?.remove();applyMenu=null;left.querySelectorAll('[data-detail-output-switch]').forEach(button=>button.setAttribute('aria-expanded','false'));};
-    const apply=(title,role,source)=>{rememberHistories();applyDetailOutput(cards,config,title,role,source);closeApplyMenu();syncSourceControls();renderBoard();renderSettings();};
+    const apply=(title,role,source)=>{rememberHistories();applyDetailOutput(cards,config,title,role,source);closeApplyMenu();sourcePanel.sync(cards);renderBoard();renderSettings();};
     const pool=createDetailRecordPool(root,{
         onSelect(card,area,record,role){
             rememberHistories();
             if(role==='cover')setDetailCover(config,card,area,record);
-            else{config.outputs.set(card.id,area.id);config.histories.set(detailHistoryKey(card.id,area.id),record.key);}
-            syncSourceControls();renderBoard();renderSettings();
+            else{config.outputs.set(card.id,area.id);config.histories.set(detailHistoryKey(card.id,area.id),record.key);config.active=card.id;}
+            sourcePanel.sync(cards);renderBoard();renderSettings();
         },onApply:apply,coverApplied:(title,source)=>detailCoverApplied(cards,config,title,source),
     });
     left.addEventListener('scroll',closeApplyMenu);
@@ -45,13 +57,13 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
             event.preventDefault();event.stopImmediatePropagation();const buttons=[...applyMenu.querySelectorAll('button')],index=buttons.indexOf(document.activeElement),step=event.key==='ArrowUp'||event.key==='Tab'&&event.shiftKey?-1:1;buttons[(index+step+buttons.length)%buttons.length].focus();
         }
     },true);
-    const save = () => { try { localStorage.setItem(PREFERENCES, JSON.stringify({ columns: config.columns, rowWidth: config.rowWidth, styles: config.styles })); } catch { /* Layout remains usable without browser storage. */ } };
+    const save = () => { saveSession();try { localStorage.setItem(PREFERENCES, JSON.stringify({ columns: config.columns, sourceColumns:config.sourceColumns, rowWidth: config.rowWidth, styles: config.styles })); } catch { /* Layout remains usable without browser storage. */ } };
     const selectedRows = () => model.flatMap(item=>item.fields.filter(field=>config.selectedFields.has(detailFieldKey(item.id,field.id))).map(field=>({item,field})));
     const selected = () => selectedRows().find(({item,field})=>item.id===config.active&&field.id===config.field)||selectedRows()[0]||{};
     const blank = target => center.contains(target)&&(target===center||target.matches('.clab-detail-board,.clab-detail-board-empty,.clab-detail-card,.clab-detail-data'));
     const syncSelection = () => {
         for(const [key,view] of views){view.element.classList.toggle('active',key===config.active);view.element.querySelectorAll('[data-detail-field]').forEach(field=>field.classList.toggle('selected',config.selectedFields.has(detailFieldKey(key,field.dataset.detailField))));}
-        syncSourceSelection();
+        sourcePanel.selection();
     };
     const activate = id => {
         const changed=config.active!==id;config.active=id;
@@ -59,66 +71,8 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
         syncSelection();
         if(changed)renderSettings();
     };
-    function syncSourceSelection() {
-        for(const group of left.querySelectorAll('[data-detail-source]')){
-            group.querySelector('summary').classList.toggle('clab-detail-source-active',group.dataset.detailSource===config.active);
-            for(const input of group.querySelectorAll('[data-detail-input]'))input.closest('.clab-detail-source-option').classList.toggle('clab-detail-source-current',config.selectedFields.has(detailFieldKey(group.dataset.detailSource,input.value)));
-        }
-    }
-    function locateSource(cardId,fieldId='') {
-        const find=()=>left.querySelector(`[data-detail-source="${CSS.escape(cardId)}"]`);
-        let group=find();
-        if(!group&&config.search){config.search='';renderSources();group=find();}
-        if(!group)return;
-        group.open=true;
-        const target=fieldId?group.querySelector(`[data-detail-input][value="${CSS.escape(fieldId)}"]`)?.closest('.clab-detail-source-option'):group.querySelector('summary');
-        if(!target||!left.clientHeight)return;
-        const bounds=left.getBoundingClientRect(),rect=target.getBoundingClientRect(),top=bounds.top+left.clientTop+4,bottom=bounds.top+left.clientTop+left.clientHeight-4;
-        if(rect.top<top||rect.bottom>bottom)left.scrollTop+=(rect.top+rect.bottom-top-bottom)/2;
-    }
-    function syncSourceEye(button,group,action) {
-        const allShown=!!group&&group.shown===group.matches.length;
-        button.disabled=!group;button.title=action;button.setAttribute('aria-label',action);button.setAttribute('aria-pressed',group?.shown&&!allShown?'mixed':String(allShown));
-        button.innerHTML=stackedEye(allShown?eyeShape:hiddenEye);
-    }
-    function syncSourceControls() {
-        const groups=detailInputGroups(cards,config),outputs=detailOutputGroups(cards,config);
-        for(const input of left.querySelectorAll('[data-detail-input]')){
-            input.checked=!config.inputs.has(input.dataset.detailInput)||config.inputs.get(input.dataset.detailInput).has(input.value);
-            const button=input.closest('.clab-detail-source-option').querySelector('[data-detail-visibility]'),title=button.dataset.detailVisibility,group=groups.get(title),allShown=!!group&&group.shown===group.matches.length;
-            const action=group?`在所有卡片中${allShown?'隐藏':'显示'}『${title}』`:'当前展示的卡片中没有同名字段';
-            syncSourceEye(button,group,action);
-        }
-        const chosen=new Map(cards.map(card=>{const areas=card.areas.filter(area=>area.type==='preview');return [card.id,(areas.find(area=>area.id===config.outputs.get(card.id))||areas[0])?.id];}));
-        for(const input of left.querySelectorAll('[data-detail-output]')){
-            const selectedCover=config.covers.get(input.dataset.detailOutput)?.areaId===input.value;
-            input.checked=input.value===chosen.get(input.dataset.detailOutput)||selectedCover;
-            input.title=selectedCover?'封面模块，单击取消封面':'选择预览模块';
-            const row=input.closest('.clab-detail-source-option'),button=row.querySelector('[data-detail-output-switch]'),title=button.dataset.detailOutputSwitch;
-            button.disabled=!outputs.has(title);button.title=`批量应用『${title}』`;button.setAttribute('aria-label',button.title);button.setAttribute('aria-haspopup','menu');button.innerHTML=detailApplyIcon;
-            const cover=row.querySelector('[data-detail-cover]'),selected=selectedCover;
-            cover.setAttribute('aria-pressed',String(selected));cover.title=selected?'取消独立封面':'设为封面';cover.setAttribute('aria-label',cover.title);cover.classList.toggle('selected',selected);
-        }
-        for(const input of left.querySelectorAll('[data-detail-task]'))input.checked=config.tasks.has(input.dataset.detailTask);
-        left.querySelector('[data-detail-count]').textContent=`${config.tasks.size} 个任务`;
-        syncSourceSelection();
-    }
-    function renderSources() {
-        if (!left.querySelector('[data-detail-search]')) left.innerHTML = `<div class="clab-browse-source-head">来源</div><label class="clab-review-field"><input type="search" data-detail-search placeholder="搜索任务或模块" aria-label="搜索明细表来源"></label><div class="clab-browse-source-actions"><button data-detail-select="all">全选</button><button data-detail-select="none">取消</button><small data-detail-count></small></div><div class="clab-browse-source-tree clab-detail-source-tree"></div>`;
-        const tree = left.querySelector('.clab-detail-source-tree'), closed = new Set([...tree.querySelectorAll('details:not([open])')].map(el => el.dataset.detailSource));
-        const scroll = left.scrollTop, query = config.search.trim().toLowerCase();
-        left.querySelector('[data-detail-search]').value = config.search;
-        tree.innerHTML = cards.map((card, index) => {
-            const title = card.title || `#${index + 1}`, outputs = card.areas.filter(area => area.type === 'preview'), inputs = detailInputs(card);
-            if (query && !`${title} ${outputs.map(area => area.title).join(' ')} ${inputs.map(field => field.title).join(' ')}`.toLowerCase().includes(query)) return '';
-            return `<details data-detail-source="${esc(card.id)}" ${query || !closed.has(card.id) ? 'open' : ''}><summary><span data-browse-fold data-detail-fold title="展开或折叠任务"></span><input type="checkbox" data-detail-task="${esc(card.id)}" ${config.tasks.has(card.id) ? 'checked' : ''} aria-label="选择任务 ${esc(title)}"><button data-detail-task-name="${esc(card.id)}" class="clab-detail-source-name" title="${esc(title)}">${esc(title)}</button></summary>
-                <div class="clab-detail-source-section">输出</div>${outputs.map((area, i) => `<div class="clab-browse-source-row clab-detail-source-option clab-detail-output-row"><button type="button" class="clab-detail-source-visibility clab-detail-source-cover" data-detail-cover="${esc(card.id)}" data-area-id="${esc(area.id)}" ${detailOutputRecords(card,area).length?'':'disabled'}>${detailCoverIcon}</button><label class="clab-detail-source-label"><input type="checkbox" data-detail-output="${esc(card.id)}" value="${esc(area.id)}"><span title="${esc(area.title || `##${i + 1}`)}">${esc(area.title || `##${i + 1}`)}</span><small>${area.history?.length || (area.resultUrl ? 1 : 0)}</small></label><button type="button" class="clab-detail-source-visibility" data-detail-output-switch="${esc(area.title || `##${i + 1}`)}" aria-expanded="false"></button></div>`).join('') || '<p class="clab-review-note">没有输出模块</p>'}
-                <div class="clab-detail-source-section">输入 · 多选</div>${inputs.map(field => `<div class="clab-browse-source-row clab-detail-source-option"><label class="clab-detail-source-label"><input type="checkbox" data-detail-input="${esc(card.id)}" value="${esc(field.id)}"><span title="${esc(field.title)}">${esc(field.title)}${field.historical ? '（历史）' : ''}</span></label><button type="button" class="clab-detail-source-visibility" data-detail-visibility="${esc(field.title)}"></button></div>`).join('') || '<p class="clab-review-note">没有输入模块</p>'}</details>`;
-        }).join('') || '<p class="clab-review-note">没有匹配的任务或模块</p>';
-        syncSourceControls();left.scrollTop = scroll;
-    }
     function renderBoard() {
-        model = buildDetailCards(cards, config);
+        pruneDetailSession(cards,config);model = buildDetailCards(cards, config);
         for(const item of model)for(const field of item.fields)config.fieldNames.set(detailFieldKey(item.id,field.id),field.title);
         if (config.active!==null&&!model.some(item => item.id === config.active)) config.active = model[0]?.id || '';
         const active = model.find(item => item.id === config.active);
@@ -168,19 +122,18 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
             element.querySelector('.clab-detail-note').textContent = item.current ? '当前参数 · 尚无输出记录' : item.record.snapshot ? '' : '旧记录没有参数快照';
             element.classList.toggle('active', item.id === config.active);
         });
-        syncSourceSelection();
+        sourcePanel.selection();sessionActive=true;saveSession();
     }
     function renderSettings() {
         const { item, field } = selected(), style = field ? detailStyle(config, item.id, field) : null;
         const text = style?.[config.part === 'row' ? 'value' : config.part];
         const spaced=selectedRows().find(({item,field})=>item.fields.at(-1)!==field),gap=spaced?detailStyle(config,spaced.item.id,spaced.field).row.gap:style?.row.gap;
         const block=selectedRows().find(({item,field})=>detailStyle(config,item.id,field).row.layout==='block'),blockGap=block?detailStyle(config,block.item.id,block.field).row.blockGap:style?.row.blockGap;
-        const range=detailExportRange(config,model.length);
         right.innerHTML = `<section class="clab-detail-settings-group"><div class="clab-detail-settings-title">卡片布局</div>
             <label class="clab-review-field"><span class="clab-detail-setting-label">整行宽度 <output data-detail-rowWidth-value>${config.rowWidth}px</output></span><input type="range" min="480" max="2560" step="10" data-detail-setting="rowWidth" value="${config.rowWidth}"></label>
             <label class="clab-review-field"><span class="clab-detail-setting-label">卡片列数 <output data-detail-columns-value>${config.columns}</output></span><input type="range" min="1" max="8" step="1" data-detail-setting="columns" value="${config.columns}"></label></section>
-            <section class="clab-detail-settings-group"><div class="clab-detail-settings-title">数据样式${field ? ` · ${config.selectedFields.size>1?`已选 ${config.selectedFields.size} 个字段`:esc(field.title)}` : ''}</div>
-            ${style ? `<div class="clab-detail-scope">${[['field','仅当前字段'],['name','所有同名字段']].map(([key,label])=>`<label class="clab-review-check"><input type="checkbox" data-detail-setting="scope" value="${key}" ${config.scope===key?'checked':''}>${label}</label>`).join('')}</div>
+            ${style ? `<section class="clab-detail-settings-group" data-detail-data-style><div class="clab-detail-settings-title" title="单击字段选择，Ctrl/Cmd 加选，Shift 连选；可调整当前字段或所有同名字段的样式。">数据样式 · ${config.selectedFields.size>1?`已选 ${config.selectedFields.size} 个字段`:esc(field.title)}</div>
+            <div class="clab-detail-scope">${[['field','仅当前字段'],['name','所有同名字段']].map(([key,label])=>`<label class="clab-review-check"><input type="checkbox" data-detail-setting="scope" value="${key}" ${config.scope===key?'checked':''}>${label}</label>`).join('')}</div>
             <div class="clab-detail-style-target">${[['row','整行'],['key','标题 Key'],['value','内容 Value']].map(([key,label])=>`<button data-detail-part="${key}" aria-pressed="${config.part === key}">${label}</button>`).join('')}</div>
             <div class="clab-detail-style-pair"><label class="clab-review-field">颜色<input type="color" data-detail-style="color" value="${text.color}"></label><label class="clab-review-field">字号<input type="number" min="8" max="48" data-detail-style="size" value="${text.size}"></label></div>
             <div class="clab-detail-style-pair"><label class="clab-review-field" title="文字行高，按字号倍数调整">行距<input type="number" min="0.8" max="4" step="0.1" data-detail-row="lineHeight" value="${style.row.lineHeight}"></label><label class="clab-review-field" title="${spaced?'与下一个字段之间的间距（px）':'最后一个字段没有后续间距'}">字段间距<input type="number" min="0" max="128" step="1" data-detail-row="gap" value="${gap}" ${spaced?'':'disabled'}></label></div>
@@ -188,18 +141,22 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
             <div class="clab-review-field"><span>大小写</span>${choices('data-detail-style="case"',[['','原始大小写',icon('<path d="M5 9a8 8 0 1 1-1 7M5 4v5h5"/>')],['upper','全大写',caseIcon('AA')],['lower','全小写',caseIcon('aa')],['capitalize','首字母大写',caseIcon('Aa')]],text.case||'')}</div>
             <div class="clab-review-field"><span>对齐</span>${choices('data-detail-row="align"',[['left','左对齐',icon('<path d="M4 5h16M4 10h10M4 15h16M4 20h10"/>')],['center','居中',icon('<path d="M4 5h16M7 10h10M4 15h16M7 20h10"/>')],['right','右对齐',icon('<path d="M4 5h16M10 10h10M4 15h16M10 20h10"/>')],['justify','双齐末左',icon('<path d="M4 5h16M4 10h16M4 15h16M4 20h10"/>')]],style.row.align)}</div>
             <div class="clab-review-field"><span>数据布局</span><div class="clab-detail-layout-controls">${choices('data-detail-row="layout"',[['inline','行内：Key：Value',icon('<rect x="4" y="7" width="6" height="10" rx="1"/><path d="M14 8h6M14 12h6M14 16h6"/>'),'行内'],['block','块级：Key / Value 分段',icon('<rect x="4" y="4" width="8" height="6" rx="1"/><path d="M4 15h16M4 20h16"/>'),'块级']],style.row.layout)}<label class="clab-review-field clab-detail-block-gap" title="块级布局中 Key 与 Value 之间的间距（px）">间距<input type="number" min="0" max="128" step="1" data-detail-row="blockGap" aria-label="Key 与 Value 间距" value="${blockGap}" ${block?'':'disabled'}></label></div></div>
-            <button data-detail-reset>恢复该范围的默认样式</button>` : '<p class="clab-review-note">勾选输入模块后，点击卡片中的字段调整样式。</p>'}
-            </section><section class="clab-detail-settings-group"><div class="clab-detail-settings-title">导出</div><div class="clab-review-field"><span>导出范围</span><div class="clab-detail-style-pair"><label class="clab-review-field">起始编号<input type="number" min="1" max="${Math.max(1,model.length)}" step="1" data-detail-setting="exportStart" value="${range.start}" ${model.length?'':'disabled'}></label><label class="clab-review-field">结束编号<input type="number" min="1" max="${Math.max(1,model.length)}" step="1" data-detail-setting="exportEnd" value="${range.end}" ${model.length?'':'disabled'}></label></div></div><p class="clab-review-note">PNG 按当前预览顺序编号，共 ${model.length} 张卡片，包含起止卡片。</p><label class="clab-review-field"><span>放大倍数</span><input type="number" min="1" max="10" step="1" data-detail-setting="exportScale" value="${config.exportScale}"></label>
+            <button data-detail-reset>恢复该范围的默认样式</button></section>` : ''}
+            <section class="clab-detail-settings-group"><div class="clab-detail-settings-title" title="导出当前预览中显示的全部卡片，通过左侧来源勾选控制范围。PNG 按当前布局生成一张完整图片，使用当前媒体画面；HTML 支持离线查看。">导出</div><label class="clab-review-field"><span>放大倍数</span><input type="number" min="1" max="10" step="1" data-detail-setting="exportScale" value="${config.exportScale}"></label>
             <div class="clab-detail-export-buttons"><button data-detail-export="copy" ${exporting||!model.length ? 'disabled' : ''}>复制 PNG</button><button data-detail-export="png" ${exporting||!model.length ? 'disabled' : ''}>下载 PNG</button></div>
-            <label class="clab-review-check"><input type="checkbox" data-detail-setting="includeHistory" ${config.includeHistory ? 'checked' : ''}>HTML 包含所选输出的全部历史</label>
-            <button data-detail-export="html" ${exporting ? 'disabled' : ''}>打包 HTML</button><p class="clab-review-note">Ctrl/Cmd 加选，Shift 连选字段；方向键切换当前卡片历史。PNG 按当前布局导出范围内的卡片为一张图，使用当前媒体画面。</p></section>`;
+            <label class="clab-review-check"><input type="checkbox" data-detail-setting="includeHistory" ${config.includeHistory ? 'checked' : ''}>HTML包含全部生成记录</label>
+            <button data-detail-export="html" ${exporting ? 'disabled' : ''}>打包 HTML</button></section>`;
         downloadsChanged();
     }
-    function render() { renderSources(); renderBoard(); renderSettings(); }
-    function step(id, delta) {
-        const item = model.find(item => item.id === id); if (!item?.records.length) return;
-        const index = Math.max(0, Math.min(item.records.length - 1, item.records.indexOf(item.record) + delta));
-        config.histories.set(detailHistoryKey(id, item.area.id), item.records[index].key); activate(id); renderBoard(); renderSettings();
+    function render() { sourcePanel.render(cards); renderBoard(); renderSettings(); }
+    function step(id, delta,groupOnly=false) {
+        const item=model.find(item=>item.id===id);if(!item?.record)return;
+        const focused=document.activeElement?.matches('[data-detail-record]');
+        sourcePanel.locateRecord(id,item.area.id,item.record.key);
+        const target=detailHistoryTarget(sourcePanel.historyGroups(),id,item.area.id,item.record.key,delta,groupOnly);if(!target)return;
+        rememberHistories();config.outputs.set(target.card.id,target.area.id);config.histories.set(detailHistoryKey(target.card.id,target.area.id),target.record.key);config.tasks.add(target.card.id);config.active=target.card.id;
+        sourcePanel.sync(cards);renderBoard();renderSettings();
+        const thumb=sourcePanel.locateRecord(target.card.id,target.area.id,target.record.key);if(focused)thumb?.focus({preventScroll:true});
     }
     function updateStyle(part, property, value) {
         for(const {item,field} of selectedRows()){
@@ -238,7 +195,7 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
         if(event.target.closest('[data-detail-hide]')){event.preventDefault();return;}
         if(blank(event.target))return;
         const card = event.target.closest('[data-detail-card]');
-        if (card) {activate(card.dataset.detailCard);if(!event.target.closest('[data-detail-field],.clab-detail-title'))locateSource(card.dataset.detailCard);}
+        if (card) {activate(card.dataset.detailCard);if(!event.target.closest('[data-detail-field],.clab-detail-title'))sourcePanel.locate(card.dataset.detailCard);}
         if(event.target.closest('[data-detail-field]')&&(event.ctrlKey||event.metaKey||event.shiftKey)){event.preventDefault();window.getSelection()?.removeAllRanges();}
     }, true);
     root.addEventListener('click', event => {
@@ -252,7 +209,7 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
         const header=event.target.closest('.clab-detail-title');
         if(header&&!event.target.closest('.clab-detail-history')){
             config.active=header.closest('[data-detail-card]').dataset.detailCard;config.field='';config.selectedFields.clear();config.anchor=null;
-            syncSelection();renderSettings();locateSource(config.active);return;
+            syncSelection();renderSettings();sourcePanel.locate(config.active);return;
         }
         const target = event.target.closest('button,[data-detail-fold],[data-detail-field]'); if (!target) return;
         if (target.matches('[data-detail-fold]')) { const group=target.closest('details');group.open=!group.open;event.preventDefault();return; }
@@ -262,21 +219,30 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
             const group=detailInputGroups(cards,config).get(target.dataset.detailVisibility);if(!group)return;
             const show=group.shown<group.matches.length;
             for(const {card,field} of group.matches)setDetailInputVisible(config,card,field.id,show);
-            syncSourceControls();renderBoard();renderSettings();return;
+            sourcePanel.sync(cards);renderBoard();renderSettings();return;
         }
         if(target.matches('[data-detail-output-switch]')){
             const wasOpen=target.getAttribute('aria-expanded')==='true';closeApplyMenu();if(wasOpen)return;
             applyMenu=document.createElement('div');applyMenu.className='clab-detail-apply-menu';applyMenu.setAttribute('role','menu');applyMenu.dataset.title=target.dataset.detailOutputSwitch;
             applyMenu.dataset.cardId=target.closest('[data-detail-source]').dataset.detailSource;applyMenu.dataset.areaId=target.closest('.clab-detail-source-option').querySelector('[data-detail-output]').value;
             const covered=detailCoverApplied(cards,config,target.dataset.detailOutputSwitch,applyMenu.dataset);
-            applyMenu.innerHTML=`<button role="menuitem" data-detail-apply-role="output">应用到所有任务</button><button role="menuitem" data-detail-apply-role="${covered?'clear-cover':'cover'}">${covered?'取消所有任务封面':'应用到所有任务封面'}</button>`;
+            applyMenu.innerHTML=`<button role="menuitem" data-detail-apply-role="output" title="作用于当前勾选的任务">将同名模块设为内容</button><button role="menuitem" data-detail-apply-role="${covered?'clear-cover':'cover'}">${covered?'取消同名模块封面':'使用同名模块图片作封面'}</button>`;
             root.append(applyMenu);const rect=target.getBoundingClientRect();applyMenu.style.left=`${Math.max(8,Math.min(window.innerWidth-applyMenu.offsetWidth-8,rect.right))}px`;applyMenu.style.top=`${Math.max(8,Math.min(window.innerHeight-applyMenu.offsetHeight-8,rect.bottom))}px`;target.setAttribute('aria-expanded','true');applyMenu.firstElementChild.focus({preventScroll:true});return;
         }
         if(target.matches('[data-detail-apply-role]')){apply(applyMenu.dataset.title,target.dataset.detailApplyRole,{cardId:applyMenu.dataset.cardId,areaId:applyMenu.dataset.areaId});return;}
-        if(target.matches('[data-detail-cover]')){
-            const card=cards.find(card=>card.id===target.dataset.detailCover),area=card.areas.find(area=>area.id===target.dataset.areaId);
-            if(config.covers.get(card.id)?.areaId===area.id)config.covers.delete(card.id);else setDetailCover(config,card,area);
-            syncSourceControls();renderBoard();renderSettings();return;
+        if(target.matches('[data-detail-columns-reset]')){config.sourceColumns=2;sourcePanel.render(cards);save();return;}
+        if(target.matches('[data-detail-cover],[data-detail-record]')){
+            const isCover=target.hasAttribute('data-detail-cover'),id=isCover?target.dataset.detailCover:target.dataset.detailRecord;
+            const card=cards.find(card=>card.id===id),area=card.areas.find(area=>area.id===target.dataset.areaId),record=detailOutputRecords(card,area).find(record=>record.key===target.dataset.recordKey);
+            if(!record)return;
+            if(isCover){
+                if(config.covers.get(id)?.recordKey===record.key)config.covers.delete(id);else setDetailCover(config,card,area,record);
+            }else{rememberHistories();config.outputs.set(id,area.id);config.histories.set(detailHistoryKey(id,area.id),record.key);config.tasks.add(id);config.active=id;}
+            sourcePanel.sync(cards);renderBoard();renderSettings();return;
+        }
+        if(target.matches('[data-detail-source-pool]')){
+            const card=cards.find(card=>card.id===target.dataset.cardId),item={card,...detailCardMedia(card,config)};
+            closeApplyMenu();views.get(card.id)?.cover.pause();pool.open(item,target.dataset.detailSourcePool,target);return;
         }
         const card = target.closest('[data-detail-card]');
         if(target.matches('[data-detail-pool]')){
@@ -292,7 +258,7 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
                 if(config.active===card.id&&config.field===field.id)config.field='';
             }
             if(!config.selectedFields.size)config.anchor=null;
-            syncSourceControls();renderBoard();renderSettings();locateSource(item.id,fieldId);return;
+            sourcePanel.sync(cards);renderBoard();renderSettings();sourcePanel.locate(item.id,fieldId);return;
         }
         if (target.matches('[data-detail-field]')) {
             const key=detailFieldKey(card.dataset.detailCard,target.dataset.detailField),add=event.ctrlKey||event.metaKey;
@@ -305,7 +271,7 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
                 else config.selectedFields=new Set([key]);
                 config.anchor=key;
             }
-            config.active=card.dataset.detailCard;config.field=target.dataset.detailField;syncSelection();renderSettings();locateSource(config.active,config.field);return;
+            config.active=card.dataset.detailCard;config.field=target.dataset.detailField;syncSelection();renderSettings();sourcePanel.locate(config.active,config.field);return;
         }
         if (target.matches('[data-detail-part]')) { config.part=target.dataset.detailPart;renderSettings();return; }
         if (target.matches('[data-detail-toggle]')) { const {item,field}=selected();const style=detailStyle(config,item.id,field);const part=config.part==='row'?'both':config.part;updateStyle(part,target.dataset.detailToggle,!style[config.part==='row'?'value':config.part][target.dataset.detailToggle]);renderSettings();return; }
@@ -323,7 +289,8 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
     });
     root.addEventListener('input', event => {
         if (root.dataset.reviewMode !== 'detail') return; const target=event.target;
-        if (target.matches('[data-detail-search]')) {config.search=target.value;renderSources();return;}
+        if(target.matches('[data-detail-columns]')){config.sourceColumns=Math.max(1,Math.min(6,Number(target.value)||2));sourcePanel.render(cards);save();return;}
+        if (target.matches('[data-detail-search]')) {config.search=target.value;sourcePanel.render(cards);saveSession();return;}
         if (target.matches('[data-detail-setting="columns"],[data-detail-setting="rowWidth"]')) {
             const key=target.dataset.detailSetting;config[key]=Number(target.value);renderBoard();right.querySelector(`[data-detail-${key}-value]`).textContent=`${config[key]}${key==='rowWidth'?'px':''}`;
         }
@@ -331,21 +298,20 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
     });
     root.addEventListener('change', event => {
         if (root.dataset.reviewMode !== 'detail') return; const target=event.target;
+        if (target.matches('[data-detail-type]')) {config.typeFilter=target.value;sourcePanel.render(cards);saveSession();return;}
         if (target.matches('[data-detail-task]')) target.checked?config.tasks.add(target.dataset.detailTask):config.tasks.delete(target.dataset.detailTask);
         else if (target.matches('[data-detail-output]')) {
             const id=target.dataset.detailOutput;
-            if(config.covers.get(id)?.areaId===target.value)config.covers.delete(id);
-            else{rememberHistories();config.outputs.set(id,target.value);config.tasks.add(id);}
-            syncSourceControls();renderBoard();renderSettings();return;
+            rememberHistories();config.outputs.set(id,target.value);config.tasks.add(id);config.active=id;
+            sourcePanel.sync(cards);renderBoard();renderSettings();return;
         }
         else if (target.matches('[data-detail-input]')) {
             setDetailInputVisible(config,cards.find(card=>card.id===target.dataset.detailInput),target.value,target.checked);
-            syncSourceControls();renderBoard();renderSettings();return;
+            sourcePanel.sync(cards);renderBoard();renderSettings();return;
         } else if (target.matches('[data-detail-setting]')) {
             const key=target.dataset.detailSetting;
             if(key==='includeHistory')config.includeHistory=target.checked;
             else if(key==='scope')config.scope=target.value;
-            else if(key==='exportStart'||key==='exportEnd'){const value=Math.max(1,Math.min(model.length||1,Math.trunc(Number(target.value)||1)));config[key]=key==='exportEnd'&&value===model.length?null:value;}
             else {const limits={rowWidth:[480,2560,960],columns:[1,8,3],exportScale:[1,10,3]},[min,max,fallback]=limits[key];config[key]=Math.max(min,Math.min(max,Math.round(Number(target.value)||fallback)));}
             save();
         } else if (target.matches('[data-detail-style]')) { const key=target.dataset.detailStyle;updateStyle(config.part==='row'?'both':config.part,key,key==='size'?Math.max(8,Math.min(48,Number(target.value)||12)):target.value); }
@@ -358,10 +324,14 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
     });
     document.addEventListener('keydown', event => {
         if (!root.classList.contains('visible') || root.dataset.reviewMode !== 'detail' || pool.isOpen()||typing(event.target) || typing(document.activeElement) || event.ctrlKey || event.metaKey || event.altKey || event.isComposing || event.defaultPrevented) return;
-        if (event.key==='ArrowLeft'||event.key==='ArrowRight') {event.preventDefault();step(config.active,event.key==='ArrowLeft'?-1:1);}
+        if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)){event.preventDefault();step(config.active,['ArrowLeft','ArrowUp'].includes(event.key)?-1:1,['ArrowUp','ArrowDown'].includes(event.key));}
     });
     return {
-        open(nextCards) { cards=nextCards;pool.close();closeApplyMenu();config.tasks=new Set(cards.map(card=>card.id));config.outputs.clear();config.covers.clear();config.inputs.clear();config.histories.clear();config.media.clear();config.search='';config.active='';config.field='';config.selectedFields.clear();config.anchor='';config.scope='name';config.exportStart=1;config.exportEnd=null;config.fieldNames=new Map(cards.flatMap(card=>detailInputs(card).map(field=>[detailFieldKey(card.id,field.id),field.title]))); },
+        open(nextCards,nextWorkspace) {
+            cards=nextCards;workspace=nextWorkspace;sessionActive=false;sessionJSON=JSON.stringify(workspace?.view.previewDetail||null);
+            pool.close();closeApplyMenu();sourcePanel.reset();restoreDetailSession(cards,config,workspace?.view.previewDetail,defaults);
+            config.active='';config.field='';config.selectedFields.clear();config.anchor='';config.scope='name';config.fieldNames=new Map(cards.flatMap(card=>detailInputs(card).map(field=>[detailFieldKey(card.id,field.id),field.title])));
+        },
         render(nextCards) {cards=nextCards;render();},
         downloadRecords(selectedOnly,includeHistory) {
             return model.flatMap(item=>selectedOnly&&item.id!==config.active?[]:includeHistory?item.records:item.record?[item.record]:[]);
@@ -373,25 +343,17 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
                 return {id:field.id,title:field.title,type:'edit',value:field.missing?null:snapshot?snapshot.value:original?.value};
             }).concat(item.area||[])}));
         },
-        release() { pool.close();closeApplyMenu();for (const view of views.values()){view.cover?.release();view.cleanup?.();}views.clear();save(); },
+        release() { pool.close();closeApplyMenu();sourcePanel.release();for (const view of views.values()){view.cover?.release();view.cleanup?.();}views.clear();save(); },
     };
 }
 
 export function injectDetailStyles() {
     if (document.getElementById('clab-detail-styles')) return;
-    const style=document.createElement('style');style.id='clab-detail-styles';style.textContent=DETAIL_CSS+DETAIL_POOL_CSS+`
+    const style=document.createElement('style');style.id='clab-detail-styles';style.textContent=DETAIL_CSS+DETAIL_POOL_CSS+DETAIL_SOURCES_CSS+`
         .clab-preview-modal[data-review-mode=detail] .clab-preview-modal-center{display:block;overflow:auto;padding:0;overscroll-behavior:contain}
-        .clab-detail-source-section{margin:5px 0 0 18px;color:#777;font:10px/1.5 sans-serif}.clab-detail-source-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;border:0;background:transparent;color:#bbb;padding:0;cursor:pointer}
-        .clab-detail-source-active{background:#242424;border-radius:3px}.clab-detail-source-current{background:#303030;border-radius:3px}
         .clab-detail-field{position:relative}.clab-detail-field-actions{position:absolute;top:0;right:0;z-index:1;display:flex;gap:2px;padding:1px;border-radius:3px;background:#202020;white-space:normal;opacity:0;pointer-events:none;transition:opacity .12s}
         .clab-detail-field:hover>.clab-detail-field-actions,.clab-detail-field:focus-visible>.clab-detail-field-actions,.clab-detail-field-actions:focus-within{opacity:1;pointer-events:auto}
         .clab-detail-field-actions button{display:flex;align-items:center;justify-content:center;width:22px;height:22px;margin:0;padding:0;border:0;border-radius:3px;background:transparent;color:#999;cursor:pointer}.clab-detail-field-actions button:hover{color:#fff;background:#303030}.clab-detail-field-actions button:focus-visible{outline:1px solid #888;outline-offset:-1px}.clab-detail-field-actions svg{width:16px;height:16px;pointer-events:none}
-        .clab-detail-source-label{display:flex;align-items:center;gap:6px;flex:1;min-width:0;cursor:pointer}.clab-detail-source-label>span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .clab-detail-output-row{margin-left:0!important;gap:4px}.clab-preview-modal-left .clab-detail-source-cover{width:16px;flex-basis:16px}.clab-preview-modal-left .clab-detail-source-cover.selected{opacity:1;pointer-events:auto;color:#ddd}
-        .clab-detail-output-row input[data-detail-output]{appearance:none;display:grid;place-content:center;width:13px;height:13px;margin:0;flex:none;border:1px solid #777;border-radius:50%;background:transparent;cursor:pointer}.clab-detail-output-row input[data-detail-output]:checked{border-color:#9ab6c8}.clab-detail-output-row input[data-detail-output]:checked::after{content:'';width:7px;height:7px;border-radius:50%;background:#9ab6c8}.clab-detail-output-row input[data-detail-output]:focus-visible{outline:1px solid #aaa;outline-offset:2px}
-        .clab-preview-modal-left .clab-detail-source-visibility{display:flex;align-items:center;justify-content:center;width:20px;height:20px;flex:0 0 20px;padding:0;border:0;border-radius:3px;background:transparent;color:#999;opacity:0;pointer-events:none;cursor:pointer;transition:opacity .12s,color .12s}.clab-detail-source-visibility svg{width:16px;height:16px;pointer-events:none}
-        .clab-detail-source-option:hover .clab-detail-source-visibility,.clab-detail-source-option .clab-detail-source-visibility:focus-visible{opacity:1;pointer-events:auto}.clab-preview-modal-left .clab-detail-source-visibility:hover{background:#292929;color:#fff}.clab-detail-source-visibility:focus-visible{outline:1px solid #777;outline-offset:1px}.clab-preview-modal-left .clab-detail-source-visibility:disabled{cursor:default;opacity:0}.clab-detail-source-option:hover .clab-detail-source-visibility:disabled{opacity:.3}
-        @media(hover:none){.clab-preview-modal-left .clab-detail-source-visibility,.clab-detail-field-actions{opacity:1;pointer-events:auto}.clab-preview-modal-left .clab-detail-source-visibility:disabled{opacity:.3}}
         .clab-detail-style-pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}.clab-detail-settings-group .clab-detail-style-pair .clab-review-field{flex-direction:row;align-items:center;white-space:nowrap}.clab-detail-style-pair input{flex:1;width:0;min-width:0;height:30px;box-sizing:border-box}.clab-detail-style-pair input[type=color]{padding:2px;border:1px solid #444;background:#242424}.clab-detail-style-pair input:disabled{opacity:.35}
         .clab-preview-modal-right [data-detail-setting][type=range]{appearance:none;width:100%;height:14px;padding:0;margin:0;background:linear-gradient(#555,#555) center/100% 3px no-repeat;border:0;border-radius:2px;cursor:pointer}.clab-preview-modal-right [data-detail-setting][type=range]::-webkit-slider-thumb{appearance:none;width:10px;height:10px;background:#aaa;border-radius:50%}.clab-preview-modal-right [data-detail-setting][type=range]::-moz-range-thumb{width:10px;height:10px;background:#aaa;border:0;border-radius:50%}
         .clab-detail-font-buttons,.clab-detail-icon-buttons,.clab-detail-export-buttons{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.clab-detail-style-target{display:flex;align-items:center;align-self:flex-start;gap:14px}.clab-detail-style-target button{padding:0 0 6px;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;color:#999;font-size:11px;font-weight:600;line-height:1.5;text-align:left;white-space:nowrap;cursor:pointer}.clab-detail-style-target button:hover{color:#fff}

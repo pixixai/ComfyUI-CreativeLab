@@ -9,7 +9,7 @@ export const toolbarStyles = `
         position:relative; z-index:36; display:grid; align-items:center; flex:0 0 auto;
         grid-template-columns:minmax(max-content,1fr) max-content minmax(max-content,1fr);
         box-sizing:border-box; min-width:0; gap:var(--clab-tool-gap); padding:4px var(--clab-toolbar-edge-padding,16px); white-space:nowrap;
-        border:1px solid #ffffff19; background:#0004; color:#aaa;
+        border:1px solid #ffffff19; background:var(--clab-toolbar-bg); color:#aaa;
         font:11px/16px Inter, "Microsoft YaHei", sans-serif; user-select:none; cursor:default; touch-action:none;
     }
     .clab-tool-dock[data-dock="top"] { order:-2; border-width:0 0 1px; }
@@ -21,7 +21,7 @@ export const toolbarStyles = `
         --clab-tool-button-radius:8px;
         --clab-tool-gap:12px;
         position:absolute; z-index:70; display:flex; width:max-content; max-width:100%; max-height:100%;
-        padding:7px 34px; border:1px solid #454545; border-radius:999px; background:#242424f2; box-shadow:0 4px 14px #0005;
+        padding:7px 34px; border:1px solid #454545; border-radius:999px; background:var(--clab-toolbar-bg); box-shadow:0 4px 14px #0005;
     }
     .clab-tool-dock[data-dense] { --clab-tool-padding:3px; }
     .clab-tool-dock :is(.clab-toolbar,.clab-tool-pair),
@@ -38,7 +38,7 @@ export const toolbarStyles = `
         --clab-tool-button-height:44px;
         position:absolute; z-index:1; width:max-content; box-sizing:border-box;
         flex-wrap:wrap; justify-content:center; gap:6px; padding:5px 12px;
-        border:1px solid #454545; border-radius:16px; background:#242424f2; box-shadow:0 4px 14px #0005;
+        border:1px solid #454545; border-radius:16px; background:var(--clab-toolbar-bg); box-shadow:0 4px 14px #0005;
     }
     #clab-panel[data-workspace-mode=xy] .clab-tool-dock { grid-template-columns:minmax(0,1fr) max-content; }
     #clab-panel[data-workspace-mode=xy] :is(.clab-toolbar-left,#clab-module-toolbar,#clab-run-count-control),

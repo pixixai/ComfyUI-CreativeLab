@@ -156,6 +156,7 @@ export function createBrowseLayout(root, settings, callbacks) {
     });
     for (const type of ['pointerup','pointercancel','lostpointercapture'])root.addEventListener(type,stopResize);
     window.addEventListener('blur',stopResize);window.addEventListener('resize',applyLayout);
+    document.addEventListener('clab_panel_layout_change',applyLayout);
     root.addEventListener('keydown',event=>{
         const side=event.target.dataset.browseResize;
         if (!side||!['ArrowLeft','ArrowRight'].includes(event.key))return;

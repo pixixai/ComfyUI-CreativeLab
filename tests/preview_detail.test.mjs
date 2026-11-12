@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDetailCards, detailInputs, detailFields, detailHistoryKey, detailFieldKey, detailStyle, detailFieldsHTML, setDetailStyle, transformDetailText, detailCardWidth, detailExportRange, detailInputGroups, setDetailInputVisible, detailOutputGroups, setDetailCover, detailCoverApplied, applyDetailOutput } from '../web/components/contextmenu/content/preview_detail_model.js';
+import { buildDetailCards, detailHistoryTarget, detailInputs, detailFields, detailHistoryKey, detailFieldKey, detailStyle, detailFieldsHTML, setDetailStyle, transformDetailText, detailCardWidth, detailInputGroups, setDetailInputVisible, detailOutputGroups, setDetailCover, detailCoverApplied, applyDetailOutput } from '../web/components/contextmenu/content/preview_detail_model.js';
 import { modelResourcePaths } from '../web/components/modules/media_types/model_loader.js';
 import { captureCardInputSnapshot, restoreCardInputsFromSnapshot } from '../web/components/modules/media_types/media_utils.js';
+
+globalThis.window={location:{origin:'http://local'}};
 
 function fixture() {
     const input={id:'prompt',type:'edit',title:'提示词',value:'CURRENT SECRET'},steps={id:'steps',type:'edit',title:'步数',value:99};
@@ -100,14 +102,6 @@ test('Key/Value gaps render only in block layout and retain their setting when s
     assert.equal(detailStyle(h.config,'task',field).row.blockGap,18);
 });
 
-test('PNG ranges default to every visible card and normalize inclusive one-based positions',()=>{
-    assert.deepEqual(detailExportRange({},5),{start:1,end:5});
-    assert.deepEqual(detailExportRange({exportStart:2,exportEnd:4},5),{start:2,end:4});
-    assert.deepEqual(detailExportRange({exportStart:3,exportEnd:null},8),{start:3,end:8});
-    assert.deepEqual(detailExportRange({exportStart:-2,exportEnd:99},5),{start:1,end:5});
-    assert.deepEqual(detailExportRange({exportStart:4,exportEnd:2},5),{start:4,end:2});
-});
-
 test('shared input visibility groups only matching names from checked task sources and preserves other fields and task data',()=>{
     const h=fixture(),other={id:'other',areas:[{id:'other-prompt',type:'edit',title:'提示词',value:'Other prompt'},{id:'other-steps',type:'edit',title:'步数',value:30}]},excluded={id:'excluded',areas:[{id:'excluded-prompt',type:'edit',title:'提示词',value:'Excluded'}]},cards=[h.card,other,excluded],before=JSON.stringify(cards);
     h.config.tasks.add('other');h.config.inputs.set('other',new Set(['other-steps']));
@@ -182,7 +176,7 @@ test('default covers follow the current preview; explicit covers pin a stable re
 test('cover selection skips empty sources and recovers a usable cover when a record or output is removed',()=>{
     const h=fixture();assert.equal(setDetailCover(h.config,h.card,{id:'empty',type:'preview'}),false);assert.equal(h.config.covers.size,0);
     setDetailCover(h.config,h.card,h.a);h.a.history.pop();h.a.historyRuns.pop();
-    assert.equal(buildDetailCards([h.card],h.config)[0].coverRecord.runId,'r1');
+    assert.equal(buildDetailCards([h.card],h.config)[0].coverRecord.runId,'r1');assert.equal(buildDetailCards([h.card],h.config)[0].customCover,false);
     h.card.areas=h.card.areas.filter(area=>area!==h.a);const item=buildDetailCards([h.card],h.config)[0];assert.equal(item.customCover,false);assert.equal(item.coverRecord,item.record);
 });
 
@@ -230,4 +224,24 @@ test('batch actions select the clicked duplicate output in the source task while
     applyDetailOutput(cards,h.config,'结果','cover',source);assert.equal(detailCoverApplied(cards,h.config,'结果',source),true);
     assert.equal(h.config.covers.get('task').areaId,'b');assert.equal(h.config.covers.get('other').areaId,'other-first');
     assert.equal(detailCoverApplied(cards,h.config,'结果',{cardId:'task',areaId:'a'}),false);
+});
+
+
+test('batch covers preserve the originating pinned image, use latest images elsewhere and skip sources without images',()=>{
+    const h=fixture();h.a.title='封面';h.b.title='内容';
+    const other={id:'other',areas:[{...h.a,id:'other-images',history:['/view?filename=old.png','/view?filename=new.png','/view?filename=last.mp4'],historyRuns:[{id:'old'},{id:'new'},{id:'video'}]}]},video={id:'video',areas:[{id:'video-out',type:'preview',title:'封面',history:['/view?filename=only.mp4']}]};
+    h.config.tasks=new Set(['task','other','video']);const first=buildDetailCards([h.card],h.config)[0].records[0];setDetailCover(h.config,h.card,h.a,first);setDetailCover(h.config,video,video.areas[0]);
+    const before=JSON.stringify([h.card,other,video]),videoCover=h.config.covers.get('video');
+    applyDetailOutput([h.card,other,video],h.config,'封面','cover',{cardId:'task',areaId:'a'});
+    assert.equal(h.config.covers.get('task').recordKey,first.key);assert.equal(buildDetailCards([other],h.config)[0].coverRecord.runId,'new');assert.equal(h.config.covers.get('video'),videoCover);assert.equal(JSON.stringify([h.card,other,video]),before);
+});
+
+
+test('detail history navigation steps within a group and crosses either boundary to the adjacent first record, skipping empty outputs',()=>{
+    const card={id:'task'},area=id=>({id}),records=(...keys)=>keys.map(key=>({key}));
+    const groups=[{card,area:area('a'),records:records('a1','a2','a3')},{card,area:area('empty'),records:[]},{card,area:area('b'),records:records('b1','b2')},{card:{id:'other'},area:area('c'),records:records('c1')}],before=JSON.stringify(groups);
+    const move=(output,key,direction,groupOnly=false)=>detailHistoryTarget(groups,'task',output,key,direction,groupOnly);
+    assert.equal(move('a','a1',1).record.key,'a2');assert.equal(move('a','a2',-1).record.key,'a1');assert.equal(move('a','a3',1).record.key,'b1');assert.equal(move('b','b1',-1).record.key,'a1');
+    assert.equal(move('a','a2',1,true).record.key,'b1');assert.equal(move('b','b2',-1,true).record.key,'a1');assert.equal(move('b','b2',1).card.id,'other');assert.equal(move('b','b1',1,true).record.key,'c1');
+    assert.equal(move('a','a1',-1),null);assert.equal(detailHistoryTarget(groups,'other','c','c1',1),null);assert.equal(move('missing','',1),null);assert.equal(JSON.stringify(groups),before);
 });

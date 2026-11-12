@@ -32,41 +32,12 @@ window._clabBgOpacity = 45;
 window._clabPanelWidthPercent = 92;
 window._clabPanelHeightPercent = 92;
 window._clabMaxHistory = 50;
-window._clabVideoAutoplay = false;
 window._clabVideoMuted = true;
 window._clabSyncHistoryParams = true;
-window._clabThumbPerfMode = false; // 默认关闭高性能缩略图模式
 window._clabArchiveDir = 'CLab'; 
 window._clabDeleteTemp = false; 
 window._clabFilePrefix = 'pix';
 window._clabHaltOnError = true; 
-
-window._clabIsVideoAutoplayEnabled = function() {
-    const raw = window._clabVideoAutoplay;
-    if (typeof raw === "string") {
-        const normalized = raw.trim().toLowerCase();
-        if (normalized === "false" || normalized === "0" || normalized === "off") return false;
-        if (normalized === "true" || normalized === "1" || normalized === "on") return true;
-    }
-    return raw !== false;
-};
-
-window._clabApplyVideoAutoplaySetting = function() {
-    const enabled = window._clabIsVideoAutoplayEnabled ? window._clabIsVideoAutoplayEnabled() : (window._clabVideoAutoplay !== false);
-    const videos = document.querySelectorAll(".clab-video-player .clab-media-target, .clab-video-player video");
-    videos.forEach((video) => {
-        if (!(video instanceof HTMLVideoElement)) return;
-        if (enabled) {
-            video.autoplay = true;
-            video.setAttribute("autoplay", "");
-            if (video.paused) video.play().catch(() => {});
-        } else {
-            video.autoplay = false;
-            video.removeAttribute("autoplay");
-            if (!video.paused) video.pause();
-        }
-    });
-};
 
 // =========================================================================
 // 全新主题专属变量 
@@ -122,20 +93,28 @@ function normalizePanelPercent(value, fallback = 92) {
 }
 
 window._clabApplyPanelLayout = function() {
-    const panel = document.getElementById('clab-panel');
-    if (!panel) return;
-
     const widthPercent = normalizePanelPercent(window._clabPanelWidthPercent, 92);
     const heightPercent = normalizePanelPercent(window._clabPanelHeightPercent, 92);
 
     const leftPercent = Math.max(0, (100 - widthPercent) / 2);
     const topPercent = Math.max(0, (100 - heightPercent) / 2);
-    panel.style.inset = '';
-    panel.style.top = `${topPercent}vh`;
-    panel.style.left = `${leftPercent}vw`;
-    panel.style.width = `${widthPercent}vw`;
-    panel.style.height = `${heightPercent}vh`;
-    panel.style.border = '';
+    const root=document.documentElement.style;
+    root.setProperty('--clab-panel-width',`${widthPercent}vw`);
+    root.setProperty('--clab-panel-height',`${heightPercent}vh`);
+    root.setProperty('--clab-panel-left',`${leftPercent}vw`);
+    root.setProperty('--clab-panel-top',`${topPercent}vh`);
+    root.setProperty('--clab-panel-background',`rgba(30, 30, 30, ${window._clabBgOpacity/100})`);
+    root.setProperty('--clab-panel-blur',window._clabBgBlur?'blur(15px)':'none');
+    const panel = document.getElementById('clab-panel');
+    if (panel) {
+        panel.style.inset = '';
+        panel.style.top = `${topPercent}vh`;
+        panel.style.left = `${leftPercent}vw`;
+        panel.style.width = `${widthPercent}vw`;
+        panel.style.height = `${heightPercent}vh`;
+        panel.style.border = '';
+    }
+    document.dispatchEvent(new Event('clab_panel_layout_change'));
 };
 
 const workspaceSettings = [
@@ -355,34 +334,13 @@ const clabSettings = [
         onChange: (newVal) => { window._clabSyncHistoryParams = newVal; }
     },
     {
-        id: "CLab.2-PerformanceMedia.ThumbMode",
-        name: "Thumb Performance Mode",
-        type: "boolean",
-        defaultValue: false,
-        category: ["Creative Lab", "2-PerformanceMedia", "ThumbMode"],
-        tooltip: "When enabled, loads only the first frame of videos in the grid history to save memory. When disabled, loops videos silently.",
-        onChange: (newVal) => { window._clabThumbPerfMode = newVal; }
-    },
-    {
         id: "CLab.2-PerformanceMedia.Muted",
         name: "Video Default Muted",
         type: "boolean",
         defaultValue: true,
         category: ["Creative Lab", "2-PerformanceMedia", "Muted"],
-        tooltip: "When enabled, auto-mutes main videos on load. Note: browsers may block autoplay if not muted.",
+        tooltip: "Initial mute state for newly loaded main videos. Existing player choices are retained; comparison audio and silent thumbnails are controlled separately.",
         onChange: (newVal) => { window._clabVideoMuted = newVal; }
-    },
-    {
-        id: "CLab.2-PerformanceMedia.Autoplay",
-        name: "Video Autoplay",
-        type: "boolean",
-        defaultValue: false,
-        category: ["Creative Lab", "2-PerformanceMedia", "Autoplay"],
-        tooltip: "When disabled, main videos only show the first frame and play on click (saves GPU decoding).",
-        onChange: (newVal) => {
-            window._clabVideoAutoplay = newVal;
-            if (window._clabApplyVideoAutoplaySetting) window._clabApplyVideoAutoplaySetting();
-        }
     },
     {
         id: "CLab.2-PerformanceMedia.MaxHistory",
@@ -406,11 +364,10 @@ const clabSettings = [
         defaultValue: 45,
         attrs: { min: 0, max: 100, step: 5 },
         category: ["Creative Lab", "1-General", "BgOpacity"],
-        tooltip: "Main panel background opacity (0 = fully transparent, 100 = solid color).",
+        tooltip: "Workspace and preview panel background opacity (0 = fully transparent, 100 = solid color).",
         onChange: (newVal) => {
             window._clabBgOpacity = newVal;
-            const panel = document.getElementById('clab-panel');
-            if (panel) panel.style.background = `rgba(30, 30, 30, ${newVal / 100})`;
+            window._clabApplyPanelLayout();
         }
     },
     {
@@ -445,14 +402,10 @@ const clabSettings = [
         type: "boolean",
         defaultValue: true,
         category: ["Creative Lab", "1-General", "BackdropBlur"],
-        tooltip: "Enables frosted glass effect behind the panel. May cause lag on low-end GPUs.",
+        tooltip: "Enables the frosted glass effect for workspace and preview panels. May cause lag on low-end GPUs.",
         onChange: (newVal) => {
             window._clabBgBlur = newVal;
-            const panel = document.getElementById('clab-panel');
-            if (panel) {
-                panel.style.backdropFilter = newVal ? 'blur(15px)' : 'none';
-                panel.style.webkitBackdropFilter = newVal ? 'blur(15px)' : 'none';
-            }
+            window._clabApplyPanelLayout();
         }
     },
     {
@@ -543,9 +496,7 @@ app.registerExtension({
                 
                 // 读取性能与媒体
                 window._clabMaxHistory = getSet("CLab.2-PerformanceMedia.MaxHistory", 50);
-                window._clabVideoAutoplay = getSet("CLab.2-PerformanceMedia.Autoplay", false);
                 window._clabVideoMuted = getSet("CLab.2-PerformanceMedia.Muted", true);
-                window._clabThumbPerfMode = getSet("CLab.2-PerformanceMedia.ThumbMode", false);
                 window._clabSyncHistoryParams = getSet("CLab.2-PerformanceMedia.SyncHistoryParams", true);
                 
                 // 读取文件流转

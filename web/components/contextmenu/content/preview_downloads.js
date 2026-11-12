@@ -102,9 +102,8 @@ export function createPreviewDownloads(root,getRecords,getCards) {
         let section=right.querySelector('[data-review-downloads]');
         if (!section || section.dataset.reviewDownloads!==mode) {
             section?.remove();
-            const host=right.querySelector(':scope > .clab-review-sheet-settings')||right;
-            host.insertAdjacentHTML('beforeend', `<section class="clab-review-downloads" data-review-downloads="${mode}">
-                <h3>下载媒体</h3><p class="clab-review-note">${hint}</p>
+            right.insertAdjacentHTML('beforeend', `<section class="clab-review-downloads" data-review-downloads="${mode}">
+                <h3 title="${hint}">下载媒体</h3>
                 <label class="clab-review-field clab-review-download-format"><select data-review-download-format aria-label="保存方式">
                     <option value="zip">打包 ZIP</option><option value="folder"${canPickFolder()?'':' disabled'}>保存到文件夹</option>
                 </select></label>
@@ -113,7 +112,7 @@ export function createPreviewDownloads(root,getRecords,getCards) {
                     <button type="button" data-review-download="all">下载全部</button>
                     <button type="button" data-review-download="selected">下载选中</button>
                 </div></section>`);
-            section=host.lastElementChild;
+            section=right.lastElementChild;
         }
         section.querySelector('[data-review-download-history]').checked=history.has(mode);
         section.querySelector('[data-review-download-format]').value=canPickFolder()?format:'zip';

@@ -44,17 +44,16 @@ export function createPreviewDataExport(root,getRecords,getCards,getJSONCards) {
             group?.remove();
             group=document.createElement('div');
             group.className='clab-review-data-export';group.dataset.reviewDataExport=mode;
-            group.innerHTML=`<section class="clab-review-downloads"><h3>收集整理</h3>
+            group.innerHTML=`<section class="clab-review-downloads"><h3 title="将当前范围的媒体复制到 ComfyUI 的 output 子文件夹；勾选后包含组内全部记录，原文件保留。">收集整理</h3>
                 <label class="clab-review-check"><input type="checkbox" data-review-organize-history>含组内全部记录</label>
                 <div class="clab-review-export"><button type="button" data-review-data-action="organize">复制到子文件夹</button></div></section>
-                <section class="clab-review-downloads"><h3>导出 JSON 数据</h3>
+                <section class="clab-review-downloads"><h3 title="按当前显示范围导出输入参数、输出媒体或两者的 JSON 数据；勾选后包含组内全部记录，可复制或下载。">导出 JSON 数据</h3>
                 <div class="clab-review-json-kinds">${[['input','输入模块'],['output','输出模块'],['all','输入+输出模块']].map(([value,label])=>
                     `<label class="clab-review-check"><input type="radio" name="clab-review-json-kind" data-review-json-kind value="${value}">${label}</label>`).join('')}</div>
                 <label class="clab-review-check"><input type="checkbox" data-review-json-history>含组内全部记录</label>
                 <div class="clab-review-export"><button type="button" data-review-data-action="copy-json">复制</button>
                 <button type="button" data-review-data-action="download-json">下载</button></div></section>`;
-            const host=right.querySelector(':scope > .clab-review-sheet-settings')||right;
-            host.append(group);
+            right.append(group);
         }
         group.querySelector('[data-review-organize-history]').checked=organizationHistory.has(mode);
         group.querySelector('[data-review-json-history]').checked=jsonHistory.has(mode);

@@ -439,41 +439,6 @@ export function attachInputEvents(container) {
         document.head.appendChild(btnStyle);
     }
 
-    const isVideoAutoplayEnabled = () => {
-        const raw = window._clabVideoAutoplay;
-        if (typeof raw === 'string') {
-            const normalized = raw.trim().toLowerCase();
-            if (normalized === 'false' || normalized === '0' || normalized === 'off') return false;
-            if (normalized === 'true' || normalized === '1' || normalized === 'on') return true;
-        }
-        return raw !== false;
-    };
-
-    const enforceInputVideoAutoplaySetting = (zone) => {
-        if (!zone || (zone.dataset.uploadType || '') !== 'video') return;
-        if (isVideoAutoplayEnabled()) return;
-
-        const vid = zone.querySelector('video.clab-media-target, video');
-        if (!vid) return;
-
-        vid.removeAttribute('autoplay');
-        vid.autoplay = false;
-
-        const pauseIfNeeded = () => {
-            if (!isVideoAutoplayEnabled() && !vid.paused) {
-                vid.pause();
-            }
-        };
-
-        pauseIfNeeded();
-        if (vid.readyState >= 1) {
-            requestAnimationFrame(pauseIfNeeded);
-        } else {
-            vid.addEventListener('loadedmetadata', pauseIfNeeded, { once: true });
-            vid.addEventListener('canplay', pauseIfNeeded, { once: true });
-        }
-    };
-
     const applyMediaAutoRatio = (zone) => {
         if (!zone || zone.dataset.autoRatio !== '1') return;
         const uploadType = zone.querySelector('video') ? 'video' : zone.querySelector('img') ? 'image' : '';
@@ -515,7 +480,7 @@ export function attachInputEvents(container) {
         if (!fileInput) return;
         const uploadType = zone.dataset.uploadType || fileInput.dataset.uploadType || 'file';
         if (zone._clabUploadInput === fileInput && zone._clabUploadType === uploadType) {
-            enforceInputVideoAutoplaySetting(zone); applyMediaAutoRatio(zone); return;
+            applyMediaAutoRatio(zone); return;
         }
         if (!zone._clabUploadInput) onModuleRemoved(zone, () => {
             if (window._clabUploadHandlers.get(zone.dataset.area)?.zone === zone) {
@@ -644,7 +609,6 @@ export function attachInputEvents(container) {
             }
         };
 
-        enforceInputVideoAutoplaySetting(zone);
         applyMediaAutoRatio(zone);
     });
 

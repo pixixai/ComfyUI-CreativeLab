@@ -1,4 +1,4 @@
-import { DETAIL_CSS, detailFields, detailHistoryKey, detailCardWidth, detailExportRange } from './preview_detail_model.js';
+import { DETAIL_CSS, detailFields, detailHistoryKey, detailCardWidth } from './preview_detail_model.js';
 import { captureModelPreview } from '../../modules/media_types/media_model.js';
 import { getAudioWavePeaks, drawAudioWave } from '../../modules/media_types/audio_waveform.js';
 import { getModelResourceURL, modelResourcePaths } from '../../modules/media_types/model_loader.js';
@@ -39,9 +39,8 @@ export async function exportDetailPNG(board, config) {
     if(!board)throw new Error('没有可导出的明细表');
     await document.fonts.ready;
     const originalCards=[...board.querySelectorAll('.clab-detail-card')];if(!originalCards.length)throw new Error('没有可导出的卡片');
-    const {start,end}=detailExportRange(config,originalCards.length);if(start>end)throw new Error('起始编号不能大于结束编号');
-    const clone=board.cloneNode(false),sourceCards=originalCards.slice(start-1,end);
-    for(const source of sourceCards){
+    const clone=board.cloneNode(false);
+    for(const source of originalCards){
         const target=source.cloneNode(true);clone.append(target);
         const host=source.querySelector('.clab-detail-media'),cover=host.querySelector(':scope>.clab-detail-cover');
         if(cover)await cover._detailPrepareCover();
@@ -58,7 +57,7 @@ export async function exportDetailPNG(board, config) {
         clone.style.setProperty('--detail-columns',config.columns);clone.style.setProperty('--detail-row-width',`${config.rowWidth}px`);clone.style.width=`${width}px`;
         await Promise.all([...clone.querySelectorAll('img')].map(image=>image.decode()));
         const height=Math.ceil(clone.getBoundingClientRect().height),pixelWidth=Math.ceil(width*scale),pixelHeight=Math.ceil(height*scale);
-        if(pixelWidth>32767||pixelHeight>32767||pixelWidth*pixelHeight>67108864)throw new Error('整图尺寸过大，请降低放大倍数或缩小导出范围');
+        if(pixelWidth>32767||pixelHeight>32767||pixelWidth*pixelHeight>67108864)throw new Error('整图尺寸过大，请降低放大倍数，或在左侧来源减少勾选的卡片');
         const wrapper=document.createElement('div');wrapper.style.cssText=`width:${width}px;height:${height}px;background:#171717`;wrapper.append(style.cloneNode(true),clone.cloneNode(true));
         const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%">${new XMLSerializer().serializeToString(wrapper)}</foreignObject></svg>`;
         const image=new Image();image.src=`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;await image.decode();
@@ -66,7 +65,7 @@ export async function exportDetailPNG(board, config) {
         try {
             canvas.width=pixelWidth;canvas.height=pixelHeight;canvas.getContext('2d').drawImage(image,0,0,pixelWidth,pixelHeight);
             const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw new Error('PNG 生成失败');
-            return {name:start===1&&end===originalCards.length?'明细表.png':`明细表-${start}-${end}.png`,blob};
+            return {name:'明细表.png',blob};
         } finally {canvas.width=canvas.height=0;}
     } finally {host.remove();}
 }

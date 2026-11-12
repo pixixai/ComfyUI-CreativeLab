@@ -102,7 +102,7 @@ export function attachPreviewVideo(player, { view = { x: 0, y: 0, zoom: 1 }, pla
         else first.muted = playback.muted ?? window._clabVideoMuted !== false;
         player.querySelector('.clab-media-speed-input').value = first.playbackRate;
         setTime(playback.time || 0);
-        if (playback.playing ?? window._clabIsVideoAutoplayEnabled?.()) void start();
+        if (playback.playing) void start();
     };
     for (const video of videos) {
         for (const type of ['timeupdate', 'play', 'pause', 'volumechange', 'ratechange']) video.addEventListener(type, update, { signal });

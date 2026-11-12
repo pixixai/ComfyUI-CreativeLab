@@ -6,7 +6,9 @@
 import { getSteppedHistoryIndex } from "../../modules/media_types/media_utils.js";
 import { selectOutputHistory } from "../../modules/module_history.js";
 import { getActiveWorkspace, state, saveAndRender } from "../../ui_state.js";
-import { renderWorkspaceBar, scrollWorkspaceTabs, switchWorkspace } from "../../comp_workspace.js";
+import { renderWorkspaceBar, attachWorkspaceEvents, switchWorkspace } from "../../comp_workspace.js";
+import { attachWorkspaceModeMenu } from '../../workspace_modes/workspace_mode_menu.js';
+import { setWorkspaceMode } from '../../workspace_modes/workspace_modes.js';
 import { previewModalStore } from "./state.js";
 import { renderModelViewer, attachModelEvents, releaseModelViewer } from '../../modules/media_types/media_model.js';
 import { collectPreviewRecords, sourceKey, parameterFields, displayValue, valueKey } from './preview_records.js';
@@ -44,7 +46,7 @@ export function createPreviewModalApi({
     let compare = { a: '', b: '', slot: 'a', layout: 'side', view: { x: 0, y: 0, zoom: 1, split: .5 } };
     let historyMatrix, matrixPreview, parameterGrid, xyGrid, renderedGrid = '';
     let allSources = [], browseLayout, detailView, renderedBrowseKey = '', renderedCompareKey = '', renderedMode = '';
-    let returnFocus,downloads,dataExport;
+    let returnFocus,downloads,dataExport,previewWorkspaceId='';
     const refreshSidebarExports=()=>{downloads.refresh();dataExport.refresh();};
     const selectedHistoryRecords = new Set();
     const sheetScales = {table:3,xy:3};
@@ -213,6 +215,7 @@ export function createPreviewModalApi({
                 <div class="clab-workspace-strip clab-review-workspaces">
                     <div class="clab-workspace-shell">
                         <div class="clab-workspace-tabs" data-review-workspaces role="group" aria-label="切换工作区"></div>
+                        <div class="clab-mode-menu" id="clab-preview-workspace-mode-menu" role="menu" aria-label="工作区模式" hidden>${[['cards','任务卡片'],['table','参数表'],['xy','XY 矩阵']].map(([key,label])=>`<button type="button" data-workspace-mode="${key}" role="menuitemradio" aria-checked="false">${label}</button>`).join('')}</div>
                     </div>
                 </div>
                 <div class="clab-preview-modal-body">
@@ -225,7 +228,20 @@ export function createPreviewModalApi({
         document.body.appendChild(root);
         previewModalStore.root = root;
         const tabs = root.querySelector('[data-review-workspaces]');
-        tabs.addEventListener('wheel', event => scrollWorkspaceTabs(tabs, event));
+        attachWorkspaceEvents(tabs,{
+            beforeChange:()=>parameterGrid?.flush(),
+            onChange:()=>{
+                if(root.classList.contains('visible')&&previewWorkspaceId!==state.activeWorkspaceId){
+                    openPreviewModal(undefined,undefined,undefined,undefined,workspacePreviewSources(state.cards),returnFocus,mode);
+                    tabs.querySelector('.active .clab-workspace-tab-select')?.focus({preventScroll:true});
+                }
+            },
+        });
+        const workspaceModeMenu=attachWorkspaceModeMenu(tabs.closest('.clab-workspace-strip'),(next,id)=>{
+            parameterGrid.flush();if(id!==state.activeWorkspaceId)switchWorkspace(id);
+            setWorkspaceMode(document.querySelector('#clab-panel'),next);
+            openPreviewModal(undefined,undefined,undefined,undefined,workspacePreviewSources(state.cards),returnFocus,next==='cards'?'browse':next);
+        });
         browseLayout=createBrowseLayout(root,browse,{
             onReorder({keys,targetId,beforeKey}) {
                 const groups = sourceBrowseGroups(collectPreviewRecords(allSources),browse.sort,browse.session.customGroups);
@@ -272,7 +288,7 @@ export function createPreviewModalApi({
         xyGrid = createPreviewXYGrid(...panes,sheetChanged,sheetExportControls(false));
 
         const close = () => {
-            closeCoverMenu();
+            closeCoverMenu();workspaceModeMenu.close();
             root.classList.remove("visible");
             teardownPreviewEnhancers();
             browseLayout.release();
@@ -286,16 +302,7 @@ export function createPreviewModalApi({
         root.querySelector(".clab-preview-modal-backdrop").addEventListener("click", close);
         root.querySelector(".clab-preview-modal-close").addEventListener("click", close);
         root.addEventListener("click", (event) => {
-            const tab = event.target.closest('[data-review-workspaces] [data-workspace-id]');
-            if (tab) {
-                if (tab.dataset.workspaceId !== state.activeWorkspaceId) {
-                    parameterGrid.flush();
-                    switchWorkspace(tab.dataset.workspaceId);
-                    openPreviewModal(undefined,undefined,undefined,undefined,workspacePreviewSources(state.cards),returnFocus,mode);
-                    tabs.querySelector('.active .clab-workspace-tab-select')?.focus({preventScroll:true});
-                }
-                return;
-            }
+            if(event.target.closest('.clab-review-workspaces'))return;
             const layer = event.target.closest('[data-review-layer]');
             if (renderedGrid === 'xy' && layer) { xyGrid.showLayer(layer.dataset.reviewLayer);return; }
             if (renderedGrid === 'xy' && event.target.closest('[data-review-xy-fit]')) { xyGrid.fit();return; }
@@ -688,8 +695,8 @@ export function createPreviewModalApi({
     }
 
     function sheetExportControls(workbook) {
-        return `<section><h3>导出</h3><label class="clab-review-field clab-review-png-scale">PNG 放大倍数<input type="number" min="1" max="10" step="1" data-review-png-scale value="3"></label>
-        <div class="clab-review-export">
+        return `<section><h3 title="按当前预览的版式导出；PNG 可调整放大倍数，HTML 可离线查看。">导出</h3><label class="clab-review-field clab-review-png-scale">PNG 放大倍数<input type="number" min="1" max="10" step="1" data-review-png-scale value="3"></label>
+        <div class="clab-review-export clab-review-layout-export">
             <button type="button" data-review-export="copy">复制 PNG</button>
             <button type="button" data-review-export="png">下载 PNG</button>
             ${workbook?'<button type="button" data-review-export="xlsx">下载 Excel</button>':''}
@@ -789,9 +796,9 @@ export function createPreviewModalApi({
         browse.search='';
         previewModalStore.entries=collectPreviewRecords(sources);
         typeFilter='';mode=initialMode;
-        detailView.open(state.cards);
-        compare={a:'',b:'',slot:'a',layout:'side',view:{x:0,y:0,zoom:1,split:.5}};
         const workspace = getActiveWorkspace(), view = workspace.view;
+        previewWorkspaceId=workspace.id;detailView.open(state.cards,workspace);
+        compare={a:'',b:'',slot:'a',layout:'side',view:{x:0,y:0,zoom:1,split:.5}};
         if (!filmstripSessions.has(workspace.id)) filmstripSessions.set(workspace.id,{covers:new Map(),positions:new Map(),customGroups:[]});
         browse.session = filmstripSessions.get(workspace.id);
         parameterGrid.open(workspace);
@@ -799,7 +806,7 @@ export function createPreviewModalApi({
         historyMatrix={width:200,textLimit:200,x:'',y:'',z:'',zValue:'',source:'',filters:{}};
         matrixPreview={width:320,textLimit:200,matrixSource:view.mode==='xy'||workspaceMatrixAvailable(view.xy)?'workspace':'history'};
         const tabs = root.querySelector('[data-review-workspaces]');
-        renderWorkspaceBar(tabs, {navigationOnly:true});
+        renderWorkspaceBar(tabs);
         tabs.querySelector('.active')?.scrollIntoView({block:'nearest',inline:'nearest'});
         previewModalStore.activeIndex = area?.missingHistoryRun ? -1 : previewModalStore.entries.findIndex(entry=>entry.cardId===card?.id && entry.areaId===area?.id && entry.index===(Number.isInteger(preferredIndex)?preferredIndex:area?.historyIndex));
         resetPreviewImageTransform();

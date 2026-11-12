@@ -10,6 +10,23 @@ export async function runToolbarDockChecks(send, sessionId) {
     const mouse = (type, point, extra = {}) => send('Input.dispatchMouseEvent', {type, ...point, ...extra}, sessionId);
     const center = selector => evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();if(!r.width||!r.height)throw Error('Toolbar target is hidden: '+${JSON.stringify(selector)});return {x:(r.left+r.right)/2,y:(r.top+r.bottom)/2};})()`);
     const settle = () => evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+    const checkExportLayout = async workbook => {
+        const layout=await evaluate(`(()=>{
+            const grid=document.querySelector('.clab-review-layout-export'),field=document.querySelector('.clab-review-png-scale'),input=field.querySelector('input');
+            const bounds=grid.getBoundingClientRect(),buttons=[...grid.querySelectorAll('button')].map(button=>{const r=button.getBoundingClientRect();return {kind:button.dataset.reviewExport,top:r.top,bottom:r.bottom,width:r.width};});
+            const side=grid.closest('.clab-preview-modal-right'),downloads=side.querySelector('[data-review-downloads]'),data=side.querySelector('[data-review-data-export]');
+            return {buttons,width:bounds.width,inputGap:input.getBoundingClientRect().left-field.getBoundingClientRect().left,
+                shared:downloads.parentElement===side&&data.parentElement===side&&[downloads,...data.querySelectorAll('section')].every(section=>getComputedStyle(section).paddingTop==='12px')};
+        })()`);
+        assert.deepEqual(layout.buttons.map(button=>button.kind),workbook?['copy','png','xlsx','html']:['copy','png','html']);
+        assert.equal(layout.buttons[0].top,layout.buttons[1].top);
+        for(let i=2;i<layout.buttons.length;i++) {
+            assert.ok(layout.buttons[i].top>=layout.buttons[i-1].bottom);
+            assert.ok(Math.abs(layout.buttons[i].width-layout.width)<1);
+        }
+        assert.ok(layout.inputGap>50&&layout.inputGap<125,'PNG scale input is not beside its label');
+        assert.equal(layout.shared,true,'shared export sections have different hosts or compressed top spacing');
+    };
     const click = async selector => {
         const point = await center(selector);
         await mouse('mouseMoved', point);
@@ -157,7 +174,7 @@ export async function runToolbarDockChecks(send, sessionId) {
         const count=run.querySelector('#clab-run-count-control').getBoundingClientRect();
         const tool=button.getBoundingClientRect(),runStyle=getComputedStyle(run);
         const r=d.getBoundingClientRect(),p=getComputedStyle(d);
-        return parseFloat(p.borderRadius)>Math.min(r.width,r.height)/2&&parseFloat(p.gap)>=12&&
+        return p.backgroundColor==='rgba(0, 0, 0, 0.4)'&&parseFloat(p.borderRadius)>Math.min(r.width,r.height)/2&&parseFloat(p.gap)>=12&&
             [...d.querySelectorAll('[data-toolbar-item]')].filter(e=>e.offsetWidth&&!e.closest('#clab-module-toolbar')).every(e=>{
                 const item=e.getBoundingClientRect();
                 return item.left-r.left>=r.height/2&&r.right-item.right>=r.height/2;
@@ -309,6 +326,7 @@ export async function runToolbarDockChecks(send, sessionId) {
         await import('/extensions/clab/clab_settings.js');
         const panel=document.querySelector('#clab-panel'), before=panel.style.cssText;
         const settings=window.testApp.extension.settings;
+        if(settings.some(setting=>['CLab.2-PerformanceMedia.Autoplay','CLab.2-PerformanceMedia.ThumbMode'].includes(setting.id)))throw Error('removed automatic playback settings are still registered');
         const width=settings.find(setting=>setting.id==='CLab.1-General.PanelWidthRatio');
         const height=settings.find(setting=>setting.id==='CLab.1-General.PanelHeightRatio');
         const square=()=>['TopLeft','TopRight','BottomLeft','BottomRight'].every(corner=>getComputedStyle(panel)['border'+corner+'Radius']==='0px');
@@ -317,6 +335,7 @@ export async function runToolbarDockChecks(send, sessionId) {
         width.onChange(65);
         height.onChange(70);
         const resized=panel.style.width==='65vw'&&panel.style.height==='70vh'&&square();
+        width.onChange(92);height.onChange(92);
         panel.style.cssText=before;
         return initial&&resized;
     })()`);
@@ -685,6 +704,22 @@ export async function runToolbarDockChecks(send, sessionId) {
     await matrixSource('workspace');
     assert.equal(await layerCount(),1);
     await click('[data-review-mode=table]');
+    await checkExportLayout(true);
+    const sharedPanelAppearance=await evaluate(`(()=>{
+        const panel=document.querySelector('#clab-panel'),preview=document.querySelector('.clab-preview-modal-panel'),settings=window.testApp.extension.settings;
+        const width=settings.find(setting=>setting.id==='CLab.1-General.PanelWidthRatio'),height=settings.find(setting=>setting.id==='CLab.1-General.PanelHeightRatio');
+        const opacity=settings.find(setting=>setting.id==='CLab.1-General.BgOpacity'),blur=settings.find(setting=>setting.id==='CLab.1-General.BackdropBlur');
+        const before=[window._clabPanelWidthPercent,window._clabPanelHeightPercent,window._clabBgOpacity,window._clabBgBlur],media=preview.querySelector('img,video,canvas');
+        width.onChange(80);height.onChange(82);opacity.onChange(65);blur.onChange(false);
+        const a=panel.getBoundingClientRect(),b=preview.getBoundingClientRect(),pa=getComputedStyle(panel),pb=getComputedStyle(preview);
+        const matching=['left','top','width','height'].every(key=>Math.abs(a[key]-b[key])<1)&&pa.backgroundColor===pb.backgroundColor&&pb.backgroundColor==='rgba(30, 30, 30, 0.65)'&&pa.backdropFilter==='none'&&pb.backdropFilter==='none'&&pa.boxShadow===pb.boxShadow&&getComputedStyle(panel).visibility==='hidden';
+        blur.onChange(true);const frosted=getComputedStyle(preview).backdropFilter===getComputedStyle(panel).backdropFilter&&getComputedStyle(preview).backdropFilter==='blur(15px)';
+        width.onChange(before[0]);height.onChange(before[1]);opacity.onChange(before[2]);blur.onChange(before[3]);
+        const head=getComputedStyle(document.querySelector('.clab-preview-modal-head')).backgroundColor,toolbar=getComputedStyle(document.querySelector('.clab-tool-dock')).backgroundColor;
+        const tab=getComputedStyle(document.querySelector('.clab-review-workspaces')).backgroundColor;
+        return matching&&frosted&&preview.querySelector('img,video,canvas')===media&&head===toolbar&&head==='rgba(0, 0, 0, 0.4)'&&tab==='rgba(0, 0, 0, 0.267)';
+    })()`);
+    assert.equal(sharedPanelAppearance,true,'workspace/preview settings, glass effect or toolbar/tab colors did not stay synchronized');
     await shot('parameter-preview');
     assert.ok(await evaluate("document.querySelectorAll('[data-grid-filter=column]').length") >= 2);
     assert.ok(effectivePreviewRows.length);
@@ -793,6 +828,7 @@ export async function runToolbarDockChecks(send, sessionId) {
             })`) > 500);
         } finally { await evaluate('window.restoreClipboard()'); }
         await click('[data-review-mode=xy]');
+        await checkExportLayout(false);
         await change('[data-review-png-scale]','2');
         await click('[data-review-export=png]');
         const png = await getDownload(3);

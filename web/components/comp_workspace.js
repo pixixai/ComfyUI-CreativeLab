@@ -40,9 +40,10 @@ export function getWorkspaceLabel(workspace) {
     return workspace.autoName ? `${getWorkspaceModeLabel(workspace)}·${workspace.name}` : workspace.name;
 }
 
-export function renderWorkspaceBar(container, { navigationOnly = false } = {}) {
+export function renderWorkspaceBar(container) {
     if (!container) return;
 
+    const menuId=container.closest('.clab-workspace-strip')?.querySelector('.clab-mode-menu')?.id||'clab-workspace-mode-menu';
     const workspaces = state.workspaces || [];
     const activeWorkspaceId = state.activeWorkspaceId;
     const selectedIds = appState.selectedWorkspaceIds || [];
@@ -91,16 +92,16 @@ export function renderWorkspaceBar(container, { navigationOnly = false } = {}) {
 
         const label = getWorkspaceLabel(workspace);
         return `
-            <div class="${classes.join(" ")}" data-workspace-id="${escapeHtml(workspace.id)}" title="${escapeHtml(label)}" draggable="${!navigationOnly}">
+            <div class="${classes.join(" ")}" data-workspace-id="${escapeHtml(workspace.id)}" title="${escapeHtml(label)}" draggable="true">
                 <button type="button" class="clab-workspace-tab-select"><span class="clab-workspace-tab-name">${escapeHtml(label)}</span></button>
-                ${navigationOnly ? '' : `<button type="button" data-mode-toggle aria-label="切换工作区模式" aria-haspopup="menu" aria-expanded="false" aria-controls="clab-workspace-mode-menu" title="切换工作区模式"><span class="clab-workspace-tab-mode">${getWorkspaceModeLabel(workspace)}</span></button>`}
+                <button type="button" data-mode-toggle aria-label="切换工作区模式" aria-haspopup="menu" aria-expanded="false" aria-controls="${menuId}" title="切换工作区模式"><span class="clab-workspace-tab-mode">${getWorkspaceModeLabel(workspace)}</span></button>
             </div>
         `;
     }).join("");
 
     container.innerHTML = `
         ${tabsHtml}
-        ${navigationOnly ? '' : '<button class="clab-workspace-tab clab-workspace-add" id="clab-workspace-add" title="新建工作区">+</button>'}
+        <button class="clab-workspace-tab clab-workspace-add" data-workspace-add id="${container.hasAttribute('data-review-workspaces')?'clab-preview-workspace-add':'clab-workspace-add'}" title="新建工作区">+</button>
     `;
 }
 
@@ -217,7 +218,7 @@ function deleteSelectedWorkspaces() {
     saveAndRender();
 }
 
-function bulkRenameWorkspaces() {
+function bulkRenameWorkspaces(container,onChange) {
     const targetIds = (appState.selectedWorkspaceIds || []).length > 0
         ? appState.selectedWorkspaceIds
         : [state.activeWorkspaceId];
@@ -225,8 +226,8 @@ function bulkRenameWorkspaces() {
     if (targetIds.length === 0) return;
 
     if (targetIds.length === 1) {
-        const tab = document.querySelector(`.clab-workspace-tab[data-workspace-id="${targetIds[0]}"]`);
-        if (tab) startInlineRename(tab, targetIds[0]);
+        const tab = container.querySelector(`.clab-workspace-tab[data-workspace-id="${targetIds[0]}"]`);
+        if (tab) startInlineRename(tab, targetIds[0],onChange);
         return;
     }
 
@@ -244,10 +245,10 @@ function bulkRenameWorkspaces() {
         ws.autoName = false;
     });
 
-    saveAndRender();
+    saveAndRender();onChange();
 }
 
-function startInlineRename(tabEl, workspaceId) {
+function startInlineRename(tabEl, workspaceId,onChange) {
     const getTargetWorkspace = () => (state.workspaces || []).find((item) => item.id === workspaceId);
     let workspace = getTargetWorkspace();
     if (!workspace) return;
@@ -284,7 +285,7 @@ function startInlineRename(tabEl, workspaceId) {
         if (nextName && nextName !== getWorkspaceLabel(workspace)) {
             workspace.name = nextName;
             workspace.autoName = false;
-            saveAndRender();
+            saveAndRender();onChange();
         } else {
             nameSpan.textContent = getWorkspaceLabel(workspace);
         }
@@ -292,10 +293,10 @@ function startInlineRename(tabEl, workspaceId) {
 
     nameSpan.onkeydown = (e) => {
         if (e.key === "Enter") {
-            e.preventDefault();
+            e.preventDefault();e.stopPropagation();
             finishEdit();
         } else if (e.key === "Escape") {
-            e.preventDefault();
+            e.preventDefault();e.stopPropagation();
             workspace = getTargetWorkspace();
             nameSpan.textContent = workspace ? getWorkspaceLabel(workspace) : "";
             finishEdit();
@@ -328,10 +329,12 @@ export function scrollWorkspaceTabs(container, event) {
     event.preventDefault();
 }
 
-export function attachWorkspaceEvents(container) {
+export function attachWorkspaceEvents(container,{beforeChange=()=>{},onChange=()=>{}}={}) {
     if (!container || container.dataset.clabWorkspaceBound === "1") return;
     container.dataset.clabWorkspaceBound = "1";
     const strip = container.closest('.clab-workspace-strip');
+    const changed=()=>{renderWorkspaceBar(container);onChange();};
+    const act=action=>{beforeChange();action();changed();};
     try { document.documentElement.dataset.clabWorkspaceTabs = localStorage.getItem(workspaceBarPositionKey) === 'bottom' ? 'bottom' : 'top'; } catch {}
 
     if (!workspaceMenuEl) {
@@ -367,7 +370,7 @@ export function attachWorkspaceEvents(container) {
 
         const wsId = tab.dataset.workspaceId;
         if (!appState.selectedWorkspaceIds.includes(wsId)) {
-            switchWorkspace(wsId);
+            act(()=>switchWorkspace(wsId));
         }
 
         workspaceMenuEl.innerHTML = `
@@ -381,17 +384,17 @@ export function attachWorkspaceEvents(container) {
 
         showWorkspaceMenu(event);
 
-        workspaceMenuEl.querySelector("#clab-ctx-ws-add").onclick = () => { workspaceMenuEl.style.display = "none"; addWorkspace(wsId); };
-        workspaceMenuEl.querySelector("#clab-ctx-ws-duplicate").onclick = () => { workspaceMenuEl.style.display = "none"; duplicateSelectedWorkspaces(); };
-        workspaceMenuEl.querySelector("#clab-ctx-ws-rename").onclick = () => { workspaceMenuEl.style.display = "none"; bulkRenameWorkspaces(); };
-        workspaceMenuEl.querySelector("#clab-ctx-ws-delete").onclick = () => { workspaceMenuEl.style.display = "none"; deleteSelectedWorkspaces(); };
+        workspaceMenuEl.querySelector("#clab-ctx-ws-add").onclick = () => { workspaceMenuEl.style.display = "none"; act(()=>addWorkspace(wsId)); };
+        workspaceMenuEl.querySelector("#clab-ctx-ws-duplicate").onclick = () => { workspaceMenuEl.style.display = "none"; act(duplicateSelectedWorkspaces); };
+        workspaceMenuEl.querySelector("#clab-ctx-ws-rename").onclick = () => { workspaceMenuEl.style.display = "none"; bulkRenameWorkspaces(container,changed); };
+        workspaceMenuEl.querySelector("#clab-ctx-ws-delete").onclick = () => { workspaceMenuEl.style.display = "none"; act(deleteSelectedWorkspaces); };
     });
 
     container.addEventListener("click", (event) => {
-        if (event.target.closest("[data-mode-toggle]")) return;
+        if (event.target.closest("[data-mode-toggle],[contenteditable=true]")) return;
         const tab = event.target.closest(".clab-workspace-tab[data-workspace-id]");
         if (tab) {
-            const wsId = tab.dataset.workspaceId;
+            const wsId = tab.dataset.workspaceId;beforeChange();
             if (event.shiftKey && appState.lastClickedWorkspaceId) {
                 const startIndex = state.workspaces.findIndex(w => w.id === appState.lastClickedWorkspaceId);
                 const endIndex = state.workspaces.findIndex(w => w.id === wsId);
@@ -415,11 +418,11 @@ export function attachWorkspaceEvents(container) {
             } else {
                 switchWorkspace(wsId);
             }
-            return;
+            changed();return;
         }
 
-        if (event.target.closest("#clab-workspace-add")) {
-            addWorkspace();
+        if (event.target.closest("[data-workspace-add]")) {
+            act(addWorkspace);
             return;
         }
     });
@@ -498,6 +501,7 @@ export function attachWorkspaceEvents(container) {
 
         if (sourceTabs.length === 0) return;
 
+        beforeChange();
         state.workspaces = state.workspaces.filter(w => !sourceIds.includes(w.id));
 
         const targetIndex = state.workspaces.findIndex(w => w.id === targetId);
@@ -510,14 +514,14 @@ export function attachWorkspaceEvents(container) {
             state.workspaces.splice(insertIndex, 0, ...sourceTabs);
         }
 
-        saveAndRender();
+        appState.dragState=null;saveAndRender();changed();
     });
 
     container.addEventListener("dblclick", (event) => {
         if (event.target.closest("[data-mode-toggle]")) return;
         const tab = event.target.closest(".clab-workspace-tab[data-workspace-id]");
         if (!tab) return;
-        startInlineRename(tab, tab.dataset.workspaceId);
+        startInlineRename(tab, tab.dataset.workspaceId,changed);
     });
 
     container.addEventListener("wheel", event => scrollWorkspaceTabs(container, event));

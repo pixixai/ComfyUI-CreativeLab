@@ -206,6 +206,16 @@ try {
     document.dispatchEvent(new Event('clab_render_ui'));
     const videoRoot = areaElement('video');
     const video = videoRoot.querySelector('video');
+    assert(!video.autoplay&&!video.hasAttribute('autoplay')&&video.paused&&video.preload==='metadata','new output video did not wait for manual playback');
+    const {generateOutputHTML}=await import('/extensions/clab/components/modules/module_output.js');
+    const mutedDefault=window._clabVideoMuted,videoTemplate=document.createElement('template');
+    window._clabVideoMuted=false;
+    videoTemplate.innerHTML=generateOutputHTML({...videoArea,id:'unmuted-fixture'},card);
+    assert(!videoTemplate.content.querySelector('video').hasAttribute('muted')&&video.hasAttribute('muted'),'default mute did not initialize new videos independently of existing players');
+    videoTemplate.innerHTML=generateOutputHTML({...videoArea,isManageMode:true},card);
+    const videoThumb=videoTemplate.content.querySelector('.clab-history-grid video');
+    assert(videoThumb&&!videoThumb.autoplay&&!videoThumb.loop&&videoThumb.hasAttribute('muted')&&videoThumb.preload==='metadata'&&videoThumb.dataset.clabSrc.endsWith('#t=0.01'),'history video thumbnails are not fixed silent stills');
+    window._clabVideoMuted=mutedDefault;
     video.srcObject = stream;
     await video.play(); await delay(150);
     assert(!videoRoot.querySelector('.clab-video-play'), 'video still contains a separate play button');
@@ -431,7 +441,6 @@ try {
     passed.push('all four upload types default to a compact file row with an explicit preview switch');
 
     const {generateInputHTML}=await import('/extensions/clab/components/modules/module_input.js');
-    const {generateOutputHTML}=await import('/extensions/clab/components/modules/module_output.js');
     for(const nodeId of [7,8]) {
         for(const value of ['none','3d/texture.fbx','3d/model.glb']) {
             const area={id:'native-model',type:'edit',targetNodeId:String(nodeId),targetWidget:'model_file',value,showUploadPreview:true};

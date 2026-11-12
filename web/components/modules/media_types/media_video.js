@@ -6,21 +6,11 @@ import { formatTime, formatTimeWithFrames } from "./media_utils.js";
 import { onModuleRemoved } from "../module_lifecycle.js";
 
 export function renderVideo(area, objectFit, url, errCall) {
-    const autoplayEnabled = (() => {
-        const raw = window._clabVideoAutoplay;
-        if (typeof raw === 'string') {
-            const normalized = raw.trim().toLowerCase();
-            if (normalized === 'false' || normalized === '0' || normalized === 'off') return false;
-            if (normalized === 'true' || normalized === '1' || normalized === 'on') return true;
-        }
-        return raw !== false;
-    })();
-    const autoplayAttr = autoplayEnabled ? 'autoplay' : '';
     const mutedAttr = window._clabVideoMuted !== false ? 'muted' : '';
 
     return `
         <div class="clab-video-player clab-video-paused" data-area-id="${area.id}">
-            <video id="clab-img-${area.id}" class="clab-preview-img clab-media-target" src="${url}" draggable="false" style="object-fit: ${objectFit}; width: 100%; height: 100%; display: block;" ${autoplayAttr} loop ${mutedAttr} playsinline onerror="${errCall}"></video>
+            <video id="clab-img-${area.id}" class="clab-preview-img clab-media-target" src="${url}" draggable="false" style="object-fit: ${objectFit}; width: 100%; height: 100%; display: block;" preload="metadata" loop ${mutedAttr} playsinline onerror="${errCall}"></video>
             ${renderVideoControls()}
         </div>
     `;

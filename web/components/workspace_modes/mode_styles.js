@@ -22,7 +22,7 @@ export function injectWorkspaceModeStyles() {
         .clab-workspace-tab > [data-mode-toggle]:hover{color:#fff}
         .clab-workspace-tab > button:focus-visible{outline:1px solid #a0c9e8;outline-offset:-2px}
         .clab-workspace-strip:has(.clab-mode-menu:not([hidden])){z-index:71}
-        .clab-mode-menu{position:absolute;top:calc(100% + 6px);left:4px;width:142px;background:#242424;border:1px solid #444;border-radius:5px;padding:5px;display:flex;flex-direction:column;gap:2px}
+        .clab-mode-menu[hidden]{display:none}.clab-mode-menu{position:absolute;top:calc(100% + 6px);left:4px;width:142px;background:#242424;border:1px solid #444;border-radius:5px;padding:5px;display:flex;flex-direction:column;gap:2px}
         :root[data-clab-workspace-tabs=bottom] .clab-mode-menu{top:auto;bottom:calc(100% + 6px)}
         .clab-mode-menu button{border:0;background:transparent;color:#aaa;text-align:left;padding:8px 10px;cursor:pointer;border-radius:3px;font:12px sans-serif}
         .clab-mode-menu button[aria-checked=true],.clab-mode-menu button:hover{background:#151515;color:#fff}

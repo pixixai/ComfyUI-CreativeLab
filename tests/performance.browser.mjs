@@ -11,6 +11,7 @@ import { runXYEditingChecks } from './xy_editing.browser.mjs';
 import { runUndoBrowserChecks } from './undo.browser.mjs';
 import { runXYPerformanceChecks } from './xy_performance.browser.mjs';
 import { runTableBrowserChecks } from './table.browser.mjs';
+import { runPreviewWorkspaceChecks } from './preview_workspaces.browser.mjs';
 import { runToolbarDockChecks } from './toolbar_dock.browser.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -437,7 +438,7 @@ try {
         fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-export.png`,Buffer.from(exported.result.value.split(',')[1],'base64'));
     }
     await send('Runtime.evaluate',{expression:'window.showDetailDemo()'},sessionId);await new Promise(resolve=>setTimeout(resolve,350));
-    const sourceEye=await send('Runtime.evaluate',{expression:`(()=>{const eye=document.querySelector('[data-detail-visibility]:not(:disabled)'),label=eye.closest('.clab-detail-source-option').querySelector('label span'),a=eye.getBoundingClientRect(),b=label.getBoundingClientRect();return{x:a.x+a.width/2,y:a.y+a.height/2,labelX:b.x,labelWidth:b.width};})()`,returnByValue:true},sessionId);
+    const sourceEye=await send('Runtime.evaluate',{expression:`(async()=>{const eye=document.querySelector('[data-detail-visibility]:not(:disabled)');eye.scrollIntoView({block:'center'});await new Promise(r=>setTimeout(r,120));const label=eye.closest('.clab-detail-source-option').querySelector('label span'),a=eye.getBoundingClientRect(),b=label.getBoundingClientRect();return{x:a.x+a.width/2,y:a.y+a.height/2,labelX:b.x,labelWidth:b.width};})()`,awaitPromise:true,returnByValue:true},sessionId);
     await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:sourceEye.result.value.x,y:sourceEye.result.value.y},sessionId);await new Promise(resolve=>setTimeout(resolve,180));
     const eyeHover=await send('Runtime.evaluate',{expression:`(()=>{const eye=document.querySelector('[data-detail-visibility]:not(:disabled)'),label=eye.closest('.clab-detail-source-option').querySelector('label span').getBoundingClientRect();return{opacity:getComputedStyle(eye).opacity,pointer:getComputedStyle(eye).pointerEvents,labelX:label.x,labelWidth:label.width};})()`,returnByValue:true},sessionId);
     assert.deepEqual(eyeHover.result.value,{opacity:'1',pointer:'auto',labelX:sourceEye.result.value.labelX,labelWidth:sourceEye.result.value.labelWidth},'source eye did not appear under the mouse or shifted its field label');
@@ -447,7 +448,7 @@ try {
         const status=await send('Runtime.evaluate',{expression:`document.querySelector('[data-detail-visibility]:not(:disabled)').getAttribute('aria-pressed')`,returnByValue:true},sessionId);assert.equal(status.result.value,pressed,'native eye click did not toggle matching fields independently of the row checkbox');
     }
     console.log('PASS native source-field hover reveals the shared eye without label movement, and real clicks hide and restore matching fields');
-    const outputEye=await send('Runtime.evaluate',{expression:`(()=>{const eye=document.querySelector('[data-detail-output-switch="单独运行的视频"]');eye.scrollIntoView({block:'center'});window.nativeOutputEye=eye;const a=eye.getBoundingClientRect();return{x:a.x+a.width/2,y:a.y+a.height/2};})()`,returnByValue:true},sessionId);
+    const outputEye=await send('Runtime.evaluate',{expression:`(async()=>{const eye=document.querySelector('[data-detail-output-switch="单独运行的视频"]');eye.scrollIntoView({block:'center'});await new Promise(r=>setTimeout(r,120));window.nativeOutputEye=eye;const a=eye.getBoundingClientRect();return{x:a.x+a.width/2,y:a.y+a.height/2};})()`,awaitPromise:true,returnByValue:true},sessionId);
     await send('Input.dispatchMouseEvent',{type:'mouseMoved',...outputEye.result.value},sessionId);await new Promise(resolve=>setTimeout(resolve,180));
     for(let i=0;i<2;i++){
         await send('Input.dispatchMouseEvent',{type:'mouseMoved',...outputEye.result.value},sessionId);await new Promise(resolve=>setTimeout(resolve,150));
@@ -479,65 +480,54 @@ try {
     assert.equal(fieldHidden.result.value,'0','field actions remained visible after the pointer left');
     console.log('PASS native field hover reveals two hide icons, selection locates sources, local/shared clicks hide the correct fields and leaving the row hides its controls');
     const clickDetailElement=async(selector,modifiers=0)=>{
-        const point=await send('Runtime.evaluate',{expression:`(()=>{const element=document.querySelector(${JSON.stringify(selector)});element.scrollIntoView({block:'nearest',inline:'nearest'});const r=element.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};})()`,returnByValue:true},sessionId);
-        await send('Input.dispatchMouseEvent',{type:'mouseMoved',...point.result.value},sessionId);await new Promise(resolve=>setTimeout(resolve,150));
-        for(const type of ['mousePressed','mouseReleased'])await send('Input.dispatchMouseEvent',{type,...point.result.value,button:'left',clickCount:1,modifiers},sessionId);
+        const point=await send('Runtime.evaluate',{expression:`(async()=>{const element=document.querySelector(${JSON.stringify(selector)}),row=element.closest('.clab-filmstrip-item,.clab-detail-output-heading,.clab-browse-source-row');(row||element).scrollIntoView({block:row?'center':'nearest',inline:'nearest'});await new Promise(r=>setTimeout(r,120));const r=element.getBoundingClientRect(),parent=row?.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2,reveal:parent?{x:parent.left+parent.width/2,y:parent.top+parent.height/2}:null};})()`,awaitPromise:true,returnByValue:true},sessionId);
+        assert.equal(point.exceptionDetails,undefined,JSON.stringify(point.exceptionDetails));
+        const {x,y,reveal}=point.result.value;
+        if(reveal){await send('Input.dispatchMouseEvent',{type:'mouseMoved',...reveal},sessionId);await new Promise(resolve=>setTimeout(resolve,150));}
+        await send('Input.dispatchMouseEvent',{type:'mouseMoved',x,y},sessionId);await new Promise(resolve=>setTimeout(resolve,150));
+        for(const type of ['mousePressed','mouseReleased'])await send('Input.dispatchMouseEvent',{type,x,y,button:'left',clickCount:1,modifiers},sessionId);
     };
     const videoBatch=title=>`[data-detail-source="detail-video"] [data-detail-output-switch="${title}"]`;
-    await clickDetailElement('[data-detail-cover="detail-video"][data-area-id="detail-video-out"]');
+    const videoPin='[data-detail-cover="detail-video"][data-area-id="detail-video-cover-out"]';
+    await clickDetailElement(videoPin);
     await clickDetailElement(videoBatch('单独运行的视频'));await clickDetailElement('[data-detail-apply-role="output"]');
-    const batchWithCover=await send('Runtime.evaluate',{expression:`(()=>{const row=id=>document.querySelector('[data-detail-source="'+id+'"]');return{alternate:['detail-image','detail-video','detail-audio'].every(id=>row(id).querySelector('[data-detail-output][value="'+(id==='detail-image'?'detail-alt-out':id+'-alt-out')+'"]').checked),actual:['detail-image','detail-video','detail-audio'].every(id=>document.querySelector('[data-detail-card="'+id+'"] [data-detail-pool="output"]').title==='生成记录 · 单独运行的视频'),cover:row('detail-video').querySelector('[data-detail-cover][data-area-id="detail-video-out"]').getAttribute('aria-pressed')};})()`,returnByValue:true},sessionId);
-    assert.deepEqual(batchWithCover.result.value,{alternate:true,actual:true,cover:'true'},'native batch application did not switch source circles and actual previews with another cover selected');
+    const batchWithCover=await send('Runtime.evaluate',{expression:`(()=>{const row=id=>document.querySelector('[data-detail-source="'+id+'"]');return{alternate:['detail-image','detail-video','detail-audio'].every(id=>row(id).querySelector('[data-detail-output][value="'+(id==='detail-image'?'detail-alt-out':id+'-alt-out')+'"]').checked),cover:row('detail-video').querySelector('[data-detail-cover][data-area-id="detail-video-cover-out"]').getAttribute('aria-pressed'),oneRadio:row('detail-video').querySelectorAll('[data-detail-output]:checked').length===1};})()`,returnByValue:true},sessionId);
+    assert.deepEqual(batchWithCover.result.value,{alternate:true,cover:'true',oneRadio:true},'native batch content switching cleared the cover or selected more than one content radio');
     await clickDetailElement(videoBatch('预览结果'));await clickDetailElement('[data-detail-apply-role="output"]');
-    await clickDetailElement(videoBatch('单独运行的视频'));await clickDetailElement('[data-detail-apply-role="cover"]');
-    await clickDetailElement(videoBatch('单独运行的视频'));
-    const cancelLabel=await send('Runtime.evaluate',{expression:`document.querySelector('[data-detail-apply-role="clear-cover"]').textContent`,returnByValue:true},sessionId);assert.equal(cancelLabel.result.value,'取消所有任务封面');
+    await clickDetailElement(videoBatch('封面图片'));await clickDetailElement('[data-detail-apply-role="cover"]');
+    await clickDetailElement(videoBatch('封面图片'));
+    const cancelLabel=await send('Runtime.evaluate',{expression:`document.querySelector('[data-detail-apply-role="clear-cover"]').textContent`,returnByValue:true},sessionId);assert.equal(cancelLabel.result.value,'取消同名模块封面');
     await clickDetailElement('[data-detail-apply-role="clear-cover"]');
-    const cancelledBatch=await send('Runtime.evaluate',{expression:`!document.querySelector('[data-detail-cover][aria-pressed="true"]')&&['detail-image','detail-video','detail-audio'].every(id=>document.querySelector('[data-detail-output="'+id+'"][value="'+id+'-out"]').checked)`,returnByValue:true},sessionId);assert.equal(cancelledBatch.result.value,true,'native cover cancellation did not clear the matching group or changed its preview sources');
-    await clickDetailElement('[data-detail-cover="detail-video"][data-area-id="detail-video-out"]');
+    assert.equal((await send('Runtime.evaluate',{expression:`!document.querySelector('[data-detail-cover][aria-pressed="true"]')`,returnByValue:true},sessionId)).result.value,true,'native batch cover cancellation retained selected pins');
+    await clickDetailElement(videoPin);
     await clickDetailElement('[data-detail-source="detail-video"] .clab-detail-output-row:has([value="detail-video-duplicate-out"]) [data-detail-output-switch]');await clickDetailElement('[data-detail-apply-role="output"]');
-    const duplicateSelected=await send('Runtime.evaluate',{expression:`({checked:document.querySelector('[data-detail-output="detail-video"][value="detail-video-duplicate-out"]').checked,field:document.querySelector('[data-detail-field="detail-video-prompt"] .clab-detail-value').textContent.toLowerCase(),cover:document.querySelector('[data-detail-cover="detail-video"][data-area-id="detail-video-out"]').getAttribute('aria-pressed')})`,returnByValue:true},sessionId);assert.deepEqual(duplicateSelected.result.value,{checked:true,field:'duplicate result',cover:'true'},'native batch selection retained the previous output instead of the clicked same-name module');
+    const duplicateSelected=await send('Runtime.evaluate',{expression:`({checked:document.querySelector('[data-detail-output="detail-video"][value="detail-video-duplicate-out"]').checked,field:document.querySelector('[data-detail-field="detail-video-prompt"] .clab-detail-value').textContent.toLowerCase(),cover:document.querySelector('${videoPin}').getAttribute('aria-pressed')})`,returnByValue:true},sessionId);assert.deepEqual(duplicateSelected.result.value,{checked:true,field:'duplicate result',cover:'true'},'native duplicate-title content selection failed with a separate image cover');
     await clickDetailElement(videoBatch('预览结果'));await clickDetailElement('[data-detail-apply-role="output"]');
-    await clickDetailElement('[data-detail-cover="detail-video"][data-area-id="detail-video-out"]');
-    console.log('PASS native batch preview clicks update source circles with another cover selected, distinguish same-name output modules and cancel batch covers from the same menu');
+    await clickDetailElement(videoPin);
+    console.log('PASS native module radios switch only content, matching-name actions retain cover pins, distinguish duplicates and cancel batch covers');
     await clickDetailElement('[data-detail-card="detail-video"] [data-detail-pool="cover"]');
-    const emptyPool=await send('Runtime.evaluate',{expression:`(()=>{const button=document.querySelector('[data-detail-card="detail-video"] [data-detail-pool="cover"]'),panel=document.querySelector('.clab-detail-pool-popover'),r=panel.getBoundingClientRect(),a=button.getBoundingClientRect();return{empty:!panel.querySelector('[data-detail-pool-record]'),near:Math.abs(r.top-a.bottom-6)<2||Math.abs(r.bottom-a.top+6)<2,small:r.width<=342&&r.height<=302,modal:panel.querySelector('[aria-modal=true]')!==null};})()`,returnByValue:true},sessionId);
-    assert.deepEqual(emptyPool.result.value,{empty:true,near:true,small:true,modal:false},'unset cover pool was not an empty compact panel beside its entry');
-    await clickDetailElement('[data-detail-card="detail-video"] header strong');
-    const outsideClosed=await send('Runtime.evaluate',{expression:`!document.querySelector('.clab-detail-pool-popover')&&document.querySelector('.clab-preview-modal').classList.contains('visible')`,returnByValue:true},sessionId);assert.equal(outsideClosed.result.value,true,'outside click did not dismiss only the record pool');
-    await clickDetailElement('[data-detail-cover="detail-video"][data-area-id="detail-video-out"]');
-    await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:1270,y:69},sessionId);await new Promise(resolve=>setTimeout(resolve,150));
-    const fixedCover=await send('Runtime.evaluate',{expression:`(()=>{const button=document.querySelector('[data-detail-cover="detail-video"][data-area-id="detail-video-out"]'),batch=button.closest('.clab-detail-source-option').querySelector('[data-detail-output-switch]');return{selected:button.getAttribute('aria-pressed'),opacity:getComputedStyle(button).opacity,output:document.querySelector('[data-detail-output="detail-video"][value="detail-video-out"]').checked,batchOpacity:getComputedStyle(batch).opacity,batchPointer:getComputedStyle(batch).pointerEvents,focused:document.activeElement===button};})()`,returnByValue:true},sessionId);
-    assert.deepEqual(fixedCover.result.value,{selected:'true',opacity:'1',output:true,batchOpacity:'0',batchPointer:'none',focused:true},'native cover selection did not pin only its cover icon after the pointer left');
-    for(const selected of ['true','false']){
-        await clickDetailElement('[data-detail-cover="detail-video"][data-area-id="detail-video-alt-out"]');
-        await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:1270,y:69},sessionId);await new Promise(resolve=>setTimeout(resolve,180));
-        const visibility=await send('Runtime.evaluate',{expression:`(()=>{const cover=document.querySelector('[data-detail-cover="detail-video"][data-area-id="detail-video-alt-out"]'),batch=cover.closest('.clab-detail-source-option').querySelector('[data-detail-output-switch]');return{selected:cover.getAttribute('aria-pressed'),coverOpacity:getComputedStyle(cover).opacity,coverPointer:getComputedStyle(cover).pointerEvents,batchOpacity:getComputedStyle(batch).opacity,batchPointer:getComputedStyle(batch).pointerEvents,coverChecked:document.querySelector('[data-detail-output="detail-video"][value="detail-video-alt-out"]').checked,previewChecked:document.querySelector('[data-detail-output="detail-video"][value="detail-video-out"]').checked,focused:document.activeElement===cover};})()`,returnByValue:true},sessionId);
-        assert.deepEqual(visibility.result.value,{selected,coverOpacity:selected==='true'?'1':'0',coverPointer:selected==='true'?'auto':'none',batchOpacity:'0',batchPointer:'none',coverChecked:selected==='true',previewChecked:true,focused:true},'mouse focus kept source icons visible after selecting or clearing the cover');
-    }
-    await send('Runtime.evaluate',{expression:`document.querySelector('[data-detail-output="detail-video"][value="detail-video-alt-out"]').focus({preventScroll:true})`},sessionId);
-    for(const type of ['keyDown','keyUp'])await send('Input.dispatchKeyEvent',{type,key:'Tab',code:'Tab',windowsVirtualKeyCode:9},sessionId);
-    await new Promise(resolve=>setTimeout(resolve,180));
-    const keyboardIcon=await send('Runtime.evaluate',{expression:`(()=>{const cover=document.querySelector('[data-detail-cover="detail-video"][data-area-id="detail-video-alt-out"]'),batch=cover.closest('.clab-detail-source-option').querySelector('[data-detail-output-switch]');return{focused:document.activeElement===batch,visible:getComputedStyle(batch).opacity,coverOpacity:getComputedStyle(cover).opacity};})()`,returnByValue:true},sessionId);
-    assert.deepEqual(keyboardIcon.result.value,{focused:true,visible:'1',coverOpacity:'0'},'keyboard focus did not reveal only its source control');
-    console.log('PASS source icons hide after mouse selection and deselection without blurring, while keyboard focus reveals only its control');
-    await clickDetailElement('[data-detail-cover="detail-video"][data-area-id="detail-video-out"]');
-    await clickDetailElement('[data-detail-card="detail-video"] [data-detail-pool="cover"]');
-    await clickDetailElement('.clab-detail-pool-sources summary');
+    assert.equal((await send('Runtime.evaluate',{expression:`!document.querySelector('[data-detail-pool-record]')`,returnByValue:true},sessionId)).result.value,true,'unset cover record pool inherited the content histories');
+    await clickDetailElement('[data-detail-pool-close]');
+    await clickDetailElement(videoPin);
+    await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:1270,y:69},sessionId);await new Promise(resolve=>setTimeout(resolve,180));
+    const pinned=await send('Runtime.evaluate',{expression:`(()=>{const pin=document.querySelector('${videoPin}'),batch=pin.closest('.clab-detail-output-row').querySelector('[data-detail-output-switch]');return{pin:getComputedStyle(pin).opacity,batch:getComputedStyle(batch).opacity,selected:pin.getAttribute('aria-pressed')};})()`,returnByValue:true},sessionId);assert.deepEqual(pinned.result.value,{pin:'1',batch:'0',selected:'true'},'a pinned thumbnail made the batch button persist after hover');
+    await clickDetailElement(videoPin);await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:1270,y:69},sessionId);await new Promise(resolve=>setTimeout(resolve,180));
+    assert.equal((await send('Runtime.evaluate',{expression:`getComputedStyle(document.querySelector('${videoPin}')).opacity`,returnByValue:true},sessionId)).result.value,'0','a cleared cover pin stayed visible outside hover');
+    await clickDetailElement(videoPin);
+    const sourceCover='[data-detail-task-preview="detail-video"] [data-detail-source-pool="cover"]';
+    await clickDetailElement(sourceCover);
+    await send('Runtime.evaluate',{expression:`window.nativeSourcePool=document.querySelector('.clab-detail-pool-popover');window.nativeSourceEntry=document.querySelector('${sourceCover}')`},sessionId);
     if(process.env.CLAB_REVIEW_SCREENSHOT_PREFIX){const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-detail-cover-pool.png`,Buffer.from(screenshot.data,'base64'));}
-    await clickDetailElement('[data-detail-pool-source="detail-video-alt-out"]');
-    await send('Runtime.evaluate',{expression:`window.nativeRecordPool=document.querySelector('.clab-detail-pool-popover');window.nativePoolEntry=document.querySelector('[data-detail-card="detail-video"] [data-detail-pool="cover"]')`},sessionId);
-    for(const record of ['0','1']){
+    for(const record of ['1','0']){
         await clickDetailElement(`[data-detail-pool-record="${record}"]`);
-        const poolSelection=await send('Runtime.evaluate',{expression:`document.querySelector('.clab-detail-pool-popover')===window.nativeRecordPool&&document.querySelector('[data-detail-pool-record="${record}"]').getAttribute('aria-pressed')==='true'&&document.querySelector('[data-detail-card="detail-video"] [data-detail-pool="cover"]')===window.nativePoolEntry&&window.nativePoolEntry.querySelector('span').textContent==='${Number(record)+1}/2'`,returnByValue:true},sessionId);assert.equal(poolSelection.result.value,true,'native consecutive record selections closed the pool, replaced its entry or lost their selected mark');
+        const poolSelection=await send('Runtime.evaluate',{expression:`document.querySelector('.clab-detail-pool-popover')===window.nativeSourcePool&&document.querySelector('[data-detail-pool-record="${record}"]').getAttribute('aria-pressed')==='true'&&document.querySelector('${sourceCover}')===window.nativeSourceEntry&&document.querySelector('[data-detail-task-preview="detail-video"]').classList.contains('is-stacked')`,returnByValue:true},sessionId);assert.equal(poolSelection.result.value,true,'source cover pool closed, lost its selected record or replaced its trigger');
     }
     await clickDetailElement('[data-detail-pool-close]');
-    const poolClosed=await send('Runtime.evaluate',{expression:`!document.querySelector('.clab-detail-pool-popover')&&document.querySelector('.clab-preview-modal').classList.contains('visible')`,returnByValue:true},sessionId);
-    assert.equal(poolClosed.result.value,true,'record pool close button did not dismiss only its panel');
-    const bothSelected=await send('Runtime.evaluate',{expression:`document.querySelector('[data-detail-output="detail-video"][value="detail-video-out"]').checked&&document.querySelector('[data-detail-output="detail-video"][value="detail-video-alt-out"]').checked`,returnByValue:true},sessionId);assert.equal(bothSelected.result.value,true,'cover and preview source marks did not remain selected together');
-    await clickDetailElement('[data-detail-output="detail-video"][value="detail-video-alt-out"]');
-    const coverCleared=await send('Runtime.evaluate',{expression:`!document.querySelector('[data-detail-output="detail-video"][value="detail-video-alt-out"]').checked&&document.querySelector('[data-detail-output="detail-video"][value="detail-video-out"]').checked&&document.querySelector('[data-detail-cover="detail-video"][data-area-id="detail-video-alt-out"]').getAttribute('aria-pressed')==='false'`,returnByValue:true},sessionId);assert.equal(coverCleared.result.value,true,'native cover-row click changed the preview or retained the cover');
-    await clickDetailElement('[data-detail-cover="detail-video"][data-area-id="detail-video-alt-out"]');
+    const contentCorner=await send('Runtime.evaluate',{expression:`(()=>{const box=document.querySelector('[data-detail-task-preview="detail-video"] [data-detail-source-pool="output"]');box.closest('.clab-detail-source-preview').scrollIntoView({block:'center'});const r=box.getBoundingClientRect();return{x:r.right-5,y:r.bottom-5};})()`,returnByValue:true},sessionId);
+    for(const type of ['mouseMoved','mousePressed','mouseReleased'])await send('Input.dispatchMouseEvent',{type,...contentCorner.result.value,...(type==='mouseMoved'?{}:{button:'left',clickCount:1})},sessionId);
+    assert.equal((await send('Runtime.evaluate',{expression:`document.querySelector('.clab-detail-pool strong')?.textContent`,returnByValue:true},sessionId)).result.value,'生成记录','the exposed back layer did not open the content record pool');
+    await clickDetailElement('[data-detail-pool-close]');
+    console.log('PASS native gallery cover pins reveal on hover, remain pinned independently and open persistent cover/content pools from both stacked preview layers');
     const aligned=await send('Runtime.evaluate',{expression:`(()=>{const buttons=[...document.querySelectorAll('[data-detail-card="detail-video"] [data-detail-pool]')],a=buttons[0].getBoundingClientRect(),b=buttons[1].getBoundingClientRect();return buttons.every(button=>{const icon=button.querySelector('svg').getBoundingClientRect(),text=button.querySelector('span').getBoundingClientRect();return Math.abs((icon.top+icon.bottom-text.top-text.bottom)/2)<1;})&&b.left-a.right>=9;})()`,returnByValue:true},sessionId);assert.equal(aligned.result.value,true,'record-entry icons and labels were not centered or separated');
     await send('Runtime.evaluate',{expression:`(()=>{const center=document.querySelector('.clab-preview-modal-center'),button=document.querySelector('[data-detail-card="detail-text"] [data-detail-pool="cover"]');center.scrollTop+=button.getBoundingClientRect().bottom-center.getBoundingClientRect().bottom+12;})()`},sessionId);
     await clickDetailElement('[data-detail-card="detail-text"] [data-detail-pool="cover"]');
@@ -546,10 +536,13 @@ try {
     console.log('PASS native record pools open compactly beside their entry, stay empty without a cover, close outside, flip at the lower edge and preserve independent source selections');
     const hoverPoint=await send('Runtime.evaluate',{expression:`(()=>{const host=document.querySelector('[data-detail-card="detail-video"] .clab-detail-media');host.scrollIntoView({block:'center'});window.nativeCoverPlayer=host.querySelector('.clab-preview-video video');const r=host.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2};})()`,returnByValue:true},sessionId);
     await send('Input.dispatchMouseEvent',{type:'mouseMoved',...hoverPoint.result.value},sessionId);await new Promise(resolve=>setTimeout(resolve,250));
-    const hoverPlaying=await send('Runtime.evaluate',{expression:`window.nativeCoverPlayer.paused===false&&document.querySelector('[data-detail-card="detail-video"] .clab-detail-cover').hidden`,returnByValue:true},sessionId);assert.equal(hoverPlaying.result.value,true,'native hover did not reveal and play the selected content');
+    const hoverPlaying=await send('Runtime.evaluate',{expression:`window.nativeCoverPlayer.paused&&document.querySelector('[data-detail-card="detail-video"] .clab-detail-cover').hidden`,returnByValue:true},sessionId);assert.equal(hoverPlaying.result.value,true,'native hover did not reveal the selected content while keeping video paused');
+    for(const type of ['mousePressed','mouseReleased'])await send('Input.dispatchMouseEvent',{type,button:'left',buttons:type==='mousePressed'?1:0,clickCount:1,...hoverPoint.result.value},sessionId);
+    await new Promise(resolve=>setTimeout(resolve,80));
+    assert.equal((await send('Runtime.evaluate',{expression:'!window.nativeCoverPlayer.paused',returnByValue:true},sessionId)).result.value,true,'revealed video did not respond to a deliberate native click');
     await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:1270,y:69},sessionId);await new Promise(resolve=>setTimeout(resolve,150));
     const hoverStopped=await send('Runtime.evaluate',{expression:`window.nativeCoverPlayer.paused&&!document.querySelector('[data-detail-card="detail-video"] .clab-detail-cover').hidden&&document.querySelector('[data-detail-card="detail-video"] .clab-preview-video video')===window.nativeCoverPlayer&&!document.querySelector('.clab-detail-pool-popover')`,returnByValue:true},sessionId);assert.equal(hoverStopped.result.value,true,'native leave did not restore the cover and retain its content player');
-    console.log('PASS native cover icons remain selected, record pools switch modules and records, and hover plays/pauses the same content player');
+    console.log('PASS native cover icons remain selected, record pools switch modules and records, and hover reveals the paused content player for manual playback');
     if(process.env.CLAB_REVIEW_SCREENSHOT_PREFIX){
         const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-detail-media.png`,Buffer.from(screenshot.data,'base64'));
         const png=await send('Runtime.evaluate',{expression:`new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.readAsDataURL(window.detailPNG);})`,awaitPromise:true,returnByValue:true},sessionId);fs.writeFileSync(`${process.env.CLAB_REVIEW_SCREENSHOT_PREFIX}-detail-export.png`,Buffer.from(png.result.value.split(',')[1],'base64'));
@@ -724,12 +717,13 @@ try {
     const xyPerformanceChecks=await runXYPerformanceChecks(send,sessionId);
     const tableChecks=await runTableBrowserChecks(send,sessionId,process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX);
     const toolbarChecks=await runToolbarDockChecks(send,sessionId);
+    const previewWorkspaceChecks=await runPreviewWorkspaceChecks(send,sessionId,process.env.CLAB_REVIEW_SCREENSHOT_PREFIX);
     if(process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX)for(const mode of ['cards','table','xy']){
         await send('Runtime.evaluate',{expression:`window.showWorkspaceModeDemo('${mode}');if('${mode}'==='xy')document.querySelector('[data-xy-reset]').click();`},sessionId);await new Promise(resolve=>setTimeout(resolve,100));
         const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX}-${mode}.png`,Buffer.from(screenshot.data,'base64'));
     }
     await send('Runtime.evaluate',{expression:'window.releaseReviewAssets?.()'},sessionId);
-    console.log(`${report.passed.length+32+xyzChecks+undoChecks+xyPerformanceChecks+xyEditingChecks+tableChecks+toolbarChecks} browser checks passed; ${requests.length} media requests`);
+    console.log(`${report.passed.length+32+xyzChecks+undoChecks+xyPerformanceChecks+xyEditingChecks+tableChecks+toolbarChecks+previewWorkspaceChecks} browser checks passed; ${requests.length} media requests`);
 } finally {
     socket?.close();
     browser.kill();
