@@ -2,6 +2,12 @@ import { bindingButton } from './xy_settings.js';
 import { axisValueLabel, axisValueDescription } from './axis_labels.js';
 import { axisLabelConfig, axisLabelTransform, axisLabelBounds } from './axis_label_layout.js';
 
+export function xyWorldHeight(element) {
+    const before=element.style.getPropertyValue('--xy-ui-scale');element.style.setProperty('--xy-ui-scale',1);
+    const height=element.offsetHeight;
+    if(before)element.style.setProperty('--xy-ui-scale',before);else element.style.removeProperty('--xy-ui-scale');
+    return height;
+}
 export function xyPosition(element,x,y,width,height) {
     element.dataset.xyPosition='';element.xyPosition={x,y,width,height};
     const overlay=element.closest('.clab-xy-overlay');if(overlay)overlay._clabPositions=null;
@@ -47,12 +53,14 @@ export function renderXYAxes(wrapper,xy,g,gridW,bottom,parameters,layer=0) {
     if(!overlay){overlay=document.createElement('div');overlay.className='clab-xy-overlay';container.append(overlay);}
     overlay.style.setProperty('--xy-ui-scale',xy.zoom);syncAxisLabelSettings(overlay,xy);
     let group=overlay.querySelector(`.clab-xy-layer-axes[data-xy-layer="${layer}"]`);if(!group){group=document.createElement('div');group.className='clab-xy-layer-axes';group.dataset.xyLayer=layer;overlay.append(group);}
+    syncAxisLabelSettings(group,xy);
     const up=xy.origin==='bottom',axisX=g.left-(xy.x.margin??10),axisY=up?bottom+(xy.y.margin??10):g.top-(xy.y.margin??10),xEnd=g.left+gridW+42,yEnd=up?Math.min(g.top-38,axisY-38):Math.max(bottom+38,axisY+38);
     const frame=part(group,'axes',`<button class="clab-xy-axis axis-x" data-xy-edit-values="x" title="X轴设置"><i></i><b>X</b></button><button class="clab-xy-axis axis-y" data-xy-edit-values="y" title="Y轴设置"><i></i><b>Y</b></button>`);
     const xLine=frame.querySelector('.axis-x'),yLine=frame.querySelector('.axis-y');
     xyPosition(xLine,axisX,axisY-10,xEnd-axisX,20);xyPosition(yLine,axisX-10,up?yEnd:axisY,20,Math.abs(axisY-yEnd));yLine.classList.toggle('points-up',up);
     const xb=part(group,'x-binding',bindingButton('x',xy.x.bindings,parameters));xb.className='clab-xy-axis-binding';xyPosition(xb,xEnd+10,axisY);xb.style.transform='translateY(-50%)';
     const yb=part(group,'y-binding',bindingButton('y',xy.y.bindings,parameters));yb.className='clab-xy-axis-binding';xyPosition(yb,axisX,yEnd+(up?-10:10));yb.style.transform=up?'translate(-50%,-100%)':'translateX(-50%)';
+    yb.xyWorldHeight=xyWorldHeight(yb);
     const output=part(group,'output-binding',bindingButton('output',[xy.outputNodeId],parameters,'输出'));output.className='clab-xy-output-binding';xyPosition(output,g.left+gridW+12,up?g.top:bottom);output.style.transform='translateY(-50%)';
     const ticks=part(group,'ticks');ticks.className='clab-xy-ticks';
     const previous=new Map([...ticks.children].map(tick=>[`${tick.dataset.xyEditValues}:${tick.dataset.xyTick}`,tick]));let position=0;const labelBounds=[];
@@ -65,5 +73,5 @@ export function renderXYAxes(wrapper,xy,g,gridW,bottom,parameters,layer=0) {
     });
     previous.forEach(tick=>tick.remove());
     const bindingRight=Math.max(xEnd+10+xb.offsetWidth/xy.zoom,g.left+gridW+12+output.offsetWidth/xy.zoom);
-    return {overlay,group,axisX,axisY,yBindingY:yEnd-10-yb.offsetHeight/xy.zoom/2,left:Math.min(0,axisX-yb.offsetWidth/xy.zoom/2,...labelBounds.map(b=>b.left)),top:Math.min(0,yEnd-(up?yb.offsetHeight/xy.zoom+10:0),...labelBounds.map(b=>b.top)),right:Math.max(g.left+gridW+260,bindingRight+20,...labelBounds.map(b=>b.right)),bottom:Math.max(Math.max(bottom,axisY)+114,...labelBounds.map(b=>b.bottom))};
+    return {overlay,group,axisX,axisY,left:Math.min(0,axisX-yb.offsetWidth/xy.zoom/2,...labelBounds.map(b=>b.left)),top:Math.min(0,yEnd-(up?yb.offsetHeight/xy.zoom+10:0),...labelBounds.map(b=>b.top)),right:Math.max(g.left+gridW+260,bindingRight+20,...labelBounds.map(b=>b.right)),bottom:Math.max(Math.max(bottom,axisY)+114,...labelBounds.map(b=>b.bottom))};
 }

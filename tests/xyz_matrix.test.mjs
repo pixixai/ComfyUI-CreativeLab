@@ -211,3 +211,15 @@ test('axis swapping carries original input syntax and rebinding discards stale i
     swapMatrixAxes(xy,'x','y');assert.equal('inputText' in xy.x,false);assert.equal(xy.y.inputText,'[5, 7, 9]');
     changeAxisBindings(xy.y,['2||text'],parameters);assert.equal('inputText' in xy.y,false);
 });
+
+
+test('custom tiling columns and gaps position layers without changing run order or axis values',()=>{
+    const {xy,cards}=fixture();xy.z.display='all';xy.tiling={columns:1,rowGap:80,columnGap:60};
+    const g={width:320,height:180},queue=matrixRunCards(cards,xy,new Set(cards.map(card=>card.id)),[],'all').map(card=>card.id);
+    assert.deepEqual(matrixLayers(xy,g).map(({dx,dy})=>[dx,dy]),[[0,0],[0,444],[0,888]]);
+    xy.tiling.columns=2;assert.deepEqual(matrixLayers(xy,g).map(({dx,dy})=>[dx,dy]),[[0,0],[704,0],[0,444]]);
+    xy.tiling.rowGap=xy.tiling.columnGap=0;assert.deepEqual(matrixLayers(xy,g).map(({dx,dy})=>[dx,dy]),[[0,0],[644,0],[0,364]]);
+    const saved=createWorkspaceView({xy}).xy;assert.deepEqual(saved.tiling,xy.tiling);assert.equal(cards.length,12);
+    assert.deepEqual(matrixRunCards(cards,xy,new Set(cards.map(card=>card.id)),[],'all').map(card=>card.id),queue);
+    assert.deepEqual(createWorkspaceView().xy.tiling,{columns:0,rowGap:240,columnGap:360});
+});

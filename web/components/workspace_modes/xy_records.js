@@ -5,7 +5,7 @@ import { openXYPopover, closeXYPopover } from './xy_popover.js';
 
 export function openXYRecords(container,getXY,{bind,add,remove}) {
     const anchor=()=>container.querySelector('[data-xy-records]');
-    if(anchor()?.getAttribute('aria-expanded')==='true'&&document.querySelector('.clab-xy-record-panel:popover-open')){closeXYPopover();return;}
+    if(anchor()?.getAttribute('aria-expanded')==='true'){closeXYPopover();return;}
     const panel=openXYPopover(anchor,'附加记录参数','<div class="clab-xy-record-panel-body"></div>','clab-xy-record-panel','top',container.closest('#clab-panel'));
     const body=panel.popup.querySelector('.clab-xy-record-panel-body');
     const render=()=>{

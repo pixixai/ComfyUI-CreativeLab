@@ -8,6 +8,7 @@ import { synchronizeModeMedia } from './mode_media.js';
 import { createXYController } from './xy_controller.js';
 import { switchWorkspace } from '../comp_workspace.js';
 import { attachWorkspaceModeMenu } from './workspace_mode_menu.js';
+import { workspaceModeAllowed } from './mode_policy.js';
 
 const controllers=new WeakMap(),initialized=new WeakSet();
 
@@ -33,6 +34,8 @@ export function setupWorkspaceModes(panel) {
         table.render(template());if(changed)saveView();
     };
     const changeMode=mode=>{
+        if(!workspaceModeAllowed(view(),mode))return;
+        if(mode==='table'||mode==='xy')view().structuredMode=mode;
         if(view().mode==='xy'&&mode!=='xy')xy.exportRecords();
         if(mode==='table'&&view().mode!=='table'){
             const selected=state.cards.find(card=>state.selectedCardIds.includes(card.id)||card.areas.some(area=>state.selectedAreaIds.includes(area.id)));

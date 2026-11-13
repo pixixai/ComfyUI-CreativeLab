@@ -1,3 +1,4 @@
+import { groupPreviewSources } from './preview_workspace_ui.js';
 import { escapeHtml as esc } from './shared.js';
 import { collectPreviewRecords, sourceKey } from './preview_records.js';
 import { browseGroupCover, sourceBrowseGroups } from './preview_browse.js';
@@ -130,6 +131,7 @@ export function createSourceMedia(left,settings,{onReorder}) {
                             <div class="clab-source-history" role="list" aria-label="${esc(source.areaLabel)} 的生成记录">${on?historyHTML(group,indices):''}</div></section>`;
                     }).join('')||'<p class="clab-review-note">没有输出模块</p>'}</details>`;
             }).join('')||'<p class="clab-review-note">没有匹配的任务或模块</p>';
+            groupPreviewSources(tree,cards,'data-browse-card');
             for (const input of tree.querySelectorAll('[data-browse-card-check]')) {
                 const available=sources.filter(source=>source.card.id===input.dataset.browseCardCheck&&(source.area.history?.some(Boolean)||source.area.resultUrl));
                 const on=available.filter(source=>checked.has(sourceKey(source.card,source.area))).length;

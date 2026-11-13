@@ -1,3 +1,4 @@
+import { paintWorkspaceHighlights } from './workspace_tab_highlight.js';
 import {
     state,
     appState,
@@ -78,6 +79,7 @@ export function renderWorkspaceBar(container) {
                 const mode = getWorkspaceModeLabel(ws);
                 if (modeSpan && modeSpan.textContent !== mode) modeSpan.textContent = mode;
             });
+            if(!container.hasAttribute('data-review-workspaces'))paintWorkspaceHighlights(container,selectedIds);
             return;
         }
     }
@@ -103,6 +105,7 @@ export function renderWorkspaceBar(container) {
         ${tabsHtml}
         <button class="clab-workspace-tab clab-workspace-add" data-workspace-add id="${container.hasAttribute('data-review-workspaces')?'clab-preview-workspace-add':'clab-workspace-add'}" title="新建工作区">+</button>
     `;
+    if(!container.hasAttribute('data-review-workspaces'))paintWorkspaceHighlights(container,selectedIds);
 }
 
 export function switchWorkspace(workspaceId, isMultiSelect = false) {
@@ -329,7 +332,7 @@ export function scrollWorkspaceTabs(container, event) {
     event.preventDefault();
 }
 
-export function attachWorkspaceEvents(container,{beforeChange=()=>{},onChange=()=>{}}={}) {
+export function attachWorkspaceEvents(container,{beforeChange=()=>{},onChange=()=>{},onSelect=()=>false}={}) {
     if (!container || container.dataset.clabWorkspaceBound === "1") return;
     container.dataset.clabWorkspaceBound = "1";
     const strip = container.closest('.clab-workspace-strip');
@@ -394,7 +397,7 @@ export function attachWorkspaceEvents(container,{beforeChange=()=>{},onChange=()
         if (event.target.closest("[data-mode-toggle],[contenteditable=true]")) return;
         const tab = event.target.closest(".clab-workspace-tab[data-workspace-id]");
         if (tab) {
-            const wsId = tab.dataset.workspaceId;beforeChange();
+            const wsId = tab.dataset.workspaceId;if(onSelect(event,wsId))return;beforeChange();
             if (event.shiftKey && appState.lastClickedWorkspaceId) {
                 const startIndex = state.workspaces.findIndex(w => w.id === appState.lastClickedWorkspaceId);
                 const endIndex = state.workspaces.findIndex(w => w.id === wsId);

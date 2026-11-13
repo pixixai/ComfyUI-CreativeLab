@@ -114,7 +114,7 @@ export async function checkWorkspaceModes({state,passed,assert,delay}) {
         mode('cards');
         assert(matrixCards.every(card=>card.areas[0].type==='preview'&&card.areas.find(area=>area.xyRecordKey)?.recordOnly===false&&parameterValue(card,'91||cfg')===7),'XY conversion did not put output first and materialize workflow record values as bound inputs');
         const edited=matrixCards.find(card=>card.id!==getActiveWorkspace().view.templateId);edited.areas[0].title='自由模式改名';edited.areas.reverse();document.dispatchEvent(new Event('clab_render_ui'));
-        mode('table');mode('xy');assert(visible().length===4,'card edits silently removed a matrix member or required rebinding its axes');
+        mode('table');assert(panel.dataset.workspaceMode==='cards'&&q('[data-workspace-mode=table]').disabled,'XY type was lost through card view');q('[data-workspace-mode=xy]').click();assert(visible().length===4,'card edits silently removed a matrix member or required rebinding its axes');
         assert(getActiveWorkspace().view.xy.x.bindings[0]==='91||steps'&&getActiveWorkspace().view.xy.zoom===.6&&getActiveWorkspace().view.xy.panX===-50,'view switching lost axes or canvas position');
         assert(buildPersistedState().workspaces.find(workspace=>workspace.id===demo.id).view.xy.x.bindings[0]==='91||steps','axis bindings did not reach persisted workspace state');
         state.selectedCardIds=[];state.selectedAreaIds=[];q('#clab-btn-run').click();

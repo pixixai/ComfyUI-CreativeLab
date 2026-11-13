@@ -89,6 +89,7 @@ export function createEmptyWorkspace(name = DEFAULT_WORKSPACE_NAME, seed = {}) {
         name: workspaceName,
         autoName: typeof seed.autoName === 'boolean' ? seed.autoName : /^工作区 [1-9]\d*$/.test(workspaceName),
         cards: Array.isArray(seed.cards) ? seed.cards : [],
+        archivedTasks: Array.isArray(seed.archivedTasks) ? seed.archivedTasks : [],
         view: seed.view && typeof seed.view === 'object' ? deepClone(seed.view) : { mode: 'cards' },
         activeCardId: seed.activeCardId || null,
         selectedCardIds: Array.isArray(seed.selectedCardIds) ? seed.selectedCardIds : [],

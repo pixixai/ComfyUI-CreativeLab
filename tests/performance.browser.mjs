@@ -1,3 +1,8 @@
+import { runPreviewMultisourceChecks } from './preview_multisource.browser.mjs';
+import { runPreviewScopeChecks } from './preview_scope.browser.mjs';
+import { runPreviewNavigationChecks } from './preview_navigation.browser.mjs';
+import { runPreviewPNGChecks } from './preview_png.browser.mjs';
+import { runPreviewDetailRegressions } from './preview_detail_regressions.browser.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -6,6 +11,9 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createModelFixtures } from './fixtures/models.mjs';
+import { runXYTilingChecks } from './xy_tiling.browser.mjs';
+import { runXYTitleChecks } from './xy_titles.browser.mjs';
+import { runXYGestureChecks } from './xy_gestures.browser.mjs';
 import { runXYZBrowserChecks } from './xyz.browser.mjs';
 import { runXYEditingChecks } from './xy_editing.browser.mjs';
 import { runUndoBrowserChecks } from './undo.browser.mjs';
@@ -619,7 +627,7 @@ try {
     console.log('PASS native XY wheel zoom and background dragging preserve generation sizes, and workspace mode switches restore the same axes and camera');
     const crispXY=await send('Runtime.evaluate',{expression:`(async()=>{const {projectXYCanvas}=await import('/extensions/clab/components/workspace_modes/xy_axes.js');const container=document.querySelector('#clab-cards-container'),xy=window.workspaceModeDemo.view.xy,old=xy.zoom,media=container.querySelector('.clab-card:not([hidden]) .clab-preview-bg');xy.zoom=3;projectXYCanvas(container,xy);const button=container.querySelector('[data-xy-bind=x]'),font=parseFloat(getComputedStyle(button).fontSize),tick=container.querySelector('.clab-axis-label'),unscaled=!button.closest('.clab-cards-wrapper')&&new DOMMatrixReadOnly(getComputedStyle(container.querySelector('.clab-xy-overlay')).transform).a===1&&new DOMMatrixReadOnly(getComputedStyle(container.querySelector('.clab-xy-overlay')).transform).d===1;xy.zoom=old;projectXYCanvas(container,xy);const matrix=new DOMMatrixReadOnly(getComputedStyle(tick).transform);return font===36&&unscaled&&media===container.querySelector('.clab-card:not([hidden]) .clab-preview-bg')&&matrix.a===1&&matrix.d===1;})()`,awaitPromise:true,returnByValue:true},sessionId);assert.equal(crispXY.result.value,true,'zoom magnified rasterized axis text instead of repainting display-size glyphs or rebuilt the media');
     console.log('PASS XY axes and binding summaries repaint at the zoomed font size outside the scaled media layer');
-    await send('Runtime.evaluate',{expression:`document.querySelector('[data-xy-reset]').click();window.nativeXYIds=[...document.querySelectorAll('#clab-panel .clab-card:not([hidden])')].map(card=>card.dataset.cardId);window.nativeXYExecute=window.CLab.executeTasks;window.CLab.executeTasks=tasks=>{window.nativeXYQueue=tasks;};`},sessionId);
+    await send('Runtime.evaluate',{expression:`document.querySelector('[data-xy-reset]').click();window.nativeXYIds=[...document.querySelectorAll('#clab-panel .clab-card:not([hidden])')].sort((a,b)=>a.offsetTop-b.offsetTop||a.offsetLeft-b.offsetLeft).map(card=>card.dataset.cardId);window.nativeXYExecute=window.CLab.executeTasks;window.CLab.executeTasks=tasks=>{window.nativeXYQueue=tasks;};`},sessionId);
     const xyIds=await send('Runtime.evaluate',{expression:`window.nativeXYIds`,returnByValue:true},sessionId),xyCell=index=>`.clab-card[data-card-id="${xyIds.result.value[index]}"] .clab-preview-bg`;
     await clickDetailElement(xyCell(0));await clickDetailElement(xyCell(1),2);await clickDetailElement('#clab-btn-run');
     const ctrlXY=await send('Runtime.evaluate',{expression:`window.nativeXYQueue.map(task=>task.cardId)`,returnByValue:true},sessionId);assert.deepEqual(ctrlXY.result.value.sort(),xyIds.result.value.slice(0,2).sort(),'native Ctrl selection did not run exactly the selected two XY cells');
@@ -651,7 +659,8 @@ try {
     await clickDetailElement('[data-xy-choice="0:0"]');
     const choiceApplied=await send('Runtime.evaluate',{expression:`window.workspaceModeDemo.view.xy.y.values.length===1&&document.querySelectorAll('#clab-panel .clab-card:not([hidden])').length===2`,returnByValue:true},sessionId);assert.equal(choiceApplied.result.value,true,'axis option selection still required an Apply button');await clickDetailElement('[data-xy-choice="0:0"]');await clickDetailElement('.clab-xy-popup-close');
     const spacingXY=await send('Runtime.evaluate',{expression:`(()=>{const xy=window.workspaceModeDemo.view.xy,cells=[...document.querySelectorAll('#clab-panel .clab-card:not([hidden])')].map(card=>card.getBoundingClientRect()).sort((a,b)=>a.top-b.top||a.left-b.left),x=document.querySelector('.axis-x i').getBoundingClientRect(),y=document.querySelector('.axis-y i').getBoundingClientRect();return Math.abs((cells[1].left-cells[0].right)/xy.zoom-28)<2&&Math.abs((cells[2].top-cells[0].bottom)/xy.zoom-18)<2&&Math.abs((cells[0].left-y.left)/xy.zoom-36)<2&&Math.abs((x.top-cells[2].bottom)/xy.zoom-32)<2;})()`,returnByValue:true},sessionId);assert.equal(spacingXY.result.value,true,'X/Y spacing and margins were not applied to their corresponding axis directions');
-    await clickDetailElement(xyCell(0));const hoverXY=await send('Runtime.evaluate',{expression:`(()=>{const card=document.querySelector('.clab-card[data-card-id="'+window.nativeXYIds[0]+'"]'),style=getComputedStyle(card,'::before');return style.backgroundImage==='none'&&style.borderTopColor==='rgb(33, 150, 243)'&&parseFloat(style.borderTopWidth)===1;})()`,returnByValue:true},sessionId);assert.equal(hoverXY.result.value,true,'selected XY cells did not retain their independent thin blue frame');
+    await clickDetailElement(xyCell(0));await new Promise(resolve=>setTimeout(resolve,180));
+    const hoverXY=await send('Runtime.evaluate',{expression:`(()=>{const card=document.querySelector('.clab-card[data-card-id="'+window.nativeXYIds[0]+'"]'),style=getComputedStyle(card,'::before');return style.backgroundImage==='none'&&style.borderTopColor==='rgb(33, 150, 243)'&&parseFloat(style.borderTopWidth)===1;})()`,returnByValue:true},sessionId);assert.equal(hoverXY.result.value,true,'selected XY cells did not retain their independent thin blue frame');
     console.log('PASS native XY settings auto-apply valid values, choices and directional spacing while hover lights the frame border');
     await send('Runtime.evaluate',{expression:`(async()=>{const {pushPreviewHistoryEntry}=await import('/extensions/clab/components/modules/media_types/media_utils.js');[[1,1],[4,3],[3,2],[21,9]].forEach(([w,h],i)=>{const area=window.nativeXYAreas[i];pushPreviewHistoryEntry(area,'/view?filename=xy-ratio-'+i+'.png&rw='+w*100+'&rh='+h*100);window._clabSurgicallyUpdateArea(area.id);const unrelated=document.createElement('img');unrelated.hidden=true;unrelated.dataset.xyRatioTrap='';unrelated.src='/view?filename=unrelated-input.png&rw=100&rh=500';document.querySelector('.clab-card[data-card-id="'+window.nativeXYIds[i]+'"]').prepend(unrelated);});})()`,awaitPromise:true},sessionId);
     await new Promise(resolve=>setTimeout(resolve,500));
@@ -712,18 +721,26 @@ try {
     await send('Runtime.evaluate',{expression:`document.removeEventListener('wheel',window.nativeAxisWheelBlocker,true);delete window.nativeAxisWheelBlocker;document.querySelector('[data-xy-reset]').click();`},sessionId);
     console.log('PASS native wheel zoom over axes, tick labels, grid cells and images stays centered on the pointer');
     const xyzChecks=await runXYZBrowserChecks(send,sessionId,process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX);
+    const xyGestureChecks=await runXYGestureChecks(send,sessionId);
+    const xyTilingChecks=await runXYTilingChecks(send,sessionId);
+    const xyTitleChecks=await runXYTitleChecks(send,sessionId,process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX);
     const xyEditingChecks=await runXYEditingChecks(send,sessionId);
     const undoChecks=await runUndoBrowserChecks(send,sessionId);
     const xyPerformanceChecks=await runXYPerformanceChecks(send,sessionId);
     const tableChecks=await runTableBrowserChecks(send,sessionId,process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX);
     const toolbarChecks=await runToolbarDockChecks(send,sessionId);
     const previewWorkspaceChecks=await runPreviewWorkspaceChecks(send,sessionId,process.env.CLAB_REVIEW_SCREENSHOT_PREFIX);
+    await runPreviewMultisourceChecks(send,sessionId);
+    await runPreviewScopeChecks(send,sessionId);
+    await runPreviewNavigationChecks(send,sessionId);
+    await runPreviewPNGChecks(send,sessionId);
+    await runPreviewDetailRegressions(send,sessionId);
     if(process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX)for(const mode of ['cards','table','xy']){
         await send('Runtime.evaluate',{expression:`window.showWorkspaceModeDemo('${mode}');if('${mode}'==='xy')document.querySelector('[data-xy-reset]').click();`},sessionId);await new Promise(resolve=>setTimeout(resolve,100));
         const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX}-${mode}.png`,Buffer.from(screenshot.data,'base64'));
     }
     await send('Runtime.evaluate',{expression:'window.releaseReviewAssets?.()'},sessionId);
-    console.log(`${report.passed.length+32+xyzChecks+undoChecks+xyPerformanceChecks+xyEditingChecks+tableChecks+toolbarChecks+previewWorkspaceChecks} browser checks passed; ${requests.length} media requests`);
+    console.log(`${report.passed.length+32+xyzChecks+xyGestureChecks+xyTitleChecks+xyTilingChecks+undoChecks+xyPerformanceChecks+xyEditingChecks+tableChecks+toolbarChecks+previewWorkspaceChecks} browser checks passed; ${requests.length} media requests`);
 } finally {
     socket?.close();
     browser.kill();

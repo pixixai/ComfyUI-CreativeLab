@@ -40,10 +40,10 @@ export const toolbarStyles = `
         flex-wrap:wrap; justify-content:center; gap:6px; padding:5px 12px;
         border:1px solid #454545; border-radius:16px; background:var(--clab-toolbar-bg); box-shadow:0 4px 14px #0005;
     }
-    #clab-panel[data-workspace-mode=xy] .clab-tool-dock { grid-template-columns:minmax(0,1fr) max-content; }
+    #clab-panel[data-workspace-mode=xy] .clab-tool-dock { grid-template-columns:minmax(34px,1fr) minmax(0,max-content) minmax(max-content,1fr); }
     #clab-panel[data-workspace-mode=xy] :is(.clab-toolbar-left,#clab-module-toolbar,#clab-run-count-control),
     #clab-panel:not([data-workspace-mode=xy]) .clab-tool-dock>.clab-xy-toolbar { display:none; }
-    #clab-panel[data-workspace-mode=xy] .clab-toolbar-right { display:flex; grid-area:1 / 2; }
+    #clab-panel[data-workspace-mode=xy] .clab-toolbar-right { display:flex; grid-area:1 / 3; }
     #clab-panel[data-workspace-mode=xy] #clab-run-group #clab-run-dropdown-toggle {
         border-radius:0 var(--clab-tool-button-radius) var(--clab-tool-button-radius) 0 !important;
     }

@@ -3,10 +3,10 @@ import { axisValueLabel } from './axis_labels.js';
 import { taskCoordinates } from './task_model.js';
 
 export function matrixLayers(xy,g) {
-    const count=xy.z?.enabled&&xy.z.display==='all'?Math.max(1,xy.z.values.length):1,columns=Math.ceil(Math.sqrt(count));
+    const count=xy.z?.enabled&&xy.z.display==='all'?Math.max(1,xy.z.values.length):1,columns=Math.max(1,Math.min(count,xy.tiling?.columns||Math.ceil(Math.sqrt(count))));
     const gridWidth=Math.max(1,xy.x.values.length)*g.width+Math.max(0,xy.x.values.length-1)*(xy.x.gap??4);
     const gridHeight=Math.max(1,xy.y.values.length)*g.height+Math.max(0,xy.y.values.length-1)*(xy.y.gap??4);
-    return Array.from({length:count},(_,index)=>({z:xy.z?.enabled&&xy.z.display==='all'?index:currentZLayer(xy),dx:index%columns*(gridWidth+360),dy:Math.floor(index/columns)*(gridHeight+240)}));
+    return Array.from({length:count},(_,index)=>({z:xy.z?.enabled&&xy.z.display==='all'?index:currentZLayer(xy),dx:index%columns*(gridWidth+(xy.tiling?.columnGap??360)),dy:Math.floor(index/columns)*(gridHeight+(xy.tiling?.rowGap??240))}));
 }
 export function matrixRunCards(cards,xy,visibleIds,selected,scope='auto') {
     let cells;

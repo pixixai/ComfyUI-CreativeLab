@@ -6,7 +6,7 @@ import { currentZLayer } from './xy_model.js';
 function openOptions(container,selector,title,items,choose,side='end') {
     const anchor=()=>container.querySelector(selector);
     if(anchor()?.getAttribute('aria-expanded')==='true'){closeXYPopover();return;}
-    const panel=openXYPopover(anchor,title,items.map(item=>`<button type="button" role="${item.selected===undefined?'menuitem':'menuitemradio'}" ${item.selected===undefined?'':`aria-checked="${item.selected}"`} data-xy-option="${esc(item.value)}" title="${esc(item.title||item.text)}">${esc(item.text)}</button>`).join(''),'clab-xy-options',side,container.closest('#clab-panel'));
+    const panel=openXYPopover(anchor,title,items.map(item=>`<button type="button" role="${item.selected===undefined?'menuitem':'menuitemradio'}" ${item.selected===undefined?'':`aria-checked="${item.selected}"`} data-xy-option="${esc(item.value)}" title="${esc(item.title||item.text)}">${esc(item.text)}</button>`).join(''),'clab-xy-options',side,container.closest('#clab-panel,.clab-preview-modal-panel'));
     panel.popup.setAttribute('role','menu');
     panel.popup.addEventListener('click',event=>{const button=event.target.closest('[data-xy-option]');if(button){panel.close();choose(button.dataset.xyOption);anchor()?.focus({preventScroll:true});}});
     panel.popup.addEventListener('keydown',event=>{

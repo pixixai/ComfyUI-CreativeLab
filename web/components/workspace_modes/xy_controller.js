@@ -1,4 +1,6 @@
-import { state } from '../ui_state.js';
+import { showBindingToast } from '../ui_utils.js';
+import { reconcileMatrixArchive } from './xy_archive.js';
+import { state, getActiveWorkspace } from '../ui_state.js';
 import { workflowParameters } from './parameters.js';
 import { adoptMatrix, synchronizeMatrix, matrixCards, matrixCells, matrixOutput, matrixReady, materializeMatrixRecords, visibleMatrixCells, currentZLayer } from './xy_model.js';
 import { taskCoordinates } from './task_model.js';
@@ -11,6 +13,7 @@ import { openXYValues } from './xy_values.js';
 import { closeXYPopover } from './xy_popover.js';
 import { openXYToolbarChoice, openZLayerOptions } from './xy_options.js';
 import { openXYAxisPanel } from './xy_axis_panel.js';
+import { openXYTiling } from './xy_tiling.js';
 import { openXYRecords } from './xy_records.js';
 import { swapMatrixAxes } from './xy_axis_swap.js';
 import { ensureXYHistory, attachXYHistoryKeys } from './xy_history.js';
@@ -26,6 +29,12 @@ export function createXYController(container,getView,save,saveView) {
     const panel=container.closest('#clab-panel'),controls=panel.querySelector('.clab-xy-toolbar');
     const runButton=panel.querySelector('#clab-btn-run'),runMenu=panel.querySelector('#clab-run-dropdown-menu');
     const getXY=()=>getView().xy,active=()=>panel.dataset.workspaceMode==='xy';
+    const reconcile=()=>{
+        const result=reconcileMatrixArchive(state.cards,getXY(),(getActiveWorkspace().archivedTasks??=[]),getView().table);
+        if(result.archived)showBindingToast(`已归档 ${result.archived} 个任务，可在“数据维护”中查看。`);
+        const cards=new Set(state.cards.map(card=>card.id)),areas=new Set(state.cards.flatMap(card=>card.areas.map(area=>area.id)));
+        state.selectedCardIds=state.selectedCardIds.filter(id=>cards.has(id));state.selectedAreaIds=state.selectedAreaIds.filter(id=>areas.has(id));if(!cards.has(state.activeCardId))state.activeCardId=null;
+    };
     const selected=()=>matrixCards(state.cards,getXY()).filter(card=>visibleIds.has(card.id)&&(state.selectedCardIds.includes(card.id)||card.areas.some(area=>state.selectedAreaIds.includes(area.id))));
     const selectedInLayer=xy=>selected().filter(card=>!xy.z.enabled||taskCoordinates(card,xy).z===currentZLayer(xy));
     const setRunLabel=label=>{
@@ -41,10 +50,11 @@ export function createXYController(container,getView,save,saveView) {
     const render=(enter=false,source)=>{
         cancelAnimationFrame(mediaFrame);mediaFrame=0;
         const xy=getXY(),parameters=workflowParameters(),wrapper=container.querySelector('.clab-cards-wrapper');
-        if(enter){adoptMatrix(state.cards,source,xy);synchronizeMatrix(state.cards,xy,parameters);appendWorkspaceTasks(container,state.cards);}
+        if(enter){adoptMatrix(state.cards,source,xy);reconcile();synchronizeMatrix(state.cards,xy,parameters);appendWorkspaceTasks(container,state.cards);}
         ensureXYHistory(state.cards,xy);
         const html=xyToolbar(xy);
         if(html!==controlsHTML){controls.innerHTML=html;controlsHTML=html;}
+        const tileToggle=controls.querySelector('[data-xy-toggle-layers]');tileToggle.setAttribute('aria-pressed',String(xy.z.display==='all'));tileToggle.disabled=!xy.z.enabled||!xy.z.values.length;controls.querySelector('[data-xy-tile-settings]').hidden=xy.z.display!=='all';tileToggle.parentElement.classList.toggle('is-active',xy.z.display==='all');
         visibleIds=new Set(showXYMode(wrapper,state.cards,xy,parameters));
         mediaRatio=xyMediaRatio(wrapper,matrixCells(state.cards,xy),xy);
         refreshXYActivity(container,state.activeWorkspaceId);
@@ -53,6 +63,7 @@ export function createXYController(container,getView,save,saveView) {
         if(!xy.cameraReady){fitXYCanvas(container,xy);xy.cameraReady=true;saveView();}
     };
     const commit=(fit=false,persist=save)=>{
+        reconcile();
         synchronizeMatrix(state.cards,getXY(),workflowParameters());appendWorkspaceTasks(container,state.cards);render();if(fit)fitXYCanvas(container,getXY());persist();
     };
     const bind=(key,trigger)=>openXYBinding(container,key,getXY,()=>commit(),'',trigger);
@@ -81,7 +92,7 @@ export function createXYController(container,getView,save,saveView) {
         if(target.matches('[data-xy-bind]')){bind(target.dataset.xyBind,target);return;}
         if(target.matches('[data-xy-z-layer]')){showLayer(target.dataset.xyZLayer);return;}
         if(target.matches('[data-xy-z-more]')){openZLayerOptions(container,getXY(),showLayer);return;}
-        if(target.matches('[data-xy-toggle-layers]')){target.blur();closeXYPopover();getXY().z.display=getXY().z.display==='all'?'single':'all';clearSelection();commit(true,saveView);updateSelectionUI();return;}
+        if(target.matches('[data-xy-toggle-layers]')){target.blur();closeXYPopover();getXY().z.display=getXY().z.display==='all'?'single':'all';clearSelection();render();saveView();updateSelectionUI();return;}
         if(target.matches('[data-xy-edit-values]')){openXYValues(container,target.dataset.xyEditValues,getXY,fit=>commit(!!fit),bind,target,()=>syncAxisLabelSettings(container.querySelector('.clab-xy-overlay'),getXY()),()=>{render();save();});return;}
         if(target.matches('[data-xy-origin-options]')){
             openXYToolbarChoice(controls,'origin',xyOriginLabels,getXY().origin,origin=>{
@@ -97,6 +108,7 @@ export function createXYController(container,getView,save,saveView) {
             });
             return;
         }
+        if(target.matches('[data-xy-tile-settings]')){openXYTiling(controls,getXY,()=>{render();saveView();});return;}
         if(target.matches('[data-xy-reassign]')){openXYAxisPanel(controls,getXY,swap);return;}
         if(target.matches('[data-xy-records]')){openXYRecords(controls,getXY,recordActions);return;}
         if(target.matches('[data-xy-reset]')){fitXYCanvas(container,getXY());saveView();return;}
@@ -120,7 +132,7 @@ export function createXYController(container,getView,save,saveView) {
     };
     container.addEventListener('pointerdown',releaseButtonFocus);
     controls.addEventListener('pointerdown',releaseButtonFocus);
-    for(const type of ['keydown','keyup'])container.addEventListener(type,event=>{if(active()&&['Space','Enter'].includes(event.code)&&event.target.closest('[data-xy-toggle-layers]'))event.preventDefault();});
+    for(const type of ['keydown','keyup'])controls.addEventListener(type,event=>{if(active()&&['Space','Enter'].includes(event.code)&&event.target.closest('[data-xy-toggle-layers]'))event.preventDefault();});
     for(const type of ['mousedown','click'])container.addEventListener(type,()=>{if(active())requestAnimationFrame(()=>{if(active())refreshRunLabel();});});
     const scheduleMediaLayout=event=>{
         if(!active()||mediaFrame||!event.target.matches('.clab-output-area .clab-preview-bg img,.clab-output-area .clab-preview-bg video'))return;

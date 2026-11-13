@@ -52,7 +52,7 @@ function pictureXML({row,column,x,y,width,height},index) {
       <xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`;
 }
 
-export function buildWorkbook({widths,heights,rows,pictures}) {
+export function buildWorkbook({widths,heights,rows,pictures,merges=[]}) {
     if(widths.length>16384||rows.length>1048576)throw new Error('数据超出 Excel 工作表的行列上限');
     const sheetRows=rows.map((row,index)=>`<row r="${index+1}" ht="${xlsxHeight(heights[index])}" customHeight="1">${row.map((cell,column)=>cellXML(cell.value,index,column,cell.style)).join('')}</row>`).join('');
     const fileTypes=[
@@ -72,7 +72,7 @@ export function buildWorkbook({widths,heights,rows,pictures}) {
         'xl/styles.xml':stylesXML(),
         'xl/worksheets/sheet1.xml':xml(`<worksheet xmlns="${spreadsheet}" xmlns:r="${relationship}"><sheetViews><sheetView showGridLines="0" workbookViewId="0"/></sheetViews>
             <cols>${widths.map((width,index)=>`<col min="${index+1}" max="${index+1}" width="${xlsxWidth(width)}" customWidth="1"/>`).join('')}</cols><sheetData>${sheetRows}</sheetData>
-            ${pictures.length?'<drawing r:id="rId1"/>':''}</worksheet>`),
+            ${merges.length?`<mergeCells count="${merges.length}">${merges.map(ref=>`<mergeCell ref="${ref}"/>`).join('')}</mergeCells>`:''}${pictures.length?'<drawing r:id="rId1"/>':''}</worksheet>`),
     };
     if(pictures.length){
         files['xl/worksheets/_rels/sheet1.xml.rels']=relationships([['drawing','../drawings/drawing1.xml']]);
@@ -118,7 +118,7 @@ async function embedPicture(picture, cache) {
     }finally{URL.revokeObjectURL(asset);canvas.width=canvas.height=0;}
 }
 
-export async function exportParameterWorkbook(stage, {rows,fields,layout}) {
+async function parameterWorkbookData(stage, {rows,fields,layout}) {
     const header=stage.querySelector('.clab-table-head');
     const widths=[...header.children].map(column=>column.offsetWidth);
     const heights=[header.offsetHeight],jobs=[],cache=new Map();
@@ -145,5 +145,23 @@ export async function exportParameterWorkbook(stage, {rows,fields,layout}) {
             if(output)cell.value='';
         }catch{if(!cell.value)cell.value=picture.url;}
     }
-    return buildWorkbook({widths,heights,rows:cells,pictures});
+    return {widths,heights,rows:cells,pictures};
+}
+
+export async function exportParameterWorkbook(stage,data) {
+    if(!data.groups)return buildWorkbook(await parameterWorkbookData(stage,data));
+    const parts=[];
+    for(const group of data.groups)parts.push({name:group.name,...await parameterWorkbookData(group.stage,group)});
+    const widths=parts.flatMap(part=>part.widths),height=Math.max(...parts.map(part=>part.rows.length));
+    const rows=[[]],heights=[26],pictures=[],merges=[];
+    for(let row=0;row<height;row++){rows.push([]);heights.push(Math.max(...parts.map(part=>part.heights[row]||0)));}
+    let offset=0;
+    for(const part of parts){
+        rows[0].push({value:part.name,style:11},...part.widths.slice(1).map(()=>({value:'',style:11})));
+        merges.push(`${columnId(offset)}1:${columnId(offset+part.widths.length-1)}1`);
+        for(let row=0;row<height;row++)rows[row+1].push(...(part.rows[row]||part.widths.map(()=>({value:'',style:2}))));
+        pictures.push(...part.pictures.map(picture=>({...picture,column:picture.column+offset,row:picture.row+1})));
+        offset+=part.widths.length;
+    }
+    return buildWorkbook({widths,heights,rows,pictures,merges});
 }

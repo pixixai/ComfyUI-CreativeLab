@@ -25,7 +25,7 @@ function geometry(xy,ratio) {
     const width=320,height=width/ratio;
     return {width,height,stepX:width+(xy.x.gap??4),stepY:height+(xy.y.gap??4),left:120+(xy.x.margin??10),top:xy.origin==='top'?56+(xy.y.margin??10):76};
 }
-export function showXYMode(wrapper,cards,xy,parameters,{preview=false} = {}) {
+export function showXYMode(wrapper,cards,xy,parameters,{preview=false,layerViews} = {}) {
     const all=matrixCells(cards,xy),items=visibleMatrixCells(cards,xy);
     const elements=new Map([...wrapper.querySelectorAll(':scope > .clab-card')].map(element=>[element.dataset.cardId,element])),byId=new Map(items.map(item=>[item.card.id,item]));
     for(const [id,element]of elements){
@@ -37,15 +37,22 @@ export function showXYMode(wrapper,cards,xy,parameters,{preview=false} = {}) {
         const outputs=new Set(items.map(item=>matrixOutput(item.card,xy)?.id));
         hydrateWorkspaceAreas(wrapper,(card,area)=>outputs.has(area.id));
     }
-    const g=geometry(xy,xyMediaRatio(wrapper,all,xy)),columns=Math.max(1,xy.x.values.length),rows=Math.max(1,xy.y.values.length),layers=matrixLayers(xy,g),layerByZ=new Map(layers.map(layer=>[layer.z,layer]));
-    const row=y=>xy.origin==='bottom'?rows-1-y:y,gridW=(columns-1)*g.stepX+g.width;
+    const ratio=xyMediaRatio(wrapper,all,xy),g=geometry(xy,ratio),columns=Math.max(1,xy.x.values.length),rows=Math.max(1,xy.y.values.length),layers=matrixLayers(xy,g);
+    for(const layer of layers){layer.view=layerViews?.(layer.z)||xy;layer.geometry=geometry(layer.view,ratio);layer.gridWidth=(columns-1)*layer.geometry.stepX+g.width;}
+    if(layerViews&&layers.length>1){
+        const count=Math.max(1,Math.min(layers.length,xy.tiling?.columns||Math.ceil(Math.sqrt(layers.length))));
+        const width=Math.max(...layers.map(layer=>layer.gridWidth)),height=Math.max(...layers.map(layer=>(rows-1)*layer.geometry.stepY+g.height));
+        layers.forEach((layer,index)=>{layer.dx=index%count*(width+(xy.tiling?.columnGap??360));layer.dy=Math.floor(index/count)*(height+(xy.tiling?.rowGap??240));});
+    }
+    const layerByZ=new Map(layers.map(layer=>[layer.z,layer]));
+    const position=(layer,x,y)=>{const shape=layer.geometry;return [shape.left+layer.dx+x*shape.stepX,shape.top+layer.dy+(layer.view.origin==='bottom'?rows-1-y:y)*shape.stepY];};
     wrapper.style.setProperty('--xy-media-height',`${g.height}px`);
     wrapper.style.setProperty('--xy-cell-width',`${g.width}px`);
     const occupied=new Set();
     for(const [id,element]of elements){
         const item=byId.get(id);element.hidden=!item;element.draggable=false;if(!item)continue;
         const layer=layerByZ.get(item.z??layers[0].z);occupied.add(`${item.x},${item.y},${layer.z}`);element.dataset.xyLayer=layer.z;
-        at(element,g.left+layer.dx+item.x*g.stepX,g.top+layer.dy+row(item.y)*g.stepY,g.width);
+        at(element,...position(layer,item.x,item.y),g.width);
         const output=matrixOutput(item.card,xy);
         updateXYHistoryLabel(element,output);
         element.querySelectorAll('.clab-area').forEach(area=>{area.hidden=area.dataset.areaId!==output?.id;area.draggable=false;if(!preview&&!area.hidden)refreshModuleBindingSummary(area,output);});
@@ -54,17 +61,31 @@ export function showXYMode(wrapper,cards,xy,parameters,{preview=false} = {}) {
     for(const layer of layers)for(let y=0;y<rows;y++)for(let x=0;x<columns;x++)if(!occupied.has(`${x},${y},${layer.z}`)){
         const key=`${x},${y}${xy.z.enabled?`,${layer.z}`:''}`,empty=placeholders.get(key)||document.createElement('button');placeholders.delete(key);
         empty.classList.add('clab-xy-empty');empty.dataset.xyPlaceholder=key;empty.setAttribute('aria-label','图像占位');empty.title=preview?'当前组合没有生成记录':'设置轴参数和取值后，自动建立对应任务';
-        at(empty,g.left+layer.dx+x*g.stepX,g.top+layer.dy+row(y)*g.stepY,g.width,g.height);if(!empty.isConnected)wrapper.append(empty);
+        at(empty,...position(layer,x,y),g.width,g.height);if(!empty.isConnected)wrapper.append(empty);
     }
     placeholders.forEach(element=>element.remove());
-    const bounds=layers.map(layer=>{const shape={...g,left:g.left+layer.dx,top:g.top+layer.dy};return renderXYAxes(wrapper,xy,shape,gridW,shape.top+(rows-1)*g.stepY+g.height,parameters,layer.z);});
+    const bounds=layers.map(layer=>{const own=layer.geometry,shape={...own,left:own.left+layer.dx,top:own.top+layer.dy};return renderXYAxes(wrapper,layer.view,shape,layer.gridWidth,shape.top+(rows-1)*own.stepY+own.height,parameters,layer.z);});
     const overlay=bounds[0].overlay,z=renderZAxis(overlay,xy,bounds[0].axisX,bounds[0].axisY,parameters);
     bounds.forEach((axes,index)=>{
-        const layer=layers[index],titleY=xy.origin==='bottom'?axes.yBindingY:axes.axisY-z.extent;
+        const layer=layers[index],binding=axes.group.querySelector('[data-xy-part=y-binding]');
         let title=axes.group.querySelector('.clab-xy-layer-title');
-        if(xy.z.enabled&&xy.z.values.length){if(!title){title=document.createElement('button');title.className='clab-xy-layer-title';axes.group.append(title);}title.dataset.xyZLayer=layer.z;title.setAttribute('aria-pressed',String(layer.z===currentZLayer(xy)));title.textContent=zLayerTitle(xy,layer.z);title.title=String(xy.z.values[layer.z]);xyPosition(title,g.left+layer.dx,titleY-15,gridW,30);axes.top=Math.min(axes.top,titleY-15);}
-        else title?.remove();
+        if(xy.z.enabled&&xy.z.values.length){
+            if(!title){title=document.createElement('button');title.className='clab-xy-layer-title';axes.group.append(title);}
+            title.dataset.xyZLayer=layer.z;title.setAttribute('aria-pressed',String(layer.z===currentZLayer(xy)));
+            title.textContent=zLayerTitle(xy,layer.z);title.title=String(xy.z.values[layer.z]);
+            title.style.width=`${layer.gridWidth*xy.zoom}px`;title.style.height='auto';
+            const yTop=binding.xyPosition.y-(layer.view.origin==='bottom'?binding.offsetHeight/xy.zoom:0);
+            const ceiling=layer.view.origin==='bottom'?yTop:Math.min(yTop,axes.axisY-z.extent-overlay.querySelector('.clab-xy-z-binding').offsetHeight/xy.zoom/2);
+            const bottom=ceiling-12;
+            xyPosition(title,layer.geometry.left+layer.dx,bottom,layer.gridWidth);axes.top=Math.min(axes.top,bottom-title.getBoundingClientRect().height/xy.zoom);
+        } else title?.remove();
     });
+    if(xy.z.enabled&&xy.z.display==='all'){
+        const binding=overlay.querySelector('.clab-xy-z-binding'),height=binding.offsetHeight/xy.zoom;
+        const top=Math.min(...bounds.map(axes=>axes.top))-16-height;
+        xyPosition(binding,g.left,top);binding.style.transform='none';
+        Object.assign(z,{left:g.left,top,right:g.left+binding.offsetWidth/xy.zoom,bottom:top+height});
+    }
     bounds.push(z);
     overlay.querySelectorAll('.clab-xy-layer-axes').forEach(group=>{if(!layerByZ.has(Number(group.dataset.xyLayer)))group.remove();});
     wrapper.dataset.xyMinX=Math.min(0,...bounds.map(b=>b.left));wrapper.dataset.xyMinY=Math.min(0,...bounds.map(b=>b.top));

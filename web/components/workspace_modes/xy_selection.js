@@ -1,11 +1,11 @@
 import { state } from '../ui_state.js';
-import { updateSelectionUI } from '../ui_selection.js';
+import { updateSelectionUI,handleDeselectAll } from '../ui_selection.js';
 import { visibleMatrixCells, matrixOutput } from './xy_model.js';
 import { selectXYCells } from './xy_layout.js';
 
 export function attachXYSelection(container,getXY) {
     let anchor='',workspace;
-    container.addEventListener('mousedown',event=>{
+    container.addEventListener('click',event=>{
         if(container.closest('#clab-panel').dataset.workspaceMode!=='xy'||event.button!==0)return;
         const xy=getXY();if(workspace!==xy){workspace=xy;anchor='';}
         const empty=event.target.closest('.clab-xy-empty');
@@ -17,6 +17,7 @@ export function attachXYSelection(container,getXY) {
             state.selectedCardIds=[];state.selectedAreaIds=[];state.activeCardId=null;updateSelectionUI();return;
         }
         const card=event.target.closest('.clab-card:not([hidden])');
+        if(!card&&!event.target.closest('.clab-xy-overlay')){handleDeselectAll();container.querySelectorAll('.clab-xy-empty.is-selected').forEach(node=>node.classList.remove('is-selected'));anchor='';return;}
         if(!card||event.target.closest('button,input,textarea,select,.clab-video-controls-interactive,.clab-glb-toolbar'))return;
         container.querySelectorAll('.clab-xy-empty.is-selected').forEach(node=>node.classList.remove('is-selected'));
         const cells=visibleMatrixCells(state.cards,xy),selected=cells.filter(cell=>state.selectedCardIds.includes(cell.card.id)||state.selectedAreaIds.includes(matrixOutput(cell.card,xy)?.id)).map(cell=>cell.card.id);

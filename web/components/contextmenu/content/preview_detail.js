@@ -20,7 +20,7 @@ const fieldActions=`<span class="clab-detail-field-actions"><button type="button
 const caseIcon = text => icon(`<text x="12" y="17" text-anchor="middle" fill="currentColor" stroke="none" font-family="Arial,sans-serif" font-size="${text==='aa'?17:15}" font-weight="600">${text}</text>`);
 const choices = (attribute, items, value) => `<div class="clab-detail-icon-buttons">${items.map(([key,title,svg,label])=>`<button ${attribute} data-value="${key}" ${label?'class="clab-detail-labelled-option"':''} title="${title}" aria-label="${title}" aria-pressed="${key===value}">${svg}${label?`<span>${label}</span>`:''}</button>`).join('')}</div>`;
 
-export function createDetailView(root, downloadsChanged = ()=>{}) {
+export function createDetailView(root, downloadsChanged = ()=>{}, sessionSaved = ()=>{}) {
     const left = root.querySelector('.clab-preview-modal-left'), center = root.querySelector('.clab-preview-modal-center'), right = root.querySelector('.clab-preview-modal-right');
     let preferences = {};
     try { preferences = JSON.parse(localStorage.getItem(PREFERENCES) || '{}'); } catch { /* Ignore unavailable storage or an invalid saved preference. */ }
@@ -32,12 +32,22 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
     const saveSession=()=>{
         if(!workspace||!sessionActive)return;
         const saved=serializeDetailSession(cards,config),json=JSON.stringify(saved);if(json===sessionJSON)return;
-        workspace.view.previewDetail=saved;sessionJSON=json;window.CLab?.saveState(state,{createAnchor:false});
+        workspace.view.previewDetail=saved;sessionJSON=json;sessionSaved();window.CLab?.saveState(state,{createAnchor:false});
     };
     const views = new Map();
     const sourcePanel=createDetailSources(left,config,visible=>stackedEye(visible?eyeShape:hiddenEye));
     let cards = [], model = [], exporting = false;
-    let applyMenu;
+    let applyMenu,locateFrame=0;
+    left.addEventListener('click',event=>{
+        if(root.dataset.reviewMode!=='detail')return;
+        const taskId=event.target.closest('[data-detail-source]')?.dataset.detailSource,workspaceId=event.target.closest('.clab-preview-source-workspace')?.dataset.previewSourceWorkspace;
+        if(!taskId&&!workspaceId)return;
+        cancelAnimationFrame(locateFrame);locateFrame=requestAnimationFrame(()=>{
+            if(root.dataset.reviewMode!=='detail')return;
+            const target=views.get(taskId)?.element||center.querySelector(`[data-detail-workspace-id="${CSS.escape(workspaceId||'')}"]`);
+            if(target)center.scrollTo({top:Math.max(0,center.scrollTop+target.getBoundingClientRect().top-center.getBoundingClientRect().top-12),behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+        });
+    },true);
     const rememberHistories=()=>{for(const item of model)if(item.record)config.histories.set(detailHistoryKey(item.id,item.area.id),item.record.key);};
     const closeApplyMenu=()=>{applyMenu?.remove();applyMenu=null;left.querySelectorAll('[data-detail-output-switch]').forEach(button=>button.setAttribute('aria-expanded','false'));};
     const apply=(title,role,source)=>{rememberHistories();applyDetailOutput(cards,config,title,role,source);closeApplyMenu();sourcePanel.sync(cards);renderBoard();renderSettings();};
@@ -87,6 +97,7 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
         for (const [id, view] of views) if (!model.some(item => item.id === id)) { view.cover?.release();view.cleanup?.(); view.element.remove(); views.delete(id); }
         board.querySelector('.clab-detail-board-empty')?.remove();
         if (!model.length) { const empty = document.createElement('div'); empty.className = 'clab-detail-empty clab-detail-board-empty'; empty.textContent = '请在左侧勾选要展示的任务'; board.append(empty); }
+        board.querySelectorAll('.clab-detail-workspace-title').forEach(node=>node.remove());
         model.forEach((item, index) => {
             let view = views.get(item.id);
             if (!view) {
@@ -122,6 +133,8 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
             element.querySelector('.clab-detail-note').textContent = item.current ? '当前参数 · 尚无输出记录' : item.record.snapshot ? '' : '旧记录没有参数快照';
             element.classList.toggle('active', item.id === config.active);
         });
+        let group='';
+        for(const item of model){const workspace=item.card.previewWorkspace;if(!workspace||workspace.id===group)continue;group=workspace.id;const title=document.createElement('h3');title.className='clab-detail-workspace-title';title.dataset.detailWorkspaceId=workspace.id;title.textContent=workspace.name;board.insertBefore(title,views.get(item.id).element);}
         sourcePanel.selection();sessionActive=true;saveSession();
     }
     function renderSettings() {
@@ -343,7 +356,7 @@ export function createDetailView(root, downloadsChanged = ()=>{}) {
                 return {id:field.id,title:field.title,type:'edit',value:field.missing?null:snapshot?snapshot.value:original?.value};
             }).concat(item.area||[])}));
         },
-        release() { pool.close();closeApplyMenu();sourcePanel.release();for (const view of views.values()){view.cover?.release();view.cleanup?.();}views.clear();save(); },
+        release() { cancelAnimationFrame(locateFrame);pool.close();closeApplyMenu();sourcePanel.release();for (const view of views.values()){view.cover?.release();view.cleanup?.();view.element.remove();}views.clear();save(); },
     };
 }
 

@@ -4,6 +4,7 @@
  * 职责: 内容分组菜单渲染 + 事件绑定协调（业务逻辑已拆分至 content/* 子模块）
  */
 import { state, saveAndRender, getActiveWorkspace } from "../ui_state.js";
+import { workspacePreviewMode } from '../workspace_modes/mode_policy.js';
 import {
     clearPreviewHistory,
     ensureTextAreaState,
@@ -66,8 +67,7 @@ export function openCardPreview(cards) {
 
 export function openWorkspacePreview(opener) {
     const sources = workspacePreviewSources(state.cards);
-    const workspaceMode = getActiveWorkspace()?.view?.mode;
-    const mode = ['table','xy'].includes(workspaceMode) ? workspaceMode : 'browse';
+    const mode = workspacePreviewMode(getActiveWorkspace());
     const areaIds = new Set(state.selectedAreaIds);
     const selected = sources.filter(({ area }) => areaIds.has(area.id));
     if (selected.length) {

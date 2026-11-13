@@ -39,7 +39,7 @@ export function parseTablePadding(text) {
 export function applyTableLayout(wrapper,columns,view) {
     wrapper.style.setProperty('--clab-table-height',`${tableRowHeight(view)}px`);
     const widths = columns.map(column => tableColumnWidth(column, view));
-    wrapper.style.setProperty('--clab-table-columns',`var(--clab-table-row-width,44px) ${widths.map(width=>`${width}px`).join(' ')} 28px`);
+    wrapper.style.setProperty('--clab-table-columns',`var(--clab-table-row-width,44px) ${widths.map(width=>`${width}px`).join(' ')} var(--clab-table-add-column-width,28px)`);
     wrapper.querySelectorAll('[data-table-row]').forEach(element=>element.style.setProperty('--clab-table-height',`${tableRowHeight(view,{id:element.dataset.tableRow})}px`));
     for (const zone of wrapper.querySelectorAll('[role=cell] .clab-upload-zone')) {
         const cell = zone.closest('[role=cell]');

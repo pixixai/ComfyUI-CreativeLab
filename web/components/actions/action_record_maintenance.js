@@ -34,13 +34,13 @@ async function probeMissingAndFallback(areaProbes) {
     await Promise.all(checks);
 }
 
-export async function resyncRecords() {
+export async function resyncRecords(cards = state.cards) {
     showBindingToast("🔄 正在强制重新拉取本地资产...", false);
     const now = Date.now();
     let syncCount = 0;
     const areaProbes = [];
     const textReloadTasks = [];
-    state.cards.forEach(card => {
+    cards.forEach(card => {
         card.areas?.filter(a => a.type === 'preview').forEach(area => {
             if (area.history && area.history.length > 0) {
                 area.history = area.history.map(url => {
@@ -83,10 +83,10 @@ export async function resyncRecords() {
     setTimeout(hideBindingToast, 2000);
 }
 
-export async function cleanDeadRecords() {
+export async function cleanDeadRecords(cards = state.cards) {
     showBindingToast("🔍 正在扫描失效记录，请稍候...", false);
     const areaMap = [];
-    state.cards.forEach(card => {
+    cards.forEach(card => {
         card.areas?.filter(a => a.type === 'preview').forEach(area => {
             if (area.history && area.history.length > 0) {
                 area.history.forEach((url, index) => {
@@ -103,7 +103,7 @@ export async function cleanDeadRecords() {
     const deadItems = [];
     const checkPromises = areaMap.map(async (item) => {
         try {
-            const area = state.cards.flatMap(c => c.areas || []).find(a => a.id === item.areaId);
+            const area = cards.flatMap(c => c.areas || []).find(a => a.id === item.areaId);
             if (!area) return;
             if (getMediaType(item.url) === "text") {
                 await loadTextHistoryEntry(area, item.index, { force: true, refresh: false });
@@ -119,7 +119,7 @@ export async function cleanDeadRecords() {
         showBindingToast("✨ 扫描完毕：所有本地资产均完好无损！");
     } else {
         deadItems.forEach(item => {
-            state.cards.forEach(c => {
+            cards.forEach(c => {
                 const area = c.areas?.find(a => a.id === item.areaId);
                 if (area && area.history) {
                     const idx = area.history.indexOf(item.url);
@@ -132,7 +132,7 @@ export async function cleanDeadRecords() {
 
         // 【核心修复】：安全重算所有受影响模块的 index 和封面，并默认回退到最后一张
         const affectedAreaIds = [...new Set(deadItems.map(item => item.areaId))];
-        state.cards.forEach(c => {
+        cards.forEach(c => {
             c.areas?.forEach(area => {
                 if (affectedAreaIds.includes(area.id) && area.history) {
                     let activeIdx = area.history.indexOf(area.resultUrl);

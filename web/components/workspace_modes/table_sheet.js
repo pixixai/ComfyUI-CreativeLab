@@ -56,6 +56,13 @@ export function openTableSheet(cards,view,source) {
         }
         sheet.rows=members.map(card=>({id:card.id,cardId:card.id,values:{}}));
     }
+    if(source){
+        const known=new Set(sheet.rows.map(row=>row.cardId));
+        for(const card of matchingTasks(cards,source))if(!known.has(card.id)){
+            card.areas.forEach((area,index)=>{area.tableColumnId=source.areas[index].tableColumnId||sheet.columns[index]?.id||area.id;});
+            sheet.rows.push({id:card.id,cardId:card.id,values:{}});
+        }
+    }
     view.sheetId=sheet.id;return sheet;
 }
 

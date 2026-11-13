@@ -24,9 +24,9 @@ export async function checkXYZMatrix({state,passed,assert,delay}) {
         for(const origin of ['top','bottom']){
             orientation(origin);
             const title=q('.clab-xy-layer-title'),r=title.getBoundingClientRect(),binding=q(`[data-xy-bind="${origin==='bottom'?'y':'z'}"]`).getBoundingClientRect();
-            assert(Math.abs((r.top+r.bottom-binding.top-binding.bottom)/2)<2&&Math.abs(parseFloat(getComputedStyle(title).fontSize)/xy.zoom-16)<.1,'layer title is too small or not aligned to the correct binding summary');
-            const summary=q('[data-xy-bind=z]').getBoundingClientRect(),button=q('[data-xy-toggle-layers]').getBoundingClientRect();
-            assert(button.right<summary.left&&Math.abs(button.height-summary.height)<1.5&&Math.abs(button.width-button.height)<1&&Math.abs(button.top-summary.top)<1.5,'Z display toggle is not square, equally tall and aligned to the left of its binding summary');
+            assert(r.bottom<=binding.top-6*xy.zoom&&Math.abs(parseFloat(getComputedStyle(title).fontSize)/xy.zoom-16)<.1,'layer title is too small or overlaps its binding summary');
+            const button=q('[data-xy-toggle-layers]');
+            assert(button.textContent==='平铺所有 Z 层'&&!q('#clab-cards-container [data-xy-toggle-layers]')&&q('[data-xy-tile-settings]'),'tiling controls were not moved into the toolbar');
         }
         const sameXY=matrixCells(state.cards,xy).filter(cell=>cell.x===0&&cell.y===0).sort((a,b)=>a.z-b.z),images=[];
         for(const cell of sameXY){const area=matrixOutput(cell.card,xy);for(let run=0;run<2;run++)pushPreviewHistoryEntry(area,`/view?filename=xyz-${cell.z}-${run}.png`,{run:{id:`xyz-${cell.z}-${run}`,order:run+1,areaIds:[area.id]},inputSnapshot:captureCardInputSnapshot(cell.card)});window._clabSurgicallyUpdateArea(area.id);images.push(q(`[data-card-id="${cell.card.id}"] img`));}
@@ -47,7 +47,7 @@ export async function checkXYZMatrix({state,passed,assert,delay}) {
         display('single');bind('z','110||cfg');assert(!xy.z.enabled&&q('#clab-run-dropdown-toggle')&&visible().length===4&&state.cards.length===12,'unbinding Z lost tasks or removed the shared run menu');
         bind('z','110||cfg');q('.axis-z').click();change(popup().querySelector('[data-xy-values=z]'),'[5,7,9]');close();assert(state.cards.length===12&&sameXY.every(cell=>matrixOutput(cell.card,xy).history.length===2),'rebinding Z duplicated tasks or discarded their histories');
         passed.push('XYZ canvas axis binds and picks parameters, creates independent layers, preserves media and histories, and runs all/current/selected combinations');
-        passed.push('Z settings only edit values; its square layer toggle and split-run menu preserve current-layer defaults and title alignment in both orientations');
+        passed.push('Z settings only edit values; its toolbar layer toggle and split-run menu preserve current-layer defaults and title alignment in both orientations');
 
         const many=seed('Z多取值测试',{bindings:['110||steps'],values:[20]},{enabled:true,bindings:['110||cfg'],values:[1,2,3,4,5,6,7,8,9]});many.view.xy.y.values=['Euler'];show(many);
         const length=q('.axis-z').xyPosition.width;q('[data-xy-z-layer="8"]').click();assert(q('.axis-z').xyPosition.width===length&&q('.clab-z-more'),'many Z values changed the axis length or omitted its full-list entry');

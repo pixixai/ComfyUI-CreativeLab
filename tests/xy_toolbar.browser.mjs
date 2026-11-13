@@ -18,7 +18,7 @@ export async function runXYToolbarChecks(send,sessionId,screenshotPrefix,click) 
     assert.equal(await evaluate(`(()=>{
         const toolbar=document.querySelector('.clab-xy-toolbar'),dock=toolbar.closest('.clab-tool-dock');
         const choices=[...toolbar.querySelectorAll('.clab-xy-choice')];
-        return dock.dataset.dock==='top'&&toolbar.getBoundingClientRect().bottom<document.querySelector('#clab-cards-container').getBoundingClientRect().top&&dock.offsetHeight===39&&
+        return dock.dataset.dock==='top'&&dock.getBoundingClientRect().bottom<document.querySelector('#clab-cards-container').getBoundingClientRect().top&&dock.offsetHeight===39&&
             choices.map(button=>button.textContent).join(',')==='Y 轴向上,X 轴优先'&&choices.every(button=>button.getAttribute('aria-haspopup')==='menu')&&
             [...dock.querySelectorAll('.clab-toolbar-right > [data-toolbar-item]')].map(item=>item.id).join(',')==='clab-run-group,clab-config-btn-wrapper,clab-preview-mode-switch'&&
             dock.querySelector('#clab-btn-run .clab-tool-label').textContent==='运行 · 4 项';

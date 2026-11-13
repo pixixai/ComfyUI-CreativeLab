@@ -5,7 +5,7 @@ import { axisOrderHandleHTML, attachAxisValueSort } from './axis_drag.js';
 
 export function openXYAxisPanel(container,getXY,swap) {
     const anchor=()=>container.querySelector('[data-xy-reassign]');
-    if(anchor()?.getAttribute('aria-expanded')==='true'&&document.querySelector('.clab-xy-axis-panel:popover-open')){closeXYPopover();return;}
+    if(anchor()?.getAttribute('aria-expanded')==='true'){closeXYPopover();return;}
     const panel=openXYPopover(anchor,'交换 XYZ 轴参数','<div class="clab-xy-axis-panel-body"></div>','clab-xy-axis-panel','top',container.closest('#clab-panel'));
     const body=panel.popup.querySelector('.clab-xy-axis-panel-body');
     const render=()=>{

@@ -1,9 +1,8 @@
 import { captureModelPreview } from '../../modules/media_types/media_model.js';
 import { escapeHtml as esc } from './shared.js';
+import { renderPreviewPNG } from './preview_png.js';
 
-const canvasLimit = 32767;
-const areaLimit = 67108864;
-const styleIds = ['clab-ui-styles','clab-media-styles','clab-workspace-mode-styles','clab-preview-review-styles'];
+const styleIds = ['clab-ui-styles','clab-media-styles','clab-workspace-mode-styles','clab-preview-review-styles','clab-preview-workspace-styles'];
 const exportCSS = `
     .clab-export-content *{animation:none!important;transition:none!important}
     .clab-export-content .clab-review-grid-stage{overflow:hidden!important}
@@ -149,7 +148,7 @@ function staticGrid(source, clone, mode) {
 
 function matrixCrop(stage) {
     const rect=stage.getBoundingClientRect();
-    const items=[...stage.querySelectorAll('.clab-card:not([hidden]),.clab-xy-empty,.clab-xy-axis,.clab-axis-label,.clab-xy-layer-title,.clab-xy-axis-binding,.clab-xy-output-binding,.clab-xy-z-binding')];
+    const items=[...stage.querySelectorAll('.clab-card:not([hidden]),.clab-xy-empty,.clab-xy-axis,.clab-axis-label,.clab-xy-layer-title,.clab-xy-axis-binding,.clab-xy-output-binding,.clab-xy-z-binding,.clab-review-xy-records')];
     const bounds=items.filter(node=>getComputedStyle(node).visibility!=='hidden').map(node=>node.getBoundingClientRect());
     if(!bounds.length)return {x:0,y:0,width:rect.width,height:rect.height};
     const margin=18;
@@ -160,7 +159,8 @@ function matrixCrop(stage) {
 
 export async function capturePreviewLayout(source, options = {}) {
     if(!source)throw new Error('没有可导出的预览');
-    const mode=source.closest('[data-workspace-mode]')?.dataset.workspaceMode;
+    const grouped=source.matches('.clab-review-multi-grid');
+    const mode=grouped?undefined:source.closest('[data-workspace-mode]')?.dataset.workspaceMode;
     const media=snapshotMedia(source);
     const stage=source.cloneNode(true),outer=document.createElement('div'),viewport=document.createElement('div'),host=document.createElement('div');
     const styles=styleIds.map(id=>document.getElementById(id)?.textContent||'').join('\n')+exportCSS;
@@ -172,6 +172,27 @@ export async function capturePreviewLayout(source, options = {}) {
     host.style.cssText='position:fixed;left:-100000px;top:0;pointer-events:none';
     host.append(outer);
     let size=mode?staticGrid(source,stage,mode):{width:source.scrollWidth,height:source.scrollHeight};
+    if(grouped){
+        const scene=source.firstElementChild;size={width:scene.scrollWidth,height:scene.scrollHeight};stage.firstElementChild.style.transform='none';
+        if(scene.matches('.clab-review-matrix-scene')){
+            const originals=[...scene.children],copies=[...stage.firstElementChild.children];let width=48,height=0;
+            for(const [index,group]of originals.entries()){
+                const input=group.querySelector('.clab-review-grid-stage'),copy=copies[index],output=copy.querySelector('.clab-review-grid-stage'),wrapper=input.querySelector('.clab-cards-wrapper');
+                if(!input.querySelector('.clab-xy-overlay'))continue;
+                staticGrid(input,output,'xy');
+                const minX=Number(wrapper.dataset.xyMinX)||0,minY=Number(wrapper.dataset.xyMinY)||0;
+                const w=wrapper.offsetWidth-minX+40,h=wrapper.offsetHeight-minY+40;
+                const translate=`translate(${20-minX}px,${20-minY}px)`;
+                output.querySelector('.clab-cards-wrapper').style.transform=translate;output.querySelector('.clab-xy-overlay').style.transform=translate;
+                copy.lastElementChild.style.width=`${w}px`;copy.lastElementChild.style.height=`${h}px`;
+                copy.style.padding='16px';
+                Object.assign(copy.firstElementChild.style,{fontSize:'18px',minHeight:'36px',marginBottom:'24px',gap:'14px',width:`${w}px`});copy.firstElementChild.style.setProperty('--xy-ui-scale',1);
+                width+=w+32;height=Math.max(height,h+92);
+            }
+            Object.assign(stage.firstElementChild.style,{gap:'64px',padding:'24px'});
+            size={width:width+Math.max(0,originals.length-1)*64,height:height+48};
+        }
+    }
     stage.style.width=`${size.width}px`;stage.style.height=`${size.height}px`;
     const background=getComputedStyle(source);
     if(mode==='xy')outer.style.background=background.background;
@@ -196,20 +217,9 @@ export async function capturePreviewLayout(source, options = {}) {
 
 export async function renderLayoutPNG(layout, scale) {
     const {outer,styles,width,height}=layout;
-    const pixelWidth=Math.ceil(width*scale),pixelHeight=Math.ceil(height*scale);
-    if(!Number.isFinite(scale)||scale<1||scale>10)throw new Error('放大倍数须在 1～10 之间');
-    if(pixelWidth>canvasLimit||pixelHeight>canvasLimit||pixelWidth*pixelHeight>areaLimit)throw new Error('整图尺寸过大，请降低放大倍数或缩小导出范围');
     const style=document.createElement('style');style.textContent=styles;
     outer.prepend(style);
-    const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%">${new XMLSerializer().serializeToString(outer)}</foreignObject></svg>`;
-    const image=new Image();
-    const canvas=document.createElement('canvas');
-    try {
-        image.src=`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;await image.decode();
-        canvas.width=pixelWidth;canvas.height=pixelHeight;
-        canvas.getContext('2d').drawImage(image,0,0,pixelWidth,pixelHeight);
-        return await canvasBlob(canvas);
-    }finally{canvas.width=canvas.height=0;}
+    return renderPreviewPNG(new XMLSerializer().serializeToString(outer),width,height,scale);
 }
 
 export async function exportPreviewLayoutHTML(source, title) {

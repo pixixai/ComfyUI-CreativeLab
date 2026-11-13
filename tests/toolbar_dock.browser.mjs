@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { runPreviewXYSourcesChecks } from './preview_xy_sources.browser.mjs';
 
 export async function runToolbarDockChecks(send, sessionId) {
     const evaluate = async expression => {
@@ -110,7 +111,7 @@ export async function runToolbarDockChecks(send, sessionId) {
         const d=document.querySelector('.clab-tool-dock'),r=d.getBoundingClientRect();
         for(let offset=4;offset<r.width-4;offset+=4){
             const x=r.left+offset,y=r.top+r.height/2;
-            if(document.elementFromPoint(x,y)?.matches('.clab-tool-dock,.clab-toolbar-left,.clab-toolbar-right,.clab-xy-toolbar'))return {x,y};
+            if(document.elementFromPoint(x,y)?.matches('.clab-tool-dock,.clab-toolbar-left,.clab-toolbar-right,.clab-xy-toolbar,.clab-xy-toolbar-start,.clab-xy-toolbar-center'))return {x,y};
         }
         throw Error('No blank space in docked toolbar');
     })()`);
@@ -291,7 +292,7 @@ export async function runToolbarDockChecks(send, sessionId) {
     assert.equal(await evaluate("document.querySelector('.clab-tool-dock').offsetHeight"),39);
     await shot('xy-bottom');
     await click('[data-xy-records]');
-    assert.equal(await evaluate(`(()=>{const t=document.querySelector('.clab-xy-toolbar'),p=document.querySelector('.clab-xy-record-panel:popover-open');return p.getBoundingClientRect().bottom<t.getBoundingClientRect().top;})()`), true);
+    assert.equal(await evaluate(`(()=>{const t=document.querySelector('.clab-tool-dock'),p=document.querySelector('.clab-xy-record-panel:popover-open');return p.getBoundingClientRect().bottom<t.getBoundingClientRect().top;})()`), true);
     await click('.clab-xy-popup-close');
     await evaluate("window.showWorkspaceModeDemo('table')");
     await settle();
@@ -622,7 +623,7 @@ export async function runToolbarDockChecks(send, sessionId) {
             const at=output.historyIndex??0;
             output.historyRuns[at]={...output.historyRuns[at],recordParameters:[{key:'99||fixture_record',label:'采样备注',value:'已记录'}]};
         });
-        window.beforeReviewXY=JSON.stringify(xy);
+        window.beforeReviewXY=JSON.stringify(xy,(key,value)=>['zoom','panX','panY','cameraReady','previewRecords','previewRecordsExpanded','tiling','display'].includes(key)?undefined:value);
         return matchingTasks(state.cards,tasks[0]).filter(effectiveTableRow).map(task=>task.id);
     })()`);
     await click('#clab-btn-preview');
@@ -634,6 +635,7 @@ export async function runToolbarDockChecks(send, sessionId) {
     })()`),true);
     const layerCount=()=>evaluate("document.querySelectorAll('.clab-review-grid .clab-xy-layer-axes').length");
     assert.equal(await layerCount(),1);
+    await click('[data-review-xy-fit]');
     const checkPreviewHistory = selector => evaluate(`(()=>{
         const root=document.querySelector('.clab-preview-modal.visible'),selected=root.querySelector('[data-review-download=selected]');
         const cell=root.querySelector('${selector}'),url=()=>cell.querySelector('.clab-output-footer').dataset.url;
@@ -660,9 +662,7 @@ export async function runToolbarDockChecks(send, sessionId) {
     assert.equal(await checkPreviewHistory('.clab-review-grid[data-workspace-mode=xy] .clab-output-area'),true);
 
     await shot('matrix-preview');
-    await click('[data-review-layer=all]');
-    assert.equal(await layerCount(),2);
-    await click('[data-review-layer="0"]');
+    await runPreviewXYSourcesChecks(evaluate,click,shot);
     const stage='.clab-review-grid[data-workspace-mode=xy] .clab-review-grid-stage';
     const transform=()=>evaluate(`document.querySelector('${stage} .clab-cards-wrapper').style.transform`);
     const beforeTransform=await transform(),point=await center(stage);
@@ -690,9 +690,12 @@ export async function runToolbarDockChecks(send, sessionId) {
     await click('[data-review-xy-swap=xy]');
     await click('[data-review-xy-record]');
     assert.match(await evaluate(`document.querySelector('${stage} .clab-review-xy-records').textContent`),/采样备注.*已记录/);
+    await click('[data-review-xy-fit]');await shot('matrix-records-down');
+    await click('[data-review-xy-orientation][value=bottom]');await click('[data-review-xy-fit]');await shot('matrix-records-up');
+    await click('[data-review-xy-orientation][value=top]');
     assert.equal(await evaluate(`(async()=>{
         const {getActiveWorkspace}=await import('/extensions/clab/components/ui_state.js');
-        return JSON.stringify(getActiveWorkspace().view.xy)===window.beforeReviewXY;
+        return JSON.stringify(getActiveWorkspace().view.xy,(key,value)=>['zoom','panX','panY','cameraReady','previewRecords','previewRecordsExpanded','tiling','display'].includes(key)?undefined:value)===window.beforeReviewXY;
     })()`),true);
     const matrixSource = (source) => evaluate(`(()=>{
         const select=document.querySelector('[data-sheet-option=matrixSource]');
@@ -724,6 +727,24 @@ export async function runToolbarDockChecks(send, sessionId) {
     assert.ok(await evaluate("document.querySelectorAll('[data-grid-filter=column]').length") >= 2);
     assert.ok(effectivePreviewRows.length);
     assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-grid-filter=row]:checked')].map(input=>input.value)"),effectivePreviewRows);
+    const sourceChecks=type=>evaluate(`[...document.querySelectorAll('[data-grid-filter="${type}"]')].filter(input=>input.checked).map(input=>input.value)`);
+    const sourceTotals=await evaluate(`Object.fromEntries(['row','column'].map(type=>[type,document.querySelectorAll('[data-grid-filter="'+type+'"]').length]))`);
+    const initialRows=await sourceChecks('row'),initialColumns=await sourceChecks('column');
+    for(const type of ['row','column']) {
+        const other=type==='row'?'column':'row',before=await sourceChecks(other);
+        await click(`[data-grid-source-select="${type}"][data-grid-source-action="none"]`);
+        assert.deepEqual(await sourceChecks(type),[]);
+        assert.equal(await evaluate(`document.querySelector('[data-grid-source-count="${type}"]').textContent.startsWith('0/${sourceTotals[type]} ')`),true);
+        assert.deepEqual(await sourceChecks(other),before,'clearing one source group changed the other group');
+        await click(`[data-grid-source-select="${type}"][data-grid-source-action="all"]`);
+        assert.equal((await sourceChecks(type)).length,sourceTotals[type]);
+        assert.equal(await evaluate(`document.querySelector('[data-grid-source-count="${type}"]').textContent.startsWith('${sourceTotals[type]}/${sourceTotals[type]} ')`),true);
+        assert.deepEqual(await sourceChecks(other),before,'selecting one source group changed the other group');
+        await evaluate(`(()=>{const wanted=new Set(${JSON.stringify(type==='row'?initialRows:initialColumns)});for(const id of [...document.querySelectorAll('[data-grid-filter="${type}"]')].filter(input=>!wanted.has(input.value)).map(input=>input.value))document.querySelector('[data-grid-filter="${type}"][value="'+CSS.escape(id)+'"]').click();})()`);
+    }
+    assert.equal(await evaluate("document.querySelectorAll('.clab-review-grid [data-review-row]').length"),initialRows.length);
+    assert.equal(await evaluate("document.querySelectorAll('.clab-review-grid [data-review-column]').length"),initialColumns.length);
+    console.log('PASS table source task/field all and none actions update their counts and visible grid independently');
     const previewTable='.clab-review-grid[data-workspace-mode=table]';
     assert.equal(await checkPreviewHistory(previewTable+' .clab-output-area'),true);
     const headCount = () => evaluate(`document.querySelectorAll('${previewTable} [data-review-column-name]').length`);
@@ -856,5 +877,5 @@ export async function runToolbarDockChecks(send, sessionId) {
         return column?.offsetWidth===303&&[...document.querySelectorAll('#clab-panel [role=cell]')].some(cell=>cell.dataset.tableColumn===column.dataset.tableColumn&&cell.style.getPropertyValue('--clab-table-padding')==='4px 7px 5px 6px');
     })()`),true);
     console.log('PASS preview reuses the workspace matrix and table, preserves matrix state, switches selected output history, and exports selected data');
-    return 10;
+    return 11;
 }

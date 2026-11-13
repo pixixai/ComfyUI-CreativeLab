@@ -1,3 +1,4 @@
+import { groupPreviewSources } from './preview_workspace_ui.js';
 import { detailInputs,detailInputGroups,detailOutputGroups,detailOutputRecords,detailCardMedia,detailFieldKey } from './preview_detail_model.js';
 import { detailSourceControls,detailSourceTaskHTML } from './preview_detail_sources_html.js';
 import { sourceMediaHTML,createSourceMediaObserver } from './preview_source_media_html.js';
@@ -80,6 +81,7 @@ export function createDetailSources(left,config,eyeIcon) {
         });
         const next=JSON.stringify([config.search,config.typeFilter,tasks.map(({card,title,outputs,inputs})=>[card.id,title,outputs.map(({area,title,records})=>[area.id,title,records.map(record=>record.key)]),inputs.map(field=>[field.id,field.title,field.historical])])]);
         if(next!==signature)tree.innerHTML=tasks.map(task=>detailSourceTaskHTML(task,closed.has(task.card.id),config.typeFilter)).join('')||'<p class="clab-review-note">没有匹配的任务或模块</p>';
+        if(next!==signature)groupPreviewSources(tree,cards,'data-detail-source');
         tree.style.setProperty('--browse-thumb-columns',config.sourceColumns);
         rows=[];
         const elements=new Map([...tree.querySelectorAll('[data-detail-source-output]')].map(row=>[row.dataset.detailSourceOutput,row]));

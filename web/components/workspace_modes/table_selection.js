@@ -126,7 +126,8 @@ export function attachTableSelection(panel,actions) {
         const row=event.target.closest('[data-table-row-header]');if(row&&event.detail===0)selectRow(row.closest('[data-table-row]').dataset.tableRow,event);
         const gridBlank = event.target.closest('#clab-cards-container') && !event.target.closest('[role=cell],.clab-table-head,.clab-card-title-bar,.clab-table-fixed-controls');
         const toolbarBlank = event.target.matches('.clab-tool-dock,.clab-toolbar-left,.clab-toolbar-right');
-        if ((gridBlank || toolbarBlank) && (kind || state.selectedAreaIds.length || state.selectedCardIds.length)) deselect();
+        const workspaceBlank=event.target.matches('.clab-workspace-strip,.clab-workspace-shell,.clab-workspace-tabs');
+        if ((gridBlank || toolbarBlank || workspaceBlank) && (kind || state.selectedAreaIds.length || state.selectedCardIds.length)) deselect();
     },true);
     const clear = () => {stopRange();pendingHeader=null;headerPress=false;rowAnchor=cellAnchor=columnAnchor=kind='';selectAllStage=0;selectedColumns.clear();};
     document.addEventListener('keydown', event => {

@@ -98,7 +98,7 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
 
         const shieldEvent = (e) => {
             if (e.button !== 0 && e.type !== 'contextmenu') return;
-            if (['xy', 'table'].includes(e.target.closest('#clab-panel')?.dataset.workspaceMode)) return;
+            if (['xy', 'table'].includes(e.target.closest('#clab-panel,.clab-review-grid')?.dataset.workspaceMode)) return;
 
             const isInteractive = !!(e.target && typeof e.target.closest === 'function' && e.target.closest('input, textarea, button, select')) ||
                                   e.target.closest('.clab-custom-select') || e.target.closest('.clab-history-thumb') ||

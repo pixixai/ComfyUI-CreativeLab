@@ -3,6 +3,10 @@ export function injectReviewStyles() {
     const style = document.createElement('style'); style.id = 'clab-preview-review-styles';
     style.textContent = `
         .clab-preview-modal-panel{color-scheme:dark}.clab-preview-modal-head{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(max-content,1fr);align-items:center;gap:8px}
+        .clab-preview-modal-body{position:relative}.clab-preview-modal-left{padding-left:26px}
+        .clab-source-ruler{position:absolute;left:2px;top:50%;transform:translateY(-50%);max-height:66.666%;width:16px;z-index:25;overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain}.clab-source-ruler[hidden]{display:none}.clab-source-ruler::-webkit-scrollbar{display:none}
+        .clab-preview-modal-panel .clab-source-ruler button{display:flex;align-items:center;justify-content:flex-start;box-sizing:border-box;height:8px;min-height:8px;width:16px;padding:0 0 0 3px;border:0;background:transparent;cursor:pointer;outline:0}.clab-source-ruler button::before{content:'';width:6px;height:2px;background:#888;transition:background .12s}.clab-source-ruler button.is-workspace::before{width:12px}.clab-source-ruler button:is(:hover,:focus-visible,.active)::before{background:#eee;height:3px}
+        .clab-source-ruler-tooltip{position:fixed;z-index:1000;pointer-events:none;width:180px;box-sizing:border-box;padding:8px;background:#242424;border:1px solid #555;border-radius:3px;color:#ddd;font:11px/1.5 sans-serif;overflow-wrap:anywhere}.clab-source-ruler-tooltip[hidden]{display:none}.clab-source-ruler-tooltip>div{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.clab-source-ruler-tooltip img{display:block;width:100%;height:110px;object-fit:contain;background:#191919;margin-top:6px}
         .clab-review-head-actions{display:flex;align-items:center;gap:8px;min-width:0}
         .clab-review-workspaces{order:0;z-index:1}.clab-review-workspaces .clab-workspace-shell{cursor:default}
         :root[data-clab-workspace-tabs=bottom] .clab-review-workspaces{order:2}
@@ -15,7 +19,7 @@ export function injectReviewStyles() {
         :is(.clab-preview-modal-left,.clab-preview-modal-center,.clab-preview-modal-right)::-webkit-scrollbar-button{display:none}
         @supports selector(::-webkit-scrollbar){:is(.clab-preview-modal-left,.clab-preview-modal-center,.clab-preview-modal-right){scrollbar-width:auto;scrollbar-color:auto}}
         .clab-review-modes{display:flex;align-items:center;gap:2px;min-width:0;max-width:100%;overflow:auto;scrollbar-width:none}.clab-review-export{display:flex;flex-wrap:wrap;gap:6px}.clab-review-export[hidden]{display:none}
-        .clab-preview-modal-panel :is(button,select,input):not(.clab-review-grid *, .clab-workspace-tab *, .clab-toolbar-type *){font:12px sans-serif}
+        .clab-preview-modal-panel :is(button,select,input):not(.clab-review-grid *, .clab-workspace-tab *, .clab-toolbar-type *, .clab-multi-z-summary *){font:12px sans-serif}
         .clab-review-modes button{border:0;border-radius:6px;background:transparent;color:#999;padding:5px 12px;cursor:pointer;white-space:nowrap}
         .clab-review-modes button:hover{color:#fff}.clab-review-modes [aria-pressed=true]{background:#ffffff16;color:#fff;font-weight:600}
         .clab-review-export button,.clab-review-selection button,.clab-compare button,.clab-review-column-move button{background:#292929;border:1px solid #444;border-radius:5px;color:#bbb;padding:5px 8px;cursor:pointer}
@@ -99,7 +103,7 @@ export function injectReviewStyles() {
         .clab-result-record pre{white-space:pre-wrap;max-height:180px;overflow:auto;margin:0}.clab-result-record a{color:#9dc9ff}.clab-result-record button{color:#999;border:0;background:transparent;padding:4px 0;cursor:pointer;text-align:left}
         .clab-review-check{display:flex;align-items:center;gap:5px;overflow-wrap:anywhere;font:11px/1.5 sans-serif;color:#aaa}.clab-review-check input{flex-shrink:0}.clab-review-column-move{display:flex;gap:3px;margin-left:auto}.clab-review-column-move button{padding:1px 4px}
         .clab-preview-modal[data-review-layout=workspace] .clab-preview-modal-body{grid-template-columns:var(--browse-source-width,220px) 6px minmax(0,1fr) 6px var(--browse-parameter-width,300px);grid-template-rows:minmax(0,1fr);position:relative;min-width:0}
-        .clab-preview-modal[data-review-layout=workspace] .clab-preview-modal-left{grid-column:1;grid-row:1;min-width:0;padding:12px;border:0}
+        .clab-preview-modal[data-review-layout=workspace] .clab-preview-modal-left{grid-column:1;grid-row:1;min-width:0;padding:12px 12px 12px 26px;border:0}
         .clab-preview-modal[data-review-layout=workspace] .clab-preview-modal-center{grid-column:3;grid-row:1;min-width:0;min-height:0}
         .clab-preview-modal[data-review-layout=workspace] .clab-preview-modal-right{grid-column:5;grid-row:1;min-width:0;max-height:none;border:0}
         .clab-preview-modal[data-review-layout=workspace][data-source-collapsed=true] .clab-preview-modal-left,.clab-preview-modal[data-review-layout=workspace][data-parameter-collapsed=true] .clab-preview-modal-right{display:none}
@@ -112,21 +116,28 @@ export function injectReviewStyles() {
         .clab-review-grid .clab-card{user-select:none}
         .clab-review-grid .clab-table-column-top [data-table-row-title]{min-width:0;max-width:100%;text-align:left}
         .clab-review-grid :is(.clab-xy-axis,.clab-axis-label,.clab-xy-binding){cursor:grab}
-        .clab-review-grid-stage[data-hidden-axes~="x"] [data-xy-edit-values=x],
-        .clab-review-grid-stage[data-hidden-axes~="y"] [data-xy-edit-values=y],
-        .clab-review-grid-stage[data-hidden-axes~="z"] :is([data-xy-edit-values=z],.clab-z-tick),
-        .clab-review-grid-stage[data-hidden-bindings~="x"] [data-xy-part=x-binding],
-        .clab-review-grid-stage[data-hidden-bindings~="y"] [data-xy-part=y-binding],
-        .clab-review-grid-stage[data-hidden-bindings~="z"] .clab-xy-z-binding{visibility:hidden;pointer-events:none}
+        :is(.clab-review-grid-stage,.clab-xy-layer-axes)[data-hidden-axes~="x"] [data-xy-edit-values=x],
+        :is(.clab-review-grid-stage,.clab-xy-layer-axes)[data-hidden-axes~="y"] [data-xy-edit-values=y],
+        :is(.clab-review-grid-stage,.clab-xy-layer-axes)[data-hidden-axes~="z"] :is([data-xy-edit-values=z],.clab-z-tick),
+        :is(.clab-review-grid-stage,.clab-xy-layer-axes)[data-hidden-bindings~="x"] [data-xy-part=x-binding],
+        :is(.clab-review-grid-stage,.clab-xy-layer-axes)[data-hidden-bindings~="y"] [data-xy-part=y-binding],
+        :is(.clab-review-grid-stage,.clab-xy-layer-axes)[data-hidden-bindings~="z"] .clab-xy-z-binding{visibility:hidden;pointer-events:none}
+        .clab-review-xy-tiling-section{display:flex;flex-direction:column;gap:8px;margin:2px 0;padding:8px 0;border-top:1px solid #ffffff0d;border-bottom:1px solid #ffffff0d}
+        .clab-xy-tiling-inline[hidden]{display:none!important}.clab-review-sheet-settings .clab-xy-tiling-inline .clab-xy-tiling-fields{padding:4px 0 9px}
         .clab-review-xy-visibility{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 8px}
         .clab-review-xy-options{display:flex;gap:6px;flex-wrap:wrap}
         .clab-review-xy-options>button{color:#aaa;background:#282828;border:1px solid #444;border-radius:4px;padding:4px 7px;cursor:pointer}
         .clab-review-xy-options>button:hover:not(:disabled){color:#eee}
-        .clab-review-grid-stage [data-xy-toggle-layers],.clab-review-grid-stage [data-xy-z-more]{display:none!important}
-        .clab-review-xy-records{position:absolute;left:6px;bottom:6px;max-width:calc(100% - 12px);padding:3px 6px;background:#181818db;color:#ddd;font:12px/1.45 sans-serif;overflow-wrap:anywhere;pointer-events:none;z-index:25}
+        .clab-review-grid-stage :is([data-xy-z-layer],[data-xy-toggle-layers],[data-xy-z-more]){cursor:pointer}
+        .clab-review-xy-sources h3{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .clab-review-xy-source-value{min-width:0}.clab-review-xy-source-value input{flex:none}.clab-review-xy-source-value>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .clab-review-xy-cell-info{margin:0;min-width:0;display:grid;gap:5px}.clab-review-xy-cell-info dt{color:#888;font-size:11px}.clab-review-xy-cell-info dd{margin:0 0 7px;white-space:pre-wrap;overflow-wrap:anywhere;color:#bbb;font-size:12px;line-height:1.6}
+        .clab-review-xy-empty{position:absolute;inset:0;display:grid;place-items:center;margin:0;padding:20px;color:#888;font:12px/1.6 sans-serif;pointer-events:none;text-align:center}
+        .clab-review-xy-records{position:absolute;box-sizing:border-box;padding:calc(8px * var(--xy-ui-scale));background:#181818cc;border:0;box-shadow:inset 0 0 0 calc(1px * var(--xy-ui-scale)) #ffffff20;color:#bbb;font:calc(12px * var(--xy-ui-scale))/1.5 sans-serif;overflow-wrap:anywhere;pointer-events:auto;z-index:5}
+        .clab-review-xy-records>[role=row]{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.4fr);gap:calc(8px * var(--xy-ui-scale));padding:calc(4px * var(--xy-ui-scale)) 0;border-bottom:0;box-shadow:inset 0 calc(-1px * var(--xy-ui-scale)) #ffffff12}.clab-review-xy-records>[role=row]:last-child{border-bottom:0}.clab-review-xy-records .clab-review-xy-records-head{color:#888}.clab-review-xy-records [role=cell]{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.clab-review-xy-records [data-record-value]{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:pre-wrap}
+        .clab-review-xy-records.is-expanded>[role=row]{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,2fr)}.clab-review-xy-records.is-expanded [role=cell]{display:block;white-space:pre-wrap;overflow:visible;text-overflow:clip;-webkit-line-clamp:unset;overflow-wrap:anywhere}
         .clab-review-axis-settings{padding:6px 0;border-bottom:1px solid #444}.clab-review-axis-settings summary{cursor:pointer;color:#ccc;margin-bottom:5px}
-        .clab-review-sheet-settings button:is([data-review-layer],[data-review-xy-fit]){padding:5px 7px;background:#232323;color:#aaa;border:1px solid #444;border-radius:5px;text-align:left;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .clab-review-sheet-settings button[data-review-layer][aria-pressed=true]{background:#181818;color:#eee}
+        .clab-review-sheet-settings button[data-review-xy-fit]{padding:5px 7px;background:#232323;color:#aaa;border:1px solid #444;border-radius:5px;text-align:center;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .clab-review-cell-settings{padding:0!important;overflow:visible!important}.clab-review-cell-settings [data-table-settings-error]:empty{display:none}
         .clab-review-cell-settings .clab-table-size-stage{grid-template-columns:minmax(0,1fr)}
         @media(max-width:620px){
@@ -168,8 +179,8 @@ export function injectReviewStyles() {
         .clab-source-search input{flex:1;width:0;min-width:0;max-width:100%;padding:6px 7px;border:0;border-radius:0;background:transparent;color:#ccc;outline:none;box-shadow:none}
         .clab-source-cover-frame [data-browse-reverse]{position:absolute;right:4px;bottom:4px;display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;border-radius:3px;background:#191919b3;color:#bbb;opacity:0;cursor:pointer}
         .clab-source-cover-frame [data-browse-reverse]:disabled{opacity:0}
-        .clab-source-cover-frame:hover [data-browse-reverse],.clab-source-cover-frame [data-browse-reverse]:focus-visible{opacity:1}
-        .clab-source-cover-frame:hover [data-browse-reverse]:disabled{opacity:.35}
+        .clab-source-module:hover [data-browse-reverse],.clab-source-cover-frame [data-browse-reverse]:focus-visible{opacity:1}
+        .clab-source-module:hover [data-browse-reverse]:disabled{opacity:.35}
         .clab-source-cover-frame [data-browse-reverse]:hover{color:#fff;background:#303030e6}
         [data-browse-reverse][aria-pressed=true] svg{transform:scaleY(-1)}
         .clab-browse-thumb-size{display:flex;align-items:center;gap:8px}
@@ -181,6 +192,7 @@ export function injectReviewStyles() {
         .clab-browse-thumb-size output{min-width:3em;color:#999;font:11px sans-serif;text-align:right}
         .clab-source-controls .clab-browse-source-actions{min-width:0}
         .clab-source-controls .clab-browse-source-actions button{flex-shrink:0}
+        .clab-grid-source-actions{min-width:0}.clab-grid-source-actions button{flex-shrink:0}
         .clab-browse-status{display:block;flex:1;min-width:0;margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;font:10px/1.4 sans-serif;color:#888}
         .clab-source-media-tree{flex:none;min-width:0}
         .clab-source-media-tree>details{position:relative;margin:0 0 14px;padding-bottom:4px}
@@ -196,7 +208,7 @@ export function injectReviewStyles() {
         .clab-source-module-caption{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:4px;min-width:0;padding:14px 4px 4px 6px;border-radius:0 0 3px 3px;background:linear-gradient(transparent,#000a);color:#ddd;font:11px/1.5 sans-serif;pointer-events:none}
         .clab-source-module-caption>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;pointer-events:auto}
         .clab-source-module-caption small{display:flex;align-items:center;justify-content:flex-end;flex:none;min-width:24px;height:24px;margin:0;white-space:nowrap;font:inherit;color:#ccc}
-        .clab-source-cover-frame:hover .clab-source-module-caption small,.clab-source-cover-frame:has(>[data-browse-reverse]:focus-visible) .clab-source-module-caption small{visibility:hidden}
+        .clab-source-module:hover .clab-source-module-caption small,.clab-source-cover-frame:has(>[data-browse-reverse]:focus-visible) .clab-source-module-caption small{visibility:hidden}
         .clab-source-module.is-unchecked .clab-source-module-caption{opacity:.6}
         .clab-source-history{grid-column:2;display:none;gap:7px;grid-template-columns:repeat(var(--browse-thumb-columns,2),minmax(0,1fr));min-width:0;padding:7px 0 0}
         .clab-source-module.is-expanded>.clab-source-history{display:grid}

@@ -168,7 +168,7 @@ export function createBrowseLayout(root, settings, callbacks) {
     });
     left.addEventListener('click',event=>{
         const summary=event.target.closest('.clab-browse-source-tree summary');
-        if (!summary||event.target.closest('[data-browse-fold],input'))return;
+        if (!summary||summary.parentElement.classList.contains('clab-preview-source-workspace')||event.target.closest('[data-browse-fold],input'))return;
         event.preventDefault();
         if (event.target.closest('[data-browse-card-name]')) {
             const checkbox=summary.querySelector('[data-browse-card-check]');

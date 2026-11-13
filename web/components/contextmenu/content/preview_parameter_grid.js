@@ -15,11 +15,11 @@ import { renderReviewArea, attachReviewGridMedia, releaseReviewGridMedia, review
 import { workspaceTableSource } from './preview_workspace_sheets.js';
 import { outputDownloadRecords } from './preview_downloads.js';
 
-export function createPreviewParameterGrid(center, left, right, changed, exportControls) {
+export function createPreviewParameterGrid(center, left, right, changed, exportControls, options = {}) {
     let view, cards, sheet, template, rows, columns, visibleRows, visibleColumns;
     let shownRows, shownColumns, wrapper, settings, selected, kind, anchor, headerAnchor, drag, reorder, params, dirty=false;
     const save = () => {
-        dirty=true;
+        dirty=true;options.save?.();
         window.CLab?.saveState?.(state);
         document.dispatchEvent(new Event('clab_workspace_view_change'));
     };
@@ -48,7 +48,7 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
         if (event.ctrlKey || event.metaKey) {
             for (const id of ids) selected.has(id) ? selected.delete(id) : selected.add(id);
         } else selected = new Set(ids);
-        kind = type;
+        kind = type;options.select?.(selected.size>0);
         paint();
         mountSettings();
         changed();
@@ -89,7 +89,9 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
                 visibleRows.every(row => selected.has(row.areas[columns.find(item=>item.id===id).index].id)));
         }
         applyTableLayout(wrapper,visibleColumns,layout);
+        wrapper.style.setProperty('--clab-table-add-column-width','0px');
     };
+    let settingActions;
     function mountSettings() {
         if (!settings?.isConnected) return;
         const body = settings.cloneNode(false);
@@ -105,7 +107,7 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
             }
         };
         const commit = defer => { paint(); if (!defer) { save(); changed(); } };
-        mountTableCellSettings(body,target,{
+        settingActions={
             sizes() {
                 const layout = layoutView();
                 const width = tableColumnWidth({id:cell?.columnId},layout), height = tableRowHeight(layout,{id:cell?.rowId});
@@ -142,9 +144,16 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
                 changeAppearance('alignment',target.scope==='table'?null:layout.alignment ?? null);
                 commit();
             },
-        });
+        };
+        const controls={...settingActions};
+        for(const key of ['resize','setAppearance','reset'])controls[key]=(...args)=>options.settingsAction?options.settingsAction(key,args):settingActions[key](...args);
+        mountTableCellSettings(body,target,controls);
     }
     const check = (type,id,label,on) => `<label class="clab-review-check"><input type="checkbox" data-grid-filter="${type}" value="${esc(id)}"${on?' checked':''}><span title="${esc(label)}">${esc(label)}</span></label>`;
+    const sourceActions=(type,items,shown,label)=>{
+        const count=items.filter(item=>shown.has(item.id)).length;
+        return `<div class="clab-browse-source-actions clab-grid-source-actions"><button type="button" data-grid-source-select="${type}" data-grid-source-action="all"${items.length?'':' disabled'}>全选</button><button type="button" data-grid-source-select="${type}" data-grid-source-action="none"${items.length?'':' disabled'}>取消</button><span class="clab-browse-status" data-grid-source-count="${type}" role="status" title="已显示 ${count} 个${label}，共 ${items.length} 个${label}">${count}/${items.length} 个${label}</span></div>`;
+    };
     const columnLabel = column => column.area.title || `列 ${column.index + 1}`;
     const rowLabel = row => row.title || String(rows.indexOf(row) + 1);
     function render() {
@@ -181,8 +190,8 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
         context.font='12px sans-serif';
         const rowWidth=visibleRows.reduce((width,row)=>Math.max(width,Math.ceil(context.measureText(rowLabel(row)).width)+18),44);
         wrapper.style.setProperty('--clab-table-row-width',`${rowWidth}px`);
-        left.innerHTML=`<div class="clab-review-sheet-settings"><section><h3>显示任务</h3>${rows.map(row=>check('row',row.id,rowLabel(row),shownRows.has(row.id))).join('')||'<p>没有任务</p>'}</section>
-            <section><h3>显示字段</h3>${columns.map(column=>check('column',column.id,columnLabel(column),shownColumns.has(column.id))).join('')||'<p>没有字段</p>'}</section></div>`;
+        left.innerHTML=`<div class="clab-review-sheet-settings"><section><h3>显示任务</h3>${sourceActions('row',rows,shownRows,'任务')}${rows.map(row=>check('row',row.id,rowLabel(row),shownRows.has(row.id))).join('')||'<p>没有任务</p>'}</section>
+            <section><h3>显示字段</h3>${sourceActions('column',columns,shownColumns,'字段')}${columns.map(column=>check('column',column.id,columnLabel(column),shownColumns.has(column.id))).join('')||'<p>没有字段</p>'}</section></div>`;
         paint();
         changed();
     }
@@ -336,10 +345,10 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
         });
     }
     return {
-        open(workspace) {
+        open(workspace,nextCards=state.cards) {
             histories.clear();
             params=workflowParameters();
-            view=workspace.view.table;cards=state.cards;
+            view=workspace.view.table;cards=nextCards;
             template=cards.find(card=>card.id===workspace.view.templateId)||cards[0];
             if(view.empty)template=null;
             fallback={id:'',columns:(template?.areas||[]).map(area=>({...area,id:area.tableColumnId||area.id})),rows:[]};
@@ -350,6 +359,10 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
             for (const column of columns) if(boundColumn(column.area)) shownColumns.add(column.id);
         },
         mount,
+        applySetting(key,args){settingActions?.[key](...args);},
+        clearSelection(){choose([],null);},
+        selectWorkspace(on=true){choose(on?visibleRows.flatMap(row=>visibleColumns.map(column=>row.areas[column.index].id)):[],on?'cell':null);},
+        tableWidth(){return [...wrapper.querySelector('.clab-table-head').children].reduce((width,column)=>width+column.getBoundingClientRect().width,0);},
         release() { releaseReviewGridMedia(wrapper);wrapper=null;settings=null;drag=null;reorder=null; },
         flush() {
             if (!dirty) return;
@@ -359,6 +372,11 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
         filter(input) {
             const shown=input.dataset.gridFilter==='row'?shownRows:shownColumns;
             if(input.checked)shown.add(input.value);else shown.delete(input.value);
+            selected.clear();render();mountSettings();
+        },
+        selectSources(type,all) {
+            if(type==='row')shownRows=new Set(all?rows.map(row=>row.id):[]);
+            else shownColumns=new Set(all?columns.map(column=>column.id):[]);
             selected.clear();render();mountSettings();
         },
         downloadRecords(selectedOnly,includeHistory) {

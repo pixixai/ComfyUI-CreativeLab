@@ -26,6 +26,7 @@ export function injectWorkspaceModeStyles() {
         :root[data-clab-workspace-tabs=bottom] .clab-mode-menu{top:auto;bottom:calc(100% + 6px)}
         .clab-mode-menu button{border:0;background:transparent;color:#aaa;text-align:left;padding:8px 10px;cursor:pointer;border-radius:3px;font:12px sans-serif}
         .clab-mode-menu button[aria-checked=true],.clab-mode-menu button:hover{background:#151515;color:#fff}
+        .clab-mode-menu button:disabled{opacity:.35;cursor:default;background:transparent;color:#888}
         #clab-panel[data-workspace-mode]:not([data-workspace-mode=cards]) .clab-card{min-width:0!important;max-width:none!important;height:auto!important;transition:none}
         #clab-panel[data-workspace-mode]:not([data-workspace-mode=cards]) .clab-card-body{height:auto;max-height:none;overflow:visible;flex:1}
         #clab-panel[data-workspace-mode]:not([data-workspace-mode=cards]) .clab-area-list{margin-bottom:0}

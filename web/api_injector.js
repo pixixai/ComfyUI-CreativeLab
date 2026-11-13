@@ -79,7 +79,7 @@ export function setupAPIInjector(app) {
         const cards = StateManager.state.activeWorkspaceId === task.workspaceId
             ? StateManager.state.cards
             : workspace.cards;
-        return cards.find((card) => card.id === task.cardId);
+        return cards.find((card) => card.id === task.cardId) || workspace.archivedTasks?.find(card => card.id === task.cardId);
     };
 
     const cancelBatch = (task) => {

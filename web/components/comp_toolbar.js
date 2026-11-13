@@ -1,3 +1,4 @@
+import { openMaintenancePanel } from './actions/action_maintenance_panel.js';
 /**
  * 文件名: comp_toolbar.js
  * 职责: 顶部静态工具栏 UI 容器
@@ -9,7 +10,6 @@ import { renderDynamicToolbar as renderDynamic, attachDynamicToolbarEvents as at
 import { generateSingleCardHTML, attachCardEvents } from "./comp_taskcard.js";
 import { generateAreaHTML, attachAreaEvents, justSave } from "./comp_modulearea.js";
 import { updateSelectionUI } from "./ui_selection.js";
-import { resyncRecords, cleanDeadRecords } from "./actions/action_record_maintenance.js";
 import { setupResponsiveToolbar } from "./toolbar_layout.js";
 
 // --- 初始化静态工具栏事件 ---
@@ -182,46 +182,8 @@ export function setupStaticToolbarEvents(panelContainer) {
 
     const maintenanceSlot = panelContainer.querySelector("#clab-maintenance-slot");
     if (maintenanceSlot) {
-        maintenanceSlot.outerHTML = `
-            <div id="clab-config-btn-wrapper" class="clab-btn-group" style="position:relative; display:inline-flex; align-items:stretch; height: 34px;">
-                <button type="button" class="clab-btn" id="clab-config-dropdown-trigger" title="数据维护">数据维护</button>
-                <div id="clab-config-dropdown" class="clab-custom-select-dropdown clab-toolbar-menu" style="display:none; top:calc(100% + 4px); right:0; min-width:180px; z-index:10002;">
-                    <div class="clab-custom-select-group-title">数据维护中心</div>
-                    <div class="clab-custom-select-item" id="clab-maint-clean-dead">清理失效记录 (404)</div>
-                    <div class="clab-custom-select-item" id="clab-maint-resync">重新同步记录 (强制刷新)</div>
-                </div>
-            </div>
-        `;
-
-        if (!window._clabConfigDropdownCatcher) {
-            document.addEventListener('mousedown', (e) => {
-                const wrapper = document.getElementById('clab-config-btn-wrapper');
-                if (wrapper && !wrapper.contains(e.target)) {
-                    const dp = document.getElementById('clab-config-dropdown');
-                    if (dp) dp.style.display = 'none';
-                }
-            }, true);
-            window._clabConfigDropdownCatcher = true;
-        }
-
-        const wrapper = panelContainer.querySelector("#clab-config-btn-wrapper");
-        
-        wrapper.querySelector("#clab-config-dropdown-trigger").onclick = (e) => {
-            e.stopPropagation();
-            const dropdown = wrapper.querySelector("#clab-config-dropdown");
-            const isVisible = dropdown.style.display === 'block';
-            document.querySelectorAll('.clab-custom-select-dropdown').forEach(d => d.style.display = 'none');
-            dropdown.style.display = isVisible ? 'none' : 'block';
-        };
-
-        wrapper.querySelector("#clab-maint-resync").onclick = () => {
-            wrapper.querySelector("#clab-config-dropdown").style.display = 'none';
-            return resyncRecords();
-        };
-        wrapper.querySelector("#clab-maint-clean-dead").onclick = () => {
-            wrapper.querySelector("#clab-config-dropdown").style.display = 'none';
-            return cleanDeadRecords();
-        };
+        maintenanceSlot.outerHTML = `<div id="clab-config-btn-wrapper" class="clab-btn-group"><button type="button" class="clab-btn" id="clab-config-dropdown-trigger" title="数据维护">数据维护</button></div>`;
+        panelContainer.querySelector('#clab-config-dropdown-trigger').onclick=event=>openMaintenancePanel(event.currentTarget);
     }
     setupResponsiveToolbar(panelContainer.querySelector('#clab-toolbar-handle'));
 }

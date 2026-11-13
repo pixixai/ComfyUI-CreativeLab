@@ -61,7 +61,7 @@ export function attachToolbarDocking(dock, panel, contextual, { fit, closeMenus 
         if(event.button!==0||gesture)return;
         const target=event.target;
         const floatingContext=layout.side==='float'&&target===contextual;
-        if(target!==dock&&!floatingContext&&!target.matches('.clab-toolbar-left,.clab-toolbar-right,.clab-xy-toolbar'))return;
+        if(target!==dock&&!floatingContext&&!target.matches('.clab-toolbar-left,.clab-toolbar-right,.clab-xy-toolbar,.clab-xy-toolbar-start,.clab-xy-toolbar-center'))return;
         const captureTarget=floatingContext?target:dock,rect=dock.getBoundingClientRect();
         event.preventDefault();
         captureTarget.setPointerCapture(event.pointerId);

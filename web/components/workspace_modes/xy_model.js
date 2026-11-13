@@ -1,3 +1,4 @@
+import { matrixInputSignature } from './xy_archive.js';
 import { bindingsOf, matchingTasks, axisTuple, parameterValue, taskCoordinates, setParameterValue, valueKey } from './task_model.js';
 
 let sequence=0;
@@ -75,6 +76,7 @@ export function synchronizeMatrix(cards,xy,parameters) {
         }
         card.recordParameters=keys.map(key=>({key,label:parameters.find(parameter=>parameter.key===key)?.label||key}));
     }
+    for(const card of created)card.xyInitialInput=matrixInputSignature(card);
     cards.push(...created);return created;
 }
 

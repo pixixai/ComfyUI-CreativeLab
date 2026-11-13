@@ -2,6 +2,7 @@ import { DETAIL_CSS, detailFields, detailHistoryKey, detailCardWidth } from './p
 import { captureModelPreview } from '../../modules/media_types/media_model.js';
 import { getAudioWavePeaks, drawAudioWave } from '../../modules/media_types/audio_waveform.js';
 import { getModelResourceURL, modelResourcePaths } from '../../modules/media_types/model_loader.js';
+import { renderPreviewPNG } from './preview_png.js';
 
 const blobDataURL = blob => new Promise((resolve,reject) => { const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('读取媒体数据失败'));reader.readAsDataURL(blob); });
 const extensionOf = url => { const value=new URL(url,window.location.href);return ((value.searchParams.get('filename')||value.pathname).match(/\.([a-z0-9]+)$/i)?.[1]||'bin').toLowerCase(); };
@@ -56,17 +57,9 @@ export async function exportDetailPNG(board, config) {
         if(scale<1||scale>10)throw new Error('放大倍数须在 1～10 之间');
         clone.style.setProperty('--detail-columns',config.columns);clone.style.setProperty('--detail-row-width',`${config.rowWidth}px`);clone.style.width=`${width}px`;
         await Promise.all([...clone.querySelectorAll('img')].map(image=>image.decode()));
-        const height=Math.ceil(clone.getBoundingClientRect().height),pixelWidth=Math.ceil(width*scale),pixelHeight=Math.ceil(height*scale);
-        if(pixelWidth>32767||pixelHeight>32767||pixelWidth*pixelHeight>67108864)throw new Error('整图尺寸过大，请降低放大倍数，或在左侧来源减少勾选的卡片');
+        const height=Math.ceil(clone.getBoundingClientRect().height);
         const wrapper=document.createElement('div');wrapper.style.cssText=`width:${width}px;height:${height}px;background:#171717`;wrapper.append(style.cloneNode(true),clone.cloneNode(true));
-        const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%">${new XMLSerializer().serializeToString(wrapper)}</foreignObject></svg>`;
-        const image=new Image();image.src=`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;await image.decode();
-        const canvas=document.createElement('canvas');
-        try {
-            canvas.width=pixelWidth;canvas.height=pixelHeight;canvas.getContext('2d').drawImage(image,0,0,pixelWidth,pixelHeight);
-            const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw new Error('PNG 生成失败');
-            return {name:'明细表.png',blob};
-        } finally {canvas.width=canvas.height=0;}
+        return {name:'明细表.png',blob:await renderPreviewPNG(new XMLSerializer().serializeToString(wrapper),width,height,scale)};
     } finally {host.remove();}
 }
 

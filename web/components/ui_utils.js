@@ -350,6 +350,7 @@ export function injectCSS() {
             height: 100%;
         }
         .clab-workspace-tabs::-webkit-scrollbar { display: none; }
+        .clab-workspace-tabs{position:relative}.clab-workspace-highlight{position:absolute;left:0;top:0;pointer-events:none;z-index:2;overflow:visible}
         .clab-workspace-tab {
             flex: 0 0 auto;
             height: 100%;
@@ -374,7 +375,7 @@ export function injectCSS() {
         .clab-workspace-tab.active {
             background: rgb(24, 24, 24);
             color: #fff;
-            box-shadow: inset 0 2px 0 var(--clab-theme-card, #4CAF50);
+            box-shadow: none;
         }
         .clab-workspace-tab.selected {
             background: rgb(24, 24, 24);

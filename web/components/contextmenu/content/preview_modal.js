@@ -1,3 +1,10 @@
+import { createPreviewWorkspaceBundle } from './preview_workspaces.js';
+import { createPreviewSourcePicker } from './preview_source_picker.js';
+import { createPreviewMultiGrid } from './preview_multi_grid.js';
+import { injectPreviewWorkspaceStyles } from './preview_workspace_ui.js';
+import { attachPreviewSourceRuler } from './preview_source_ruler.js';
+import { previewModeAllowed,previewModeOnWorkspaceChange } from '../../workspace_modes/mode_policy.js';
+import { openMaintenancePanel,closeMaintenancePanel,maintenanceIcon } from '../../actions/action_maintenance_panel.js';
 /**
  * 文件名: preview_modal.js
  * 路径: web/components/contextmenu/content/preview_modal.js
@@ -5,8 +12,8 @@
  */
 import { getSteppedHistoryIndex } from "../../modules/media_types/media_utils.js";
 import { selectOutputHistory } from "../../modules/module_history.js";
-import { getActiveWorkspace, state, saveAndRender } from "../../ui_state.js";
-import { renderWorkspaceBar, attachWorkspaceEvents, switchWorkspace } from "../../comp_workspace.js";
+import { getActiveWorkspace, state, saveAndRender, syncStateToActiveWorkspace } from "../../ui_state.js";
+import { renderWorkspaceBar, attachWorkspaceEvents, switchWorkspace, getWorkspaceLabel } from "../../comp_workspace.js";
 import { attachWorkspaceModeMenu } from '../../workspace_modes/workspace_mode_menu.js';
 import { setWorkspaceMode } from '../../workspace_modes/workspace_modes.js';
 import { previewModalStore } from "./state.js";
@@ -27,6 +34,7 @@ import { createPreviewDownloads, filmstripDownloadRecords } from './preview_down
 import { workspaceMatrixAvailable, xySourceSetting } from './preview_workspace_sheets.js';
 import { createPreviewParameterGrid } from './preview_parameter_grid.js';
 import { createPreviewXYGrid } from './preview_xy_grid.js';
+import { projectXYCanvas } from '../../workspace_modes/xy_axes.js';
 import { injectReviewStyles } from './preview_styles.js';
 import { createDetailView, injectDetailStyles } from './preview_detail.js';
 import { workspacePreviewSources, initialPreviewSources, sourceRecordCount, sourceBrowseGroups, snapshotBrowseGroups, moveBrowseGroupRecords, browseGroupCover, createBrowseLayout } from './preview_browse.js';
@@ -46,7 +54,13 @@ export function createPreviewModalApi({
     let compare = { a: '', b: '', slot: 'a', layout: 'side', view: { x: 0, y: 0, zoom: 1, split: .5 } };
     let historyMatrix, matrixPreview, parameterGrid, xyGrid, renderedGrid = '';
     let allSources = [], browseLayout, detailView, renderedBrowseKey = '', renderedCompareKey = '', renderedMode = '';
-    let returnFocus,downloads,dataExport,previewWorkspaceId='';
+    let returnFocus,downloads,dataExport,previewWorkspaceId='',matrixLayoutChanged=false;
+    let bundle=null,multiGrid,sourcePicker,previewSourceIds=new Set();
+    const previewCards=()=>bundle?.cards||state.cards;
+    const previewSources=()=>workspacePreviewSources(previewCards()).map(source=>source.card.previewWorkspace?{...source,cardLabel:`${source.card.previewWorkspace.name} · ${source.cardLabel}`}:source);
+    const tablePreview=()=>bundle?multiGrid:parameterGrid;
+    const xyPreview=()=>bundle?multiGrid:xyGrid;
+    const commitBundle=()=>{bundle?.commit();};
     const refreshSidebarExports=()=>{downloads.refresh();dataExport.refresh();};
     const selectedHistoryRecords = new Set();
     const sheetScales = {table:3,xy:3};
@@ -87,10 +101,11 @@ export function createPreviewModalApi({
         compare.a=remap(compare.a);compare.b=remap(compare.b);
         const selected=[...selectedHistoryRecords].map(remap);selectedHistoryRecords.clear();selected.forEach(key=>selectedHistoryRecords.add(key));
         const selectedSources=new Set(sources.map(source=>sourceKey(source.card,source.area)));
-        allSources=workspacePreviewSources(state.cards);sources=allSources.filter(source=>selectedSources.has(sourceKey(source.card,source.area)));
+        allSources=previewSources();sources=allSources.filter(source=>selectedSources.has(sourceKey(source.card,source.area)));
         previewModalStore.entries=collectPreviewRecords(sources);
         previewModalStore.activeIndex=previewModalStore.entries.findIndex(record=>record.key===remap(active));
         if(changed.length) {
+            commitBundle();
             if(window._clabSurgicallyUpdateArea)changed.forEach(id=>window._clabSurgicallyUpdateArea(id));
             else saveAndRender();
             window._clabJustSave?.();
@@ -115,8 +130,8 @@ export function createPreviewModalApi({
 
     function teardownPreviewEnhancers() {
         renderedBrowseKey='';renderedCompareKey='';renderedMode='';
-        if (renderedGrid === 'table') parameterGrid.release();
-        if (renderedGrid === 'xy') xyGrid.release();
+        if (renderedGrid === 'table') tablePreview().release();
+        if (renderedGrid === 'xy') xyPreview().release();
         renderedGrid = '';
         cleanupReview?.(); cleanupReview = null;
         detailView?.release();
@@ -136,14 +151,14 @@ export function createPreviewModalApi({
     function selectPreviewEntry(index, linked = true) {
         const entry = previewModalStore.entries[index];
         if (!entry) return;
-        const card = state.cards.find(item => item.id === entry.cardId);
+        const card = previewCards().find(item => item.id === entry.cardId);
         const area = card?.areas.find(item => item.id === entry.areaId);
         if (area && entry.index >= 0) {
             const matchesEntry = (url, i) => normalizeHistoryUrl(url) === normalizeHistoryUrl(entry.url)
                 && (area.historyRuns?.[i]?.id || '') === entry.runId;
             const recordIndex = matchesEntry(area.history[entry.index], entry.index) ? entry.index : area.history.findIndex(matchesEntry);
             if (recordIndex < 0) return;
-            selectOutputHistory(card, area, recordIndex, { linked });
+            selectOutputHistory(card, area, recordIndex, { linked });commitBundle();if(bundle)window.CLab?.saveState(state,{createAnchor:false});
             previewModalStore.entries = collectPreviewRecords(sources);
             previewModalStore.activeIndex = previewModalStore.entries.findIndex(item => item.key === entry.key);
         } else {
@@ -156,7 +171,7 @@ export function createPreviewModalApi({
     }
 
     function switchPreviewEntry(step, linked = true) {
-        const card = state.cards.find(item => item.id === previewModalStore.activeCardId);
+        const card = previewCards().find(item => item.id === previewModalStore.activeCardId);
         const area = card?.areas.find(item => item.id === previewModalStore.activeAreaId);
         const localIndex = area?.missingHistoryRun && previewModalStore.activeIndex < 0 ? getSteppedHistoryIndex(area, step) : -1;
         const candidates=filteredEntries().filter(entry=>linked||entry.areaId===area?.id&&entry.cardId===card?.id);
@@ -197,7 +212,7 @@ export function createPreviewModalApi({
         const root = document.createElement("div");
         injectMediaCSS();
         injectReviewStyles();
-        injectDetailStyles();
+        injectDetailStyles();injectPreviewWorkspaceStyles();
         root.className = "clab-preview-modal";
         root.innerHTML = `
             <div class="clab-preview-modal-backdrop"></div>
@@ -206,6 +221,8 @@ export function createPreviewModalApi({
                     <div class="clab-review-notice" role="status"></div>
                     <div class="clab-review-modes" role="group" aria-label="预览模式">${[['browse','浏览'],['compare','比较'],['detail','明细表'],['table','参数表'],['xy','XY 矩阵']].map(([key,label])=>`<button type="button" data-review-mode="${key}" aria-pressed="${key==='browse'}">${label}</button>`).join('')}</div>
                     <div class="clab-review-head-actions">
+                        <button type="button" data-preview-add-sources aria-label="增加预览来源"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 7V3h14v4M7 11V7h14v14H7zM14 11v6m-3-3h6"/></svg><span>增加预览来源</span></button>
+                        <button type="button" data-review-maintenance title="数据维护">${maintenanceIcon}</button>
                         <div class="clab-toolbar-type" role="group" aria-label="工作区与预览切换">
                             <button class="clab-type-btn clab-preview-modal-close" type="button" aria-label="返回工作区" aria-pressed="false">工作区</button>
                             <button type="button" class="clab-type-btn" aria-pressed="true">预览</button>
@@ -226,19 +243,26 @@ export function createPreviewModalApi({
             </div>
         `;
         document.body.appendChild(root);
+        attachPreviewSourceRuler(root);
         previewModalStore.root = root;
         const tabs = root.querySelector('[data-review-workspaces]');
+        sourcePicker=createPreviewSourcePicker(root,()=>previewSourceIds,setPreviewWorkspaces);
+        root.querySelector('[data-review-maintenance]').onclick=event=>openMaintenancePanel(event.currentTarget,()=>setPreviewWorkspaces([...previewSourceIds]));
         attachWorkspaceEvents(tabs,{
-            beforeChange:()=>parameterGrid?.flush(),
+            beforeChange:()=>tablePreview()?.flush(),
+            onSelect:(event,id)=>{if(sourcePicker.select(event,id))return true;if(bundle&&id===state.activeWorkspaceId){mode=previewModeOnWorkspaceChange(state.workspaces.find(workspace=>workspace.id===previewWorkspaceId),getActiveWorkspace(),mode);setPreviewWorkspaces([id]);return true;}return false;},
             onChange:()=>{
+                sourcePicker.paint();
                 if(root.classList.contains('visible')&&previewWorkspaceId!==state.activeWorkspaceId){
-                    openPreviewModal(undefined,undefined,undefined,undefined,workspacePreviewSources(state.cards),returnFocus,mode);
+                    const nextMode=previewModeOnWorkspaceChange(state.workspaces.find(workspace=>workspace.id===previewWorkspaceId),getActiveWorkspace(),mode);
+                    openPreviewModal(undefined,undefined,undefined,undefined,workspacePreviewSources(state.cards),returnFocus,nextMode);
                     tabs.querySelector('.active .clab-workspace-tab-select')?.focus({preventScroll:true});
-                }
+                }else if(root.classList.contains('visible')&&bundle)setPreviewWorkspaces([...previewSourceIds]);
             },
         });
         const workspaceModeMenu=attachWorkspaceModeMenu(tabs.closest('.clab-workspace-strip'),(next,id)=>{
-            parameterGrid.flush();if(id!==state.activeWorkspaceId)switchWorkspace(id);
+            tablePreview().flush();
+            if(matrixLayoutChanged){matrixLayoutChanged=false;document.dispatchEvent(new Event('clab_workspace_view_change'));}if(id!==state.activeWorkspaceId)switchWorkspace(id);
             setWorkspaceMode(document.querySelector('#clab-panel'),next);
             openPreviewModal(undefined,undefined,undefined,undefined,workspacePreviewSources(state.cards),returnFocus,next==='cards'?'browse':next);
         });
@@ -279,22 +303,42 @@ export function createPreviewModalApi({
             coverMenu.style.top = `${Math.max(4,Math.min(event.clientY,innerHeight-coverMenu.offsetHeight-4))}px`;
         });
 
-        downloads = createPreviewDownloads(root,getDownloadRecords,()=>state.cards);
-        dataExport = createPreviewDataExport(root,getDownloadRecords,()=>state.cards,getJSONCards);
-        detailView = createDetailView(root,refreshSidebarExports);
+        downloads = createPreviewDownloads(root,getDownloadRecords,()=>previewCards());
+        dataExport = createPreviewDataExport(root,getDownloadRecords,()=>previewCards(),getJSONCards);
+        detailView = createDetailView(root,refreshSidebarExports,()=>{if(bundle){bundle.saveDetail();commitBundle();}});
         const panes = ['center','left','right'].map(side=>root.querySelector('.clab-preview-modal-'+side));
         const sheetChanged=()=>{updateSheetExportButtons(root);refreshSidebarExports();};
         parameterGrid = createPreviewParameterGrid(...panes,sheetChanged,sheetExportControls(true));
-        xyGrid = createPreviewXYGrid(...panes,sheetChanged,sheetExportControls(false));
+        multiGrid=createPreviewMultiGrid(...panes,sheetChanged,sheetExportControls);
+        xyGrid = createPreviewXYGrid(...panes,sheetChanged,sheetExportControls(false),camera=>{
+            const workspace=state.workspaces.find(workspace=>workspace.id===previewWorkspaceId);
+            if(!workspace)return;
+            Object.assign(workspace.view.xy,camera,{cameraReady:true});
+            const panel=document.querySelector('#clab-panel'),canvas=panel?.querySelector('#clab-cards-container');
+            if(state.activeWorkspaceId===workspace.id&&panel?.dataset.workspaceMode==='xy'&&canvas?.querySelector('.clab-cards-wrapper'))projectXYCanvas(canvas,workspace.view.xy);
+            window.CLab?.scheduleViewSave();
+        },(keys,expanded)=>{
+            const workspace=state.workspaces.find(workspace=>workspace.id===previewWorkspaceId);
+            if(!workspace)return;
+            workspace.view.xy.previewRecords=[...keys];workspace.view.xy.previewRecordsExpanded=!!expanded;
+            window.CLab?.saveState(state,{createAnchor:false});
+        },layout=>{
+            const workspace=state.workspaces.find(workspace=>workspace.id===previewWorkspaceId);if(!workspace)return;
+            workspace.view.xy.z.display=layout.display;workspace.view.xy.tiling={...layout.tiling};matrixLayoutChanged=true;
+            window.CLab?.saveState(state,{createAnchor:false});
+        });
 
         const close = () => {
-            closeCoverMenu();workspaceModeMenu.close();
+            closeCoverMenu();workspaceModeMenu.close();sourcePicker.close();closeMaintenancePanel();
             root.classList.remove("visible");
             teardownPreviewEnhancers();
             browseLayout.release();
+            root.querySelectorAll('.clab-preview-modal-left,.clab-preview-modal-center,.clab-preview-modal-right').forEach(pane=>pane.replaceChildren());
             resetPreviewImageTransform();
+            const hadBundle=!!bundle;commitBundle();bundle=null;previewSourceIds.clear();if(hadBundle)document.dispatchEvent(new Event('clab_render_ui'));
             sources=[];allSources=[];previewModalStore.entries=[];tableModel=null;
-            parameterGrid.flush();
+            tablePreview().flush();
+            if(matrixLayoutChanged){matrixLayoutChanged=false;document.dispatchEvent(new Event('clab_workspace_view_change'));}
             const focus = returnFocus?.getClientRects().length ? returnFocus : document.querySelector('#clab-btn-preview');
             focus?.focus({ preventScroll:true });
             returnFocus = null;
@@ -302,12 +346,15 @@ export function createPreviewModalApi({
         root.querySelector(".clab-preview-modal-backdrop").addEventListener("click", close);
         root.querySelector(".clab-preview-modal-close").addEventListener("click", close);
         root.addEventListener("click", (event) => {
+            if(renderedGrid==='table'&&event.target.matches('.clab-preview-modal-head,.clab-review-head-actions,.clab-review-notice,.clab-review-modes,.clab-workspace-strip,.clab-workspace-shell,.clab-workspace-tabs'))tablePreview().clearSelection();
             if(event.target.closest('.clab-review-workspaces'))return;
-            const layer = event.target.closest('[data-review-layer]');
-            if (renderedGrid === 'xy' && layer) { xyGrid.showLayer(layer.dataset.reviewLayer);return; }
-            if (renderedGrid === 'xy' && event.target.closest('[data-review-xy-fit]')) { xyGrid.fit();return; }
+            const gridSource=event.target.closest('[data-grid-source-select]');
+            if(renderedGrid==='table'&&gridSource){tablePreview().selectSources(gridSource.dataset.gridSourceSelect,gridSource.dataset.gridSourceAction==='all',gridSource);return;}
+            const range=event.target.closest('[data-review-xy-select]');
+            if(renderedGrid==='xy'&&range){xyPreview().selectRange(range.dataset.reviewXySelect,range.dataset.reviewXyAction==='all',range);return;}
+            if (renderedGrid === 'xy' && event.target.closest('[data-review-xy-fit]')) { xyPreview().fit();return; }
             const swap = event.target.closest('[data-review-xy-swap]');
-            if (renderedGrid === 'xy' && swap) { xyGrid.swap(swap.dataset.reviewXySwap,matrixPreview);return; }
+            if (renderedGrid === 'xy' && swap) { xyPreview().swap(swap.dataset.reviewXySwap,matrixPreview);return; }
             if((mode!=='detail'||event.target.closest('[data-browse-restore]'))&&browseLayout.handleClick(event))return;
             const sourceSelect=event.target.closest('[data-browse-select]');
             if(sourceSelect){setBrowseSources(sourceSelect.dataset.browseSelect==='all'?allSources.filter(source=>sourceRecordCount(source.area)):[]);return;}
@@ -320,6 +367,7 @@ export function createPreviewModalApi({
             }
             const modeButton = event.target.closest('button[data-review-mode]');
             if (modeButton) {
+                if(modeButton.disabled)return;
                 closeCoverMenu();
                 mode = modeButton.dataset.reviewMode;
                 if(mode==='compare'&&!['','image','video'].includes(typeFilter))typeFilter='';
@@ -360,8 +408,8 @@ export function createPreviewModalApi({
                 target.value=sheetScales[mode];
                 return;
             }
-            if (renderedGrid === 'table' && target.matches('[data-grid-filter]')) { parameterGrid.filter(target);return; }
-            if (renderedGrid === 'xy' && xyGrid.change(target,matrixPreview)) return;
+            if (renderedGrid === 'table' && target.matches('[data-grid-filter]')) { tablePreview().filter(target);return; }
+            if (renderedGrid === 'xy' && xyPreview().change(target,matrixPreview)) return;
             if(target.matches('[data-browse-source]')){
                 const selected=new Set(sources.map(source=>sourceKey(source.card,source.area)));
                 target.checked?selected.add(target.dataset.browseSource):selected.delete(target.dataset.browseSource);
@@ -581,8 +629,8 @@ export function createPreviewModalApi({
             return filmstripDownloadRecords(groups,browse.session.covers,keys,selected,includeHistory);
         }
         if (mode==='detail') return detailView.downloadRecords(selected,includeHistory);
-        if (renderedGrid==='table') return parameterGrid.downloadRecords(selected,includeHistory);
-        if (renderedGrid==='xy') return xyGrid.downloadRecords(selected,includeHistory);
+        if (renderedGrid==='table') return tablePreview().downloadRecords(selected,includeHistory);
+        if (renderedGrid==='xy') return xyPreview().downloadRecords(selected,includeHistory);
         return (tableModel?.rows||[]).flatMap(row=>row.cells.flatMap(cell=>{
             const picked=cell.records.filter(record=>selectedHistoryRecords.has(record.key));
             return selected&&!picked.length?[]:!selected||includeHistory?cell.records:picked;
@@ -591,11 +639,11 @@ export function createPreviewModalApi({
 
     function getJSONCards() {
         if (mode==='detail') return detailView.jsonCards();
-        if (renderedGrid==='table') return parameterGrid.jsonCards();
-        if (renderedGrid==='xy') return xyGrid.jsonCards();
+        if (renderedGrid==='table') return tablePreview().jsonCards();
+        if (renderedGrid==='xy') return xyPreview().jsonCards();
         const records=getDownloadRecords(false,false);
         const visible=new Set(records.map(record=>JSON.stringify([record.cardId,record.areaId])));
-        return state.cards.filter(card=>records.some(record=>record.cardId===card.id)).map(card=>({...card,
+        return previewCards().filter(card=>records.some(record=>record.cardId===card.id)).map(card=>({...card,
             areas:card.areas.filter(area=>area.type==='edit'||visible.has(JSON.stringify([card.id,area.id])))}));
     }
 
@@ -665,7 +713,7 @@ export function createPreviewModalApi({
         notice.textContent='正在整理资源并导出…';
         try {
             if(kind==='xlsx'){
-                const data=parameterGrid.exportSource();
+                const data=tablePreview().exportSource();
                 downloadPreviewBlob(await exportParameterWorkbook(source,data),`${name}.xlsx`);
             } else if(kind==='html'){
                 const archive=renderedGrid?await exportPreviewLayoutHTML(source,name):await exportPreviewHTML(model,config);
@@ -684,13 +732,12 @@ export function createPreviewModalApi({
     function updateSheetExportButtons(root) {
         const disabled = exporting || !hasExportData();
         root.querySelectorAll('[data-review-export]').forEach(button=>button.disabled=disabled);
-        const scale=root.querySelector('[data-review-png-scale]');
-        if(scale)scale.value=sheetScales[mode];
+        root.querySelectorAll('[data-review-png-scale]').forEach(scale=>scale.value=sheetScales[mode]);
     }
 
     function hasExportData() {
-        if (renderedGrid==='table') return parameterGrid.hasExportData();
-        if (renderedGrid==='xy') return xyGrid.hasExportData();
+        if (renderedGrid==='table') return tablePreview().hasExportData();
+        if (renderedGrid==='xy') return xyPreview().hasExportData();
         return !!(tableModel?.rows.length&&tableModel.columns.length);
     }
 
@@ -706,14 +753,16 @@ export function createPreviewModalApi({
 
     function renderPreviewModal() {
         const root=ensurePreviewModal(),left=root.querySelector('.clab-preview-modal-left'),center=root.querySelector('.clab-preview-modal-center'),right=root.querySelector('.clab-preview-modal-right');
+        const selectedWorkspaces=state.workspaces.filter(workspace=>previewSourceIds.has(workspace.id));
+        if(!previewModeAllowed(selectedWorkspaces,mode))mode='browse';
         const entries=previewModalStore.entries;
-        const workspaceSheet=mode==='table'||mode==='xy'&&matrixPreview.matrixSource==='workspace';
+        const workspaceSheet=mode==='table'||mode==='xy'&&(bundle||matrixPreview.matrixSource==='workspace');
         root.dataset.reviewMode=mode;
         root.dataset.reviewLayout='workspace';
         root.toggleAttribute('data-workspace-sheet',workspaceSheet);
-        root.querySelectorAll('[data-review-mode]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.reviewMode===mode)));
+        root.querySelectorAll('[data-review-mode]').forEach(button=>{button.setAttribute('aria-pressed',String(button.dataset.reviewMode===mode));button.disabled=!previewModeAllowed(selectedWorkspaces,button.dataset.reviewMode);button.title=button.disabled?'此预览模式与来源工作区类型不兼容':'';});
         if(mode!=='detail'&&!workspaceSheet) {
-            browseLayout.renderSources(state.cards,allSources,sources);
+            browseLayout.renderSources(previewCards(),allSources,sources);
             const groups=filteredGroups(),visible=groups.flatMap(group=>group.records),active=getActivePreviewEntry();
             if(active&&!visible.some(entry=>entry.key===active.key))previewModalStore.activeIndex=visible.length?entries.findIndex(entry=>entry.key===visible[0].key):-1;
             else if(previewModalStore.activeIndex<0&&visible.length&&!state.cards.find(card=>card.id===previewModalStore.activeCardId)?.areas.find(area=>area.id===previewModalStore.activeAreaId)?.missingHistoryRun)previewModalStore.activeIndex=entries.findIndex(entry=>entry.key===visible[0].key);
@@ -734,13 +783,14 @@ export function createPreviewModalApi({
         }
         if(mode==='detail') {
             if(renderedMode!=='detail'){teardownPreviewEnhancers();renderedMode='detail';}
-            detailView.render(state.cards);return;
+            detailView.render(previewCards());return;
         }
         if(mode==='table'||mode==='xy') {
             if (workspaceSheet) {
                 if (renderedGrid!==mode) {
                     teardownPreviewEnhancers();renderedMode=renderedGrid=mode;
-                    if (mode==='table') parameterGrid.mount();
+                    if(bundle){multiGrid.open(bundle,mode);multiGrid.mount(matrixPreview);}
+                    else if (mode==='table') parameterGrid.mount();
                     else xyGrid.mount(matrixPreview);
                 }
                 return;
@@ -784,14 +834,32 @@ export function createPreviewModalApi({
         refreshSidebarExports();
     }
 
+    function setPreviewWorkspaces(ids) {
+        const root=ensurePreviewModal();
+        teardownPreviewEnhancers();commitBundle();syncStateToActiveWorkspace();
+        const workspaces=state.workspaces.filter(workspace=>ids.includes(workspace.id));
+        if(!workspaces.length)return;
+        previewSourceIds=new Set(workspaces.map(workspace=>workspace.id));
+        bundle=workspaces.length>1||workspaces[0].id!==state.activeWorkspaceId?createPreviewWorkspaceBundle(workspaces,getWorkspaceLabel,()=>{state.cards=getActiveWorkspace().cards;}):null;
+        const cards=previewCards(),workspace=workspaces[0];
+        allSources=workspacePreviewSources(cards).map(source=>source.card.previewWorkspace?{...source,cardLabel:`${source.card.previewWorkspace.name} · ${source.cardLabel}`}:source);
+        sources=allSources.filter(source=>sourceRecordCount(source.area));previewModalStore.entries=collectPreviewRecords(sources);previewModalStore.activeIndex=previewModalStore.entries.length?0:-1;
+        detailView.open(cards,bundle?.detail||workspace);
+        if(!bundle){parameterGrid.open(workspace);xyGrid.open(workspace.view.xy,cards);}
+        compare={a:'',b:'',slot:'a',layout:'side',view:{x:0,y:0,zoom:1,split:.5}};
+        matrixPreview.matrixSource='workspace';selectedHistoryRecords.clear();
+        sourcePicker.paint();renderPreviewModal();
+    }
+
     function openPreviewModal(card, area, preferredUrl, preferredIndex, selectedSources, opener, initialMode = 'browse') {
         const root = ensurePreviewModal();
         returnFocus = opener;
         selectedHistoryRecords.clear();
-        teardownPreviewEnhancers();
+        teardownPreviewEnhancers();commitBundle();bundle=null;
+        previewSourceIds=new Set([state.activeWorkspaceId]);
         previewModalStore.activeCardId = card?.id || "";
         previewModalStore.activeAreaId = area?.id || "";
-        allSources=workspacePreviewSources(state.cards);
+        allSources=previewSources();
         sources=initialPreviewSources(state.cards,selectedSources||(area?[{card,area}]:[]),state.selectedCardIds,card?.id);
         browse.search='';
         previewModalStore.entries=collectPreviewRecords(sources);
@@ -806,7 +874,7 @@ export function createPreviewModalApi({
         historyMatrix={width:200,textLimit:200,x:'',y:'',z:'',zValue:'',source:'',filters:{}};
         matrixPreview={width:320,textLimit:200,matrixSource:view.mode==='xy'||workspaceMatrixAvailable(view.xy)?'workspace':'history'};
         const tabs = root.querySelector('[data-review-workspaces]');
-        renderWorkspaceBar(tabs);
+        renderWorkspaceBar(tabs);sourcePicker.paint();
         tabs.querySelector('.active')?.scrollIntoView({block:'nearest',inline:'nearest'});
         previewModalStore.activeIndex = area?.missingHistoryRun ? -1 : previewModalStore.entries.findIndex(entry=>entry.cardId===card?.id && entry.areaId===area?.id && entry.index===(Number.isInteger(preferredIndex)?preferredIndex:area?.historyIndex));
         resetPreviewImageTransform();
@@ -823,8 +891,8 @@ export function createPreviewModalApi({
 
         root.querySelector('.clab-review-notice').textContent='';
         if(previewModalStore.activeIndex<0&&!area?.missingHistoryRun)previewModalStore.activeIndex=previewModalStore.entries.length?0:-1;
-        renderPreviewModal();
         root.classList.add("visible");
+        renderPreviewModal();
         browseLayout.applyLayout();
         if (opener) root.querySelector(".clab-preview-modal-close").focus({ preventScroll:true });
     }
