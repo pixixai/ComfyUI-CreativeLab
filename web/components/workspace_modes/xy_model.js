@@ -90,26 +90,4 @@ export function materializeMatrixRecords(cards,xy,parameters) {
     }
 }
 
-export function changeAxisBindings(axis,bindings,parameters) {
-    if(JSON.stringify(axis.bindings)!==JSON.stringify(bindings))delete axis.inputText;
-    const values=axis.values.map(value=>{const previous=axisTuple(axis,value),tuple=bindings.map(key=>axis.bindings.includes(key)?previous[axis.bindings.indexOf(key)]:parameters.find(parameter=>parameter.key===key)?.value??'');return bindings.length===1?tuple[0]:tuple;});
-    axis.bindings=bindings;axis.values=bindings.length?[...new Map(values.map(value=>[valueKey(value),value])).values()]:[];
-}
-
-export function rebindMatrixAxis(cards,xy,name,bindings,parameters) {
-    const previous=[...xy[name].bindings],items=matrixCards(cards,xy).map(card=>{const at=taskCoordinates(card,xy)[name];return {card,tuple:!previous.length?[]:at<0||at===undefined?null:axisTuple(xy[name],xy[name].values[at])};});
-    changeAxisBindings(xy[name],bindings,parameters);
-    const initialZ=name==='z'&&!previous.length&&bindings.length,workflowValue=key=>parameters.find(parameter=>parameter.key===key)?.value??'';
-    if(initialZ){
-        const workflow=bindings.map(workflowValue),tuples=items.length?items.map(({card})=>bindings.map(key=>parameterValue(card,key)??workflowValue(key))):[workflow];
-        xy.z.values=[...new Map(tuples.map(tuple=>{const value=bindings.length===1?tuple[0]:tuple;return [valueKey(value),value];})).values()];
-        xy.z.current=Math.max(0,xy.z.values.findIndex(value=>valueKey(axisTuple(xy.z,value))===valueKey(workflow)));
-    }
-    const retained=[...matrixAxisNames(xy).flatMap(axis=>xy[axis].bindings),...xy.records.map(entry=>entry.key)];
-    for(const {card,tuple:old}of items){
-        if(!old||!bindings.length)continue;
-        const tuple=bindings.map(key=>previous.includes(key)?old[previous.indexOf(key)]:initialZ?parameterValue(card,key)??workflowValue(key):workflowValue(key));
-        bindings.forEach((key,index)=>{setParameterValue(card,key,tuple[index],title(parameters,key)).recordOnly=false;});
-        card.areas=card.areas.filter(area=>!(area.type==='edit'&&bindingsOf(area).length===1&&previous.includes(bindingsOf(area)[0])&&!retained.includes(bindingsOf(area)[0])));
-    }
-}
+export { changeAxisBindings, rebindMatrixAxis, rebindMatrixOutput, validateMatrixValues } from './xy_rebind.js';

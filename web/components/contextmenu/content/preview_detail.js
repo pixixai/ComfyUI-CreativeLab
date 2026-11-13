@@ -294,6 +294,7 @@ export function createDetailView(root, downloadsChanged = ()=>{}, sessionSaved =
         if (target.matches('[data-detail-reset]')) {
             for(const {item,field} of selectedRows()){
                 delete config.styles[config.scope==='name'?`name:${field.title}`:detailFieldKey(item.id,field.id)];
+                if(config.scope==='name')for(const key of Object.keys(config.styles))if(key.startsWith('preview:')&&key.endsWith(`:name:${field.title}`))delete config.styles[key];
                 if(config.scope==='name')for(const [key,title] of config.fieldNames)if(title===field.title)delete config.styles[key];
             }
             renderBoard();renderSettings();save();return;
@@ -346,6 +347,19 @@ export function createDetailView(root, downloadsChanged = ()=>{}, sessionSaved =
             config.active='';config.field='';config.selectedFields.clear();config.anchor='';config.scope='name';config.fieldNames=new Map(cards.flatMap(card=>detailInputs(card).map(field=>[detailFieldKey(card.id,field.id),field.title])));
         },
         render(nextCards) {cards=nextCards;render();},
+        revealHistory(focus){
+            const card=cards.find(card=>card.id===focus.cardId);if(!card)return;
+            if(!model.some(item=>item.id===card.id)){config.tasks.add(card.id);config.search='';config.typeFilter='';sourcePanel.sync(cards);renderBoard();}
+            if(focus.areaId&&detailInputs(card).some(field=>field.id===focus.areaId)&&!model.find(item=>item.id===card.id)?.fields.some(field=>field.id===focus.areaId)){
+                const fields=config.inputs.get(card.id)||new Set(detailInputs(card).map(field=>field.id));fields.add(focus.areaId);config.inputs.set(card.id,fields);sourcePanel.sync(cards);renderBoard();
+            }
+            config.active=card.id;config.field=focus.areaId||config.field;
+            if(focus.areaId)config.selectedFields=new Set([detailFieldKey(card.id,focus.areaId)]);
+            syncSelection();renderSettings();sourcePanel.locate(card.id,focus.areaId);
+            const view=views.get(card.id);(view?.element.querySelector(`[data-detail-field="${CSS.escape(focus.areaId||'')}"]`)||view?.element)?.scrollIntoView({block:'nearest',inline:'nearest'});
+        },
+        getViewState(){return {active:config.active,field:config.field,selectedFields:new Set(config.selectedFields),anchor:config.anchor,scope:config.scope,part:config.part};},
+        restoreViewState(saved){Object.assign(config,saved);syncSelection();renderSettings();},
         downloadRecords(selectedOnly,includeHistory) {
             return model.flatMap(item=>selectedOnly&&item.id!==config.active?[]:includeHistory?item.records:item.record?[item.record]:[]);
         },

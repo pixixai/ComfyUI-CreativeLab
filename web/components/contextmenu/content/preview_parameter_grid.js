@@ -359,6 +359,20 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
             for (const column of columns) if(boundColumn(column.area)) shownColumns.add(column.id);
         },
         mount,
+        revealHistory(focus){
+            const row=rows.find(row=>row.sheetRow?.cardId===focus.cardId||row.id===focus.cardId||row.areas.some(area=>area.id===focus.areaId));
+            const column=columns.find(column=>row?.areas[column.index]?.id===focus.areaId);
+            if(!row)return;
+            const hidden=!shownRows.has(row.id)||column&&!shownColumns.has(column.id);shownRows.add(row.id);if(column)shownColumns.add(column.id);
+            if(hidden)render();
+            if(column)choose([row.areas[column.index].id],'cell');
+            wrapper.querySelector(column?`[data-review-cell="${CSS.escape(row.areas[column.index].id)}"]`:`[data-review-row="${CSS.escape(row.id)}"]`)?.scrollIntoView({block:'nearest',inline:'nearest'});
+        },
+        getViewState(){return {rows:[...shownRows],columns:[...shownColumns],selected:[...selected],kind,anchor,headerAnchor,histories:[...histories]};},
+        restoreViewState(saved){
+            shownRows=new Set(saved.rows);shownColumns=new Set(saved.columns);selected=new Set(saved.selected);kind=saved.kind;anchor=saved.anchor;headerAnchor=saved.headerAnchor;
+            histories.clear();for(const [id,area]of saved.histories)histories.set(id,area);render();mountSettings();
+        },
         applySetting(key,args){settingActions?.[key](...args);},
         clearSelection(){choose([],null);},
         selectWorkspace(on=true){choose(on?visibleRows.flatMap(row=>visibleColumns.map(column=>row.areas[column.index].id)):[],on?'cell':null);},

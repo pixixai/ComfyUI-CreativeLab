@@ -11,6 +11,16 @@ try {
     let frames = 0;
     const raf = window.requestAnimationFrame.bind(window);
     window.requestAnimationFrame = callback => raf(time => { frames++; callback(time); });
+    // ComfyUI registers this capture listener before extensions and defers undo to a frame.
+    class HostChangeTracker {
+        async undoRedo(event){if((event.ctrlKey||event.metaKey)&&['z','y'].includes(event.key.toLowerCase())){window.hostHistory.calls++;return true;}return false;}
+    }
+    window.hostHistory={calls:0,scheduled:0,tracker:new HostChangeTracker()};
+    window.comfyAPI={...window.comfyAPI,changeTracker:{ChangeTracker:HostChangeTracker}};
+    window.addEventListener('keydown',event=>{
+        if(event.repeat||(!event.ctrlKey&&!event.metaKey)||!['z','y'].includes(event.key.toLowerCase()))return;
+        window.hostHistory.scheduled++;requestAnimationFrame(()=>window.hostHistory.tracker.undoRedo(event));
+    },true);
     const observed = new Map();
     const NativeResizeObserver = window.ResizeObserver;
     window.ResizeObserver = class extends NativeResizeObserver {

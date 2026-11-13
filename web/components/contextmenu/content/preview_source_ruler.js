@@ -1,8 +1,14 @@
+export const rulerHoverScale=distance=>[3,2.3,1.6][Math.abs(distance)]||1;
 export function attachPreviewSourceRuler(root) {
     const left=root.querySelector('.clab-preview-modal-left'),body=left.parentElement;
     const ruler=document.createElement('nav');ruler.className='clab-source-ruler';ruler.setAttribute('aria-label','来源定位');ruler.hidden=true;body.append(ruler);
     const tooltip=document.createElement('div');tooltip.className='clab-source-ruler-tooltip';tooltip.setAttribute('role','tooltip');tooltip.hidden=true;root.append(tooltip);
     let entries=[],frame=0,scrollFrame=0,hoverTimer,current;
+    let wave=[];
+    const paintWave=(index=-10)=>{
+        for(const button of wave)button.style.removeProperty('--clab-ruler-scale');wave=[];
+        for(let offset=-2;offset<=2;offset++){const button=entries[index+offset]?.button;if(button){button.style.setProperty('--clab-ruler-scale',rulerHoverScale(offset));wave.push(button);}}
+    };
     const hideTooltip=()=>{clearTimeout(hoverTimer);tooltip.hidden=true;};
     const showTooltip=(entry)=>{
         hideTooltip();hoverTimer=setTimeout(()=>{
@@ -24,14 +30,15 @@ export function attachPreviewSourceRuler(root) {
         current=next;
     };
     const refresh=()=>{
-        frame=0;hideTooltip();entries=[];
+        frame=0;hideTooltip();paintWave();entries=[];
         for(const element of left.querySelectorAll('.clab-preview-source-workspace,[data-browse-card],[data-detail-source],[data-grid-filter=row]')){
             const workspace=element.classList.contains('clab-preview-source-workspace');
             const target=element.matches('input')?element.closest('label'):element.querySelector(':scope>summary');
             if(!target)continue;
             const title=(target.querySelector('[data-browse-card-name],[data-detail-task-name]')?.textContent||target.textContent).trim();
             const button=document.createElement('button');button.type='button';button.dataset.sourceTitle=title;button.setAttribute('aria-label',`定位${workspace?'工作区':'任务'}：${title}`);button.classList.toggle('is-workspace',workspace);
-            const entry={element,target,button,title};button.onpointerenter=button.onfocus=()=>showTooltip(entry);button.onpointerleave=button.onblur=hideTooltip;
+            const entry={element,target,button,title},index=entries.length;
+            button.onpointerenter=button.onfocus=()=>{paintWave(index);showTooltip(entry);};button.onpointerleave=button.onblur=()=>{paintWave();hideTooltip();};
             button.onclick=()=>{
                 hideTooltip();
                 for(let parent=target.parentElement;parent&&parent!==left;parent=parent.parentElement)if(parent.matches('details'))parent.open=true;
@@ -45,7 +52,7 @@ export function attachPreviewSourceRuler(root) {
     new MutationObserver(schedule).observe(left,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['open']});
     new ResizeObserver(schedule).observe(left);
     ruler.addEventListener('wheel',event=>{event.preventDefault();event.stopPropagation();ruler.scrollTop+=event.deltaY;},{passive:false});
-    ruler.addEventListener('scroll',hideTooltip,{passive:true});
+    ruler.addEventListener('scroll',()=>{paintWave();hideTooltip();},{passive:true});
     left.addEventListener('scroll',()=>{if(!scrollFrame)scrollFrame=requestAnimationFrame(paint);},{passive:true});
     schedule();
 }

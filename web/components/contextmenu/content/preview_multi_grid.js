@@ -6,6 +6,7 @@ import { escapeHtml as esc } from './shared.js';
 // Each section owns its filters, selection and settings; the viewport/export is shared.
 export function createPreviewMultiGrid(center,left,right,changed,exportControls) {
     let groups=[],mode,bundle,selected='',viewport,scene,cellInfo,currentCellOwner='',muteSelection=false,widthObserver,clearSelection=()=>{},camera={zoom:.5,panX:20,panY:20},frame=0,config;
+    let fitFrame=0,paintScope=()=>{};
     const scopes=new Set();
     const settingGroups=()=>scopes.size?groups.filter(group=>scopes.has(group.id)):groups;
     function updateLayout(){
@@ -84,7 +85,7 @@ export function createPreviewMultiGrid(center,left,right,changed,exportControls)
                 };
             }
             const scope=document.createElement('p');scope.className='clab-review-note';scope.dataset.multiSettingsScope='';right.prepend(scope);
-            const paintScope=()=>{
+            paintScope=()=>{
                 const current=groups.find(group=>group.id===selected)||groups[0];
                 for(const group of groups){group.right.hidden=group!==current;group.element.classList.toggle('is-selected',scopes.has(group.id));}
                 scope.textContent=scopes.size?`作用于：${settingGroups().map(group=>group.source.name).join('、')}`:'作用于：所有来源工作区';changed();
@@ -106,7 +107,7 @@ export function createPreviewMultiGrid(center,left,right,changed,exportControls)
             if(mode==='xy'){
                 const stage=center.firstElementChild;
                 viewport=attachXYGestures(stage,()=>camera,paintCamera,()=>{},()=>{},()=>stage.isConnected);
-                requestAnimationFrame(fit);
+                fitFrame=requestAnimationFrame(fit);
             }
         },
         filter(input){owner(input)?.api.filter(input);},
@@ -115,9 +116,16 @@ export function createPreviewMultiGrid(center,left,right,changed,exportControls)
         selectRange(name,all,input){owner(input)?.api.selectRange(name,all);queueLayout();},
         swap(pair){for(const group of settingGroups())group.api.swap(pair,config);queueLayout();},
         fit,
+        revealHistory(id,focus){groups.find(group=>group.id===id)?.api.revealHistory(focus);},
+        getViewState(){return {camera:{...camera},selected,scopes:[...scopes],groups:groups.map(group=>[group.id,group.api.getViewState()])};},
+        restoreViewState(saved){
+            for(const [id,view]of saved.groups)groups.find(group=>group.id===id)?.api.restoreViewState(view);
+            selected=saved.selected;scopes.clear();for(const id of saved.scopes)if(groups.some(group=>group.id===id))scopes.add(id);
+            if(mode==='xy'){cancelAnimationFrame(fitFrame);camera={...saved.camera};paintCamera();}paintScope();queueLayout();
+        },
         clearSelection(){clearSelection();},
         flush(){bundle?.commit();groups.forEach(group=>group.api.flush?.());},
-        release(){widthObserver?.disconnect();viewport?.release();cancelAnimationFrame(frame);groups.forEach(group=>group.api.release());groups=[];scene=null;},
+        release(){widthObserver?.disconnect();viewport?.release();cancelAnimationFrame(frame);cancelAnimationFrame(fitFrame);groups.forEach(group=>group.api.release());groups=[];scene=null;},
         downloadRecords(selectedOnly,history){return groups.flatMap(group=>group.api.downloadRecords(selectedOnly,history));},
         jsonCards(){return groups.flatMap(group=>group.api.jsonCards());},
         exportSource(){return {groups:groups.map(group=>({name:group.source.name,stage:group.center.querySelector('.clab-review-grid-stage'),...group.api.exportSource()}))};},

@@ -12,6 +12,7 @@ import {
 } from "./ui_state.js";
 import { escapeHtml } from "./contextmenu/content/shared.js";
 import { newWorkspaceView } from "./workspace_preferences.js";
+import { prepareWorkspaceCopy } from './workspace_copy.js';
 
 function workspaceStructureMatches(currentWorkspace, targetWorkspace) {
     const currentCards = currentWorkspace?.cards || [];
@@ -170,7 +171,7 @@ function duplicateSelectedWorkspaces() {
     let lastCreatedId = null;
     for (const ws of sortedTargets) {
         const index = state.workspaces.indexOf(ws);
-        const dup = normalizeWorkspace(deepClone(ws));
+        const dup = prepareWorkspaceCopy(normalizeWorkspace(deepClone(ws)));
         dup.id = makeId("workspace");
         dup.name = `${getWorkspaceLabel(ws)} 副本`;
         dup.autoName = false;

@@ -8,6 +8,7 @@ export async function checkWorkspaceModes({state,passed,assert,delay}) {
     const template={id:'mode-template',title:'测试模板',areas:[input('mode-steps','steps',20),input('mode-sampler','sampler','Euler'),{id:'mode-output',type:'preview',targetNodeId:'2',history:['/view?filename=first.png'],resultUrl:'/view?filename=first.png',historyIndex:0,ratio:'16:9'}]};
     let demo=createEmptyWorkspace('三种任务模式',{cards:[template,{id:'mode-unrelated',title:'不同结构的任务',areas:[]}]});
     const show=()=>{
+        demo=state.workspaces.find(workspace=>workspace.id===demo.id)||demo;
         for(const node of nodes)if(!window.testApp.graph._nodes.includes(node))window.testApp.graph._nodes.push(node);
         if(!state.workspaces.includes(demo))state.workspaces.push(demo);applyWorkspaceToState(demo);document.dispatchEvent(new Event('clab_render_ui'));
     };

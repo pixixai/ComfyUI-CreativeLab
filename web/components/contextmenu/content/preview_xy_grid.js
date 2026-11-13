@@ -1,4 +1,5 @@
 import { axisLabelControlsHTML, attachAxisLabelControls } from '../../workspace_modes/axis_label_controls.js';
+import { taskCoordinates } from '../../workspace_modes/task_model.js';
 import { swapMatrixAxes } from '../../workspace_modes/xy_axis_swap.js';
 import { attachXYGestures } from '../../workspace_modes/xy_gestures.js';
 import { selectXYCells } from '../../workspace_modes/xy_layout.js';
@@ -229,6 +230,18 @@ export function createPreviewXYGrid(center,left,right,changed,exportControls,cam
         },
         selectRange(name,all){sourcePanel.select(name,all);render();fit();},
         fit,
+        revealHistory(focus){
+            const card=cards.find(card=>card.id===focus.cardId||card.areas.some(area=>area.id===focus.areaId));if(!card)return;
+            const at=taskCoordinates(card,xy);if(at.x<0||at.y<0)return;
+            sourcePanel.change('x',at.x,true);sourcePanel.change('y',at.y,true);if(xy.z.display!=='all')xy.z.current=Math.max(0,at.z||0);
+            selected.clear();selected.add(card.id);activeCardId=anchorId=card.id;selectionKind='cell';render();renderSettings(currentConfig);
+        },
+        getViewState(){return {sources:sourcePanel.getViewState(),camera:{...camera},selected:[...selected],layers:[...selectedLayers],selectionKind,activeCardId,anchorId,histories:[...histories]};},
+        restoreViewState(saved){
+            sourcePanel.restoreViewState(saved.sources);camera={...saved.camera};selected.clear();for(const id of saved.selected)if(cards.some(card=>card.id===id))selected.add(id);
+            selectedLayers.clear();for(const index of saved.layers)selectedLayers.add(index);selectionKind=saved.selectionKind;activeCardId=saved.activeCardId;anchorId=saved.anchorId;
+            histories.clear();for(const [id,area]of saved.histories)histories.set(id,area);cancelAnimationFrame(fitFrame);render();renderSettings(currentConfig);updateCamera();
+        },
         applyAxisSettings,
         clearSelection(){selected.clear();selectedLayers.clear();selectionKind='';activeCardId=anchorId='';paintSelection();renderSettings(currentConfig);},
         selectWorkspace(){selected.clear();selectedLayers.clear();for(const item of visibleMatrixCells(cards,displayXY()))selectedLayers.add(item.z??0);selectionKind='workspace';activeCardId=anchorId='';paintSelection();renderSettings(currentConfig);},

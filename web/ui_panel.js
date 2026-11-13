@@ -9,7 +9,8 @@ import { renderCardsList, attachCardEvents } from "./components/comp_taskcard.js
 import { attachAreaEvents } from "./components/comp_modulearea.js";
 import { observeModuleRemoval } from "./components/modules/module_lifecycle.js";
 import { renderWorkspaceBar, attachWorkspaceEvents } from "./components/comp_workspace.js";
-import { setupWorkspaceModes, refreshWorkspaceModes } from './components/workspace_modes/workspace_modes.js';
+import { setupWorkspaceModes, refreshWorkspaceModes,restoreWorkspaceModes } from './components/workspace_modes/workspace_modes.js';
+import { appendWorkspaceTasks } from './components/workspace_modes/task_dom.js';
 
 import { setupGlobalEvents } from "./components/events/event_global.js";
 import { setupExecutionEvents } from "./components/events/event_execution.js";
@@ -19,6 +20,24 @@ console.log("[CLab] UI split version loaded (entry/composition mode)");
 
 let panelContainer = null;
 let backdropContainer = null;
+document.addEventListener('clab_edit_history_restored',event=>{
+    if(!panelContainer)return;
+    if(event.detail.destination?.surface==='workspace'){panelContainer.classList.add('visible');backdropContainer?.classList.add('visible');}
+    const container=panelContainer.querySelector('#clab-cards-container'),left=container.scrollLeft,top=container.scrollTop;
+    appendWorkspaceTasks(container,state.cards);
+    refreshCardsInPlace(container,event.detail.areaIds);
+    restoreWorkspaceModes(panelContainer);
+    renderDynamicToolbar(panelContainer.querySelector('#clab-toolbar-handle'));
+    attachDynamicToolbarEvents(panelContainer.querySelector('#clab-toolbar-handle'));
+    renderWorkspaceBar(panelContainer.querySelector('#clab-workspace-bar'));
+    container.scrollLeft=left;container.scrollTop=top;
+    if(event.detail.destination?.surface==='workspace'){
+        const {areaId,cardId}=event.detail.focus;
+        const target=areaId&&container.querySelector(`[data-area-id="${CSS.escape(areaId)}"]`)||cardId&&container.querySelector(`.clab-card[data-card-id="${CSS.escape(cardId)}"]`);
+        if(target&&!target.hidden)target.scrollIntoView({block:'nearest',inline:'nearest'});
+        if(event.detail.destination.panel==='maintenance')panelContainer.querySelector('#clab-config-dropdown-trigger').click();
+    }
+});
 
 
 function ensureMiniVault() {

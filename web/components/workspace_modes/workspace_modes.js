@@ -4,6 +4,7 @@ import { showCardsMode } from './mode_cards.js';
 import { createTableController } from './mode_table.js';
 import { injectWorkspaceModeStyles } from './mode_styles.js';
 import { hydrateWorkspaceAreas } from './task_dom.js';
+import { editHistory } from '../edit_history_runtime.js';
 import { synchronizeModeMedia } from './mode_media.js';
 import { createXYController } from './xy_controller.js';
 import { switchWorkspace } from '../comp_workspace.js';
@@ -24,6 +25,7 @@ export function setupWorkspaceModes(panel) {
     const render=()=>{
         const config=view(),wrapper=container.querySelector('.clab-cards-wrapper');if(!wrapper)return;
         const key=`${state.activeWorkspaceId}:${config.mode}`,changed=key!==currentModeKey;
+        const paint=()=>{
         if(panel.dataset.workspaceMode!==config.mode)panel.dataset.workspaceMode=config.mode;
         wrapper.toggleAttribute('data-clab-retain-model',config.mode!=='cards');
         if(changed)modeMenu.close();
@@ -32,9 +34,12 @@ export function setupWorkspaceModes(panel) {
         if(config.mode==='cards'){if(changed)window._clabUpdateCardsLayout?.();synchronizeModeMedia(wrapper);return;}
         if(config.mode==='xy'){xy.render(changed,template());if(changed)saveView();return;}
         table.render(template());if(changed)saveView();
+        };
+        if(changed)editHistory.withoutRecording(paint);else paint();
     };
     const changeMode=mode=>{
         if(!workspaceModeAllowed(view(),mode))return;
+        editHistory.withoutRecording(()=>{
         if(mode==='table'||mode==='xy')view().structuredMode=mode;
         if(view().mode==='xy'&&mode!=='xy')xy.exportRecords();
         if(mode==='table'&&view().mode!=='table'){
@@ -43,13 +48,16 @@ export function setupWorkspaceModes(panel) {
         }
         view().mode=mode;state.painterMode=false;state.painterSource=null;
         render();saveView();document.dispatchEvent(new CustomEvent('clab_render_ui'));
+        });
     };
     const modeMenu=attachWorkspaceModeMenu(panel.querySelector('.clab-workspace-strip'),(mode,id)=>{if(id!==state.activeWorkspaceId)switchWorkspace(id);if(mode!==view().mode)changeMode(mode);});
     panel.addEventListener('dragstart',event=>{if(view().mode!=='cards'&&event.target.closest('.clab-card,.clab-area')&&!(view().mode==='table'&&event.target.closest('[data-table-row-header],.clab-history-thumb')))event.preventDefault();},true);
     document.addEventListener('clab_workspace_view_change',()=>{if(view().mode==='cards'||frame)return;frame=requestAnimationFrame(()=>{frame=0;if(panel.classList.contains('visible'))render();});});
-    controllers.set(panel,{render,changeMode});
+    document.addEventListener('clab_before_edit_history',()=>{if(panel.classList.contains('visible'))table.flush();});
+    controllers.set(panel,{render,changeMode,restore(){table.leave();xy.leave();currentModeKey='';editHistory.withoutRecording(render);}});
 }
 
 export function refreshWorkspaceModes(panel) {controllers.get(panel)?.render();}
+export function restoreWorkspaceModes(panel) {controllers.get(panel)?.restore();}
 
 export function setWorkspaceMode(panel,mode) {controllers.get(panel)?.changeMode(mode);}

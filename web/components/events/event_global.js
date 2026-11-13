@@ -2,7 +2,8 @@
  * 文件名: event_global.js
  * 职责: 处理全局级别的生命周期事件、快捷键、以及系统级点击防误触护盾
  */
-import { state, appState, createEmptyWorkspace, applyWorkspaceToState, saveAndRender } from "../ui_state.js";
+import { state, appState, createEmptyWorkspace, applyWorkspaceToState, saveAndRender,syncStateToActiveWorkspace } from "../ui_state.js";
+import { archiveTasks } from '../workspace_modes/task_archive.js';
 import { newWorkspaceView } from "../workspace_preferences.js";
 import { updateSelectionUI } from "../ui_selection.js";
 import { enterBindingModeForSelected } from "../actions/action_binding.js";
@@ -222,7 +223,7 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
             // Delete selected cards
             else if (state.selectedCardIds && state.selectedCardIds.length > 0) {
                 const idsToDelete = [...state.selectedCardIds];
-                state.cards = state.cards.filter(c => !idsToDelete.includes(c.id));
+                archiveTasks(syncStateToActiveWorkspace(),new Set(idsToDelete));
                 idsToDelete.forEach(id => {
                     const el = document.querySelector(`.clab-card[data-card-id="${id}"]`);
                     if (el) el.remove();

@@ -1,4 +1,4 @@
-import { state, appState } from '../ui_state.js';
+import { state, appState,getActiveWorkspace } from '../ui_state.js';
 import { renderTableGrid, leaveTableGrid, editTableRowTitle } from './table_view.js';
 import { openTableColumnSettings } from './table_column_panel.js';
 import { openTableCellSettings } from './table_cell_panel.js';
@@ -187,7 +187,7 @@ export function createTableController(container,getView,save) {
         } else {
             const start = action === 'delete-before' ? 0 : index + Number(action === 'delete-after');
             const count = action === 'delete-before' ? index : action === 'delete-after' ? tracks.length - start : 1;
-            removeTableTracks(sheet,state.cards,getView(),axis,start,count);
+            removeTableTracks(sheet,state.cards,getView(),axis,start,count,getActiveWorkspace().archivedTasks);
             const retained = new Set(state.cards.flatMap(card => card.areas.map(area => area.id)));
             for (const cell of wrapper().querySelectorAll('.clab-area[data-area-id]')) {
                 if (retained.has(cell.dataset.areaId)) continue;
@@ -315,5 +315,5 @@ export function createTableController(container,getView,save) {
         move:(kind,ids,target,after)=>{if(reorderTableItems(kind==='column'?sheet.columns:sheet.rows,ids,target,after,kind==='column'))commit();}
     });
     const sizeObserver=new ResizeObserver(()=>{if(active()&&sheet)queue(true);});sizeObserver.observe(container);
-    return {render,leave(){cancelAnimationFrame(frame);frame=0;pending=false;editing.restore();mediaObserver.disconnect();activity.clear();observed=new WeakSet();leaveGestures();selection.clear();settings?.close();closeXYPopover();controls?.remove();controls=null;sheet=null;rows=[];columns=[];ready.clear();dirty.clear();const node=wrapper();if(node)leaveTableGrid(node);state.selectedCardIds=state.selectedCardIds.filter(id=>state.cards.some(card=>card.id===id));state.selectedAreaIds=state.selectedAreaIds.filter(id=>state.cards.some(card=>card.areas.some(area=>area.id===id)));}};
+    return {render,flush(){if(active()&&pending)commit();},leave(){cancelAnimationFrame(frame);frame=0;pending=false;editing.restore();mediaObserver.disconnect();activity.clear();observed=new WeakSet();leaveGestures();selection.clear();settings?.close();closeXYPopover();controls?.remove();controls=null;sheet=null;rows=[];columns=[];ready.clear();dirty.clear();const node=wrapper();if(node)leaveTableGrid(node);state.selectedCardIds=state.selectedCardIds.filter(id=>state.cards.some(card=>card.id===id));state.selectedAreaIds=state.selectedAreaIds.filter(id=>state.cards.some(card=>card.areas.some(area=>area.id===id)));}};
 }

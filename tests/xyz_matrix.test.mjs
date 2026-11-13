@@ -77,7 +77,7 @@ test('clearing and rebinding Z preserves each existing layer value, output ID an
     const output=matrixOutput(cards[0],xy);output.history=['/z5.png'];
     xy.z.enabled=false;rebindMatrixAxis(cards,xy,'z',[],parameters);synchronizeMatrix(cards,xy,parameters);
     xy.z.enabled=true;rebindMatrixAxis(cards,xy,'z',['1||cfg'],parameters);synchronizeMatrix(cards,xy,parameters);
-    assert.deepEqual(xy.z.values,[5,7,9]);assert.equal(xy.z.current,1);assert.deepEqual(cards.map(card=>card.id),ids);
+    assert.deepEqual(xy.z.values,[5,7,9]);assert.equal(xy.z.current,0);assert.deepEqual(cards.map(card=>card.id),ids);
     assert.deepEqual(cards.map(card=>parameterValue(card,'1||cfg')),values);assert.equal(matrixOutput(cards[0],xy),output);assert.deepEqual(output.history,['/z5.png']);
 });
 

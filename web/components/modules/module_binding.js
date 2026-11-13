@@ -305,6 +305,7 @@ export function showBindingPanel(areaEl, trigger = areaEl.querySelector('.clab-m
     search.addEventListener('input', () => { nodeList.scrollTop = 0; renderNodes(); });
     popup.addEventListener('toggle', e => { if (e.newState === 'closed') close(); });
     document.addEventListener('clab_render_ui', close, { signal: controller.signal });
+    document.addEventListener('clab_edit_history_restored', close, { signal: controller.signal });
     document.addEventListener('clab_enter_binding_mode', close, { signal: controller.signal });
     window.addEventListener('resize', schedulePosition, { signal: controller.signal });
     window.addEventListener('scroll', schedulePosition, { signal: controller.signal, capture: true });

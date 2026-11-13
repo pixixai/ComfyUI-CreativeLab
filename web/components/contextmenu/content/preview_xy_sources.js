@@ -64,6 +64,8 @@ export function createPreviewXYSources(left,xy,parameters,records,cellInfo) {
     }
     return {
         mount,
+        getViewState:()=>Object.fromEntries(['x','y'].map(name=>[name,{all:shown[name].size===xy[name].values.length,values:xy[name].values.filter((_,index)=>shown[name].has(index)).map(value=>JSON.stringify(value))}])),
+        restoreViewState(saved){for(const name of ['x','y'])shown[name]=new Set(xy[name].values.flatMap((value,index)=>saved[name].all||saved[name].values.includes(JSON.stringify(value))?[index]:[]));sync();},
         display:()=>projectPreviewXY(xy,shown),
         hasValues:()=>shown.x.size>0&&shown.y.size>0,
         change(name,index,on){on?shown[name].add(index):shown[name].delete(index);sync();},

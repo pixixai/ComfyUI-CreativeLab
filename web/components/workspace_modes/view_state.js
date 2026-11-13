@@ -7,7 +7,7 @@ export function createWorkspaceView(seed = {}) {
     const xy=seed.xy||{};
     const records=(Array.isArray(xy.records)?xy.records:[]).map((entry,index)=>typeof entry==='string'?{id:`record_${index}`,key:entry}:entry);
     const columnWidth=Math.max(tableSizes.width.min,Math.min(tableSizes.width.max,Number(seed.table?.columnWidth)||tableSizes.width.default));
-    const axis=value=>({bindings:value?.bindings||[],values:value?.values||[],...axisLabelState(value),...(typeof value?.inputText==='string'?{inputText:value.inputText}:{}),gap:Number.isFinite(value?.gap)?Math.max(0,value.gap):4,margin:Number.isFinite(value?.margin)?Math.max(0,value.margin):10});
+    const axis=value=>({bindings:value?.bindings||[],values:value?.values||[],...axisLabelState(value),...(typeof value?.inputText==='string'?{inputText:value.inputText}:{}),...(value?.valueBindings?.length?{valueBindings:value.valueBindings}:{}),gap:Number.isFinite(value?.gap)?Math.max(0,value.gap):4,margin:Number.isFinite(value?.margin)?Math.max(0,value.margin):10});
     return {
         ...(seed.previewDetail?{previewDetail:seed.previewDetail}:{}),
         mode:['cards','table','xy'].includes(seed.mode)?seed.mode:'cards',structuredMode:workspaceModeType(seed),templateId:seed.templateId||'',

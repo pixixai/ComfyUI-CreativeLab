@@ -10,6 +10,7 @@ let maintenancePanel,opener,dismissOnClick;
 // Native light-dismiss can close the popover before its opener's click is delivered.
 window.addEventListener('pointerdown',event=>{dismissOnClick=maintenancePanel?.matches(':popover-open')&&opener?.contains(event.target)?opener:null;},true);
 export const closeMaintenancePanel=()=>maintenancePanel?.hidePopover();
+document.addEventListener('clab_edit_history_restored',closeMaintenancePanel);
 export function openMaintenancePanel(trigger,onChange=()=>{}) {
     if(dismissOnClick===trigger){dismissOnClick=null;maintenancePanel?.hidePopover();return;}
     if(maintenancePanel?.matches(':popover-open')&&opener===trigger){maintenancePanel.hidePopover();return;}
@@ -22,11 +23,13 @@ export function openMaintenancePanel(trigger,onChange=()=>{}) {
     document.body.append(panel);
     const status=panel.querySelector('[role=status]');
     const render=()=>{
+        const pending=new Set(window.CLab?.getRunningCardIds?.(workspace.id)||[]);
         panel.querySelector('[data-maint-count]').textContent=workspace.archivedTasks.length;
         panel.querySelector('.clab-maint-list').innerHTML=workspace.archivedTasks.map(card=>{
             const output=card.areas.find(area=>area.type==='preview'),url=output?.resultUrl||output?.history?.at(-1)||'';
             const values=card.areas.filter(area=>area.type==='edit').map(area=>`${area.title||area.targetWidget}：${typeof area.value==='object'?JSON.stringify(area.value):area.value}`).join(' · ');
-            return `<label><input type="checkbox" value="${esc(card.id)}"${selected.has(card.id)?' checked':''}><span class="clab-maint-thumb">${url&&/\.(png|jpe?g|webp|gif|avif)(?:[?&#]|$)/i.test(url)?`<img loading="lazy" src="${esc(url)}">`:'记录'}</span><span><b>${esc(card.title||'未命名任务')}</b><small title="${esc(values)}">${esc(values)}</small><small>${card.areas.reduce((n,area)=>n+(area.type==='preview'?(area.history?.length||0):0),0)} 条生成记录</small></span></label>`;
+            const count=card.areas.reduce((n,area)=>n+(area.type==='preview'?(area.history?.length||0):0),0),description=count?`${count} 条生成记录`:pending.has(card.id)?'等待运行结果':'参数任务 · 无生成记录';
+            return `<label><input type="checkbox" value="${esc(card.id)}"${selected.has(card.id)?' checked':''}><span class="clab-maint-thumb">${url&&/\.(png|jpe?g|webp|gif|avif)(?:[?&#]|$)/i.test(url)?`<img loading="lazy" src="${esc(url)}">`:'记录'}</span><span><b>${esc(card.title||'未命名任务')}</b><small title="${esc(values)}">${esc(values)}</small><small>${description}</small></span></label>`;
         }).join('')||'<p>暂无归档任务</p>';
         panel.querySelectorAll('[data-maint-restore],[data-maint-delete]').forEach(button=>button.disabled=!selected.size);
         panel.querySelector('[data-maint-all]').disabled=!workspace.archivedTasks.length;
@@ -46,13 +49,16 @@ export function openMaintenancePanel(trigger,onChange=()=>{}) {
             workspace.archivedTasks=workspace.archivedTasks.filter(card=>!removed.has(card.id));workspace.view.xy.taskIds=workspace.view.xy.taskIds.filter(id=>!removed.has(id));selected.clear();persist();return;
         }
         if(button.matches('[data-maint-restore]')){
+            try{
             if(workspace.view.mode==='xy'){
                 const clone=structuredClone(workspace);restoreArchivedTasks(clone,selected);
                 const count=xy=>matrixAxisNames(xy).reduce((n,name)=>n*xy[name].values.length,1);
                 const extra=count(clone.view.xy)-count(workspace.view.xy);
                 if(extra>selected.size&&!confirm(`恢复会补回轴取值，矩阵将增加 ${extra} 个参数组合。是否继续？`))return;
             }
-            restoreArchivedTasks(workspace,selected);selected.clear();persist();return;
+            restoreArchivedTasks(workspace,selected);selected.clear();persist();
+            }catch(error){status.textContent=error.message;}
+            return;
         }
         if(button.id==='clab-maint-clean-dead'||button.id==='clab-maint-resync'){
             panel.querySelectorAll('.clab-maint-actions button').forEach(item=>item.disabled=true);status.textContent='正在处理…';

@@ -66,5 +66,6 @@ export function openXYValues(container,name,getXY,commit,bind,trigger,previewLab
     const binding=panel.popup.querySelector('[data-xy-bind-axis]');if(binding)binding.onclick=()=>bind(name);
     tabs=attachAxisValueTabs(panel.popup,fields,()=>getXY()[name].values,()=>apply(),values=>{const previous=textarea.value;textarea.value=formatAxisOrder(values,types,previous);if(!apply(false))textarea.value=previous;checks();},panel.position);
     attachAxisLabelControls(panel.popup,name,getXY,previewLabels,commitLabels);
-    checks();const focused=singleChoice?panel.popup.querySelector('[data-xy-choice]'):textarea||binding;focused?.focus({preventScroll:true});
+    checks();try{validateChoiceValues(axis.values,fields);}catch(problem){error.textContent=problem.message;}
+    const focused=singleChoice?panel.popup.querySelector('[data-xy-choice]'):textarea||binding;focused?.focus({preventScroll:true});
 }

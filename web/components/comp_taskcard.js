@@ -3,7 +3,8 @@
  * 职责: 【组件】负责“任务卡片”列表的 HTML 生成、局部物理拖拽与单点重绘
  */
 import { remapHistoryModuleIds } from "./modules/media_types/media_utils.js";
-import { state, dragState, appState, getActiveWorkspace } from "./ui_state.js";
+import { state, dragState, appState, getActiveWorkspace,syncStateToActiveWorkspace } from "./ui_state.js";
+import { archiveTasks } from './workspace_modes/task_archive.js';
 // 【注入】：引入 attachAreaEvents 以便克隆时对新生 DOM 原地施放事件绑定魔法
 import { generateAreaHTML, generateDeferredAreaHTML, syncAreaDOMOrder, justSave, attachAreaEvents } from "./comp_modulearea.js";
 import { updateSelectionUI } from "./ui_selection.js";
@@ -159,7 +160,7 @@ export function attachCardEvents(container) {
             if (state.selectedCardIds && state.selectedCardIds.includes(id) && state.selectedCardIds.length > 1) {
                 idsToDelete = [...state.selectedCardIds];
             }
-            state.cards = state.cards.filter(c => !idsToDelete.includes(c.id));
+            archiveTasks(syncStateToActiveWorkspace(),new Set(idsToDelete));
             if (state.selectedCardIds) state.selectedCardIds = state.selectedCardIds.filter(selId => !idsToDelete.includes(selId));
             state.activeCardId = (state.selectedCardIds && state.selectedCardIds.length > 0) ? state.selectedCardIds[state.selectedCardIds.length - 1] : null;
             

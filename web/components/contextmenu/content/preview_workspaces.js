@@ -55,19 +55,27 @@ export function createPreviewWorkspaceBundle(workspaces,label,onCommit=()=>{}) {
         return group;
     });
     const cards=groups.flatMap(group=>group.projected.cards);
-    const saved={...groups[0]?.projected.view.previewDetail,styles:Object.assign({},...groups.map(group=>group.projected.view.previewDetail?.styles||{}))};
+    const stylePrefix=group=>`preview:${encodeURIComponent(group.id)}:`;
+    const saved={...groups[0]?.projected.view.previewDetail,styles:Object.fromEntries(groups.flatMap(group=>Object.entries(group.projected.view.previewDetail?.styles||{}).map(([key,value])=>[key==='all'||key.startsWith('name:')?stylePrefix(group)+key:key,value])))};
     for(const key of ['cardIds','tasks','outputs','covers','histories','media','inputs'])saved[key]=groups.flatMap(group=>group.projected.view.previewDetail?.[key]||[]);
     const detail={view:{previewDetail:saved}};
+    let detailBaseline=structuredClone(saved);
     return {groups,cards,detail,
         saveDetail(){
             const all=detail.view.previewDetail;
             for(const group of groups){
                 const ids=new Set(group.projected.cards.map(card=>card.id)),previous=group.projected.view.previewDetail||{};
-                group.projected.view.previewDetail={...previous,...all};
-                group.projected.view.previewDetail.styles=Object.fromEntries(Object.entries(all.styles||{}).filter(([key])=>key==='all'||key.startsWith('name:')||(()=>{try{return ids.has(JSON.parse(key)[0]);}catch{return false;}})()));
+                const next={...previous},prefix=stylePrefix(group);
+                for(const key of ['columns','rowWidth','sourceColumns','search','typeFilter'])if(JSON.stringify(all[key])!==JSON.stringify(detailBaseline[key]))next[key]=all[key];
+                next.styles=Object.fromEntries(Object.entries(all.styles||{}).flatMap(([key,value])=>key.startsWith(prefix)?[[key.slice(prefix.length),value]]:(()=>{try{return ids.has(JSON.parse(key)[0])?[[key,value]]:[];}catch{return [];}})()));
+                for(const [key,rule]of Object.entries(all.styles||{}))if(key==='all'||key.startsWith('name:')){
+                    const own=next.styles[key]||{};next.styles[key]=Object.fromEntries(['row','key','value'].map(part=>[part,{...own[part],...rule[part]}]));
+                }
+                group.projected.view.previewDetail=next;
                 for(const key of ['cardIds','tasks'])group.projected.view.previewDetail[key]=(all[key]||[]).filter(id=>ids.has(id));
                 for(const key of ['outputs','covers','histories','media','inputs'])group.projected.view.previewDetail[key]=(all[key]||[]).filter(([id])=>ids.has(id)||(()=>{try{return ids.has(JSON.parse(id)[0]);}catch{return false;}})());
             }
+            detailBaseline=structuredClone(all);
         },
         commit(){for(const group of groups)group.commit();onCommit();},
     };

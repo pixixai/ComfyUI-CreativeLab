@@ -99,7 +99,8 @@ export function detailHistoryTarget(groups,cardId,areaId,key,delta,groupOnly=fal
 }
 
 export function detailStyle(config, cardId, field) {
-    const rules = [DETAIL_DEFAULT_STYLE, config.styles?.all, config.styles?.[`name:${field.title}`], config.styles?.[detailFieldKey(cardId, field.id)]];
+    const prefix=cardId.startsWith('preview:')?cardId.slice(0,cardId.lastIndexOf(':')+1):'';
+    const rules = [DETAIL_DEFAULT_STYLE, prefix&&config.styles?.[`${prefix}all`],config.styles?.all, prefix&&config.styles?.[`${prefix}name:${field.title}`],config.styles?.[`name:${field.title}`], config.styles?.[detailFieldKey(cardId, field.id)]];
     return Object.fromEntries(['row', 'key', 'value'].map(part => [part, Object.assign({}, ...rules.map(rule => rule?.[part]))]));
 }
 

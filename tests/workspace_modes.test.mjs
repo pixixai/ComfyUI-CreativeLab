@@ -45,7 +45,7 @@ test('removed display dimensions never inject generation sizes; axis width/heigh
     const {view}=fixture(),cards=[];view.xy.size={width:1024,height:768,widthBinding:'3||width',heightBinding:'3||height'};
     synchronizeMatrix(cards,view.xy,parameters);assert.equal(parameterValue(cards[0],'3||width'),undefined);assert.equal(parameterValue(cards[0],'3||height'),undefined);
     rebindMatrixAxis(cards,view.xy,'x',['3||width','3||height'],parameters);synchronizeMatrix(cards,view.xy,parameters);
-    assert.equal(parameterValue(cards[0],'3||width'),512);assert.equal(parameterValue(cards[0],'3||height'),768);
+    assert.equal(parameterValue(cards[0],'3||width'),20);assert.equal(parameterValue(cards[0],'3||height'),768);
 });
 test('record rows read workflow values without injection in XY and become ordinary bound inputs in card/table views',()=>{
     const {view}=fixture(),cards=[];view.xy.records=[{id:'cfg-record',key:'1||cfg'}];synchronizeMatrix(cards,view.xy,parameters);

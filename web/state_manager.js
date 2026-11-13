@@ -10,6 +10,7 @@ import {
 } from "./components/ui_state.js";
 import { loadAllTextHistory, ensureInputSnapshotState } from "./components/modules/media_types/media_utils.js";
 import { prepareConfigStorage } from "./config_storage.js";
+import { editHistory } from './components/edit_history_runtime.js';
 
 function placeConfigNode(node, graph, canvas) {
     const view = canvas.ds?.visible_area;
@@ -134,8 +135,9 @@ export const StateManager = {
         const widget = this.getConfigNode(graph)?.widgets?.find((w) => w.name === "scenes_data");
         if (!widget?.value) {
             hydrateStateFromPersisted();
+            editHistory.reset();
             this._lastSyncedJSON = "";
-            document.dispatchEvent(new CustomEvent("clab_state_cleared"));
+            editHistory.withoutRecording(()=>document.dispatchEvent(new CustomEvent("clab_state_cleared")));
             this.startWatchdog(graph);
             return;
         }
@@ -144,11 +146,12 @@ export const StateManager = {
             this._lastSyncedJSON = widget.value;
             const parsed = JSON.parse(widget.value);
             hydrateStateFromPersisted(parsed);
+            editHistory.reset();
             if (parsed.schemaVersion !== WORKSPACE_SCHEMA_VERSION) this.scheduleSyncToNode(graph);
 
             await this.syncLocalHistoryToOutputAreas();
             await this.reloadTextHistoriesFromFiles();
-            document.dispatchEvent(new CustomEvent("clab_state_loaded", { detail: state }));
+            editHistory.withoutRecording(()=>document.dispatchEvent(new CustomEvent("clab_state_loaded", { detail: state })));
         } catch (e) {
             console.error("[CLab] Failed to parse saved state:", e);
         }

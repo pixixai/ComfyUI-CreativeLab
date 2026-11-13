@@ -7,11 +7,14 @@ export function appendWorkspaceTasks(container,cards) {
     const wrapper=container.querySelector('.clab-cards-wrapper');if(!wrapper)return;
     const elements=new Map([...wrapper.querySelectorAll(':scope > .clab-card')].map(element=>[element.dataset.cardId,element]));
     for(const [id,element]of elements)if(!cards.some(card=>card.id===id))element.remove();
+    let next=wrapper.querySelector(':scope > .clab-card');
     for(const [index,card]of cards.entries()){
         let element=elements.get(card.id);
         if(!element){
             const temp=document.createElement('div');temp.innerHTML=generateSingleCardHTML(card,index);element=temp.firstElementChild;wrapper.append(element);attachCardEvents(element);
         }
+        if(element!==next)moveModuleDOM(wrapper,element,next);
+        next=element.nextElementSibling;while(next&&!next.matches('.clab-card'))next=next.nextElementSibling;
         const list=element.querySelector('.clab-area-list'),areas=new Map([...list.children].filter(area=>area.matches('.clab-area')).map(area=>[area.dataset.areaId,area]));
         for(const [id,area]of areas)if(!card.areas.some(item=>item.id===id))area.remove();
         card.areas.forEach((area,index)=>{

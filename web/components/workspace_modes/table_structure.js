@@ -1,5 +1,6 @@
 import { addSheetColumn, addSheetRow, draftAreaId } from './table_sheet.js';
 import { remapHistoryModuleIds } from '../modules/media_types/media_utils.js';
+import { archiveTaskCards } from './task_archive.js';
 
 function updateTrackLayout(view, sheet, axis, id, copyId) {
     const table = view.table;
@@ -65,9 +66,11 @@ export function duplicateTableColumn(sheet, cards, view, index) {
     return column;
 }
 
-export function removeTableTracks(sheet, cards, view, axis, start, count) {
-    const items = (axis === 'row' ? sheet.rows : sheet.columns).splice(start, count);
+export function removeTableTracks(sheet, cards, view, axis, start, count, archived=[]) {
+    const tracks=axis==='row'?sheet.rows:sheet.columns,items=tracks.slice(start,start+count);
     const ids = new Set(items.map(item => item.id));
+    if(axis==='row')archiveTaskCards(cards,new Set(items.map(row=>row.cardId).filter(Boolean)),archived,view.table);
+    if(axis==='row')sheet.rows=sheet.rows.filter(row=>!ids.has(row.id));else sheet.columns.splice(start,count);
     for (const id of ids) updateTrackLayout(view, sheet, axis, id);
     if (axis === 'column') {
         const members = new Set(sheet.rows.map(row => row.cardId));

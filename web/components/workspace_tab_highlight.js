@@ -20,13 +20,14 @@ export function paintWorkspaceHighlights(container,selectedIds){
         const last=groups.at(-1);if(last&&tabs.indexOf(tab)===tabs.indexOf(last.at(-1))+1)last.push(tab);else groups.push([tab]);
     }
     if(multi&&active&&!selectedIds.includes(active.dataset.workspaceId))groups.push([active]);
-    const rect=container.getBoundingClientRect(),keys=new Set();
+    const keys=new Set();
     svg.style.width=`${Math.max(container.clientWidth,...[...container.children].filter(node=>node!==svg).map(node=>node.offsetLeft+node.offsetWidth))}px`;svg.style.height=`${container.clientHeight}px`;
     for(const group of groups){
         const ring=multi&&selectedIds.includes(group[0].dataset.workspaceId),key=group.map(tab=>tab.dataset.workspaceId).join('|');keys.add(key);
-        const first=group[0].getBoundingClientRect(),last=group.at(-1).getBoundingClientRect();
-        const left=first.left-rect.left+container.scrollLeft+.5,right=last.right-rect.left+container.scrollLeft-.5,top=.5,bottom=container.clientHeight-.5;
-        const start=group.includes(active)?active.getBoundingClientRect().left-rect.left+container.scrollLeft+.5:left;
+        const first=group[0],last=group.at(-1);
+        // SVG coordinates must stay in layout pixels during the panel's scale animation.
+        const left=first.offsetLeft+.5,right=last.offsetLeft+last.offsetWidth-.5,top=.5,bottom=container.clientHeight-.5;
+        const start=group.includes(active)?active.offsetLeft+.5:left;
         const length=ring?2*(right-left+bottom-top):right-left;
         const d=ring?`M${start},${top}H${right}V${bottom}H${left}V${top}H${start}`:`M${left},${top}H${right}`;
         let path=view.paths.get(key);const fresh=!path||!path.isConnected;

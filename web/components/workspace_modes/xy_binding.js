@@ -1,8 +1,8 @@
 import { app } from '../../../../scripts/app.js';
 import { escapeHtml as esc } from '../contextmenu/content/shared.js';
 import { workflowParameters, nodeName } from './parameters.js';
-import { rebindMatrixAxis } from './xy_model.js';
-import { state, appState } from '../ui_state.js';
+import { rebindMatrixAxis, rebindMatrixOutput } from './xy_model.js';
+import { state, appState, getActiveWorkspace } from '../ui_state.js';
 import { pickWorkflowTarget } from '../actions/action_binding.js';
 import { openXYPopover } from './xy_popover.js';
 
@@ -36,9 +36,9 @@ export function openXYBinding(container,key,getXY,commit,focusedNode='',trigger)
         foot.textContent=multiple?'按勾选顺序排列组合值 · 可跨节点选择多个参数':'再次点击已选项取消绑定';panel.position();
     };
     const update=keys=>{
-        const xy=getXY(),parameters=workflowParameters();
-        if(multiple){if(['x','y','z'].some(name=>name!==key&&(name!=='z'||xy.z.enabled)&&keys.some(binding=>xy[name].bindings.includes(binding))))throw new Error('同一个参数不能同时由多个坐标轴控制。');if(key==='z')xy.z.enabled=keys.length>0;rebindMatrixAxis(state.cards,xy,key,keys,parameters);}
-        else if(output)xy.outputNodeId=keys[0]||'';
+        const xy=getXY(),parameters=workflowParameters(),workspace=getActiveWorkspace();
+        if(multiple){if(['x','y','z'].some(name=>name!==key&&(name!=='z'||xy.z.enabled)&&keys.some(binding=>xy[name].bindings.includes(binding))))throw new Error('同一个参数不能同时由多个坐标轴控制。');if(key==='z')xy.z.enabled=keys.length>0;rebindMatrixAxis(state.cards,xy,key,keys,parameters,workspace.archivedTasks,workspace.view.table);}
+        else if(output)rebindMatrixOutput(state.cards,xy,keys[0]||'',workspace.archivedTasks,workspace.view.table);
         else if(record)xy.records.find(entry=>entry.id===recordId).key=keys[0]||'';
         commit();
     };

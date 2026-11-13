@@ -7,6 +7,7 @@ import { StateManager } from "./state_manager.js";
 import { prepareConfigStorage } from "./config_storage.js";
 import { setupAPIInjector } from "./api_injector.js";
 import { setupUI, togglePanel } from "./ui_panel.js"; // 【修改点】：引入 togglePanel 方法
+import { editHistory,setupEditHistory } from './components/edit_history_runtime.js';
 
 app.registerExtension({
     name: "ComfyUI.CLab",
@@ -14,6 +15,7 @@ app.registerExtension({
     async setup() {
         console.log("[CLab] 开始加载...");
         setupUI();
+        setupEditHistory({persist:()=>StateManager.syncToNode(app.graph),flush:()=>StateManager.flushPendingSave(app.graph)});
         setupAPIInjector(app);
         const originalSerialize = app.graph.serialize;
         app.graph.serialize = function() {
@@ -117,9 +119,11 @@ app.registerExtension({
 window.CLab = {
     saveState(newState, { createAnchor = true } = {}) {
         Object.assign(StateManager.state, newState);
+        editHistory.record();
         StateManager.syncToNode(app.graph, createAnchor ? app.canvas : null);
     },
     scheduleSave({ createAnchor = true } = {}) {
+        editHistory.record();
         StateManager.scheduleSyncToNode(app.graph, createAnchor ? app.canvas : null);
     },
     scheduleViewSave() {

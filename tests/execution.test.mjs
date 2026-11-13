@@ -4,6 +4,8 @@ import test from 'node:test';
 import vm from 'node:vm';
 import { createWorkspaceView } from '../web/components/workspace_modes/view_state.js';
 import { synchronizeMatrix, matrixOutput, materializeMatrixRecords } from '../web/components/workspace_modes/xy_model.js';
+import { createEditHistory } from '../web/components/edit_history.js';
+import { prepareWorkspaceCopy } from '../web/components/workspace_copy.js';
 
 const source = (file) => readFileSync(new URL(`../web/${file}`, import.meta.url), 'utf8')
     .replace(/import\s+[\s\S]*?\s+from\s+["'][^"']+["'];?/g, '')
@@ -129,6 +131,23 @@ function createHarness(options = {}) {
 
 const imageResult = (prompt_id = 'p1', filenames = ['source.png']) => ({
     prompt_id, node: '2', output: { images: filenames.map((filename) => ({ filename, type: 'temp', subfolder: '' })) },
+});
+
+test('undoing a queued task keeps its real late result in the archive and redo restores it',async()=>{
+    const h=createHarness(),history=createEditHistory();h.workspace.view=createWorkspaceView();history.clear(h.state);
+    const task=structuredClone(h.card);task.id='new-task';task.areas.forEach(area=>area.id='new-'+area.id);h.state.cards.push(task);history.record(h.state);
+    await h.run([{cardId:task.id,previewAreaIds:['new-output']}]);history.undo(h.state);
+    assert.ok(!h.workspace.cards.includes(task)&&h.workspace.archivedTasks.includes(task));
+    await h.emit('executed',imageResult());await h.emit('execution_success',{prompt_id:'p1'});
+    const output=task.areas.find(area=>area.type==='preview');assert.equal(output.history.length,1);assert.equal(h.persisted().workspaces[0].archivedTasks.length,1);
+    history.redo(h.state);assert.ok(h.workspace.cards.includes(task));assert.equal(h.workspace.archivedTasks.length,0);assert.equal(output.history.length,1);
+});
+
+test('copying a submitted workspace removes the copied submission while its result still belongs to the original',async()=>{
+    const h=createHarness();await h.run();const copy=prepareWorkspaceCopy(h.switchWorkspace());
+    assert.equal(copy.cards[0].historyRunSequence,undefined);assert.equal(h.card.historyRunSequence,1);
+    await h.emit('executed',imageResult());await h.emit('execution_success',{prompt_id:'p1'});
+    assert.equal(h.output.history.length,1);assert.equal(copy.cards[0].areas.find(area=>area.type==='preview').history.length,0);
 });
 
 test('repeated selected XY runs append real output histories and preserve the same output when converting to cards',async()=>{

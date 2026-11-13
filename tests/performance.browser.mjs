@@ -17,6 +17,12 @@ import { runXYGestureChecks } from './xy_gestures.browser.mjs';
 import { runXYZBrowserChecks } from './xyz.browser.mjs';
 import { runXYEditingChecks } from './xy_editing.browser.mjs';
 import { runUndoBrowserChecks } from './undo.browser.mjs';
+import { runEditHistoryChecks } from './edit_history.browser.mjs';
+import { runWorkspaceHistoryChecks } from './workspace_history.browser.mjs';
+import { runHistoryShortcutChecks } from './history_shortcuts.browser.mjs';
+import { runHistoryNavigationChecks } from './history_navigation.browser.mjs';
+import { runToolbarVisualChecks } from './toolbar_visual.browser.mjs';
+import { runXYArchiveChecks } from './xy_archive.browser.mjs';
 import { runXYPerformanceChecks } from './xy_performance.browser.mjs';
 import { runTableBrowserChecks } from './table.browser.mjs';
 import { runPreviewWorkspaceChecks } from './preview_workspaces.browser.mjs';
@@ -170,6 +176,30 @@ try {
     for (const name of report.passed) console.log(`PASS ${name}`);
     assert.equal(report.error, undefined, report.error);
     assert.deepEqual(report.errors, []);
+    if(process.env.CLAB_BROWSER_SUITE==='history'){
+        await send('Runtime.evaluate',{expression:`window.showWorkspaceModeDemo('xy');new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`,awaitPromise:true},sessionId);
+        await runUndoBrowserChecks(send,sessionId);
+        await runEditHistoryChecks(send,sessionId);
+        await runWorkspaceHistoryChecks(send,sessionId);
+        await runHistoryShortcutChecks(send,sessionId);
+        await runHistoryNavigationChecks(send,sessionId);
+        await runXYArchiveChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='workspace-history'){
+        await runWorkspaceHistoryChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='host-history'){
+        await runHistoryShortcutChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='navigation'){
+        await runHistoryNavigationChecks(send,sessionId);
+        await runToolbarVisualChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='editing'){
+        await runTableBrowserChecks(send,sessionId);
+        await runXYPerformanceChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='preview'){
+        await runPreviewMultisourceChecks(send,sessionId);
+        await runPreviewScopeChecks(send,sessionId);
+        await runPreviewNavigationChecks(send,sessionId);
+        await runPreviewDetailRegressions(send,sessionId);
+    }else{
     const position = await send('Runtime.evaluate', {
         expression:`(()=>{const canvas=document.querySelector('[data-area-id="upload-model"] .clab-glb-viewer[data-model-loaded="1"] canvas');canvas.scrollIntoView({block:'center'});const r=canvas.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,scale:1};})()`,returnByValue:true,
     },sessionId);
@@ -735,12 +765,18 @@ try {
     await runPreviewNavigationChecks(send,sessionId);
     await runPreviewPNGChecks(send,sessionId);
     await runPreviewDetailRegressions(send,sessionId);
+    await runEditHistoryChecks(send,sessionId);
+    await runWorkspaceHistoryChecks(send,sessionId);
+    await runHistoryShortcutChecks(send,sessionId);
+    await runHistoryNavigationChecks(send,sessionId);
+    await runToolbarVisualChecks(send,sessionId);
     if(process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX)for(const mode of ['cards','table','xy']){
         await send('Runtime.evaluate',{expression:`window.showWorkspaceModeDemo('${mode}');if('${mode}'==='xy')document.querySelector('[data-xy-reset]').click();`},sessionId);await new Promise(resolve=>setTimeout(resolve,100));
         const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX}-${mode}.png`,Buffer.from(screenshot.data,'base64'));
     }
     await send('Runtime.evaluate',{expression:'window.releaseReviewAssets?.()'},sessionId);
     console.log(`${report.passed.length+32+xyzChecks+xyGestureChecks+xyTitleChecks+xyTilingChecks+undoChecks+xyPerformanceChecks+xyEditingChecks+tableChecks+toolbarChecks+previewWorkspaceChecks} browser checks passed; ${requests.length} media requests`);
+    }
 } finally {
     socket?.close();
     browser.kill();

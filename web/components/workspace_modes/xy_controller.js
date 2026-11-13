@@ -23,6 +23,7 @@ import { refreshXYActivity } from './xy_activity.js';
 import { matrixRunCards } from './xy_layers.js';
 import { updateSelectionUI } from '../ui_selection.js';
 import { synchronizeModeMedia } from './mode_media.js';
+import { validateMatrixValues } from './xy_rebind.js';
 
 export function createXYController(container,getView,save,saveView) {
     let visibleIds=new Set(),controlsHTML='',recordSequence=0,mediaFrame=0,mediaRatio=1;
@@ -79,6 +80,7 @@ export function createXYController(container,getView,save,saveView) {
     const run=(scope='auto')=>{
         try{
             const xy=getXY();if(!matrixReady(xy))throw new Error(`请分别绑定 ${xy.z.enabled?'X、Y、Z':'X、Y'} 轴参数并填写取值。`);
+            validateMatrixValues(xy,workflowParameters());
             if(!xy.outputNodeId)throw new Error('请先通过矩阵右上角的绑定摘要选择输出节点。');
             commit();const group=matrixRunCards(state.cards,xy,visibleIds,scope==='layer'?selectedInLayer(xy):selected(),scope);
             const tasks=group.filter(card=>Object.values(taskCoordinates(card,xy)).every(value=>value>=0)).map(card=>({cardId:card.id,previewAreaIds:[matrixOutput(card,xy).id]}));
