@@ -37,6 +37,7 @@ function part(overlay,key,html) {
 export function projectXYCanvas(container,xy) {
     container.querySelector('.clab-cards-wrapper').style.transform=`translate(${xy.panX}px,${xy.panY}px) scale(${xy.zoom})`;
     const overlay=container.querySelector('.clab-xy-overlay');if(!overlay)return;
+    if(container.hasAttribute('data-clab-virtualized'))container.dispatchEvent(new Event('clab_viewport_change'));
     overlay.style.transform=`translate(${xy.panX}px,${xy.panY}px)`;
     if(overlay._clabZoom===xy.zoom&&overlay._clabPositions)return;
     overlay.style.setProperty('--xy-ui-scale',xy.zoom);

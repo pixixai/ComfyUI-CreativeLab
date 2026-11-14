@@ -41,18 +41,18 @@ export function applyTableLayout(wrapper,columns,view) {
     const widths = columns.map(column => tableColumnWidth(column, view));
     wrapper.style.setProperty('--clab-table-columns',`var(--clab-table-row-width,44px) ${widths.map(width=>`${width}px`).join(' ')} var(--clab-table-add-column-width,28px)`);
     wrapper.querySelectorAll('[data-table-row]').forEach(element=>element.style.setProperty('--clab-table-height',`${tableRowHeight(view,{id:element.dataset.tableRow})}px`));
-    for (const zone of wrapper.querySelectorAll('[role=cell] .clab-upload-zone')) {
-        const cell = zone.closest('[role=cell]');
-        const height = tableRowHeight(view, {id: cell.dataset.cardId});
-        const width = widths[cell.dataset.tableIndex];
-        const preview = zone.querySelector('.clab-upload-preview:not([hidden])');
-        const [top,right,bottom,left] = (cell.style.getPropertyValue('--clab-table-padding').match(/\d+(?:\.\d+)?/g) || [0,0,0,0]).map(Number);
-        const horizontal = Math.min(1, width / (2 * (left + right)));
-        const vertical = Math.min(1, height / (2 * (top + bottom)));
-        cell.style.setProperty('--clab-table-media-padding', `${top * vertical}px ${right * horizontal}px ${bottom * vertical}px ${left * horizontal}px`);
-        const zoom = Math.min(1, (width - (left + right) * horizontal - 2) / 236, (height - (top + bottom) * vertical - 2) / (preview ? 204 : 48));
-        if (zoom > 0) cell.style.setProperty('--clab-table-media-zoom', zoom);
-    }
+    for(const cell of wrapper.querySelectorAll('[role=cell]:has(.clab-upload-zone)'))fitTableMedia(cell,widths[cell.dataset.tableIndex],tableRowHeight(view,{id:cell.dataset.cardId}));
+
+}
+
+export function fitTableMedia(cell,width,height) {
+    const zone=cell.querySelector('.clab-upload-zone');if(!zone)return;
+    const preview=zone.querySelector('.clab-upload-preview:not([hidden])');
+    const [top,right,bottom,left]=(cell.style.getPropertyValue('--clab-table-padding').match(/\d+(?:\.\d+)?/g)||[0,0,0,0]).map(Number);
+    const horizontal=Math.min(1,width/(2*(left+right))),vertical=Math.min(1,height/(2*(top+bottom)));
+    cell.style.setProperty('--clab-table-media-padding',`${top*vertical}px ${right*horizontal}px ${bottom*vertical}px ${left*horizontal}px`);
+    const zoom=Math.min(1,(width-(left+right)*horizontal-2)/236,(height-(top+bottom)*vertical-2)/(preview?204:48));
+    if(zoom>0)cell.style.setProperty('--clab-table-media-zoom',zoom);
 }
 
 export function resizeTableCells(view, sheet, key, value, ids = []) {

@@ -1,3 +1,5 @@
+import { projectXYCanvas } from './xy_axes.js';
+import { revealDelta } from './viewport_geometry.js';
 import { showBindingToast } from '../ui_utils.js';
 import { reconcileMatrixArchive } from './xy_archive.js';
 import { state, getActiveWorkspace } from '../ui_state.js';
@@ -24,6 +26,7 @@ import { matrixRunCards } from './xy_layers.js';
 import { updateSelectionUI } from '../ui_selection.js';
 import { synchronizeModeMedia } from './mode_media.js';
 import { validateMatrixValues } from './xy_rebind.js';
+import { workspaceViewport } from './viewport_components.js';
 
 export function createXYController(container,getView,save,saveView) {
     let visibleIds=new Set(),controlsHTML='',recordSequence=0,mediaFrame=0,mediaRatio=1;
@@ -62,6 +65,7 @@ export function createXYController(container,getView,save,saveView) {
         refreshRunLabel();
         synchronizeModeMedia(wrapper);
         if(!xy.cameraReady){fitXYCanvas(container,xy);xy.cameraReady=true;saveView();}
+        workspaceViewport(container).update('xy',{xy});
     };
     const commit=(fit=false,persist=save)=>{
         reconcile();
@@ -149,5 +153,13 @@ export function createXYController(container,getView,save,saveView) {
     const canvas=attachXYCanvas(container,getView,saveView,run,()=>window.CLab?.scheduleViewSave());
     attachXYSelection(container,getXY);attachXYHistoryKeys(container,getXY,selected,render);
     document.addEventListener('clab_task_activity',event=>{if(active()&&event.detail.workspaceId===state.activeWorkspaceId)refreshXYActivity(container,state.activeWorkspaceId);});
-    return {render,exportRecords(){ensureXYHistory(state.cards,getXY());materializeMatrixRecords(state.cards,getXY(),workflowParameters());appendWorkspaceTasks(container,state.cards);},leave(){setRunLabel('运行');runButton.title='按规则运行选中任务（局部）';cancelAnimationFrame(mediaFrame);mediaFrame=0;canvas.stop();closeXYPopover();container.querySelector('.clab-xy-overlay')?.remove();}};
+    const follow=cardId=>{
+        const xy=getXY(),card=state.cards.find(card=>card.id===cardId);if(!active()||!card)return;const coordinates=taskCoordinates(card,xy);if(coordinates.x<0||coordinates.y<0||coordinates.z<0)return;
+        if(xy.z.enabled&&coordinates.z!==undefined&&currentZLayer(xy)!==coordinates.z){xy.z.current=coordinates.z;render();}
+        const root=container.querySelector(`.clab-card[data-card-id="${CSS.escape(cardId)}"]`);if(!root||root.hidden)return;
+        const view=container.getBoundingClientRect(),box=root.getBoundingClientRect();
+        const dx=revealDelta(box.left,box.right,view.left+20,view.right-20),dy=revealDelta(box.top,box.bottom,view.top+20,view.bottom-30);
+        if(dx||dy){xy.panX+=dx;xy.panY+=dy;projectXYCanvas(container,xy);}
+    };
+    return {render,follow,exportRecords(){ensureXYHistory(state.cards,getXY());materializeMatrixRecords(state.cards,getXY(),workflowParameters());appendWorkspaceTasks(container,state.cards);},leave(){setRunLabel('运行');runButton.title='按规则运行选中任务（局部）';cancelAnimationFrame(mediaFrame);mediaFrame=0;canvas.stop();closeXYPopover();container.querySelector('.clab-xy-overlay')?.remove();}};
 }

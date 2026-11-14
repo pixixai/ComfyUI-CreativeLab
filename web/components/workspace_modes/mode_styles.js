@@ -5,6 +5,11 @@ export function injectWorkspaceModeStyles() {
     if(document.getElementById('clab-workspace-mode-styles'))return;
     const style=document.createElement('style');style.id='clab-workspace-mode-styles';style.textContent=`
         #clab-panel [hidden]{display:none!important}
+        .clab-cards-wrapper[data-clab-virtualized=cards] .clab-area:is([data-clab-virtual],[data-clab-deferred]){box-sizing:border-box;height:var(--clab-virtual-height,148px);min-height:var(--clab-virtual-height,148px);flex-shrink:0}
+        .clab-cards-wrapper[data-clab-virtualized=cards] .clab-card-body{overflow-anchor:none}
+        .clab-cards-wrapper[data-clab-virtualized=xy] .clab-output-area:is([data-clab-virtual],[data-clab-deferred]){height:var(--xy-media-height,320px);min-height:0}
+        .clab-virtual-summary{position:absolute;inset:0;overflow:hidden;display:grid;place-items:center;background:#202020;color:#888;font:12px sans-serif;pointer-events:none}
+        .clab-virtual-summary img{width:100%;height:100%;object-fit:contain;display:block}.clab-virtual-summary span{max-width:90%;overflow:hidden;text-overflow:ellipsis;max-height:54px}
         .clab-workspace-tab[data-workspace-id]{display:grid;grid-template-columns:20px minmax(0,1fr) 20px;padding:0}
         .clab-workspace-tab.active[data-workspace-id]{display:flex;max-width:220px}
         .clab-workspace-tab > button{height:100%;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer}

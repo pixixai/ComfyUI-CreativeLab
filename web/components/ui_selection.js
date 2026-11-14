@@ -170,33 +170,20 @@ export function handleSelectionMouseDown(event, panelContainer) {
 
 export function updateSelectionUI() {
     try {
+        const root=document.querySelector('#clab-panel');if(!root)return;
         const selectedCards = new Set(state.selectedCardIds);
         const selectedAreas = new Set(state.selectedAreaIds);
-        // 1. 遍历卡片 DOM，修改高亮
-        document.querySelectorAll(".clab-card:not(.clab-add-card-inline)").forEach((card) => {
-            const cardId = card.dataset.cardId;
-            if (selectedCards.has(cardId)) {
-                card.classList.add("active", "selected");
-                card.style.borderColor = "var(--clab-theme-card, #4CAF50)";
-            } else {
-                card.classList.remove("active", "selected");
-                card.style.borderColor = "";
+        const paint=(selector,ids,key,color)=>{
+            const nodes=new Set(root.querySelectorAll(`:is(${selector}):is(.active,.selected)`));
+            if(ids.size===1){const node=root.querySelector(`:is(${selector})[data-${key==='cardId'?'card':'area'}-id="${CSS.escape([...ids][0])}"]`);if(node)nodes.add(node);}
+            else if(ids.size)for(const node of root.querySelectorAll(selector))if(ids.has(node.dataset[key]))nodes.add(node);
+            for(const node of nodes){
+                const selected=ids.has(node.dataset[key]);node.classList.toggle('active',selected);node.classList.toggle('selected',selected);
+                const border=selected?color:'';if(node.style.borderColor!==border)node.style.borderColor=border;
             }
-        });
-
-        // 2. 遍历模块 DOM，修改高亮
-        document.querySelectorAll(".clab-area").forEach((area) => {
-            const areaId = area.dataset.areaId;
-            if (selectedAreas.has(areaId)) {
-                area.classList.add("active");
-                area.classList.add("selected");
-                area.style.borderColor = "var(--clab-theme-module, #2196F3)";
-            } else {
-                area.classList.remove("active");
-                area.classList.remove("selected");
-                area.style.borderColor = "";
-            }
-        });
+        };
+        paint('.clab-card:not(.clab-add-card-inline),.clab-table-draft-row',selectedCards,'cardId','var(--clab-theme-card, #4CAF50)');
+        paint('.clab-area,.clab-table-draft-cell',selectedAreas,'areaId','var(--clab-theme-module, #2196F3)');
 
         // 3. 刷新动态工具栏
         const toolbarHandle = document.querySelector("#clab-toolbar-handle");
@@ -206,7 +193,8 @@ export function updateSelectionUI() {
         }
 
         // 4. 静默保存状态到节点（不触发全量渲染）
-        if (window.CLab?.scheduleSave) window.CLab.scheduleSave({ createAnchor:false });
+        window.CLab?.scheduleViewSave?.();
+        root.querySelector('#clab-cards-container')?.dispatchEvent(new Event('clab_viewport_change'));
     } catch (err) {
         console.error("[CLab] Selection local refresh failed, falling back to full render:", err);
         if (window.CLab && window.CLab.saveState) window.CLab.saveState(state, { createAnchor:false });

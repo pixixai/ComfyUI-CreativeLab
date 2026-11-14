@@ -23,6 +23,13 @@ import { runHistoryShortcutChecks } from './history_shortcuts.browser.mjs';
 import { runHistoryNavigationChecks } from './history_navigation.browser.mjs';
 import { runToolbarVisualChecks } from './toolbar_visual.browser.mjs';
 import { runXYArchiveChecks } from './xy_archive.browser.mjs';
+import { runContentPerformanceChecks } from './content_performance.browser.mjs';
+import { runRulerJumpChecks } from './ruler_jump.browser.mjs';
+import { runProgressiveChecks } from './progressive.browser.mjs';
+import { runCardCacheChecks } from './card_cache.browser.mjs';
+import { runWorkspaceFollowChecks } from './workspace_follow.browser.mjs';
+import { runCardWindowChecks } from './card_window.browser.mjs';
+import { runViewportChecks } from './viewport.browser.mjs';
 import { runXYPerformanceChecks } from './xy_performance.browser.mjs';
 import { runTableBrowserChecks } from './table.browser.mjs';
 import { runPreviewWorkspaceChecks } from './preview_workspaces.browser.mjs';
@@ -184,6 +191,22 @@ try {
         await runHistoryShortcutChecks(send,sessionId);
         await runHistoryNavigationChecks(send,sessionId);
         await runXYArchiveChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='card-cache'){
+        await runCardCacheChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='progressive'){
+        await runProgressiveChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='ruler-jump'){
+        await runRulerJumpChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='ruler'){
+        await runPreviewNavigationChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='follow'){
+        await runWorkspaceFollowChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='card-window'){
+        await runCardWindowChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='viewport'){
+        await runViewportChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='content-performance'){
+        await runContentPerformanceChecks(send,sessionId);
     }else if(process.env.CLAB_BROWSER_SUITE==='workspace-history'){
         await runWorkspaceHistoryChecks(send,sessionId);
     }else if(process.env.CLAB_BROWSER_SUITE==='host-history'){
@@ -770,6 +793,11 @@ try {
     await runHistoryShortcutChecks(send,sessionId);
     await runHistoryNavigationChecks(send,sessionId);
     await runToolbarVisualChecks(send,sessionId);
+    await runContentPerformanceChecks(send,sessionId);
+    await runViewportChecks(send,sessionId);
+    await runCardWindowChecks(send,sessionId);
+    await runWorkspaceFollowChecks(send,sessionId);
+    await runRulerJumpChecks(send,sessionId);
     if(process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX)for(const mode of ['cards','table','xy']){
         await send('Runtime.evaluate',{expression:`window.showWorkspaceModeDemo('${mode}');if('${mode}'==='xy')document.querySelector('[data-xy-reset]').click();`},sessionId);await new Promise(resolve=>setTimeout(resolve,100));
         const screenshot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX}-${mode}.png`,Buffer.from(screenshot.data,'base64'));

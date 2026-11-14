@@ -1,3 +1,4 @@
+import { hasCardWindow,cardWindow } from '../workspace_modes/card_window.js';
 import { state, appState } from '../ui_state.js';
 import { showBindingToast } from '../ui_utils.js';
 import { isModelFile } from './media_types/media_utils.js';
@@ -78,12 +79,20 @@ export function bindMediaClipboard() {
         const ids = state.selectedAreaIds || [];
         const focused = active?.closest('.clab-area')?.dataset.areaId;
         const preferred = [focused, appState.lastClickedAreaId].filter(id => ids.includes(id));
-        const targets = [...new Set([...preferred, ...ids])]
-            .map(id => window._clabUploadHandlers?.get(id))
-            .filter(entry => entry?.zone.isConnected && panel.contains(entry.zone) && !entry.zone.closest('[hidden]'));
-        if (!targets.length) return;
         const files = [...clipboard.files, ...Array.from(clipboard.items).filter(item => item.kind === 'file').map(item => item.getAsFile())].filter(Boolean);
-        for (const entry of targets) {
+        const sources = clipboardMedia(text, html);
+        if (!files.length && !sources.length) return;
+        let foundTarget = false;
+        function* selectedUploads() {
+            for (const id of new Set([...preferred, ...ids])) {
+                let cell = panel.querySelector(`.clab-cards-wrapper [data-area-id="${CSS.escape(id)}"]`);
+                if(!cell&&hasCardWindow(panel.querySelector('#clab-cards-container')))cell=cardWindow(panel.querySelector('#clab-cards-container')).ensureArea(id);
+                cell?.dispatchEvent(new CustomEvent('clab_ensure_component', {bubbles:true}));
+                const entry = window._clabUploadHandlers?.get(id);
+                if (entry?.zone.isConnected && panel.contains(entry.zone) && !entry.zone.closest('[hidden]')) { foundTarget = true; yield entry; }
+            }
+        }
+        for (const entry of selectedUploads()) {
             const file = files.find(file => isUploadTypeMatch(file, entry.uploadType));
             if (!file) continue;
             event.preventDefault();
@@ -91,8 +100,7 @@ export function bindMediaClipboard() {
             entry.upload(file);
             return;
         }
-        const sources = clipboardMedia(text, html);
-        for (const entry of targets) {
+        for (const entry of selectedUploads()) {
             const source = sources.find(source => entry.uploadType === 'file' || entry.uploadType === source.type);
             if (!source) continue;
             event.preventDefault();
@@ -102,7 +110,7 @@ export function bindMediaClipboard() {
             }).catch(error => showBindingToast(error instanceof TypeError ? '网页媒体无法直接读取。请保存文件后上传。' : error.message, true));
             return;
         }
-        if (files.length || sources.length) {
+        if (foundTarget && (files.length || sources.length)) {
             event.preventDefault();
             event.stopPropagation();
             showBindingToast('剪贴板中的媒体与所选输入类型不匹配。', true);

@@ -20,6 +20,7 @@ function persistenceFixture() {
         setTimeout(fn) { const id = ++sequence; timers.set(id, fn); return id; },
         clearTimeout(id) { timers.delete(id); }, setInterval() { return 1; },
         buildPersistedState() { builds++; return { value: state.value }; },
+        serializePersistedState() { builds++; return JSON.stringify({ value: state.value }); },
     });
     vm.runInContext(source('state_manager.js'), context);
     const manager = vm.runInContext('StateManager', context);
@@ -37,6 +38,15 @@ test('continuous edits coalesce and a forced save flushes the latest value once'
     assert.equal(JSON.parse(h.widget.value).value, 'edit 19');
     h.manager.flushPendingSave(h.graph);
     assert.equal(h.builds, 1);
+});
+
+test('deferred content and view saves retain every dirty workspace through workspace switching',()=>{
+    const h=persistenceFixture();let ids;
+    h.context.serializePersistedState=(cache,changed)=>{ids=changed==null?null:[...changed];return JSON.stringify({value:h.state.value});};
+    h.manager.scheduleSyncToNode(h.graph,null,['a']);h.manager.scheduleViewSyncToNode(h.graph,['b']);h.manager.scheduleSyncToNode(h.graph,null,['c']);
+    h.state.value='latest';h.manager.flushPendingSave(h.graph);assert.deepEqual(ids.sort(),['a','b','c']);assert.equal(JSON.parse(h.widget.value).value,'latest');
+    h.manager.scheduleSyncToNode(h.graph);h.manager.scheduleViewSyncToNode(h.graph,['a']);h.manager.flushPendingSave(h.graph);assert.equal(ids,null);
+    h.manager.scheduleSyncToNode(h.graph,null,['a']);h.manager.syncToNode(h.graph);assert.equal(ids,null);
 });
 
 test('scheduled saves persist after the interval and immediate saves cancel stale callbacks', () => {

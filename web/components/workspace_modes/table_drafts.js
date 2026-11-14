@@ -1,3 +1,5 @@
+import { state } from '../ui_state.js';
+import { virtualizeTasks } from './viewport_geometry.js';
 import { generateSingleCardHTML, attachCardEvents } from '../comp_taskcard.js';
 import { tableParameter } from './table_model.js';
 import { escapeHtml as esc } from '../contextmenu/content/shared.js';
@@ -26,15 +28,21 @@ export function renderDraftRows(wrapper,rows,columns,parameters,selectedAreas) {
             if(!cell){cell=document.createElement('div');cell.className='clab-table-draft-cell';cell.innerHTML='<div class="clab-input-body"></div>';list.append(cell);}
             Object.assign(cell.dataset,{areaId:area.id,cardId:row.id,tableColumn:column.id,tableIndex:column.index});cell.setAttribute('role','cell');cell.style.gridColumn=column.index+2;
             cell.classList.toggle('active',selectedAreas.has(area.id));
-            const body=cell.firstElementChild,parameter=tableParameter(column.area,parameters),kind=area.type==='preview'?'output':parameter.choices?.length?'choice':parameter.type==='boolean'?'boolean':parameter.type==='number'?'number':'text';
-            if(cell.dataset.editor!==kind){
+            if(wrapper.closest('#clab-panel')&&(rows.length*columns.length>=160||virtualizeTasks(state.cards))&&(!cell.firstElementChild?.children.length||cell.hasAttribute('data-clab-virtual'))){cell.dataset.clabVirtual='';continue;}
+            renderDraftValue(cell,area,tableParameter(column.area,parameters));
+        }
+    }
+}
+
+export function renderDraftValue(cell,area,parameter){
+    let body=cell.firstElementChild;if(!body){body=document.createElement('div');body.className='clab-input-body';cell.append(body);}
+    const kind=area.type==='preview'?'output':parameter.choices?.length?'choice':parameter.type==='boolean'?'boolean':parameter.type==='number'?'number':'text';
+            if(cell.dataset.editor!==kind||!body.children.length){
                 cell.dataset.editor=kind;
                 body.innerHTML=kind==='output'?'':kind==='choice'?`<select class="clab-table-draft-value" data-draft-choice><option value=""> </option>${parameter.choices.map((choice,index)=>`<option value="${index}">${esc(choice)}</option>`).join('')}</select>`:kind==='boolean'?'<label class="clab-bool-label"><input type="checkbox" class="clab-table-draft-value"><span></span></label>':kind==='number'?'<input type="number" step="any" class="clab-table-draft-value">':'<textarea class="clab-table-draft-value" rows="1"></textarea>';
             }
-            const input=body.querySelector('.clab-table-draft-value');if(!input||document.activeElement===input)continue;
+            const input=body.querySelector('.clab-table-draft-value');if(!input||document.activeElement===input)return;
             if(kind==='boolean'){input.checked=area.value===true;input.indeterminate=area.value==='';body.querySelector('span').textContent=area.value===''?'':String(area.value);}
             else if(kind==='choice'){const index=parameter.choices.findIndex(choice=>JSON.stringify(choice)===JSON.stringify(area.value));input.value=index<0?'':index;}
             else input.value=area.value??'';
-        }
-    }
 }

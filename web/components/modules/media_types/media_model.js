@@ -1,12 +1,18 @@
 import { onModuleRemoved } from '../module_lifecycle.js';
 import { formatTime, formatTimeWithFrames } from './media_utils.js';
 import { loadModel } from './model_loader.js';
+import { cacheLimits } from '../../cache_preferences.js';
 
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const viewers = new Map();
 const hiddenViewers = new Map();
 const visible = new WeakSet();
 let observer, library, panelObserver;
+let trimFrame=0;
+function trimHiddenViewers(){
+    trimFrame=0;
+    while(hiddenViewers.size>cacheLimits.models){const [stage,entry]=hiddenViewers.entries().next().value;entry.stop?.();entry.stop=null;hiddenViewers.delete(stage);}
+}
 
 export function renderModelViewer(url) {
     return `<div class="clab-glb-viewer" data-model-url="${escapeHTML(url)}">
@@ -130,7 +136,7 @@ function mountViewer(stage, state, resources) {
         disposeObject(model); environment?.dispose(); renderer?.dispose(); renderer?.forceContextLoss(); host.replaceChildren();
         animation.hidden = true;
         reset.onclick = play.onclick = seek.oninput = seek.onpointerdown = speed.onchange = clipSelect.onchange = null;
-        const entry = viewers.get(stage); if (entry) { entry.capture = null; entry.setVisible = null; }
+        const entry = viewers.get(stage); if (entry) { clearTimeout(entry.hiddenTimer);entry.hiddenTimer=null;entry.capture = null; entry.setVisible = null; }
         hiddenViewers.delete(stage);
         delete stage.dataset.modelLoaded;
     };
@@ -203,17 +209,22 @@ function syncViewer(stage) {
     const entry = viewers.get(stage);
     if (!entry) return;
     const modal = stage.closest('.clab-preview-modal');
-    const shown = !document.hidden && visible.has(stage) && !stage.closest('[hidden]') && (modal ? modal.classList.contains('visible') : !!stage.closest('#clab-panel.visible'));
-    if (shown) hiddenViewers.delete(stage);
+    const active=!document.hidden&&!stage.closest('[hidden]')&&(modal?modal.classList.contains('visible'):!!stage.closest('#clab-panel.visible'));
+    let shown=active&&visible.has(stage);
+    // A layer can become visible before IntersectionObserver delivers its update.
+    // Do not evict its existing renderer during that one-frame transition.
+    if(active&&!shown&&entry.stop){
+        const box=stage.getBoundingClientRect(),intersects=view=>box.right>view.left&&box.left<view.right&&box.bottom>view.top&&box.top<view.bottom;
+        const clip=stage.closest('#clab-cards-container,.clab-preview-modal-center'),body=stage.closest('.clab-card-body');
+        shown=box.width>0&&box.height>0&&intersects({left:0,top:0,right:innerWidth,bottom:innerHeight})&&(!clip||intersects(clip.getBoundingClientRect()))&&(!body||intersects(body.getBoundingClientRect()));
+    }
+    if (shown) {hiddenViewers.delete(stage);clearTimeout(entry.hiddenTimer);entry.hiddenTimer=null;}
     if (shown && !entry.stop) entry.stop = mountViewer(stage,entry.state,entry.resources);
     else if (entry.stop) {
         if (shown || !document.hidden && stage.closest('[data-clab-retain-model]') && stage.closest('#clab-panel.visible')) {
             entry.setVisible?.(shown);
-            if (!shown) hiddenViewers.set(stage,entry);
-            while (hiddenViewers.size > 3) {
-                const [oldest,cached] = hiddenViewers.entries().next().value;
-                cached.stop(); cached.stop = null; hiddenViewers.delete(oldest);
-            }
+            if (!shown) {hiddenViewers.set(stage,entry);entry.hiddenTimer??=setTimeout(()=>{entry.hiddenTimer=null;if(hiddenViewers.get(stage)===entry&&entry.stop){entry.stop();entry.stop=null;}},30000);}
+            if(hiddenViewers.size>cacheLimits.models&&!trimFrame)trimFrame=requestAnimationFrame(trimHiddenViewers);
         }
         else { entry.stop(); entry.stop=null; }
     }
@@ -223,6 +234,9 @@ export function refreshModelVisibility(container) {
     container.querySelectorAll('.clab-glb-viewer').forEach(syncViewer);
 }
 
+export function captureModelState(stage){const entry=viewers.get(stage);return entry?{url:stage.dataset.modelUrl,state:structuredClone(entry.state)}:null;}
+export function restoreModelState(stage,saved){const entry=viewers.get(stage);if(entry&&saved?.url===stage.dataset.modelUrl)Object.assign(entry.state,structuredClone(saved.state));}
+
 export function attachModelEvents(container, resources) {
     if (!observer) {
         observer = new IntersectionObserver(entries=>entries.forEach(({target,isIntersecting})=>{
@@ -230,6 +244,7 @@ export function attachModelEvents(container, resources) {
             syncViewer(target);
         }));
         document.addEventListener('visibilitychange',()=>viewers.forEach((_,stage)=>syncViewer(stage)));
+        document.addEventListener('clab_cache_limits_change',()=>{viewers.forEach((_,stage)=>syncViewer(stage));cancelAnimationFrame(trimFrame);trimHiddenViewers();});
     }
     const panel = document.getElementById('clab-panel');
     if (panel && !panelObserver) {

@@ -894,6 +894,7 @@ export function createPreviewModalApi({
         if(!workspaces.length)return;
         editHistory.withoutRecording(()=>{
         previewSourceIds=new Set(workspaces.map(workspace=>workspace.id));
+        previewModalStore.root.dataset.historyWorkspaceIds=JSON.stringify([...previewSourceIds]);
         if(!previewSourceIds.has(root.dataset.editWorkspaceId))root.dataset.editWorkspaceId=previewSourceIds.has(state.activeWorkspaceId)?state.activeWorkspaceId:workspaces[0].id;
         bundle=workspaces.length>1||workspaces[0].id!==state.activeWorkspaceId?createPreviewWorkspaceBundle(workspaces,getWorkspaceLabel,()=>{state.cards=getActiveWorkspace().cards;}):null;
         const cards=previewCards(),workspace=workspaces[0];
@@ -914,6 +915,7 @@ export function createPreviewModalApi({
         teardownPreviewEnhancers();commitBundle();bundle=null;
         editHistory.withoutRecording(()=>{
         previewSourceIds=new Set([state.activeWorkspaceId]);
+        previewModalStore.root.dataset.historyWorkspaceIds=JSON.stringify([...previewSourceIds]);
         root.dataset.editWorkspaceId=state.activeWorkspaceId;
         previewModalStore.activeCardId = card?.id || "";
         previewModalStore.activeAreaId = area?.id || "";

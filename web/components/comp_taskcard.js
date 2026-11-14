@@ -11,12 +11,15 @@ import { updateSelectionUI } from "./ui_selection.js";
 import { moveModuleDOM } from "./modules/module_lifecycle.js";
 import { escapeHtml } from "./contextmenu/content/shared.js";
 import { workspacePreferences } from "./workspace_preferences.js";
+import { cardWindow,hasCardWindow } from './workspace_modes/card_window.js';
+import { virtualizeTasks } from './workspace_modes/viewport_geometry.js';
 
 // 【全新动态布局引擎】：同步精确计算纯卡片宽度，控制自适应居中与左对齐
 export function updateCardsLayout() {
     const container = document.querySelector('#clab-cards-container');
     const wrapper = document.querySelector('.clab-cards-wrapper');
     if (!container || !wrapper) return;
+    if(hasCardWindow(container)){cardWindow(container).update();return;}
     if (container.closest('#clab-panel')?.dataset.workspaceMode && container.closest('#clab-panel').dataset.workspaceMode !== 'cards') return;
 
     const cardEls = wrapper.querySelectorAll('.clab-card');
@@ -61,18 +64,18 @@ export function updateCardsLayout() {
 }
 window._clabUpdateCardsLayout = updateCardsLayout;
 
-export function generateSingleCardHTML(card, index) {
+export function generateSingleCardHTML(card, index, {defer=false,shell=false}={}) {
     const isCardSelected = state.selectedCardIds && state.selectedCardIds.includes(card.id);
     const borderStyle = isCardSelected ? 'border-color: var(--clab-theme-card, #4CAF50);' : '';
     const activeClass = isCardSelected ? 'active selected' : '';
-    const renderArea = ['xy','table'].includes(getActiveWorkspace()?.view?.mode) ? generateDeferredAreaHTML : generateAreaHTML;
-    let areasHtml = (card.areas || []).map(area => renderArea(area, card)).join('');
+    const renderArea = defer||['xy','table'].includes(getActiveWorkspace()?.view?.mode)||virtualizeTasks(state.cards) ? generateDeferredAreaHTML : generateAreaHTML;
+    let areasHtml = shell?'':(card.areas || []).map(area => renderArea(area, card)).join('');
     const defaultTitle = `#${index + 1}`;
     const displayTitle = card.title ? card.title : defaultTitle;
 
     // 【主题引擎支持】：进度条背景与发光色接入 CSS 变量
     return `
-        <div class="clab-card ${activeClass}" style="${borderStyle}" data-card-id="${card.id}" draggable="true">
+        <div class="clab-card ${activeClass}" style="${borderStyle}" data-card-id="${card.id}" ${shell?'data-clab-card-shell':''} draggable="true">
             <div class="clab-card-title-bar" style="cursor: grab; position: relative;">
                 <input class="clab-card-title-input" type="text" data-id="${card.id}" data-default="${defaultTitle}" value="${escapeHtml(displayTitle)}" placeholder="${defaultTitle}" size="${Math.max(displayTitle.length, 2)}" style="width: unset; max-width: 240px; min-width: 30px;" />
                 
@@ -86,6 +89,12 @@ export function generateSingleCardHTML(card, index) {
             </div>
         </div>
     `;
+}
+
+export function createCardsWrapper(container){
+    const wrapper=document.createElement('div');wrapper.className='clab-cards-wrapper';
+    wrapper.style.cssText='display:flex;gap:var(--clab-card-gap,20px);position:relative;height:100%;align-items:stretch';
+    container.append(wrapper);return wrapper;
 }
 
 export function renderCardsList(container) {
@@ -108,15 +117,10 @@ export function renderCardsList(container) {
         else panelContainer.classList.remove('clab-painter-active');
     }
 
-    const wrapper = document.createElement("div");
-    wrapper.className = "clab-cards-wrapper";
-    
-    wrapper.style.cssText = `
-        display: flex; gap: var(--clab-card-gap, 20px); position: relative;
-        height: 100%; align-items: stretch;
-    `;
+    const wrapper = createCardsWrapper(container);
 
-    if (state.cards.length > 0) {
+    const windowed=panelContainer&&getActiveWorkspace()?.view?.mode==='cards';
+    if (state.cards.length > 0&&!windowed) {
         state.cards.forEach((card, index) => {
             const temp = document.createElement('div');
             temp.innerHTML = generateSingleCardHTML(card, index);
@@ -124,7 +128,7 @@ export function renderCardsList(container) {
         });
     }
 
-    container.appendChild(wrapper);
+    if(windowed)cardWindow(container).update();
     
     if (window._clabUpdateCardsLayout) window._clabUpdateCardsLayout();
 }
@@ -296,7 +300,7 @@ export function attachCardEvents(container) {
                     }
 
                     // 【核心逻辑】：克隆时，提前为您原地生成全新的 DOM！
-                    if (isClone) {
+                    if (isClone&&!hasCardWindow(wrapper.closest('#clab-cards-container'))) {
                         movedCards.forEach(c => {
                             const temp = document.createElement('div');
                             temp.innerHTML = generateSingleCardHTML(c, state.cards.indexOf(c));

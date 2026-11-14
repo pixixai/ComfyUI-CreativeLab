@@ -2,6 +2,7 @@ import { escapeHtml as esc } from '../contextmenu/content/shared.js';
 
 export function focusTableCell(cell,edit=false) {
     if(!cell)return null;
+    cell.dispatchEvent(new CustomEvent('clab_ensure_component',{bubbles:true}));
     const editor=[...cell.querySelectorAll('.clab-table-choice,.clab-table-number,.clab-table-draft-value,textarea.clab-edit-val,.clab-edit-val-bool,.clab-custom-select-value,.clab-upload-filename')].find(element=>element.getClientRects().length&&!element.disabled);
     const target=edit&&editor?editor:cell;if(target===cell)cell.tabIndex=-1;target.focus({preventScroll:true});return target;
 }
@@ -20,7 +21,7 @@ export function updateTableEditor(cell,area,parameter) {
     let number=body.querySelector('.clab-table-number'),select=body.querySelector('.clab-table-choice');
     if(!numeric)number?.remove();else{
         if(!number){number=document.createElement('input');number.type='number';number.step='any';number.className='clab-table-number';textarea.after(number);}
-        number.oninput=()=>{if(number.validity.badInput)return;area.value=number.value===''?'':number.valueAsNumber;textarea.value=number.value;window.CLab?.scheduleSave();};
+        number.oninput=()=>{if(number.validity.badInput)return;area.value=number.value===''?'':number.valueAsNumber;textarea.value=number.value;window.CLab?.scheduleSave({cardIds:[cell.dataset.cardId],areaIds:[area.id],cardsOnly:true});};
         number.onchange=()=>window._clabJustSave?.();if(document.activeElement!==number)number.value=area.value??'';
     }
     if(!choices.length)select?.remove();else{
@@ -28,6 +29,6 @@ export function updateTableEditor(cell,area,parameter) {
         const index=choices.findIndex(choice=>JSON.stringify(choice)===JSON.stringify(area.value)),unlisted=index<0&&area.value!==''&&area.value!=null,signature=JSON.stringify([choices,unlisted?area.value:null]);
         if(select.dataset.options!==signature){select.innerHTML='<option value="">选择…</option>'+choices.map((choice,index)=>`<option value="${index}">${esc(choice)}</option>`).join('')+(unlisted?`<option value="current" disabled>${esc(area.value)}</option>`:'');select.dataset.options=signature;}
         if(document.activeElement!==select)select.value=unlisted?'current':index<0?'':String(index);
-        select.oninput=()=>{if(select.value==='current')return;area.value=select.value===''?'':choices[Number(select.value)];window.CLab?.scheduleSave();};select.onchange=()=>{if(upload)window._clabSurgicallyUpdateArea?.(area.id);window._clabJustSave?.();};
+        select.oninput=()=>{if(select.value==='current')return;area.value=select.value===''?'':choices[Number(select.value)];window.CLab?.scheduleSave({cardIds:[cell.dataset.cardId],areaIds:[area.id],cardsOnly:true});};select.onchange=()=>{if(upload)window._clabSurgicallyUpdateArea?.(area.id);window._clabJustSave?.();};
     }
 }

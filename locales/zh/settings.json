@@ -1,4 +1,9 @@
 {
+  "CLab_2-PerformanceMedia_WaitingTasks": {"name": "提前排队任务数", "tooltip": "默认保留 1 个运行和最多 4 个等待中的 CLab 任务，空位自动补交。调小后等待现有队列消化，不删除已提交任务。未提交任务保存在当前页面内存中，请保持浏览器页面开启。"},
+  "CLab_2-PerformanceMedia_Cache_cards": {"name": "最近访问卡片缓存数量", "tooltip": "保留最近访问过的卡片结构，返回时优先复用。0 为关闭；仅保存在浏览器内存，不影响任务和生成记录。"},
+  "CLab_2-PerformanceMedia_Cache_components": {"name": "普通组件缓存数量", "tooltip": "保留已离开视图的普通输入控件和图片等组件。超出上限淘汰最早使用项；0 为关闭。"},
+  "CLab_2-PerformanceMedia_Cache_media": {"name": "音视频播放器缓存数量", "tooltip": "保留少量最近使用的音视频播放器。离开视图后暂停，超出上限释放播放器资源，但保留进度、音量和倍速；0 为关闭。"},
+  "CLab_2-PerformanceMedia_Cache_models": {"name": "3D 查看器缓存数量", "tooltip": "限制隐藏的 3D 查看器和渲染资源数量；0 为不缓存隐藏查看器。释放后仍保留视角与动画进度。"},
   "CLab_1-General_ResetAll": {
     "name": "恢复全部默认设置",
     "tooltip": "⚠️ 警告：点击此开关将立即重置 CLab 的所有设置为出厂默认状态。"
@@ -93,6 +98,10 @@
     "tooltip": "模块被选中时的外发光模糊半径，设为 0 关闭发光。"
   },
 
+  "CLab_7-TaskCards_cardBuffer": {
+    "name": "左右各侧缓冲卡片数量",
+    "tooltip": "当前视图左右两侧各提前加载多少张任务卡片，默认各 5 张。数量越大，滚动缓冲越充分，内存占用也越多。"
+  },
   "CLab_7-TaskCards_cardGap": {
     "name": "卡片间距 (px)"
   },

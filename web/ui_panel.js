@@ -1,16 +1,18 @@
 /**
  * ui_panel.js: panel composition entry.
  */
-import { state, appState } from "./components/ui_state.js";
+import { state, appState,getActiveWorkspace } from "./components/ui_state.js";
 import { injectCSS } from "./components/ui_utils.js";
 import { setupStaticToolbarEvents } from "./components/comp_toolbar.js";
 import { renderDynamicToolbar, attachDynamicToolbarEvents } from "./components/comp_toolbar.js";
-import { renderCardsList, attachCardEvents } from "./components/comp_taskcard.js";
+import { renderCardsList, attachCardEvents,createCardsWrapper } from "./components/comp_taskcard.js";
 import { attachAreaEvents } from "./components/comp_modulearea.js";
 import { observeModuleRemoval } from "./components/modules/module_lifecycle.js";
 import { renderWorkspaceBar, attachWorkspaceEvents } from "./components/comp_workspace.js";
 import { setupWorkspaceModes, refreshWorkspaceModes,restoreWorkspaceModes } from './components/workspace_modes/workspace_modes.js';
+import { cardWindow,hasCardWindow,revealWorkspaceTarget } from './components/workspace_modes/card_window.js';
 import { appendWorkspaceTasks } from './components/workspace_modes/task_dom.js';
+import { createPanelLoading } from './components/panel_loading.js';
 
 import { setupGlobalEvents } from "./components/events/event_global.js";
 import { setupExecutionEvents } from "./components/events/event_execution.js";
@@ -20,6 +22,7 @@ console.log("[CLab] UI split version loaded (entry/composition mode)");
 
 let panelContainer = null;
 let backdropContainer = null;
+let panelLoading = null;
 document.addEventListener('clab_edit_history_restored',event=>{
     if(!panelContainer)return;
     if(event.detail.destination?.surface==='workspace'){panelContainer.classList.add('visible');backdropContainer?.classList.add('visible');}
@@ -33,7 +36,7 @@ document.addEventListener('clab_edit_history_restored',event=>{
     container.scrollLeft=left;container.scrollTop=top;
     if(event.detail.destination?.surface==='workspace'){
         const {areaId,cardId}=event.detail.focus;
-        const target=areaId&&container.querySelector(`[data-area-id="${CSS.escape(areaId)}"]`)||cardId&&container.querySelector(`.clab-card[data-card-id="${CSS.escape(cardId)}"]`);
+        const target=revealWorkspaceTarget(container,cardId,areaId);
         if(target&&!target.hidden)target.scrollIntoView({block:'nearest',inline:'nearest'});
         if(event.detail.destination.panel==='maintenance')panelContainer.querySelector('#clab-config-dropdown-trigger').click();
     }
@@ -174,6 +177,7 @@ function syncCardShellInPlace(cardEl, card, index) {
 function canRefreshCardsInPlace(cardsContainer) {
     if (!cardsContainer || !window._clabSurgicallyUpdateArea) return false;
 
+    if(hasCardWindow(cardsContainer))return getActiveWorkspace()?.view?.mode==='cards';
     const { wrapper, cardEls } = getRenderedCardsState(cardsContainer);
     if (!wrapper || cardEls.length !== state.cards.length) return false;
 
@@ -189,6 +193,7 @@ function canRefreshCardsInPlace(cardsContainer) {
 
 function refreshCardsInPlace(cardsContainer, areaIds = null) {
     if (!canRefreshCardsInPlace(cardsContainer)) return false;
+    if(hasCardWindow(cardsContainer))cardWindow(cardsContainer).update();
 
     const panel = cardsContainer.closest("#clab-panel");
     if (panel) {
@@ -196,9 +201,10 @@ function refreshCardsInPlace(cardsContainer, areaIds = null) {
     }
 
     const { cardEls } = getRenderedCardsState(cardsContainer);
+    const cardsById=new Map(state.cards.map((card,index)=>[card.id,{card,index}]));
 
-    state.cards.forEach((card, cardIndex) => {
-        const cardEl = cardEls[cardIndex];
+    cardEls.forEach(cardEl => {
+        const item=cardsById.get(cardEl.dataset.cardId);if(!item)return;const {card,index:cardIndex}=item;
         syncCardShellInPlace(cardEl, card, cardIndex);
 
         const areaEls = Array.from(cardEl.querySelectorAll(".clab-area-list > .clab-area[data-area-id]"));
@@ -221,12 +227,12 @@ function refreshCardsInPlace(cardsContainer, areaIds = null) {
         });
     }
 
-    if (window._clabUpdateCardsLayout) window._clabUpdateCardsLayout();
+    if (!hasCardWindow(cardsContainer)&&window._clabUpdateCardsLayout) window._clabUpdateCardsLayout();
     if (window._clabUpdateAllDefaultTitles) window._clabUpdateAllDefaultTitles();
     return true;
 }
 
-function performPanelRender() {
+function performPanelRender({refreshAreas=true,chrome=true}={}) {
     if (!panelContainer) return;
 
     const toolbarHandle = panelContainer.querySelector("#clab-toolbar-handle");
@@ -246,10 +252,10 @@ function performPanelRender() {
     const canReuse = canRefreshCardsInPlace(cardsContainer);
     if (!canReuse && window.CLab?.stashMedia) window.CLab.stashMedia();
 
-    renderDynamicToolbar(toolbarHandle);
-    const reused = canReuse && refreshCardsInPlace(cardsContainer);
+    if(chrome)renderDynamicToolbar(toolbarHandle);
+    const reused = canReuse && refreshCardsInPlace(cardsContainer,refreshAreas?null:[]);
     if (!reused) renderCardsList(cardsContainer);
-    renderWorkspaceBar(workspaceBar);
+    if(chrome)renderWorkspaceBar(workspaceBar);
 
     if (cardsContainer) {
         cardsContainer.scrollLeft = savedScrollLeft;
@@ -261,14 +267,14 @@ function performPanelRender() {
 
     if (!reused && window.CLab?.restoreMedia) window.CLab.restoreMedia();
 
-    attachDynamicToolbarEvents(toolbarHandle);
+    if(chrome)attachDynamicToolbarEvents(toolbarHandle);
     if (!reused) {
         attachCardEvents(cardsContainer);
         attachAreaEvents(cardsContainer);
     }
-    attachWorkspaceEvents(workspaceBar);
+    if(chrome)attachWorkspaceEvents(workspaceBar);
 
-    if (window._clabUpdateAllDefaultTitles) window._clabUpdateAllDefaultTitles();
+    if (!reused&&window._clabUpdateAllDefaultTitles) window._clabUpdateAllDefaultTitles();
     refreshWorkspaceModes(panelContainer);
 }
 
@@ -342,6 +348,12 @@ export function setupUI() {
 
             setupGlobalEvents(panelContainer, backdropContainer, togglePanel, performRender);
             setupExecutionEvents();
+            panelLoading=createPanelLoading(panelContainer,{
+                toolbar(){const root=panelContainer.querySelector('#clab-toolbar-handle');renderDynamicToolbar(root);attachDynamicToolbarEvents(root);},
+                tabs(){const root=panelContainer.querySelector('#clab-workspace-bar');renderWorkspaceBar(root);attachWorkspaceEvents(root);},
+                content:()=>performPanelRender({refreshAreas:false,chrome:false}),
+                refresh:id=>window._clabSurgicallyUpdateArea?.(id,{notify:false})
+            });
 
             import("./components/comp_contextmenu.js").then((module) => {
                 module.setupContextMenu(panelContainer);
@@ -359,6 +371,8 @@ export function togglePanel() {
 
     const isVisible = panelContainer.classList.contains("visible");
     if (isVisible) {
+        panelLoading?.cancel();
+        panelContainer.querySelector('#clab-cards-container').dispatchEvent(new Event('clab_panel_closed'));
         panelContainer.classList.remove("visible");
         if (backdropContainer) backdropContainer.classList.remove("visible");
         state.painterMode = false;
@@ -369,7 +383,7 @@ export function togglePanel() {
 
     panelContainer.classList.add("visible");
     if (backdropContainer) backdropContainer.classList.add("visible");
-    performRender();
+    panelLoading.open();
 }
 
 document.addEventListener("clab_render_ui", () => {
@@ -379,6 +393,7 @@ document.addEventListener("clab_render_ui", () => {
 window._clabRefreshContextView = refreshContextView;
 
 function performRender() {
+    panelLoading?.cancel();
     performPanelRender();
 }
 
@@ -463,7 +478,12 @@ function createPanelDOM() {
         </div>
     `;
 
+    createCardsWrapper(panelContainer.querySelector('#clab-cards-container'));
     setupStaticToolbarEvents(panelContainer);
     setupPanelEvents(panelContainer);
     setupWorkspaceModes(panelContainer);
+    // Bind the permanent toolbar once during setup, so first-open actions work
+    // even before the progressive content jobs have had their first frame.
+    const toolbar=panelContainer.querySelector('#clab-toolbar-handle');
+    renderDynamicToolbar(toolbar);attachDynamicToolbarEvents(toolbar);
 }

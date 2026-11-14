@@ -11,11 +11,16 @@ export function editableField(path,key) {
 }
 export const entityArray=value=>Array.isArray(value)&&value.every(item=>item&&typeof item==='object'&&!Array.isArray(item)&&typeof item.id==='string')&&new Set(value.map(item=>item.id)).size===value.length;
 
-export function captureHistory(value,previous,origins,path=[]) {
+export function captureHistory(value,previous,origins,path=[],scope) {
     if(!value||typeof value!=='object')return value;
+    if(previous&&scope?.cardsOnly){
+        if(path.length===3&&path[0]==='workspaces'&&path[2]!=='cards')return previous;
+        if(path[2]==='cards'&&path.length===4&&previous.id===value.id&&!scope.cardIds?.has(value.id))return previous;
+        if(path[4]==='areas'&&path.length===6&&previous.id===value.id&&scope.areaIds&&!scope.areaIds.has(value.id))return previous;
+    }
     const array=Array.isArray(value),copy=array?[]:{},keys=Object.keys(value).filter(key=>array||editableField(path,key));
     let same=!!previous&&Array.isArray(previous)===array&&Object.keys(previous).length===keys.length;
-    for(const key of keys){copy[key]=captureHistory(value[key],previous?.[key],origins,[...path,key]);same&&=Object.hasOwn(previous,key)&&copy[key]===previous[key];}
+    for(const key of keys){copy[key]=captureHistory(value[key],previous?.[key],origins,[...path,key],scope);same&&=Object.hasOwn(previous,key)&&copy[key]===previous[key];}
     const snapshot=same?previous:copy;origins.set(snapshot,value);return snapshot;
 }
 export function historyDiff(before,after,path=[],changes=[]) {

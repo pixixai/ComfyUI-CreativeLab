@@ -6,6 +6,8 @@
 import { app } from "../../scripts/app.js";
 import { workspacePreferences } from "./components/workspace_preferences.js";
 import { tableSizes } from "./components/workspace_modes/table_layout.js";
+import { cacheLimits } from './components/cache_preferences.js';
+import { executionPreferences } from './components/actions/execution_queue.js';
 
 // --- 全局配置默认值与解析引擎 ---
 function parseShortcut(shortcutStr) {
@@ -117,6 +119,22 @@ window._clabApplyPanelLayout = function() {
     document.dispatchEvent(new Event('clab_panel_layout_change'));
 };
 
+const cacheSettings=[
+    {key:'cards',name:'Recently Visited Card Cache',max:32},
+    {key:'components',name:'Ordinary Component Cache',max:256},
+    {key:'media',name:'Audio and Video Player Cache',max:8},
+    {key:'models',name:'3D Viewer Cache',max:3},
+].map(({key,name,max})=>({
+    id:`CLab.2-PerformanceMedia.Cache_${key}`,category:['Creative Lab','2-PerformanceMedia',`Cache_${key}`],name,type:'slider',defaultValue:cacheLimits[key],attrs:{min:0,max,step:1},
+    onChange(value){const number=Number(value);if(value==null||!Number.isFinite(number))return;cacheLimits[key]=Math.max(0,Math.min(max,Math.round(number)));document.dispatchEvent(new Event('clab_cache_limits_change'));}
+}));
+
+const executionSettings=[{
+    id:'CLab.2-PerformanceMedia.WaitingTasks',category:['Creative Lab','2-PerformanceMedia','WaitingTasks'],name:'Queued Tasks Ahead',type:'slider',defaultValue:4,attrs:{min:1,max:10,step:1},
+    tooltip:'Keep this many CLab tasks queued ahead, in addition to one running task. Lowering this limit does not remove tasks already submitted.',
+    onChange(value){const number=Number(value);if(value==null||!Number.isFinite(number))return;executionPreferences.waiting=Math.max(1,Math.min(10,Math.round(number)));document.dispatchEvent(new Event('clab_execution_window_change'));}
+}];
+
 const workspaceSettings = [
     { group: '9-XYMatrix', key: 'xyMargin', name: 'Default Axis Margin (px)', range: [0, 200] },
     { group: '9-XYMatrix', key: 'xyGap', name: 'Default Cell Gap (px)', range: [0, 100] },
@@ -126,6 +144,7 @@ const workspaceSettings = [
     { group: '8-ParameterTable', key: 'cellPadding', name: 'Default Cell Padding (px)', range: [0, 64] },
     { group: '8-ParameterTable', key: 'rowHeight', name: 'Default Row Height (px)', range: [tableSizes.height.min, tableSizes.height.max] },
     { group: '8-ParameterTable', key: 'columnWidth', name: 'Default Column Width (px)', range: [tableSizes.width.min, tableSizes.width.max] },
+    { group: '7-TaskCards', key: 'cardBuffer', name: 'Buffered Cards on Each Side', range: [0, 30] },
     { group: '7-TaskCards', key: 'cardWidth', name: 'Default Card Width (px)', range: [260, 1200] },
     { group: '7-TaskCards', key: 'cardPadding', name: 'Card Padding (px)', range: [0, 40], css: '--clab-card-padding' },
     { group: '7-TaskCards', key: 'moduleGap', name: 'Module Gap (px)', range: [0, 60], css: '--clab-module-gap' },
@@ -152,6 +171,7 @@ const workspaceSettings = [
             workspacePreferences[key] = next;
             if (css) document.documentElement.style.setProperty(css, `${next}px`);
             if (key === 'cardGap') window._clabUpdateCardsLayout?.();
+            if (key === 'cardBuffer') document.dispatchEvent(new Event('clab_card_buffer_change'));
             if (key === 'cardWidth') document.dispatchEvent(new Event('clab_card_width_default_change'));
         },
     };
@@ -159,6 +179,8 @@ const workspaceSettings = [
 
 // LIFO 倒序数组：代码越靠前，UI 界面显示越靠下
 const clabSettings = [
+    ...executionSettings,
+    ...cacheSettings,
     ...workspaceSettings.filter(setting => setting.category[1] !== '1-General'),
     
     // =========================================================================
@@ -472,7 +494,7 @@ app.registerExtension({
     settings: [...clabSettings, resetSetting],
     
     setup() {
-        for (const setting of workspaceSettings) {
+        for (const setting of [...workspaceSettings,...cacheSettings,...executionSettings]) {
             setting.onChange(app.extensionManager.setting.get(setting.id));
         }
         setTimeout(() => {

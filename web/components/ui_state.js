@@ -250,6 +250,20 @@ export function buildPersistedState() {
     };
 }
 
+export function serializePersistedState(cache,workspaceIds) {
+    syncStateToActiveWorkspace();
+    const dirty=workspaceIds?new Set(workspaceIds):null,live=new Set(state.workspaces.map(workspace=>workspace.id));
+    for(const id of cache.keys())if(!live.has(id))cache.delete(id);
+    const parts=state.workspaces.map((workspace,index)=>{
+        let entry=cache.get(workspace.id);
+        if(!entry||entry.workspace!==workspace||!dirty||dirty.has(workspace.id)){
+            entry={workspace,json:JSON.stringify(normalizeWorkspace(workspace,index))};cache.set(workspace.id,entry);
+        }
+        return entry.json;
+    });
+    return `{"schemaVersion":${WORKSPACE_SCHEMA_VERSION},"activeWorkspaceId":${JSON.stringify(state.activeWorkspaceId)},"workspaces":[${parts.join(',')}]}`;
+}
+
 export function hydrateStateFromPersisted(persisted = {}) {
     const entries = Array.isArray(persisted.workspaces) && persisted.workspaces.length > 0
         ? persisted.workspaces

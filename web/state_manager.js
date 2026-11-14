@@ -3,7 +3,7 @@
  */
 import {
     state,
-    buildPersistedState,
+    serializePersistedState,
     hydrateStateFromPersisted,
     ensureWorkspaceRuntime,
     WORKSPACE_SCHEMA_VERSION,
@@ -42,8 +42,11 @@ export const StateManager = {
     _saveTimer: null,
     _pendingAnchorCanvas: null,
     _loadTimer: null,
+    _workspaceJSON: new Map(),
+    _pendingWorkspaceIds: new Set(),
 
     scheduleLoadFromNode(graph) {
+        this._workspaceJSON.clear();this._pendingWorkspaceIds=new Set();
         clearTimeout(this._saveTimer);
         this._saveTimer = null;
         this._pendingAnchorCanvas = null;
@@ -55,19 +58,26 @@ export const StateManager = {
         }, 0);
     },
 
-    scheduleSyncToNode(graph, canvas) {
-        if (canvas) this._pendingAnchorCanvas = canvas;
-        if (this._saveTimer !== null) return;
-        this._saveTimer = setTimeout(() => this.syncToNode(graph), 250);
+    markPendingWorkspaces(workspaceIds) {
+        if(!workspaceIds)this._pendingWorkspaceIds=null;
+        else if(this._pendingWorkspaceIds)for(const id of workspaceIds)this._pendingWorkspaceIds.add(id);
     },
 
-    scheduleViewSyncToNode(graph) {
+    scheduleSyncToNode(graph, canvas, workspaceIds) {
+        this.markPendingWorkspaces(workspaceIds);
+        if (canvas) this._pendingAnchorCanvas = canvas;
+        if (this._saveTimer !== null) return;
+        this._saveTimer = setTimeout(() => this.syncToNode(graph, null, this._pendingWorkspaceIds), 250);
+    },
+
+    scheduleViewSyncToNode(graph, workspaceIds = [state.activeWorkspaceId]) {
+        this.markPendingWorkspaces(workspaceIds);
         clearTimeout(this._saveTimer);
-        this._saveTimer = setTimeout(() => this.syncToNode(graph), 200);
+        this._saveTimer = setTimeout(() => this.syncToNode(graph, null, this._pendingWorkspaceIds), 200);
     },
 
     flushPendingSave(graph) {
-        if (this._saveTimer !== null) this.syncToNode(graph);
+        if (this._saveTimer !== null) this.syncToNode(graph, null, this._pendingWorkspaceIds);
     },
 
     startWatchdog(graph) {
@@ -106,7 +116,10 @@ export const StateManager = {
         return nodes[nodes.length - 1];
     },
 
-    syncToNode(graph, canvas) {
+    syncToNode(graph, canvas, workspaceIds) {
+        if(workspaceIds&&this._pendingWorkspaceIds===null)workspaceIds=null;
+        else if(workspaceIds&&this._pendingWorkspaceIds)workspaceIds=new Set([...workspaceIds,...this._pendingWorkspaceIds]);
+        this._pendingWorkspaceIds=new Set();
         const anchorCanvas = canvas || this._pendingAnchorCanvas;
         clearTimeout(this._saveTimer);
         this._saveTimer = null;
@@ -116,8 +129,7 @@ export const StateManager = {
         if (node) {
             const widget = node.widgets?.find((w) => w.name === "scenes_data");
             if (widget) {
-                const persisted = buildPersistedState();
-                const jsonStr = JSON.stringify(persisted);
+                const jsonStr = serializePersistedState(this._workspaceJSON, workspaceIds);
                 if (widget.value !== jsonStr) widget.value = jsonStr;
                 this._lastSyncedJSON = jsonStr;
             }
@@ -127,6 +139,7 @@ export const StateManager = {
     },
 
     async loadFromNode(graph) {
+        this._workspaceJSON.clear();this._pendingWorkspaceIds=new Set();
         clearTimeout(this._loadTimer);
         this._loadTimer = null;
         clearTimeout(this._saveTimer);

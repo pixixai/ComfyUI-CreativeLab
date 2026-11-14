@@ -15,7 +15,7 @@ app.registerExtension({
     async setup() {
         console.log("[CLab] 开始加载...");
         setupUI();
-        setupEditHistory({persist:()=>StateManager.syncToNode(app.graph),flush:()=>StateManager.flushPendingSave(app.graph)});
+        setupEditHistory({persist:workspaceId=>StateManager.syncToNode(app.graph,null,[workspaceId]),flush:()=>StateManager.flushPendingSave(app.graph)});
         setupAPIInjector(app);
         const originalSerialize = app.graph.serialize;
         app.graph.serialize = function() {
@@ -117,17 +117,20 @@ app.registerExtension({
  * 暴露全局方法给 UI 层调用
  */
 window.CLab = {
-    saveState(newState, { createAnchor = true } = {}) {
+    saveState(newState, { createAnchor = true, immediate = false, ...scope } = {}) {
         Object.assign(StateManager.state, newState);
-        editHistory.record();
-        StateManager.syncToNode(app.graph, createAnchor ? app.canvas : null);
+        scope.workspaceIds??=scope.cardsOnly?[StateManager.state.activeWorkspaceId]:editHistory.workspaceIds();
+        editHistory.record(scope);
+        if(immediate)StateManager.syncToNode(app.graph, createAnchor ? app.canvas : null);
+        else StateManager.scheduleSyncToNode(app.graph, createAnchor ? app.canvas : null, scope.workspaceIds);
     },
-    scheduleSave({ createAnchor = true } = {}) {
-        editHistory.record();
-        StateManager.scheduleSyncToNode(app.graph, createAnchor ? app.canvas : null);
+    scheduleSave({ createAnchor = true, ...scope } = {}) {
+        scope.workspaceIds??=scope.cardsOnly?[StateManager.state.activeWorkspaceId]:editHistory.workspaceIds();
+        editHistory.record(scope);
+        StateManager.scheduleSyncToNode(app.graph, createAnchor ? app.canvas : null, scope.workspaceIds);
     },
-    scheduleViewSave() {
-        StateManager.scheduleViewSyncToNode(app.graph);
+    scheduleViewSave({workspaceIds=editHistory.workspaceIds()}={}) {
+        StateManager.scheduleViewSyncToNode(app.graph, workspaceIds);
     },
     flushPendingSave() {
         StateManager.flushPendingSave(app.graph);

@@ -326,35 +326,23 @@ export function showBindingPanel(areaEl, trigger = areaEl.querySelector('.clab-m
     }
 }
 
+const pickDelegates=new WeakSet(),bindingDelegates=new WeakSet();
 export function attachModulePickEvents(container) {
-    container.querySelectorAll('.clab-area').forEach(areaEl => {
-        if (areaEl.dataset.clabPickBound) return;
-        areaEl.dataset.clabPickBound = '1';
-        for (const type of ['pointerdown', 'pointerup', 'mousedown', 'mouseup']) areaEl.addEventListener(type, e => {
-            if (e.target.closest('.clab-glb-viewer')) return;
-            if (e.button !== 1) return;
-            e.preventDefault();
-            e.stopPropagation();
-        }, true);
-        areaEl.addEventListener('auxclick', e => {
-            if (e.target.closest('.clab-glb-viewer')) return;
-            if (e.button !== 1) return;
-            e.preventDefault();
-            e.stopPropagation();
-            startModulePick(areaEl);
-        }, true);
-    });
+    const root=container.closest('#clab-panel')||container;if(pickDelegates.has(root))return;pickDelegates.add(root);
+    const handle=e=>{
+        if(e.button!==1||e.target.closest('.clab-glb-viewer'))return;
+        const area=e.target.closest('.clab-area');if(!area||!root.contains(area))return;
+        e.preventDefault();e.stopPropagation();if(e.type==='auxclick')startModulePick(area);
+    };
+    for(const type of ['pointerdown','pointerup','mousedown','mouseup','auxclick'])root.addEventListener(type,handle,true);
 }
 
 export function attachModuleBindingEvents(container) {
-    container.querySelectorAll('.clab-module-binding').forEach(controls => {
-        if (!controls.closest('.clab-area')) return;
-        controls.onpointerdown = controls.onmousedown = controls.onmouseup = e => e.stopPropagation();
-        controls.ondragstart = e => { e.preventDefault(); e.stopPropagation(); };
-        const summary = controls.querySelector('.clab-module-binding-summary');
-        summary.onclick = e => {
-            e.stopPropagation();
-            showBindingPanel(controls.closest('.clab-area'));
-        };
-    });
+    const root=container.closest('#clab-panel')||container;if(bindingDelegates.has(root))return;bindingDelegates.add(root);
+    const handle=e=>{
+        const controls=e.target.closest('.clab-module-binding'),area=controls?.closest('.clab-area');if(!area||!root.contains(area))return;
+        e.stopPropagation();if(e.type==='dragstart')e.preventDefault();
+        if(e.type==='click'&&e.target.closest('.clab-module-binding-summary'))showBindingPanel(area);
+    };
+    for(const type of ['pointerdown','mousedown','mouseup','dragstart','click'])root.addEventListener(type,handle,true);
 }

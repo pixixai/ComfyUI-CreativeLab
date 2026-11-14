@@ -6,6 +6,7 @@ import { createWorkspaceView } from '../web/components/workspace_modes/view_stat
 import { synchronizeMatrix, matrixOutput, materializeMatrixRecords } from '../web/components/workspace_modes/xy_model.js';
 import { createEditHistory } from '../web/components/edit_history.js';
 import { prepareWorkspaceCopy } from '../web/components/workspace_copy.js';
+import { createExecutionQueue,readExecutionStates } from '../web/components/actions/execution_queue.js';
 
 const source = (file) => readFileSync(new URL(`../web/${file}`, import.meta.url), 'utf8')
     .replace(/import\s+[\s\S]*?\s+from\s+["'][^"']+["'];?/g, '')
@@ -19,11 +20,13 @@ function createHarness(options = {}) {
     const files = [];
     const queueDeletes = [];
     const refreshes = [];
+    const backend=new Map(),history=new Map(),events=[],documentListeners=new Map(),executionPreferences={waiting:options.waiting??4};
     let submissions = 0;
     let apiCalls = 0;
     let harness;
     const document = {
-        addEventListener() {}, dispatchEvent() {},
+        addEventListener(type,fn){if(!documentListeners.has(type))documentListeners.set(type,[]);documentListeners.get(type).push(fn);},
+        dispatchEvent(event){events.push(event.type);for(const fn of documentListeners.get(event.type)||[])fn(event);},
         querySelector() { return null; }, querySelectorAll() { return []; },
     };
     const window = {
@@ -38,15 +41,21 @@ function createHarness(options = {}) {
         },
         apiURL: (url) => url,
         async fetchApi(url, request) {
+            if(url.startsWith('/history/')){const id=decodeURIComponent(url.slice(9));return {ok:true,json:async()=>history.has(id)?{[id]:history.get(id)}:{}};}
             assert.equal(url, '/queue');
-            queueDeletes.push(...JSON.parse(request.body).delete);
-            return {};
+            if(request?.method==='POST'){
+                const edit=JSON.parse(request.body);queueDeletes.push(...(edit.delete||[]));
+                for(const [id,job]of backend)if(job.state!=='running'&&(edit.clear||edit.delete?.includes(id)))backend.delete(id);
+                return {ok:true};
+            }
+            return {ok:true,json:async()=>({queue_running:[...backend].filter(([,job])=>job.state==='running').map(([id])=>[0,id]),queue_pending:[...backend].filter(([,job])=>job.state!=='running').map(([id])=>[0,id])})};
         },
         async queuePrompt(number, data) {
             requests.push(plain(data));
             const index = ++apiCalls;
-            if (options.submit) return options.submit(harness, index);
-            return { prompt_id: `p${index}`, node_errors: {} };
+            const result=options.submit?await options.submit(harness,index):{prompt_id:`p${index}`,node_errors:{}};
+            if(result?.prompt_id&&!history.has(result.prompt_id)&&!backend.has(result.prompt_id))backend.set(result.prompt_id,{state:'waiting',outputs:{}});
+            return result;
         },
     };
     const anchor = { type: 'CLab_SystemConfig', widgets: [{ name: 'scenes_data', value: '{}' }] };
@@ -77,7 +86,7 @@ function createHarness(options = {}) {
         },
     };
     const context = vm.createContext({
-        window, document, api, app, URL, URLSearchParams, structuredClone,
+        window, document, api, app, URL, URLSearchParams, structuredClone,createExecutionQueue,readExecutionStates,executionPreferences,
         console: { log() {}, warn() {}, error() {} },
         setInterval() { return 1; },
         setTimeout(fn, ms) { return ms === 50 ? setTimeout(fn, 1) : 1; },
@@ -104,11 +113,18 @@ function createHarness(options = {}) {
     state.cards.push(card);
     const workspace = state.workspaces[0];
     harness = {
-        state, input, output, card, workspace, app, window, requests, files, queueDeletes, refreshes,
+        state, input, output, card, workspace, app, window, requests, files, queueDeletes, refreshes,api,backend,history,events,executionPreferences,
+        changeWaiting(value){executionPreferences.waiting=value;document.dispatchEvent({type:'clab_execution_window_change'});},
         run: (tasks = [{ cardId: card.id, previewAreaIds: [output.id] }]) => window.CLab.executeTasks(tasks),
         get submissions() { return submissions; },
         persisted: () => JSON.parse(anchor.widgets[0].value),
         async emit(type, detail) {
+            const id=detail?.prompt_id;
+            if(id&&type==='execution_start'){const job=backend.get(id)||{outputs:{}};job.state='running';backend.set(id,job);}
+            if(id&&type==='executed'){const job=backend.get(id)||{state:'running',outputs:{}};job.outputs[detail.node]=detail.output;backend.set(id,job);}
+            if(id&&(['execution_success','execution_error','execution_interrupted'].includes(type)||type==='executing'&&detail.node==null)){
+                history.set(id,{outputs:backend.get(id)?.outputs||{},status:{completed:type!=='execution_error'&&type!=='execution_interrupted',status_str:type==='execution_error'?'error':'success'}});backend.delete(id);
+            }
             await Promise.all((listeners.get(type) || []).map((fn) => fn({ detail })));
         },
         switchWorkspace() {
@@ -608,4 +624,118 @@ test('XY output capture uses the shared video, audio, 3D and text history pipeli
         assert.equal(h.persisted().workspaces[0].cards[0].areas.find(a=>a.id===area.id).resultKind,kind);
         if(kind==='text')assert.equal(area.textContent,'generated text');
     }
+});
+const repeated=(length)=>Array.from({length},()=>({cardId:'card',previewAreaIds:['output']}));
+const settled=()=>new Promise(resolve=>setImmediate(resolve));
+
+test('100-task run submits five prompts initially, refills one per completion and freezes all input values',async()=>{
+    const h=createHarness(),tasks=[];
+    for(let i=0;i<100;i++){
+        const card=structuredClone(h.card);card.id='task-'+i;card.areas[0].value='value-'+i;h.state.cards.push(card);tasks.push({cardId:card.id,previewAreaIds:['output']});
+    }
+    await h.run(tasks);assert.equal(h.requests.length,5);assert.equal(h.window._clabExecQueue.length,95);
+    assert.ok(h.window.CLab.hasExecutionWork(h.workspace.id));assert.equal(h.window.CLab.hasExecutionWork('another'),false);
+    h.state.cards.forEach(card=>card.areas[0].value='changed');
+    for(let i=1;i<=100;i++){
+        await h.emit('execution_start',{prompt_id:'p'+i});
+        await h.emit('execution_success',{prompt_id:'p'+i});
+        assert.equal(h.requests.length,Math.min(100,i+5));assert.ok(h.backend.size<=5);assert.ok(Object.keys(h.window._clabTaskMap).length<=5);
+    }
+    assert.deepEqual(h.requests.map(request=>request.output[1].inputs.text),Array.from({length:100},(_,i)=>'value-'+i));
+    assert.equal(h.window.CLab.hasExecutionWork(),false);assert.equal(h.events.filter(event=>event==='clab_execution_idle').length,1);
+});
+
+test('fast cached completions before submission responses keep the window bounded and finish without deadlock',async()=>{
+    const h=createHarness({async submit(h,index){
+        await h.emit('execution_start',{prompt_id:'p'+index});await h.emit('execution_success',{prompt_id:'p'+index});
+        return {prompt_id:'p'+index,node_errors:{}};
+    }});
+    await h.run(repeated(100));assert.equal(h.requests.length,100);assert.equal(h.window.CLab.hasExecutionWork(),false);assert.deepEqual(Object.keys(h.window._clabTaskMap),[]);
+});
+
+test('waiting limit changes affect subsequent refill without deleting accepted jobs',async()=>{
+    const h=createHarness();await h.run(repeated(20));h.changeWaiting(1);await settled();
+    assert.equal(h.requests.length,5);assert.equal(h.queueDeletes.length,0);
+    for(let i=1;i<=3;i++){await h.emit('execution_success',{prompt_id:'p'+i});assert.equal(h.requests.length,5);}
+    await h.emit('execution_success',{prompt_id:'p4'});assert.equal(h.requests.length,6);assert.equal(h.backend.size,2);
+    h.changeWaiting(6);await settled();assert.equal(h.requests.length,11);assert.equal(h.backend.size,7);
+});
+
+test('a runtime failure cancels both local backlog and waiting prompts but preserves a different workspace batch',async()=>{
+    const h=createHarness();await h.run(repeated(20));const other=h.switchWorkspace();await h.run(repeated(4));
+    await h.emit('execution_start',{prompt_id:'p1'});await h.emit('execution_error',{prompt_id:'p1'});await settled();
+    assert.equal(h.requests.length,9);assert.deepEqual(h.queueDeletes,['p2','p3','p4','p5']);
+    assert.equal(h.window._clabExecQueue.length,0);assert.equal(h.window.CLab.hasExecutionWork(h.workspace.id),false);assert.equal(h.window.CLab.hasExecutionWork(other.id),true);
+    for(const task of Object.values(h.window._clabTaskMap))assert.equal(task.workspaceId,other.id);
+});
+
+test('with halt disabled a runtime failure frees a slot and continues the same batch',async()=>{
+    const h=createHarness({haltOnError:false});await h.run(repeated(20));await h.emit('execution_error',{prompt_id:'p1'});
+    assert.equal(h.requests.length,6);assert.equal(h.queueDeletes.length,0);assert.equal(h.window._clabExecQueue.length,14);
+});
+
+test('native queue clear stops the local backlog and retains the running result',async()=>{
+    const h=createHarness();await h.run(repeated(100));await h.emit('execution_start',{prompt_id:'p1'});
+    await h.api.fetchApi('/queue',{method:'POST',body:JSON.stringify({clear:true})});await settled();
+    assert.equal(h.requests.length,5);assert.equal(h.window._clabExecQueue.length,0);assert.deepEqual([...h.backend.keys()],['p1']);assert.equal(h.window.CLab.hasExecutionWork(),true);
+    await h.emit('executed',imageResult());await h.emit('execution_success',{prompt_id:'p1'});
+    assert.equal(h.output.history.length,1);assert.equal(h.window.CLab.hasExecutionWork(),false);assert.equal(h.requests.length,5);
+});
+
+test('a prompt accepted while native queue clear is in flight is deleted without refilling',async()=>{
+    const h=createHarness({async submit(h,index){
+        if(index===2)await h.api.fetchApi('/queue',{method:'POST',body:JSON.stringify({clear:true})});
+        return {prompt_id:'p'+index,node_errors:{}};
+    }});
+    await h.run(repeated(100));await settled();assert.equal(h.requests.length,2);assert.ok(h.queueDeletes.includes('p2'));assert.equal(h.backend.size,0);assert.equal(h.window.CLab.hasExecutionWork(),false);
+});
+
+test('deleting a waiting prompt replenishes its slot; deleting a running prompt does not free it',async()=>{
+    const h=createHarness();await h.run(repeated(20));await h.emit('execution_start',{prompt_id:'p1'});
+    await h.api.fetchApi('/queue',{method:'POST',body:JSON.stringify({delete:['p2']})});await settled();
+    assert.equal(h.requests.length,6);assert.equal(h.backend.size,5);
+    await h.api.fetchApi('/queue',{method:'POST',body:JSON.stringify({delete:['p1']})});await settled();
+    assert.equal(h.requests.length,6);assert.equal(h.window.CLab.getRunningCardIds(h.workspace.id).length,1);
+});
+
+test('reconnection recovers missed outputs once, retains queued jobs and refills the missing completion',async()=>{
+    const h=createHarness();await h.run(repeated(20));h.backend.delete('p1');
+    h.history.set('p1',{outputs:{2:imageResult().output},status:{completed:true,status_str:'success'}});
+    await h.emit('reconnected');await settled();assert.equal(h.output.history.length,1);assert.equal(h.requests.length,6);
+    await h.emit('reconnected');await settled();assert.equal(h.output.history.length,1);assert.equal(h.requests.length,6);
+    assert.equal(h.output.inputHistorySnapshots[0][0].value,'before');
+});
+
+test('reconnection after an external queue clear cancels unsent work instead of rebuilding the queue',async()=>{
+    const h=createHarness();await h.run(repeated(100));h.backend.clear();await h.emit('reconnected');await settled();
+    assert.equal(h.requests.length,5);assert.equal(h.window._clabExecQueue.length,0);assert.equal(h.window.CLab.hasExecutionWork(),false);
+});
+
+test('reconnection to a failed run preserves halt behavior and cancels the rest of the batch',async()=>{
+    const h=createHarness();await h.run(repeated(20));h.backend.delete('p1');h.history.set('p1',{outputs:{},status:{completed:false,status_str:'error'}});
+    await h.emit('reconnected');await settled();assert.equal(h.requests.length,5);assert.equal(h.window._clabExecQueue.length,0);assert.equal(h.window.CLab.hasExecutionWork(),false);
+});
+
+test('engine completion replenishes the waiting window while archive copying is still pending',async()=>{
+    let release,started;const copying=new Promise(resolve=>started=resolve),gate=new Promise(resolve=>release=resolve);
+    const h=createHarness({async beforeArchive(){started();await gate;}});await h.run(repeated(20));
+    const output=h.emit('executed',imageResult());await copying;await h.emit('execution_success',{prompt_id:'p1'});
+    assert.equal(h.requests.length,6);assert.equal(h.window._clabTaskMap.p1.pendingResults,1);
+    release();await output;assert.equal(h.window._clabTaskMap.p1,undefined);assert.equal(h.output.history.length,1);
+});
+
+test('a late cancelled prompt which has already started retains its result mapping until real completion',async()=>{
+    const h=createHarness({async submit(h,index){
+        if(index===2){await h.api.fetchApi('/queue',{method:'POST',body:JSON.stringify({clear:true})});await h.emit('execution_start',{prompt_id:'p2'});}
+        return {prompt_id:'p'+index,node_errors:{}};
+    }});
+    await h.run(repeated(20));assert.equal(h.requests.length,2);assert.ok(h.window._clabTaskMap.p2);assert.ok(h.window.CLab.hasExecutionWork());
+    await h.emit('executed',imageResult('p2'));await h.emit('execution_success',{prompt_id:'p2'});
+    assert.equal(h.output.history.length,1);assert.equal(h.window.CLab.hasExecutionWork(),false);
+});
+
+test('an empty backend status between jobs does not complete locally pending progress or stop refill',async()=>{
+    const h=createHarness();await h.run(repeated(20));await h.emit('status',{exec_info:{queue_remaining:0}});
+    assert.equal(h.window._clabCardProgress.card.percentage,5);assert.equal(h.events.includes('clab_execution_idle'),false);
+    await h.emit('execution_success',{prompt_id:'p1'});assert.equal(h.requests.length,6);assert.equal(h.window.CLab.hasExecutionWork(),true);
 });

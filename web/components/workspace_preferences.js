@@ -3,6 +3,7 @@ import { tableSizes } from './workspace_modes/table_layout.js';
 export const workspacePreferences = {
     defaultMode: 'cards',
     cardGap: 20,
+    cardBuffer: 5,
     moduleGap: 10,
     cardPadding: 10,
     cardWidth: 320,

@@ -22,6 +22,7 @@ function createHarness() {
     const completions = [];
     const timers = [];
     const moduleElements = new Map();
+    const moduleRoot={listeners:new Map(),closest(){return null;},contains(){return true;},addEventListener(type,fn,capture){assert.equal(capture,true);const handlers=this.listeners.get(type)||[];handlers.push(fn);this.listeners.set(type,handlers);}};
     const canvasElement = { closest() { return null; } };
     const nodes = [1, 2].map(id => ({
         id, type: 'TestNode', flags: {},
@@ -129,9 +130,9 @@ function createHarness() {
                 },
             });
             const areaEl = moduleElements.get(id);
-            context.attachModulePickEvents({ querySelectorAll() { return [areaEl]; } });
-            const event = { button, target, preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; } };
-            for (const fn of areaEl.listeners.get(type) || []) fn(event);
+            context.attachModulePickEvents(moduleRoot);
+            const event = { type,button, target:{closest(selector){return selector==='.clab-area'?areaEl:target.closest(selector);}}, preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; } };
+            for (const fn of moduleRoot.listeners.get(type) || []) fn(event);
             flush();
             return event;
         },

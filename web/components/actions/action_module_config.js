@@ -1,3 +1,4 @@
+import { hasCardWindow,cardWindow,revealWorkspaceTarget } from '../workspace_modes/card_window.js';
 /**
  * action_module_config.js
  * 负责动态悬浮工具栏渲染、模块属性配置、克隆与格式刷逻辑
@@ -11,6 +12,18 @@ import { generateSingleCardHTML, attachCardEvents } from "../comp_taskcard.js";
 import { restoreToolbarOverflow, refreshToolbarItems } from "../toolbar_layout.js";
 import { cellSettingsIcon, tableResetIcon } from "../workspace_modes/table_icons.js";
 import { selectedTableColumns } from "../workspace_modes/table_sheet.js";
+
+const toolbarMarkup=new WeakMap();
+function paintToolbar(handle,tb,html,display){
+    if(toolbarMarkup.get(tb)===html&&tb.style.display===display){refreshToolbarItems(handle);return;}
+    tb.innerHTML=html;tb.style.display=display;toolbarMarkup.set(tb,html);refreshToolbarItems(handle);
+}
+function selectedModules(){
+    const ids=new Set(state.selectedAreaIds),result=[];
+    if(ids.size===1&&state.activeCardId){const card=state.cards.find(card=>card.id===state.activeCardId),area=card?.areas.find(area=>ids.has(area.id));if(area)return [{card,area}];}
+    for(const card of state.cards){for(const area of card.areas||[])if(ids.has(area.id)){result.push({card,area});if(result.length===ids.size)return result;}}
+    return result;
+}
 
 const typeTools = type => `
                 <div class="clab-toolbar-type" role="group" aria-label="模块类型">
@@ -35,9 +48,7 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
     const view = getActiveWorkspace()?.view;
     const mode = view?.mode;
     if (mode === 'xy') {
-        tb.replaceChildren();
-        tb.style.display = 'none';
-        refreshToolbarItems(toolbarHandleContainer);
+        paintToolbar(toolbarHandleContainer,tb,'','none');
         return;
     }
 
@@ -50,18 +61,15 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
         const output = column?.type === 'preview'
             ? state.cards.flatMap(card => card.areas).find(area => area.type === 'preview' && selected.has(area.id))
             : null;
-        tb.style.display = 'flex';
-        tb.innerHTML = (column ? typeTools(column.type) +
+        const html = (column ? typeTools(column.type) +
             `<button type="button" class="clab-btn" id="tb-reset-table-columns" title="重置所选列的标题、类型、绑定和取值（保留历史）">${tableResetIcon}</button>` : '') +
             `<button type="button" class="clab-btn clab-table-toolbar-settings" id="tb-table-cell-settings" aria-haspopup="dialog" title="设置单元格的尺寸与外观">${cellSettingsIcon}<span>单元格设置</span></button>` +
             (output ? historyTool(output) : '');
-        refreshToolbarItems(toolbarHandleContainer);
+        paintToolbar(toolbarHandleContainer,tb,html,'flex');
         return;
     }
     if (!isAnySelected) {
-        tb.replaceChildren();
-        tb.style.display = 'none';
-        refreshToolbarItems(toolbarHandleContainer);
+        paintToolbar(toolbarHandleContainer,tb,'','none');
         return;
     }
 
@@ -82,11 +90,7 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
     `;
 
     if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
-        const selectedIds = new Set(state.selectedAreaIds);
-        const selectedAreas = [];
-        state.cards.forEach(c => {
-            c.areas?.forEach(a => { if (selectedIds.has(a.id)) selectedAreas.push({ card: c, area: a }); });
-        });
+        const selectedAreas = selectedModules();
 
         if (selectedAreas.length > 0) {
             mainType = selectedAreas[0].area.type;
@@ -128,18 +132,16 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
     if (!html) html = cloneTools;
 
     if (mainType === 'preview') html += historyTool(mainArea);
-    tb.innerHTML = html;
-    refreshToolbarItems(toolbarHandleContainer);
+    paintToolbar(toolbarHandleContainer,tb,html,'flex');
 }
 
 export function attachDynamicToolbarEvents(toolbarHandleContainer) {
     const tb = toolbarHandleContainer.querySelector('#clab-module-toolbar');
     if (!tb) return;
+    const onClick=(selector,handler)=>{const button=tb.querySelector(selector);if(button)button.onclick=handler;};
 
     if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
-        const selectedIds = new Set(state.selectedAreaIds);
-        const selectedAreas = [];
-        state.cards.forEach(c => c.areas?.forEach(a => { if (selectedIds.has(a.id)) selectedAreas.push({ card: c, area: a }); }));
+        const selectedAreas = selectedModules();
         const mainType = selectedAreas[0]?.area.type;
         const mainArea = selectedAreas[0]?.area;
 
@@ -155,7 +157,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
             if (window._clabUpdateAllDefaultTitles) window._clabUpdateAllDefaultTitles();
         };
 
-        tb.querySelector('#tb-manage-history')?.addEventListener('click', (e) => {
+        onClick('#tb-manage-history', (e) => {
             e.stopPropagation();
             if (!mainArea) return;
             const targetState = !mainArea.isManageMode;
@@ -183,7 +185,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
             };
         });
 
-        tb.querySelector('#tb-reset-module')?.addEventListener('click', (e) => {
+        onClick('#tb-reset-module', (e) => {
             e.stopPropagation();
             updateSelected(a => {
                 a.targetNodeId = null; a.targetWidget = null; a.targetNodeIds = []; a.targetWidgets = [];
@@ -196,7 +198,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
             });
         });
 
-        tb.querySelector('#tb-btn-sync-params')?.addEventListener('click', (e) => {
+        onClick('#tb-btn-sync-params', (e) => {
             e.stopPropagation();
             if (mainArea && selectedAreas.length > 0) {
                 execSyncParams(mainArea, selectedAreas[0].card);
@@ -207,7 +209,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
         if (autoCb) autoCb.onchange = e => updateSelected(a => a.autoHeight = e.target.checked);
     }
 
-    tb.querySelector('#tb-clone-btn')?.addEventListener('click', (e) => {
+    onClick('#tb-clone-btn', (e) => {
         e.stopPropagation();
 
         if (state.selectedAreaIds && state.selectedAreaIds.length > 0) {
@@ -276,7 +278,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
 
             setTimeout(() => {
                 if (newSelectedAreaIds.length > 0) {
-                    document.querySelector(`.clab-area[data-area-id="${newSelectedAreaIds[newSelectedAreaIds.length - 1]}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    revealWorkspaceTarget(document.querySelector('#clab-cards-container'),null,newSelectedAreaIds[newSelectedAreaIds.length - 1])?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 }
             }, 50);
 
@@ -322,7 +324,9 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
 
             import("../comp_taskcard.js").then(taskcard => {
                 const wrapper = document.querySelector('.clab-cards-wrapper');
-                if (wrapper) {
+                const container=document.querySelector('#clab-cards-container');
+                if(hasCardWindow(container))cardWindow(container).update();
+                else if (wrapper) {
                     const temp = document.createElement('div');
                     clonedCards.forEach((c, idx) => {
                         temp.innerHTML += taskcard.generateSingleCardHTML(c, insertBaseIndex + idx);
@@ -351,7 +355,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
 
                 setTimeout(() => {
                     if (newSelectedCardIds.length > 0) {
-                        document.querySelector(`.clab-card[data-card-id="${newSelectedCardIds[newSelectedCardIds.length - 1]}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                        revealWorkspaceTarget(document.querySelector('#clab-cards-container'),newSelectedCardIds[newSelectedCardIds.length - 1])?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
                     }
                 }, 50);
             }).catch(err => {
@@ -361,7 +365,7 @@ export function attachDynamicToolbarEvents(toolbarHandleContainer) {
         }
     });
 
-    tb.querySelector('#tb-format-painter')?.addEventListener('click', (e) => {
+    onClick('#tb-format-painter', (e) => {
         e.stopPropagation();
         const panelContainer = document.getElementById('clab-panel');
         if (state.painterMode) {

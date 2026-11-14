@@ -1,3 +1,4 @@
+import { measureInputText } from './input_measure.js';
 ﻿/**
  * 文件: module_input.js
  * 职责: 渲染并处理输入模块 UI（文本、布尔、下拉、媒体上传等）。
@@ -393,19 +394,6 @@ export function attachInputEvents(container) {
         }
     };
 
-    // ==========================================
-    // 建立全局唯一的“离屏文本测量器”，用于稳定计算 textarea 自适应高度
-    // ==========================================
-    let ghostMeasurer = document.getElementById('clab-ghost-textarea-measurer');
-    if (!ghostMeasurer) {
-        ghostMeasurer = document.createElement('textarea');
-        ghostMeasurer.id = 'clab-ghost-textarea-measurer';
-        // 绝对定位并隐藏，固定 1px 高度，使 scrollHeight 可反映真实内容高度且不参与页面布局。
-        ghostMeasurer.style.cssText = 'position: absolute; top: -9999px; left: -9999px; visibility: hidden; z-index: -1000; overflow: hidden; height: 1px !important; min-height: 1px !important; max-height: none !important; word-wrap: break-word; white-space: pre-wrap;';
-        ghostMeasurer.tabIndex = -1;
-        document.body.appendChild(ghostMeasurer);
-    }
-
     attachMediaEvents(container);
     container.querySelectorAll('.clab-upload-preview-toggle').forEach(input => {
         input.onchange = () => {
@@ -640,28 +628,7 @@ export function attachInputEvents(container) {
             if (resizeFrame) return;
             resizeFrame = window.requestAnimationFrame(() => {
                 resizeFrame = 0;
-                if (!ta.isConnected) return;
-                // 1. 将真实输入框的关键样式同步到离屏测量器
-                const comp = window.getComputedStyle(ta);
-                ghostMeasurer.style.width = comp.width;
-                ghostMeasurer.style.fontFamily = comp.fontFamily;
-                ghostMeasurer.style.fontSize = comp.fontSize;
-                ghostMeasurer.style.lineHeight = comp.lineHeight;
-                ghostMeasurer.style.padding = comp.padding;
-                ghostMeasurer.style.border = comp.border;
-                ghostMeasurer.style.boxSizing = comp.boxSizing;
-                ghostMeasurer.style.letterSpacing = comp.letterSpacing;
-                
-                ghostMeasurer.value = ta.value || ta.placeholder || 'A';
-                
-                // 2. 读取离屏测量器的 scrollHeight
-                const borders = (parseFloat(comp.borderTopWidth) || 0) + (parseFloat(comp.borderBottomWidth) || 0);
-                
-                // 3. 增加 8px 安全余量，避免中英文混排时出现截断
-                const calculatedHeight = ghostMeasurer.scrollHeight + borders + 8;
-                
-                // 4. 直接回写最终高度，避免反复 height:auto 导致重排抖动
-                ta.style.height = calculatedHeight + 'px';
+                measureInputText(ta);
             });
         };
 
@@ -681,6 +648,7 @@ export function attachInputEvents(container) {
         }
 
         // 初始化一次高度
+        measureInputText(ta);
         const initialResize = setTimeout(handleAutoResize, 50);
         onModuleRemoved(ta, () => {
             ro?.disconnect();
@@ -699,7 +667,7 @@ export function attachInputEvents(container) {
             const area = card.areas.find(a => a.id === areaId);
             if(area) {
                 area.value = e.target.value;
-                if (window.CLab?.scheduleSave) window.CLab.scheduleSave();
+                if (window.CLab?.scheduleSave) window.CLab.scheduleSave({cardIds:[cardId],areaIds:[areaId],cardsOnly:true});
             }
         };
         ta.onchange = () => { if (window._clabJustSave) window._clabJustSave(); };

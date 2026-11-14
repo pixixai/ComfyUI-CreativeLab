@@ -6,8 +6,8 @@ const cellOf = target => target?.closest('.clab-area,.clab-table-draft-cell');
 export function attachTableEditing(container,actions) {
     let editingId = '';
     const findCell = id => container.querySelector(`[role=cell][data-area-id="${CSS.escape(id)}"]`);
-    const sync = () => {
-        for (const cell of container.querySelectorAll('[role=cell]')) {
+    const syncCell = cell => {
+        if(cell){
             const editing = cell.dataset.areaId === editingId;
             cell.toggleAttribute('data-table-editing', editing);
             for (const input of cell.querySelectorAll(textSelector)) {
@@ -17,14 +17,16 @@ export function attachTableEditing(container,actions) {
             }
         }
     };
+    const sync=()=>container.querySelectorAll('[role=cell]').forEach(syncCell);
+    const setEditing=id=>{const previous=editingId;editingId=id;syncCell(findCell(previous));if(id!==previous)syncCell(findCell(id));};
     const end = () => {
         if (!editingId) return;
         const cell = findCell(editingId);
-        editingId = '';
-        sync();
+        setEditing('');
         if (cell?.contains(document.activeElement) && document.activeElement !== cell) document.activeElement.blur();
     };
     const begin = (cell, atEnd = false) => {
+        cell.dispatchEvent(new CustomEvent('clab_ensure_component',{bubbles:true}));
         const input = [...cell.querySelectorAll(textSelector)].find(input =>
             input.getClientRects().length && !input.disabled && input.dataset.tableReadOnly !== 'true');
         if (!input) {
@@ -34,8 +36,7 @@ export function attachTableEditing(container,actions) {
         const id = cell.dataset.areaId;
         actions.select(id);
         if (input) {
-            editingId = id;
-            sync();
+            setEditing(id);
         }
         const field = focusTableCell(findCell(id), true);
         if (atEnd && field instanceof HTMLTextAreaElement) field.setSelectionRange(field.value.length, field.value.length);
@@ -65,12 +66,11 @@ export function attachTableEditing(container,actions) {
     }, true);
     container.addEventListener('focusout', event => {
         if (contains(event.target) && !contains(event.relatedTarget)) {
-            editingId = '';
-            sync();
+            setEditing('');
         }
     });
     return {
-        sync, end, contains,
+        sync, syncCell, end, contains,
         textTarget: target => !!target?.matches(textSelector),
         restore() {
             end();

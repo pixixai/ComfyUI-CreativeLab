@@ -1,12 +1,15 @@
 import { state, appState,getActiveWorkspace } from '../ui_state.js';
-import { renderTableGrid, leaveTableGrid, editTableRowTitle } from './table_view.js';
+import { renderTableGrid, leaveTableGrid, editTableRowTitle, paintTableSelection } from './table_view.js';
 import { openTableColumnSettings } from './table_column_panel.js';
 import { openTableCellSettings } from './table_cell_panel.js';
-import { tableRowHeight, tableColumnWidth, resizeTableCells, applyTableLayout, tablePadding, tableSizes } from './table_layout.js';
+import { tableRowHeight, tableColumnWidth, resizeTableCells, applyTableLayout, tablePadding, tableSizes, fitTableMedia } from './table_layout.js';
 import { tableAppearance, setTableAppearance, setTableCellAppearance } from './table_appearance.js';
 import { openTableSheet, addSheetColumn, addSheetRow, synchronizeSheet, projectTableSheet, materializeTable, writeSheetCells, sheetRunRows, orderSheetTasks, resetTableColumn, selectedTableColumns } from './table_sheet.js';
 import { duplicateTableRow, duplicateTableColumn, removeTableTracks } from './table_structure.js';
-import { promoteDraftRows } from './table_drafts.js';
+import { promoteDraftRows,renderDraftValue } from './table_drafts.js';
+import { workspaceViewport } from './viewport_components.js';
+import { updateTableEditor } from './table_editors.js';
+import { virtualizeTasks } from './viewport_geometry.js';
 import { openTableBinding } from './table_binding.js';
 import { attachTableGestures } from './table_gestures.js';
 import { attachTableSelection, tableLayoutSelection } from './table_selection.js';
@@ -33,7 +36,7 @@ export function createTableController(container,getView,save) {
     const layoutView = () => ({...view(), columnWidth:sheet.columnWidth ?? view().columnWidth, rowHeight:sheet.rowHeight ?? view().rowHeight,
         padding:sheet.padding ?? view().padding, alignment:sheet.alignment, cellAppearance:sheet.cellAppearance});
     const notice=(message,error=false)=>showBindingToast(message,error),group=()=>rows;
-    const mediaObserver=new IntersectionObserver(entries=>{if(!active()||!sheet)return;let changed=false;for(const entry of entries)if(entry.isIntersecting){ready.add(entry.target.dataset.areaId);mediaObserver.unobserve(entry.target);changed=true;}if(changed)render();},{root:container,rootMargin:'120px'});
+    const mediaObserver=new IntersectionObserver(entries=>{if(!active()||!sheet||virtualizeTasks(state.cards)||rows.length*columns.length>=160)return;let changed=false;for(const entry of entries)if(entry.isIntersecting){ready.add(entry.target.dataset.areaId);mediaObserver.unobserve(entry.target);changed=true;}if(changed)render();},{root:container,rootMargin:'120px'});
     const layout=()=>{
         if(!sheet||!wrapper())return;rows=projectTableSheet(sheet,state.cards);
         columns=sheet.columns.map((area,index)=>({id:area.id,index,area}));
@@ -58,6 +61,11 @@ export function createTableController(container,getView,save) {
         for(const cell of wrapper().querySelectorAll('.clab-card:not([hidden]) [data-clab-deferred],.clab-card:not([hidden]) [data-clab-pending-refresh]'))if(!observed.has(cell)){observed.add(cell);mediaObserver.observe(cell);}
         if(!controls?.isConnected){controls=document.createElement('div');controls.className='clab-table-fixed-controls';controls.innerHTML='<button data-table-add="columns" title="新增列（在所选项后插入）" aria-label="新增列">＋</button><button data-table-add="rows" title="新增行（在所选项后插入）" aria-label="新增行">＋</button>';wrapper().prepend(controls);}
         controls.style.width=`${container.clientWidth}px`;controls.style.setProperty('--table-viewport-height',`${container.clientHeight}px`);controls.style.setProperty('--clab-table-row-width',wrapper().style.getPropertyValue('--clab-table-row-width'));synchronizeModeMedia(wrapper());
+        const parameters=workflowParameters();
+        workspaceViewport(container).update('table',{cards:rows,count:rows.length*columns.length,
+            mount(cell,card,area){if(!cell.classList.contains('clab-table-draft-cell'))return false;renderDraftValue(cell,area,tableParameter(columns[Number(cell.dataset.tableIndex)].area,parameters));return true;},
+            mounted(cell,card,area){cell.dataset.clabTableMediaReady='';if(cell.classList.contains('clab-area'))updateTableEditor(cell,area,tableParameter(area,parameters));fitTableMedia(cell,tableColumnWidth(columns[Number(cell.dataset.tableIndex)],layoutView()),tableRowHeight(layoutView(),{id:cell.dataset.cardId}));editing.syncCell(cell);}
+        });
     };
     const commit=()=>{
         cancelAnimationFrame(frame);frame=0;pending=false;if(!sheet)return;
@@ -289,7 +297,7 @@ export function createTableController(container,getView,save) {
     panel.addEventListener('mousedown',event=>{if(active()&&event.target.closest('.clab-table-head,[data-table-row-header]'))event.stopPropagation();},true);
     panel.addEventListener('click',event=>{if(!active())return;const target=event.target.closest('#clab-global-add-card,#clab-global-add-module,#clab-btn-run,#clab-btn-run-all,#tb-table-cell-settings,#tb-reset-table-columns');if(!target)return;event.preventDefault();event.stopImmediatePropagation();try{if(target.id==='tb-table-cell-settings')openCellSettings(target);else if(target.id==='tb-reset-table-columns')resetColumns(selectedTableColumns(sheet,state.cards,new Set(state.selectedAreaIds)));else if(target.id.includes('run')){panel.querySelector('#clab-run-dropdown-menu').style.display='none';run(target.id==='clab-btn-run-all');}else add(target.id==='clab-global-add-card'?'rows':'columns');}catch(error){notice(error.message,true);}},true);
     const editing=attachTableEditing(container,{active,select:id=>selection.selectCell(id)});
-    const selection=attachTableSelection(panel,{active,group,columns:()=>columns,paint:()=>render(),editing});
+    const selection=attachTableSelection(panel,{active,group,columns:()=>columns,paint:()=>{if(sheet&&wrapper())paintTableSelection(wrapper(),rows,columns,selection.kind());},editing});
     const navigate=(row,index)=>{
         if(row<0||index<0)return;editing.end();while(sheet.rows.length<=row)addSheetRow(sheet);commit();const area=rows[row]?.areas[index];if(!area)return;
         selection.selectCell(area.id);const cell=container.querySelector(`[data-area-id="${CSS.escape(area.id)}"]`);cell?.scrollIntoView({block:'nearest',inline:'nearest'});
@@ -315,5 +323,5 @@ export function createTableController(container,getView,save) {
         move:(kind,ids,target,after)=>{if(reorderTableItems(kind==='column'?sheet.columns:sheet.rows,ids,target,after,kind==='column'))commit();}
     });
     const sizeObserver=new ResizeObserver(()=>{if(active()&&sheet)queue(true);});sizeObserver.observe(container);
-    return {render,flush(){if(active()&&pending)commit();},leave(){cancelAnimationFrame(frame);frame=0;pending=false;editing.restore();mediaObserver.disconnect();activity.clear();observed=new WeakSet();leaveGestures();selection.clear();settings?.close();closeXYPopover();controls?.remove();controls=null;sheet=null;rows=[];columns=[];ready.clear();dirty.clear();const node=wrapper();if(node)leaveTableGrid(node);state.selectedCardIds=state.selectedCardIds.filter(id=>state.cards.some(card=>card.id===id));state.selectedAreaIds=state.selectedAreaIds.filter(id=>state.cards.some(card=>card.areas.some(area=>area.id===id)));}};
+    return {render,flush(){if(active()&&pending)commit();},leave(){workspaceViewport(container).restoreCached();cancelAnimationFrame(frame);frame=0;pending=false;editing.restore();mediaObserver.disconnect();activity.clear();observed=new WeakSet();leaveGestures();selection.clear();settings?.close();closeXYPopover();controls?.remove();controls=null;sheet=null;rows=[];columns=[];ready.clear();dirty.clear();const node=wrapper();if(node)leaveTableGrid(node);state.selectedCardIds=state.selectedCardIds.filter(id=>state.cards.some(card=>card.id===id));state.selectedAreaIds=state.selectedAreaIds.filter(id=>state.cards.some(card=>card.areas.some(area=>area.id===id)));}};
 }

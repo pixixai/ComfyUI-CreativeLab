@@ -4,11 +4,12 @@ import { matrixBindings } from './workspace_modes/xy_archive.js';
 
 function createContentHistory({limit=100,budget=16777216}={}) {
     let baseline,origins=new WeakMap(),undo=[],redo=[],bytes=0;
-    const snapshot=state=>captureHistory({workspaces:state.workspaces},baseline,origins);
+    const snapshot=(state,entry)=>captureHistory({workspaces:state.workspaces},baseline,origins,[],entry?.cardsOnly&&entry.cardIds?.length?{cardsOnly:true,cardIds:new Set(entry.cardIds),areaIds:entry.areaIds?new Set(entry.areaIds):null}:null);
     const rebase=state=>{baseline=snapshot(state);};
     const clear=state=>{origins=new WeakMap();baseline=undefined;undo=[];redo=[];bytes=0;rebase(state);};
-    const record=(state,{group='',time=Date.now(),context}={})=>{
-        const next=snapshot(state);if(!baseline){baseline=next;return false;}
+    const record=(state,entry={})=>{
+        const {group='',time=Date.now(),context}=entry;
+        const next=snapshot(state,entry);if(!baseline){baseline=next;return false;}
         const changes=historyDiff(baseline,next);baseline=next;if(!changes.length)return false;
         redo=[];
         const last=undo.at(-1),merge=group&&last?.group===group&&time-last.time<750&&last.context?.surface===context?.surface&&last.context?.mode===context?.mode&&changes.every(change=>change.kind==='set')&&JSON.stringify(last.changes.map(change=>change.path))===JSON.stringify(changes.map(change=>change.path));
@@ -30,14 +31,15 @@ function createContentHistory({limit=100,budget=16777216}={}) {
 export function createEditHistory(options) {
     const histories=new Map();let current;
     const scope=workspace=>({workspaces:[workspace]});
-    const visit=(state,action)=>{
+    const visit=(state,action,workspaceIds)=>{
         current=state;let changed=false;
         const ids=new Set(state.workspaces.map(workspace=>workspace.id));
         for(const id of histories.keys())if(!ids.has(id))histories.delete(id);
+        const selected=workspaceIds?new Set(workspaceIds):null;
         for(const workspace of state.workspaces){
             let history=histories.get(workspace.id);
             if(!history){history=createContentHistory(options);history.clear(scope(workspace));histories.set(workspace.id,history);}
-            else changed=action(history,scope(workspace))||changed;
+            else if(!selected||selected.has(workspace.id))changed=action(history,scope(workspace))||changed;
         }
         return changed;
     };
@@ -48,11 +50,11 @@ export function createEditHistory(options) {
     };
     return {
         clear(state){histories.clear();visit(state,()=>{});},
-        rebase(state){visit(state,(history,scoped)=>history.rebase(scoped));},
+        rebase(state,entry){visit(state,(history,scoped)=>history.rebase(scoped),entry?.workspaceIds);},
         record(state,entry){return visit(state,(history,scoped)=>{
             const sheetId=scoped.workspaces[0].view?.table?.sheetId;
             return history.record(scoped,entry?.context?.mode==='table'&&sheetId?{...entry,context:{...entry.context,sheetId}}:entry);
-        });},
+        },entry?.workspaceIds);},
         undo:(state,id)=>step(state,id,'undo'),redo:(state,id)=>step(state,id,'redo'),
         peek:(id=active(),forward=false)=>histories.get(id)?.peek(forward)||null,
         canUndoFor:id=>histories.get(id)?.canUndo||false,canRedoFor:id=>histories.get(id)?.canRedo||false,

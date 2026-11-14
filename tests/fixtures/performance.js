@@ -1,7 +1,7 @@
 const passed = [];
 const errors = [];
 window.testProgress = { passed, errors };
-window.addEventListener('error', event => { if (event.message) errors.push(event.message); });
+window.addEventListener('error', event => { if (event.message) errors.push(event.error?.stack||event.message); });
 window.addEventListener('unhandledrejection', event => errors.push(String(event.reason)));
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -203,7 +203,7 @@ try {
     uploadRoot.querySelector('.clab-upload-clear-btn').click();
     assert(uploadArea.value === '' && uploadRoot.querySelector('.clab-upload-clear-btn').disabled, 'clear upload did not update its button state');
     assert(window._clabUploadHandlers.has('upload'), 'upload handler was not registered');
-    uploadRoot.remove(); await delay(20);
+    card.areas=card.areas.filter(area=>area.id!==uploadArea.id);uploadRoot.remove(); await delay(20);
     assert(!window._clabUploadHandlers.has('upload'), 'deleted upload handler was retained');
     passed.push('upload controls follow replaced inputs and release handlers on deletion');
 
@@ -489,7 +489,7 @@ try {
         if (media.tagName !== 'IMG') assert(media.paused, `${upload.id} continued playing after closing`);
         media._testStream?.getTracks().forEach(track => track.stop());
     }
-    StateManager.flushPendingSave();
+    StateManager.flushPendingSave(testApp.graph);
     const savedAreas = JSON.parse(anchor.widgets[0].value).workspaces[0].cards[0].areas;
     assert(uploadAreas.slice(0,3).every(upload => savedAreas.find(area => area.id === upload.id)?.showUploadPreview === false), 'upload switches were not saved in the workflow');
     passed.push('upload switches preserve the file controls, stop closed media and persist per module');

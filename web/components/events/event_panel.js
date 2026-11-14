@@ -1,3 +1,5 @@
+import { revealWorkspaceTarget } from '../workspace_modes/card_window.js';
+import { attachCardWheel } from './card_wheel.js';
 /**
  * event_panel.js: panel-local event wiring (selection, painter, wheel, drag, width).
  */
@@ -249,7 +251,7 @@ function handlePainterModeClick(event, panelContainer, cardsContainer) {
             for (let i = 0; i < cardEls.length; i += 1) {
                 const rect = cardEls[i].getBoundingClientRect();
                 if (event.clientX < rect.left + rect.width / 2) {
-                    insertIndex = i;
+                    insertIndex = state.cards.findIndex(card=>card.id===cardEls[i].dataset.cardId);
                     break;
                 }
             }
@@ -285,7 +287,7 @@ function handlePainterModeClick(event, panelContainer, cardsContainer) {
                 if (window._clabUpdateCardsLayout) window._clabUpdateCardsLayout();
 
                 setTimeout(() => {
-                    newEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+                    revealWorkspaceTarget(cardsContainer,newCard.id)?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
                 }, 50);
             } else {
                 saveAndRender();
@@ -436,36 +438,7 @@ export function setupPanelEvents(panelContainer) {
         if (event.target.matches('.clab-tool-dock,.clab-toolbar-left,.clab-toolbar-right')) handleDeselectAll(true);
     });
 
-    cardsContainer.addEventListener("wheel", (event) => {
-        if (panelContainer.dataset.workspaceMode && panelContainer.dataset.workspaceMode !== 'cards') return;
-        if (event.deltaY === 0) return;
-
-        let insideVerticalScrollable = false;
-        let elem = event.target;
-        while (elem && elem !== cardsContainer) {
-            if (elem.scrollHeight > elem.clientHeight) {
-                const style = window.getComputedStyle(elem);
-                if (style.overflowY === "auto" || style.overflowY === "scroll") {
-                    const atTop = elem.scrollTop === 0;
-                    const atBottom = Math.abs(elem.scrollHeight - elem.scrollTop - elem.clientHeight) < 1;
-                    if ((event.deltaY < 0 && !atTop) || (event.deltaY > 0 && !atBottom)) {
-                        insideVerticalScrollable = true;
-                        break;
-                    }
-                }
-            }
-            elem = elem.parentNode;
-        }
-
-        if (insideVerticalScrollable) return;
-
-        event.preventDefault();
-        const cardEl = cardsContainer.querySelector(".clab-card:not(.clab-add-card-inline)");
-        const panelWidth = parseInt(getComputedStyle(panelContainer).getPropertyValue("--clab-card-width"), 10) || 320;
-        const cardWidth = cardEl ? cardEl.offsetWidth : panelWidth;
-        const scrollDistance = cardWidth + workspacePreferences.cardGap;
-        cardsContainer.scrollBy({ left: Math.sign(event.deltaY) * scrollDistance, behavior: "smooth" });
-    }, { passive: false });
+    attachCardWheel(panelContainer,cardsContainer);
 
     setupPanelDrag(panelContainer);
     setupCardWidthControl(panelContainer);

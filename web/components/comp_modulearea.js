@@ -28,23 +28,22 @@ export function justSave() {
 
 
 // 微创更新单个区域：只替换目标 DOM，尽量保留媒体播放状态，避免控件错位。
-export function surgicallyUpdateArea(areaId) {
+export function surgicallyUpdateArea(areaId,{notify=true}={}) {
     const areaEl = document.querySelector(`.clab-area[data-area-id="${areaId}"]`);
     if (!areaEl) return;
-    document.dispatchEvent(new CustomEvent('clab_workspace_view_change'));
+    if(notify)document.dispatchEvent(new CustomEvent('clab_workspace_view_change'));
+    if(areaEl.hasAttribute('data-clab-layout')){areaEl.replaceChildren();delete areaEl.dataset.clabLayout;areaEl.dataset.clabDeferred='';return;}
+    if(areaEl.hasAttribute('data-clab-virtual')){areaEl.dataset.clabPendingRefresh='';return;}
     if (areaEl.hasAttribute('data-clab-deferred')) return;
     if (areaEl.closest('#clab-panel')?.dataset.workspaceMode === 'xy' && areaEl.closest('.clab-card[hidden],.clab-area[hidden]')) {
         areaEl.dataset.clabPendingRefresh = '';
         return;
     }
-    let targetCard = null;
-    let targetArea = null;
-    state.cards.forEach(c => {
-        const a = c.areas?.find(x => x.id === areaId);
-        if (a) { targetCard = c; targetArea = a; }
-    });
+    const cardId=areaEl.closest('.clab-card')?.dataset.cardId||areaEl.dataset.cardId;
+    const targetCard=state.cards.find(card=>cardId?card.id===cardId:card.areas?.some(area=>area.id===areaId));
+    const targetArea=targetCard?.areas.find(area=>area.id===areaId);
     if (targetCard && targetArea) {
-        if (areaEl.closest('#clab-panel')?.dataset.workspaceMode === 'table' && targetArea.type === 'preview' && !targetArea.isManageMode && !areaEl.querySelector('.clab-history-grid') && !areaEl.hasAttribute('data-clab-table-media-ready') && ['video', 'audio', 'model'].includes(getAreaResultType(targetArea))) {
+        if (areaEl.closest('#clab-panel')?.dataset.workspaceMode === 'table' && targetArea.type === 'preview' && !targetArea.isManageMode && !areaEl.querySelector('.clab-history-grid') && !areaEl.hasAttribute('data-clab-table-media-ready') && !areaEl.closest('[data-clab-virtualized]') && ['video', 'audio', 'model'].includes(getAreaResultType(targetArea))) {
             areaEl.dataset.clabPendingRefresh = '';
             return;
         }
@@ -229,6 +228,8 @@ export function generateDeferredAreaHTML(area, card) {
 }
 
 export function attachAreaEvents(container) {
+    if(container.matches?.('[data-clab-layout]'))return;
+    if(container.querySelector('[data-clab-layout]')){for(const area of container.querySelectorAll('.clab-area:not([data-clab-layout])'))attachAreaEvents(area);return;}
     injectDnDCSS();
     attachModulePickEvents(container);
     attachInputEvents(container);
@@ -299,7 +300,7 @@ export function attachAreaEvents(container) {
         };
     });
 
-    container.querySelectorAll('.clab-area').forEach(areaEl => {
+    (container.matches?.('.clab-area')?[container]:container.querySelectorAll('.clab-area')).forEach(areaEl => {
         if (areaEl.dataset.clabEventsBound) return;
         areaEl.dataset.clabEventsBound = "1";
         

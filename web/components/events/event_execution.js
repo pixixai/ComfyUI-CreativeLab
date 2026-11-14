@@ -133,6 +133,7 @@ export function setupExecutionEvents() {
     api.addEventListener("status", (e) => {
         if (e.detail?.exec_info?.queue_remaining === 0) {
             setTimeout(() => {
+                if(window.CLab?.hasExecutionWork?.())return;
                 document.querySelectorAll('.clab-card-progress-container').forEach(container => {
                     const bar = container.querySelector('.clab-card-progress-bar');
                     if (bar && !bar.classList.contains('error')) {

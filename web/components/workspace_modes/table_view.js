@@ -9,6 +9,20 @@ import { boundColumn, effectiveTableRow } from './table_sheet.js';
 import { tableSelectAllIcon } from './table_icons.js';
 import { updateTableEditor, restoreTableEditors } from './table_editors.js';
 
+export function paintTableSelection(wrapper,rows,columns,kind) {
+    wrapper.dataset.tableSelection=kind;
+    const selected=new Set(state.selectedAreaIds),cards=new Set(state.selectedCardIds);
+    const all=rows.length*columns.length>0&&selected.size>=rows.length*columns.length&&rows.every(row=>row.areas.every(area=>selected.has(area.id)));
+    const button=wrapper.querySelector('[data-table-select-all]');
+    if(button){button.setAttribute('aria-pressed',String(all));button.title=all?'取消全选':'全选';button.setAttribute('aria-label',button.title);}
+    for(const header of wrapper.querySelectorAll('.clab-table-column')){
+        const index=Number(header.dataset.tableIndex);
+        header.classList.toggle('is-selected',kind==='column'&&rows.length>0&&rows.every(row=>selected.has(row.areas[index].id)));
+    }
+    for(const header of wrapper.querySelectorAll('[data-table-row-header][aria-pressed=true]'))if(!cards.has(header.closest('[data-table-row]').dataset.tableRow))header.setAttribute('aria-pressed','false');
+    for(const id of cards)wrapper.querySelector(`[data-table-row="${CSS.escape(id)}"] [data-table-row-header]`)?.setAttribute('aria-pressed','true');
+}
+
 export function renderTableGrid(wrapper,cards,rows,columns,view,parameters,save,ready) {
     wrapper.setAttribute('role','table');wrapper.setAttribute('aria-label','任务参数表');
     let head=wrapper.querySelector('.clab-table-head');

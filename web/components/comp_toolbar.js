@@ -7,6 +7,7 @@ import { state, appState, saveAndRender } from "./ui_state.js";
 import { attachDataIOEvents } from "./actions/action_data_io.js";
 import { attachRunEvents } from "./actions/action_run_executor.js";
 import { renderDynamicToolbar as renderDynamic, attachDynamicToolbarEvents as attachDynamic } from "./actions/action_module_config.js";
+import { hasCardWindow,cardWindow,revealWorkspaceTarget } from './workspace_modes/card_window.js';
 import { generateSingleCardHTML, attachCardEvents } from "./comp_taskcard.js";
 import { generateAreaHTML, attachAreaEvents, justSave } from "./comp_modulearea.js";
 import { updateSelectionUI } from "./ui_selection.js";
@@ -59,7 +60,8 @@ export function setupStaticToolbarEvents(panelContainer) {
         appState.lastClickedCardId = newCard.id;
         
         const wrapper = panelContainer.querySelector('.clab-cards-wrapper');
-        if (wrapper) {
+        if (hasCardWindow(panelContainer.querySelector('#clab-cards-container'))) cardWindow(panelContainer.querySelector('#clab-cards-container')).update();
+        else if (wrapper) {
             const temp = document.createElement('div');
             temp.innerHTML = generateSingleCardHTML(newCard, insertIndex);
             const newEl = temp.firstElementChild;
@@ -83,7 +85,7 @@ export function setupStaticToolbarEvents(panelContainer) {
         setTimeout(() => {
             const container = panelContainer.querySelector("#clab-cards-container");
             if (container) {
-                const newCardEl = container.querySelector(`[data-card-id="${newCard.id}"]`);
+                const newCardEl = revealWorkspaceTarget(container,newCard.id);
                 if (newCardEl) newCardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             }
         }, 50);

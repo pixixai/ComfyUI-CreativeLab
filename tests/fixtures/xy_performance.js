@@ -1,5 +1,6 @@
 export async function checkXYPerformance() {
     const assert=(condition,message)=>{if(!condition)throw new Error(message);},delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+    const waitFor=async(check,message)=>{const end=performance.now()+2500;while(!check()){if(performance.now()>end)throw new Error(message);await delay(16);}};
     const {state,createEmptyWorkspace,getActiveWorkspace,syncStateToActiveWorkspace,applyWorkspaceToState,buildPersistedState}=await import('/extensions/clab/components/ui_state.js');
     const {synchronizeMatrix,matrixCells,matrixOutput}=await import('/extensions/clab/components/workspace_modes/xy_model.js');
     const {StateManager}=await import('/extensions/clab/state_manager.js');
@@ -34,7 +35,7 @@ export async function checkXYPerformance() {
     selectLayer(1);await delay(100);assert(!entries().some(url=>/xy-perf-layer-[2-4]-/.test(url)),'visiting one Z layer loaded unrelated layers');
     firstArea.resultUrl='/view?filename=xy-perf-pending.png';firstArea.history.push(firstArea.resultUrl);firstArea.historyIndex=1;window._clabSurgicallyUpdateArea(firstArea.id);await delay(80);
     assert(areaNode(firstArea).hasAttribute('data-clab-pending-refresh')&&!entries().some(url=>url.includes('xy-perf-pending.png')),'new output on a hidden visited layer loaded immediately');
-    selectLayer(0);await delay(100);assert(areaNode(firstArea).querySelector('img')===image&&image.getAttribute('src')===firstArea.resultUrl,'returning to a visited layer replaced its image instead of applying the pending result');
+    selectLayer(0);await waitFor(()=>areaNode(firstArea).querySelector('img')===image&&image.getAttribute('src')===firstArea.resultUrl,'returning to a visited layer replaced its image instead of applying the pending result');
     passed.push('Z switching loads only the requested layer and applies hidden results on return without replacing the existing image');
 
     const axis=q('.axis-x'),tick=q('[data-xy-edit-values=x][data-xy-tick="0"]'),zTick=q('[data-xy-z-layer="0"]');

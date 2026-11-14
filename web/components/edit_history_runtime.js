@@ -16,11 +16,16 @@ function guardWorkflowHistory(){
         return original.call(this,event,...args);
     };
 }
-const record=()=>{if(!paused){syncStateToActiveWorkspace();history.record(state,{group:Date.now()-lastInput<750?group:'',context:currentHistoryContext()});}};
+const workspaceIds=()=>{
+    const preview=document.querySelector('.clab-preview-modal.visible');
+    const ids=preview?.dataset.historyWorkspaceIds?JSON.parse(preview.dataset.historyWorkspaceIds):appState.selectedWorkspaceIds||[];
+    return [...new Set([state.activeWorkspaceId,...ids].filter(Boolean))];
+};
+const record=(entry={})=>{if(!paused){syncStateToActiveWorkspace();history.record(state,{workspaceIds:workspaceIds(),...entry,group:Date.now()-lastInput<750?group:'',context:currentHistoryContext()});}};
 export const editHistory={
-    record,
+    record,workspaceIds,
     reset(){history.clear(state);},
-    withoutRecording(action){paused++;try{return action();}finally{if(!--paused){syncStateToActiveWorkspace();history.rebase(state);}}},
+    withoutRecording(action){paused++;try{return action();}finally{if(!--paused){syncStateToActiveWorkspace();history.rebase(state,{workspaceIds:workspaceIds()});}}},
     get canUndo(){return history.canUndo;},get canRedo(){return history.canRedo;},
 };
 export function setupEditHistory({persist,flush}) {
@@ -57,8 +62,8 @@ export function setupEditHistory({persist,flush}) {
             }
             document.dispatchEvent(new CustomEvent('clab_edit_history_restoring',{detail:navigation}));
             const changes=redo?history.redo(state,workspaceId):history.undo(state,workspaceId);
-            for(const workspace of state.workspaces)workspace.view=createWorkspaceView(workspace.view);
-            const owner=state.workspaces.find(workspace=>workspace.id===workspaceId),sheet=owner.view.table.sheets.find(sheet=>sheet.id===navigation.destination.sheetId);
+            const owner=state.workspaces.find(workspace=>workspace.id===workspaceId);owner.view=createWorkspaceView(owner.view);
+            const sheet=owner.view.table.sheets.find(sheet=>sheet.id===navigation.destination.sheetId);
             if(sheet){owner.view.table.sheetId=sheet.id;owner.view.templateId=sheet.rows.find(row=>row.cardId===navigation.focus.cardId)?.cardId||sheet.rows.find(row=>row.cardId)?.cardId||'';}
             if(navigation.destination.surface==='workspace'){
                 state.activeWorkspaceId=workspaceId;
@@ -69,7 +74,7 @@ export function setupEditHistory({persist,flush}) {
             resetTransientState();appState.selectedWorkspaceIds=workspace?[workspace.id]:[];
             const areaIds=[...new Set(changes.flatMap(change=>change.path.flatMap((key,index)=>key==='areas'&&typeof change.path[index+1]==='object'?[change.path[index+1].id]:[])))];
             document.dispatchEvent(new CustomEvent('clab_edit_history_restored',{detail:{areaIds,...navigation}}));
-            persist();
-        }finally{paused--;syncStateToActiveWorkspace();history.rebase(state);document.dispatchEvent(new CustomEvent('clab_after_edit_history',{detail:navigation}));}
+            persist(workspaceId);
+        }finally{paused--;syncStateToActiveWorkspace();history.rebase(state,{workspaceIds:navigation?[navigation.workspaceId]:workspaceIds()});document.dispatchEvent(new CustomEvent('clab_after_edit_history',{detail:navigation}));}
     },true);
 }

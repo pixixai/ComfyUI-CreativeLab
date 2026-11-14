@@ -1,4 +1,5 @@
-export const rulerHoverScale=distance=>[3,2.3,1.6][Math.abs(distance)]||1;
+import { rulerHoverScale } from '../../ruler_wave.js';
+export { rulerHoverScale } from '../../ruler_wave.js';
 export function attachPreviewSourceRuler(root) {
     const left=root.querySelector('.clab-preview-modal-left'),body=left.parentElement;
     const ruler=document.createElement('nav');ruler.className='clab-source-ruler';ruler.setAttribute('aria-label','来源定位');ruler.hidden=true;body.append(ruler);

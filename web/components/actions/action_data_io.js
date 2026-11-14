@@ -1,3 +1,4 @@
+import { hasCardWindow } from '../workspace_modes/card_window.js';
 /**
  * 文件名: action_data_io.js
  * 路径: web/components/actions/action_data_io.js
@@ -189,7 +190,7 @@ export function attachDataIOEvents(panelContainer) {
                 const cardsWrapper = document.querySelector('.clab-cards-wrapper');
                 
                 // 1. 批量插入全新生成的任务卡片
-                if (newCardsToDOM.length > 0 && cardsWrapper) {
+                if (newCardsToDOM.length > 0 && cardsWrapper&&!hasCardWindow(cardsWrapper.closest('#clab-cards-container'))) {
                     const temp = document.createElement('div');
                     newCardsToDOM.forEach(item => {
                         temp.innerHTML += generateSingleCardHTML(item.card, item.index);
