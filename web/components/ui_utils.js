@@ -678,7 +678,7 @@ export function injectCSS() {
         .clab-preview-placeholder { color: rgba(255,255,255,0.6); font-weight: bold; font-size: 14px; pointer-events: none; padding: 20px; text-align: center; }
 
         .clab-card-progress-bar.error {
-            background-color: #f44336 !important;
+            background: #f44336 !important;
             box-shadow: 0 0 10px #f44336;
             animation: error-pulse 1.5s infinite;
         }

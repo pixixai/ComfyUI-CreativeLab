@@ -112,6 +112,16 @@ export function pickWorkflowTarget(targetType, panelContainer, backdropContainer
     }, 100);
 }
 
+export function attachBindingPickGesture(container,resolve,pick) {
+    const handle=event=>{
+        if(event.button!==1)return;
+        const target=resolve(event.target);if(!target)return;
+        event.preventDefault();event.stopPropagation();
+        if(event.type==='auxclick')pick(target);
+    };
+    for(const type of ['pointerdown','pointerup','mousedown','mouseup','auxclick'])container.addEventListener(type,handle,true);
+}
+
 export function enterBindingModeForSelected(targetType, panelContainer, backdropContainer) {
     if (!state.selectedAreaIds || state.selectedAreaIds.length === 0) return;
     pickWorkflowTarget(targetType, panelContainer, backdropContainer, ({ targets: resolvedTargets, isAppend }) => {

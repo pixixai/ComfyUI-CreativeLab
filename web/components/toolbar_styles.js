@@ -41,12 +41,9 @@ export const toolbarStyles = `
         border:1px solid #454545; border-radius:16px; background:var(--clab-toolbar-bg); box-shadow:0 4px 14px #0005;
     }
     #clab-panel[data-workspace-mode=xy] .clab-tool-dock { grid-template-columns:minmax(34px,1fr) minmax(0,max-content) minmax(max-content,1fr); }
-    #clab-panel[data-workspace-mode=xy] :is(.clab-toolbar-left,#clab-module-toolbar,#clab-run-count-control),
+    #clab-panel[data-workspace-mode=xy] :is(.clab-toolbar-left,#clab-module-toolbar),
     #clab-panel:not([data-workspace-mode=xy]) .clab-tool-dock>.clab-xy-toolbar { display:none; }
     #clab-panel[data-workspace-mode=xy] .clab-toolbar-right { display:flex; grid-area:1 / 3; }
-    #clab-panel[data-workspace-mode=xy] #clab-run-group #clab-run-dropdown-toggle {
-        border-radius:0 var(--clab-tool-button-radius) var(--clab-tool-button-radius) 0 !important;
-    }
     #clab-panel[data-workspace-mode=xy] .clab-tool-dock[data-dock=float] { flex-wrap:wrap; justify-content:center; }
     #clab-panel:has(>.clab-tool-dock[data-dock="bottom"]) { --clab-dock-inset:var(--clab-docked-toolbar-height,39px); }
     .clab-tool-dock [data-toolbar-item] { flex:none; min-width:0; box-sizing:border-box; position:relative; }
@@ -110,15 +107,15 @@ export const toolbarStyles = `
     .clab-tool-dock :is(.clab-run-wrapper,.clab-btn-group) {
         border:0 !important; border-radius:0 !important; height:auto !important; box-shadow:none;
     }
-    .clab-tool-dock .clab-run-wrapper { background:none; display:flex; }
+    .clab-tool-dock .clab-run-wrapper { display:flex; background:var(--primary-background,#0b8ce9); border-radius:var(--clab-tool-button-radius) !important; }
     .clab-tool-dock #clab-run-group {
         --clab-run-height:var(--clab-tool-button-height);
-        align-items:stretch; border-radius:var(--clab-tool-button-radius); background:var(--primary-background,#0b8ce9);
+        align-items:stretch; gap:3px; border-radius:var(--clab-tool-button-radius); background:transparent;
     }
     .clab-tool-dock[data-dock="float"] #clab-run-group {
         --clab-run-height:44px;
     }
-    .clab-tool-dock #clab-run-btn-wrapper:hover { box-shadow:none; background:transparent; }
+    .clab-tool-dock #clab-run-btn-wrapper:hover { box-shadow:none; }
     .clab-tool-dock #clab-run-group .clab-tool-button {
         height:var(--clab-run-height) !important; color:#fff !important; font-weight:600 !important;
         justify-content:center !important; border-radius:0 !important; gap:0;
@@ -132,7 +129,7 @@ export const toolbarStyles = `
     .clab-tool-dock #clab-run-group .clab-tool-icon > svg { width:22px; height:22px; }
     .clab-tool-dock #clab-run-group .clab-tool-icon::after { content:none; }
     .clab-tool-dock #clab-run-group #clab-run-dropdown-toggle {
-        min-width:18px; padding:0 5px !important;
+        min-width:18px; padding:0 5px !important; border-radius:0 var(--clab-tool-button-radius) var(--clab-tool-button-radius) 0 !important;
     }
     .clab-tool-dock #clab-run-dropdown-toggle::after {
         content:""; width:5px; height:5px; border:solid currentColor; border-width:0 1px 1px 0;
@@ -140,8 +137,18 @@ export const toolbarStyles = `
     }
     .clab-tool-dock #clab-run-count-control {
         display:flex; align-items:center; justify-content:center;
-        min-height:var(--clab-run-height); padding:0 12px 0 1px; border-left:1px solid #fff5;
+        min-height:var(--clab-run-height); padding:0 7px; border-radius:var(--clab-tool-button-radius); background:#ffffff0a;
     }
+    .clab-tool-dock .clab-run-stop {
+        display:grid; place-items:center; flex:none; width:var(--clab-run-height); height:var(--clab-run-height);
+        padding:0; border:0; border-radius:var(--clab-tool-button-radius); background:#ffffff0a; color:#777; cursor:pointer;
+        transition:color .15s,background .15s;
+    }
+    .clab-tool-dock .clab-run-stop.running { background:#c42b37; color:#fff; }
+    .clab-tool-dock .clab-run-stop.running:hover { background:#dc3945; }
+    .clab-tool-dock .clab-run-stop:disabled { cursor:default; }
+    .clab-tool-dock .clab-run-stop:focus-visible { outline:1px solid #a0c9e8; outline-offset:-2px; }
+    .clab-tool-dock #clab-btn-run:disabled { opacity:.65; cursor:default; }
     .clab-tool-dock #clab-run-batch-count { font:inherit !important; }
     .clab-tool-dock :is(#clab-run-count-up,#clab-run-count-down) { padding:0 3px !important; }
     .clab-tool-dock #tb-auto-height { width:1px; height:1px; position:absolute; opacity:0; }

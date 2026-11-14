@@ -80,7 +80,7 @@ export function generateSingleCardHTML(card, index, {defer=false,shell=false}={}
                 <input class="clab-card-title-input" type="text" data-id="${card.id}" data-default="${defaultTitle}" value="${escapeHtml(displayTitle)}" placeholder="${defaultTitle}" size="${Math.max(displayTitle.length, 2)}" style="width: unset; max-width: 240px; min-width: 30px;" />
                 
                 <div class="clab-card-progress-container" data-card-prog-id="${card.id}" style="position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; opacity: 0; transition: opacity 0.3s ease; z-index: 5;">
-                    <div class="clab-card-progress-bar" style="height: 100%; width: 0%; background: var(--clab-theme-card, #4CAF50); transition: width 0.1s ease-out, background-color 0.2s; box-shadow: 0 0 5px var(--clab-theme-card-alpha, rgba(76,175,80,0.5));"></div>
+                    <div class="clab-card-progress-bar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #ff5370, #ff9f43, #ffe66d, #6be585, #48dbfb, #668cff, #c678dd); transition: width 0.1s ease-out; box-shadow: 0 0 5px #ffffff40;"></div>
                 </div>
             </div>
             <button class="clab-del-card-btn" data-id="${card.id}" title="删除此任务(若多选则批量删除)">✖</button>

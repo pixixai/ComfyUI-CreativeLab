@@ -10,7 +10,8 @@ import { promoteDraftRows,renderDraftValue } from './table_drafts.js';
 import { workspaceViewport } from './viewport_components.js';
 import { updateTableEditor } from './table_editors.js';
 import { virtualizeTasks } from './viewport_geometry.js';
-import { openTableBinding } from './table_binding.js';
+import { openTableBinding,pickTableBinding } from './table_binding.js';
+import { attachBindingPickGesture } from '../actions/action_binding.js';
 import { attachTableGestures } from './table_gestures.js';
 import { attachTableSelection, tableLayoutSelection } from './table_selection.js';
 import { workflowParameters } from './parameters.js';
@@ -165,6 +166,10 @@ export function createTableController(container,getView,save) {
         if(!base.length)throw Error('请先绑定参数、填写取值并绑定输出节点；草稿网格不会运行。');
         const count=Math.max(1,Math.min(999,Number(panel.querySelector('#clab-run-batch-count')?.value)||1)),tasks=Array.from({length:count},()=>base.map(task=>({...task}))).flat();document.dispatchEvent(new CustomEvent('clab_execution_start',{detail:{tasks}}));Promise.resolve(window.CLab.executeTasks(tasks)).catch(error=>notice(error.message,true));
     };
+    attachBindingPickGesture(container,target=>active()?target.closest('.clab-table-column .clab-module-binding-summary'):null,button=>{
+        const index=Number(button.closest('[data-table-index]').dataset.tableIndex);
+        pickTableBinding(container,columns[index],()=>{markColumn(index);schemaChanged=true;commit();});
+    });
     container.addEventListener('click',event=>{
         if(!active())return;const button=event.target.closest('button');if(!button)return;
         try{const header=button.closest('.clab-table-column[data-table-index]'),index=Number(header?.dataset.tableIndex);

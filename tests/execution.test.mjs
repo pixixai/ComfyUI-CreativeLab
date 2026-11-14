@@ -6,7 +6,7 @@ import { createWorkspaceView } from '../web/components/workspace_modes/view_stat
 import { synchronizeMatrix, matrixOutput, materializeMatrixRecords } from '../web/components/workspace_modes/xy_model.js';
 import { createEditHistory } from '../web/components/edit_history.js';
 import { prepareWorkspaceCopy } from '../web/components/workspace_copy.js';
-import { createExecutionQueue,readExecutionStates } from '../web/components/actions/execution_queue.js';
+import { createExecutionQueue,readExecutionStates,interruptExecutionPrompts } from '../web/components/actions/execution_queue.js';
 
 const source = (file) => readFileSync(new URL(`../web/${file}`, import.meta.url), 'utf8')
     .replace(/import\s+[\s\S]*?\s+from\s+["'][^"']+["'];?/g, '')
@@ -20,7 +20,7 @@ function createHarness(options = {}) {
     const files = [];
     const queueDeletes = [];
     const refreshes = [];
-    const backend=new Map(),history=new Map(),events=[],documentListeners=new Map(),executionPreferences={waiting:options.waiting??4};
+    const backend=new Map(),history=new Map(),events=[],interrupts=[],documentListeners=new Map(),executionPreferences={waiting:options.waiting??4};
     let submissions = 0;
     let apiCalls = 0;
     let harness;
@@ -41,10 +41,17 @@ function createHarness(options = {}) {
         },
         apiURL: (url) => url,
         async fetchApi(url, request) {
+            if(url==='/interrupt'){
+                const {prompt_id}=JSON.parse(request.body);assert.ok(prompt_id);interrupts.push(prompt_id);
+                if(options.interrupt)return options.interrupt(harness,prompt_id);
+                if(backend.get(prompt_id)?.state==='running')await harness.emit('execution_interrupted',{prompt_id});
+                return {ok:true};
+            }
             if(url.startsWith('/history/')){const id=decodeURIComponent(url.slice(9));return {ok:true,json:async()=>history.has(id)?{[id]:history.get(id)}:{}};}
             assert.equal(url, '/queue');
             if(request?.method==='POST'){
                 const edit=JSON.parse(request.body);queueDeletes.push(...(edit.delete||[]));
+                if(options.editQueue)await options.editQueue(harness,edit);
                 for(const [id,job]of backend)if(job.state!=='running'&&(edit.clear||edit.delete?.includes(id)))backend.delete(id);
                 return {ok:true};
             }
@@ -86,7 +93,7 @@ function createHarness(options = {}) {
         },
     };
     const context = vm.createContext({
-        window, document, api, app, URL, URLSearchParams, structuredClone,createExecutionQueue,readExecutionStates,executionPreferences,
+        window, document, api, app, URL, URLSearchParams, structuredClone,createExecutionQueue,readExecutionStates,interruptExecutionPrompts,executionPreferences,
         console: { log() {}, warn() {}, error() {} },
         setInterval() { return 1; },
         setTimeout(fn, ms) { return ms === 50 ? setTimeout(fn, 1) : 1; },
@@ -113,7 +120,7 @@ function createHarness(options = {}) {
     state.cards.push(card);
     const workspace = state.workspaces[0];
     harness = {
-        state, input, output, card, workspace, app, window, requests, files, queueDeletes, refreshes,api,backend,history,events,executionPreferences,
+        state, input, output, card, workspace, app, window, requests, files, queueDeletes, refreshes,api,backend,history,events,interrupts,executionPreferences,
         changeWaiting(value){executionPreferences.waiting=value;document.dispatchEvent({type:'clab_execution_window_change'});},
         run: (tasks = [{ cardId: card.id, previewAreaIds: [output.id] }]) => window.CLab.executeTasks(tasks),
         get submissions() { return submissions; },
@@ -738,4 +745,77 @@ test('an empty backend status between jobs does not complete locally pending pro
     const h=createHarness();await h.run(repeated(20));await h.emit('status',{exec_info:{queue_remaining:0}});
     assert.equal(h.window._clabCardProgress.card.percentage,5);assert.equal(h.events.includes('clab_execution_idle'),false);
     await h.emit('execution_success',{prompt_id:'p1'});assert.equal(h.requests.length,6);assert.equal(h.window.CLab.hasExecutionWork(),true);
+});
+
+test('interrupt cancels running and waiting plugin jobs plus the entire unsent backlog',async()=>{
+    const h=createHarness();await h.run(repeated(100));await h.emit('execution_start',{prompt_id:'p1'});
+    assert.equal(h.window.CLab.getExecutionState().busy,true);await h.window.CLab.interruptExecution();await settled();
+    assert.equal(h.requests.length,5);assert.equal(h.window._clabExecQueue.length,0);assert.equal(h.backend.size,0);
+    assert.deepEqual(h.interrupts,['p1','p2','p3','p4','p5']);assert.equal(h.window.CLab.getExecutionState().busy,false);assert.equal(h.window.CLab.getExecutionState().stopping,false);
+    await h.emit('status',{exec_info:{queue_remaining:0}});await settled();assert.equal(h.requests.length,5);
+    await h.run();assert.equal(h.requests.length,6);assert.equal(h.window.CLab.hasExecutionWork(),true);
+});
+
+test('interrupt cancels every plugin workspace batch without deleting or interrupting native jobs',async()=>{
+    const h=createHarness();await h.run(repeated(20));h.switchWorkspace();await h.run(repeated(20));
+    h.backend.set('native-job',{state:'running',outputs:{}});await h.window.CLab.interruptExecution();await settled();
+    assert.deepEqual([...h.backend.keys()],['native-job']);assert.equal(h.window._clabExecQueue.length,0);
+    assert.ok(!h.queueDeletes.includes('native-job')&&!h.interrupts.includes('native-job'));assert.equal(h.window.CLab.hasExecutionWork(),false);
+});
+
+test('interrupt while prompt compilation is pending does not submit the compiled prompt',async()=>{
+    let stop;
+    const h=createHarness({async beforeBuild(h){stop=h.window.CLab.interruptExecution();await stop;}});
+    await h.run(repeated(20));assert.equal(h.requests.length,0);assert.equal(h.submissions,1);assert.equal(h.window.CLab.hasExecutionWork(),false);
+});
+
+test('a prompt accepted after interrupt is also removed and a prompt already started is interrupted by id',async()=>{
+    for(const start of [false,true]){
+        const h=createHarness({async submit(h,index){
+            if(index===2){await h.window.CLab.interruptExecution();if(start)await h.emit('execution_start',{prompt_id:'p2'});}
+            return {prompt_id:'p'+index,node_errors:{}};
+        }});
+        await h.run(repeated(100));await settled();assert.equal(h.requests.length,2);assert.equal(h.backend.size,0);assert.equal(h.window.CLab.hasExecutionWork(),false);
+        assert.ok(h.queueDeletes.includes('p2')&&h.interrupts.includes('p2'));
+    }
+});
+
+test('interrupt is idempotent while a request is pending and prevents starting a new batch until acknowledged',async()=>{
+    let release;const gate=new Promise(resolve=>release=resolve);
+    const h=createHarness({async interrupt(h,id){await gate;if(h.backend.get(id)?.state==='running')await h.emit('execution_interrupted',{prompt_id:id});return {ok:true};}});
+    await h.run(repeated(20));await h.emit('execution_start',{prompt_id:'p1'});
+    const first=h.window.CLab.interruptExecution();assert.equal(h.window.CLab.interruptExecution(),first);
+    assert.equal(h.window.CLab.getExecutionState().stopping,true);await assert.rejects(h.run(),/正在打断/);
+    release();await first;assert.equal(h.interrupts.length,5);assert.equal(h.window.CLab.hasExecutionWork(),false);
+});
+
+test('an interrupted batch retains completed results and results already being archived',async()=>{
+    let release,started;const gate=new Promise(resolve=>release=resolve),began=new Promise(resolve=>started=resolve);
+    const h=createHarness({async beforeArchive(){started();await gate;}});await h.run(repeated(20));await h.emit('execution_start',{prompt_id:'p1'});
+    const archiving=h.emit('executed',imageResult());await began;await h.window.CLab.interruptExecution();
+    assert.equal(h.window._clabTaskMap.p1.pendingResults,1);release();await archiving;
+    assert.equal(h.output.history.length,1);assert.equal(h.output.inputHistorySnapshots[0][0].value,'before');assert.equal(h.window._clabTaskMap.p1,undefined);assert.equal(h.requests.length,5);
+});
+
+test('interrupt failures preserve running task mappings and permit retry without reviving the backlog',async()=>{
+    let fail=true;
+    const h=createHarness({async interrupt(h,id){if(fail)return {ok:false};if(h.backend.get(id)?.state==='running')await h.emit('execution_interrupted',{prompt_id:id});return {ok:true};}});
+    await h.run(repeated(20));await h.emit('execution_start',{prompt_id:'p1'});
+    await assert.rejects(h.window.CLab.interruptExecution(),/未能完全打断/);assert.ok(h.window._clabTaskMap.p1);assert.equal(h.window._clabExecQueue.length,0);assert.equal(h.window.CLab.getExecutionState().stopping,false);
+    fail=false;await h.window.CLab.interruptExecution();assert.equal(h.window.CLab.hasExecutionWork(),false);assert.equal(h.requests.length,5);
+});
+
+test('a deliberate interrupt recovered from history does not mark the task as a workflow failure',async()=>{
+    const h=createHarness({async interrupt(){return {ok:true};}});await h.run(repeated(20));await h.emit('execution_start',{prompt_id:'p1'});
+    await h.window.CLab.interruptExecution();h.backend.delete('p1');h.history.set('p1',{outputs:{},status:{completed:false,status_str:'error'}});
+    await h.emit('reconnected');await settled();assert.equal(h.window.CLab.hasExecutionWork(),false);assert.notEqual(h.window._clabCardProgress.card?.isError,true);assert.equal(h.requests.length,5);
+});
+
+test('pending history recovery and file copying cannot delay sending an interrupt to the running prompt',async()=>{
+    let release,started;const gate=new Promise(resolve=>release=resolve),began=new Promise(resolve=>started=resolve);
+    const h=createHarness({async beforeArchive(){started();await gate;}});await h.run(repeated(20));
+    h.backend.delete('p1');h.history.set('p1',{outputs:{2:imageResult().output},status:{completed:true,status_str:'success'}});await h.emit('execution_start',{prompt_id:'p2'});
+    const reconnect=h.emit('reconnected');await began;const stopping=h.window.CLab.interruptExecution();await settled();
+    assert.ok(h.interrupts.includes('p2'),'interrupt was blocked by archive copying');assert.ok(!h.backend.has('p2'));
+    release();await Promise.all([reconnect,stopping]);assert.equal(h.output.history.length,1);assert.equal(h.window.CLab.hasExecutionWork(),false);assert.equal(h.requests.length,5);
 });

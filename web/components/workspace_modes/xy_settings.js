@@ -8,7 +8,7 @@ export function bindingButton(key,bindings,parameters,label='') {
     const names=keys.map(key=>output?nodeName(app.graph?.getNodeById(key)):parameters.find(parameter=>parameter.key===key)?.label||`${nodeName(app.graph?.getNodeById(key.split('||')[0]))} · ${key.split('||')[1]}`);
     const summary=names.join('；')||(output?'未绑定输出':'未绑定');
     const title=keys.map((key,index)=>`[${key.split('||')[0]}] ${names[index]}`).join('\n');
-    return `<button type="button" class="clab-xy-binding" data-xy-bind="${esc(key)}" aria-haspopup="dialog" aria-expanded="false" title="${esc(title||'点击设置绑定')}">${label?`<b>${label}</b> `:''}<span>${esc(summary)}</span><span>▾</span></button>`;
+    return `<button type="button" class="clab-xy-binding" data-xy-bind="${esc(key)}" aria-haspopup="dialog" aria-expanded="false" title="${esc((title||'点击设置绑定')+'\n左键：设置绑定；中键（按下滚轮）：拾取节点或参数')}">${label?`<b>${label}</b> `:''}<span>${esc(summary)}</span><span>▾</span></button>`;
 }
 
 export const xyOriginLabels = { bottom: 'Y 轴向上', top: 'Y 轴向下' };

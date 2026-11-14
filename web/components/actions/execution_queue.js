@@ -1,5 +1,19 @@
 export const executionPreferences={waiting:4};
 
+export async function interruptExecutionPrompts(fetchApi,promptIds){
+    if(!promptIds.length)return;
+    const post=async(route,body)=>{
+        const response=await fetchApi(route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        if(response.ok===false)throw new Error(`Unable to cancel tasks: ${route}`);
+    };
+    const errors=[];
+    try{await post('/queue',{delete:promptIds});}catch(error){errors.push(error);}
+    // Target every submitted id: a waiting job may start while the queue is being edited.
+    const results=await Promise.allSettled(promptIds.map(prompt_id=>post('/interrupt',{prompt_id})));
+    for(const result of results)if(result.status==='rejected')errors.push(result.reason);
+    if(errors.length)throw new AggregateError(errors,'未能完全打断运行，请检查 ComfyUI 连接后重试。');
+}
+
 // Count submission in progress as a reserved slot; never compile prompts concurrently.
 export function createExecutionQueue({pending,limit,submit,idle}){
     const active=new Set();let filling=false,wasBusy=false;

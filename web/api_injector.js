@@ -6,7 +6,7 @@ import { api } from "../../scripts/api.js";
 import { StateManager } from "./state_manager.js";
 import { showBindingToast, hideBindingToast } from "./components/ui_utils.js";
 import { captureTaskRecords, resolveTaskRecords } from './components/actions/task_records.js';
-import { createExecutionQueue,executionPreferences,readExecutionStates } from './components/actions/execution_queue.js';
+import { createExecutionQueue,executionPreferences,readExecutionStates,interruptExecutionPrompts } from './components/actions/execution_queue.js';
 import {
     captureCardInputSnapshot,
     pushPreviewHistoryEntry,
@@ -25,12 +25,14 @@ export function setupAPIInjector(app) {
     window._clabCardProgress = window._clabCardProgress || {}; 
     window._clabHideTimers = window._clabHideTimers || {};     
     window._clabDoneTasks = window._clabDoneTasks || new Set();
-    let currentTask = null;
+    let currentTask = null,stoppingExecution=null;
     const runningTasks = new Set();
     const dispatcher=createExecutionQueue({pending:()=>window._clabExecQueue,limit:()=>executionPreferences.waiting+1,submit:task=>submitTask(task),idle:()=>{
-        finishProgressIfIdle();document.dispatchEvent(new CustomEvent('clab_execution_idle'));
+        finishProgressIfIdle();notifyExecutionState();document.dispatchEvent(new CustomEvent('clab_execution_idle'));
     }});
     window.CLab.hasExecutionWork=workspaceId=>dispatcher.hasWork(workspaceId);
+    window.CLab.getExecutionState=()=>({busy:dispatcher.hasWork(),stopping:!!stoppingExecution});
+    function notifyExecutionState(){document.dispatchEvent(new CustomEvent('clab_execution_state',{detail:window.CLab.getExecutionState()}));}
     document.addEventListener('clab_execution_window_change',()=>{void dispatcher.fill();});
     window.CLab.getRunningCardProgress = workspaceId => {
         const cards = new Map();
@@ -73,7 +75,7 @@ export function setupAPIInjector(app) {
             notifyActivity(task, true);
         }
         releaseTask(task);
-        return dispatcher.complete(task);
+        const filling=dispatcher.complete(task);notifyExecutionState();return filling;
     };
     for (const type of ['execution_success', 'execution_interrupted']) {
         api.addEventListener(type, event => finishTask(event.detail?.prompt_id, type === 'execution_success'));
@@ -391,11 +393,11 @@ export function setupAPIInjector(app) {
     });
 
     const handleExecutionError = (e) => {
-        showBindingToast("❌ 工作流后台运行报错！请关闭面板，查看详细错误提示。", true);
-        setTimeout(() => hideBindingToast(), 6000);
-        
         const pid = e.detail?.prompt_id;
         const task = window._clabTaskMap[pid];
+        if(task?.batch.interrupted)return finishTask(pid);
+        showBindingToast("❌ 工作流后台运行报错！请关闭面板，查看详细错误提示。", true);
+        setTimeout(() => hideBindingToast(), 6000);
         
         if (task) {
             setUIProgress(task.cardId, 100, false, true);
@@ -459,16 +461,34 @@ export function setupAPIInjector(app) {
                 if(![...runningTasks].some(running=>running.cardId===task.cardId&&running.workspaceId===task.workspaceId))setUIProgress(task.cardId,0,true);
             }
             window._clabExecQueue=[];
+            notifyExecutionState();
         }
         const response=await originalFetchApi.apply(this,arguments);
         if((edit?.clear||edit?.delete)&&response.ok!==false)await reconcileExecution();
         return response;
     };
 
+    const interruptSubmitted=async ids=>{
+        // Send the interrupt before waiting for any result/history reconciliation.
+        try{await interruptExecutionPrompts(originalFetchApi.bind(api),ids);}
+        finally{await reconcileExecution();}
+    };
+    window.CLab.interruptExecution=()=>{
+        if(stoppingExecution)return stoppingExecution;
+        const tasks=[...dispatcher.tasks,...window._clabExecQueue];
+        if(!tasks.length)return Promise.resolve();
+        for(const task of tasks){task.batch.cancelled=true;task.batch.interrupted=true;setUIProgress(task.cardId,0,true);}
+        window._clabExecQueue=[];
+        const ids=[...new Set(tasks.map(task=>task.promptId).filter(Boolean))];
+        stoppingExecution=interruptSubmitted(ids).finally(()=>{stoppingExecution=null;notifyExecutionState();});
+        notifyExecutionState();return stoppingExecution;
+    };
+
     // =========================================================================
     // 1. 坚如磐石的异步执行队列
     // =========================================================================
     window.CLab.executeTasks = async function(tasks) {
+        if(stoppingExecution)throw new Error('正在打断运行，请稍后再运行。');
         StateManager.flushPendingSave(app.graph);
         const workspace = StateManager.state.workspaces.find((item) => item.id === StateManager.state.activeWorkspaceId);
         const batch = { cancelled: false, promptIds: [] };
@@ -499,7 +519,7 @@ export function setupAPIInjector(app) {
             setUIProgress(task.cardId, 5);
         }
 
-        return dispatcher.fill();
+        notifyExecutionState();return dispatcher.fill();
     };
 
     async function submitTask(task){
@@ -517,18 +537,21 @@ export function setupAPIInjector(app) {
                 throw task.submissionError || new Error("Task was not submitted");
             }
         } catch (submitErr) {
-            console.warn("[CLab] 任务提交失败:", submitErr);
-            showBindingToast("❌ 任务提交失败，请检查工作流连线或必填参数。", true);
-            setTimeout(() => hideBindingToast(), 6000);
-            setUIProgress(task.cardId, 100, false, true);
-            if (window._clabHideTimers[task.cardId]) clearTimeout(window._clabHideTimers[task.cardId]);
-            window._clabHideTimers[task.cardId] = setTimeout(() => setUIProgress(task.cardId, 0, true), 6000);
-            if (window._clabHaltOnError !== false) cancelBatch(task);
+            if(!task.batch.cancelled){
+                console.warn("[CLab] 任务提交失败:", submitErr);
+                showBindingToast("❌ 任务提交失败，请检查工作流连线或必填参数。", true);
+                setTimeout(() => hideBindingToast(), 6000);
+                setUIProgress(task.cardId, 100, false, true);
+                if (window._clabHideTimers[task.cardId]) clearTimeout(window._clabHideTimers[task.cardId]);
+                window._clabHideTimers[task.cardId] = setTimeout(() => setUIProgress(task.cardId, 0, true), 6000);
+                if (window._clabHaltOnError !== false) cancelBatch(task);
+            }else setUIProgress(task.cardId,0,true);
             task.finished = true;
             releaseTask(task);
         } finally {
             currentTask = null;
             window._clabLastGeneratedTask = null;
+            notifyExecutionState();
         }
     }
 
@@ -546,11 +569,14 @@ export function setupAPIInjector(app) {
                     window._clabLastGeneratedTask = null;
                     releaseTask(task);
                     if (task.batch.cancelled) {
-                        await api.fetchApi('/queue', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ delete: [res.prompt_id] }),
-                        });
+                        try{
+                            if(task.batch.interrupted)await interruptSubmitted([res.prompt_id]);
+                            else await api.fetchApi('/queue', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ delete: [res.prompt_id] }),
+                            });
+                        }catch(error){console.warn('[CLab] 已提交任务未能取消',error);showBindingToast('未能完全打断运行，请检查连接后重试。',true);}
                     }
                 }
                 if (!res?.prompt_id || res.error || Object.keys(res.node_errors || {}).length > 0) {

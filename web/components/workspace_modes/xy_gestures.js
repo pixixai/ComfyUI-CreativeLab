@@ -1,5 +1,6 @@
 export function attachXYGestures(container,getCamera,paint,save,scheduleSave,active) {
     const controller=new AbortController(),signal=controller.signal;
+    const bindingTarget=target=>container.closest('#clab-panel')&&target.closest('[data-xy-bind]');
     let drag,suppressClick=false;
     const stop=()=>{
         const previous=drag;drag=null;
@@ -9,6 +10,7 @@ export function attachXYGestures(container,getCamera,paint,save,scheduleSave,act
     };
     window.addEventListener('pointerdown',event=>{
         if(!active()||!container.contains(event.target)||![0,1].includes(event.button))return;
+        if(event.button===1&&bindingTarget(event.target))return;
         if(event.button===0&&(event.target.closest('input,textarea,select,a,[contenteditable=true],.clab-glb-viewer,.clab-video-controls-interactive')||
             event.target.closest('button')&&!event.target.closest('.clab-xy-overlay,.clab-xy-empty')))return;
         event.preventDefault();event.stopImmediatePropagation();
@@ -36,7 +38,7 @@ export function attachXYGestures(container,getCamera,paint,save,scheduleSave,act
     window.addEventListener('blur',stop,{signal});
     document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();},{signal});
     for(const type of ['click','auxclick','dragstart'])window.addEventListener(type,event=>{
-        if(active()&&container.contains(event.target)&&(suppressClick||type==='dragstart'||type==='auxclick'&&event.button===1)){
+        if(active()&&container.contains(event.target)&&(suppressClick||type==='dragstart'||type==='auxclick'&&event.button===1&&!bindingTarget(event.target))){
             event.preventDefault();event.stopImmediatePropagation();
         }
     },{capture:true,signal});

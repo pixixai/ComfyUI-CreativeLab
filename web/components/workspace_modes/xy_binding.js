@@ -4,13 +4,48 @@ import { workflowParameters, nodeName } from './parameters.js';
 import { rebindMatrixAxis, rebindMatrixOutput } from './xy_model.js';
 import { state, appState, getActiveWorkspace } from '../ui_state.js';
 import { pickWorkflowTarget } from '../actions/action_binding.js';
-import { openXYPopover } from './xy_popover.js';
+import { openXYPopover,closeXYPopover } from './xy_popover.js';
+
+function selectedBindings(xy,key){
+    return key==='output'?[xy.outputNodeId].filter(Boolean):['x','y','z'].includes(key)?xy[key].bindings:[xy.records.find(entry=>entry.id===key.slice(7))?.key].filter(Boolean);
+}
+function bindingAnchor(container,key,trigger){
+    const layer=trigger?.closest('[data-xy-layer]')?.dataset.xyLayer;
+    return ()=>key.startsWith('record:')?container.closest('#clab-panel').querySelector('[data-xy-records]'):[...container.querySelectorAll('[data-xy-bind]')].find(button=>button.dataset.xyBind===key&&(layer===undefined||button.closest('[data-xy-layer]')?.dataset.xyLayer===layer));
+}
+function updateBinding(key,getXY,commit,keys){
+    const xy=getXY(),parameters=workflowParameters(),workspace=getActiveWorkspace();
+    if(['x','y','z'].includes(key)){
+        if(['x','y','z'].some(name=>name!==key&&(name!=='z'||xy.z.enabled)&&keys.some(binding=>xy[name].bindings.includes(binding))))throw new Error('同一个参数不能同时由多个坐标轴控制。');
+        if(key==='z')xy.z.enabled=keys.length>0;
+        rebindMatrixAxis(state.cards,xy,key,keys,parameters,workspace.archivedTasks,workspace.view.table);
+    }else if(key==='output')rebindMatrixOutput(state.cards,xy,keys[0]||'',workspace.archivedTasks,workspace.view.table);
+    else xy.records.find(entry=>entry.id===key.slice(7)).key=keys[0]||'';
+    commit();
+}
+export function pickXYBinding(container,key,getXY,commit,trigger,restorePanel=false){
+    if(appState.isBindingMode)return;
+    const root=container.closest('#clab-panel'),output=key==='output',multiple=['x','y','z'].includes(key),getAnchor=bindingAnchor(container,key,trigger);
+    let pickedNode='',message='';
+    document.addEventListener('clab_binding_finished',()=>requestAnimationFrame(()=>{
+        if((!restorePanel&&!message)||!root.isConnected||!root.classList.contains('visible')||root.dataset.workspaceMode!=='xy')return;
+        const restored=openXYBinding(container,key,getXY,commit,pickedNode,getAnchor());
+        if(message)restored.popup.querySelector('.clab-binding-panel-foot').textContent=message;
+    }),{once:true});
+    closeXYPopover();
+    pickWorkflowTarget(output?'preview':'edit',root,document.getElementById('clab-backdrop'),({node,targets,isAppend})=>{
+        pickedNode=targets[0]?.nodeIdStr||String(node.id);
+        const keys=output?[pickedNode]:targets.filter(target=>target.widgetName).map(target=>`${target.nodeIdStr}||${target.widgetName}`);
+        try{updateBinding(key,getXY,commit,multiple&&isAppend?[...new Set([...selectedBindings(getXY(),key),...keys])]:keys.slice(0,multiple?undefined:1));if(!output&&!keys.length)message=`已拾取节点 [${pickedNode}]，请选择参数。`;}
+        catch(error){message=error.message;}
+    });
+}
 
 export function openXYBinding(container,key,getXY,commit,focusedNode='',trigger) {
-    const output=key==='output',multiple=['x','y','z'].includes(key),record=key.startsWith('record:'),recordId=key.slice(7),layer=trigger?.closest('[data-xy-layer]')?.dataset.xyLayer;
-    const selected=()=>{const xy=getXY();return output?[xy.outputNodeId].filter(Boolean):multiple?xy[key].bindings:[xy.records.find(entry=>entry.id===recordId)?.key].filter(Boolean);};
+    const output=key==='output',multiple=['x','y','z'].includes(key);
+    const selected=()=>selectedBindings(getXY(),key);
     const title=output?'绑定输出节点':multiple?`${key.toUpperCase()} 轴绑定参数`:'附加记录参数';
-    const getAnchor=()=>record?container.closest('#clab-panel').querySelector('[data-xy-records]'):[...container.querySelectorAll('[data-xy-bind]')].find(button=>button.dataset.xyBind===key&&(layer===undefined||button.closest('[data-xy-layer]')?.dataset.xyLayer===layer));
+    const getAnchor=bindingAnchor(container,key,trigger);
     const panel=openXYPopover(getAnchor,title,`<div class="clab-binding-columns"><section class="clab-binding-nodes"><input class="clab-binding-search" type="search" placeholder="搜索节点 ID / 名称"><div class="clab-binding-node-list"></div></section>${output?'':'<section class="clab-binding-params"></section>'}</div><div class="clab-binding-panel-foot"></div>`,output?'clab-output-binding-popover':'','',container.closest('#clab-panel'));
     const {popup}=panel,nodes=popup.querySelector('.clab-binding-node-list'),params=popup.querySelector('.clab-binding-params'),search=popup.querySelector('input[type=search]'),foot=popup.querySelector('.clab-binding-panel-foot');
     const pick=document.createElement('button');pick.type='button';pick.className='clab-binding-start-pick';pick.title=output?'拾取输出节点':'拾取节点或参数';
@@ -35,30 +70,9 @@ export function openXYBinding(container,key,getXY,commit,focusedNode='',trigger)
         }
         foot.textContent=multiple?'按勾选顺序排列组合值 · 可跨节点选择多个参数':'再次点击已选项取消绑定';panel.position();
     };
-    const update=keys=>{
-        const xy=getXY(),parameters=workflowParameters(),workspace=getActiveWorkspace();
-        if(multiple){if(['x','y','z'].some(name=>name!==key&&(name!=='z'||xy.z.enabled)&&keys.some(binding=>xy[name].bindings.includes(binding))))throw new Error('同一个参数不能同时由多个坐标轴控制。');if(key==='z')xy.z.enabled=keys.length>0;rebindMatrixAxis(state.cards,xy,key,keys,parameters,workspace.archivedTasks,workspace.view.table);}
-        else if(output)rebindMatrixOutput(state.cards,xy,keys[0]||'',workspace.archivedTasks,workspace.view.table);
-        else if(record)xy.records.find(entry=>entry.id===recordId).key=keys[0]||'';
-        commit();
-    };
+    const update=keys=>updateBinding(key,getXY,commit,keys);
     const apply=keys=>{try{update(keys);render();}catch(error){render();foot.textContent=error.message;}};
-    pick.onclick=()=>{
-        if(appState.isBindingMode)return;
-        const root=container.closest('#clab-panel');let pickedNode='',message='';
-        document.addEventListener('clab_binding_finished',()=>requestAnimationFrame(()=>{
-            if(!root.isConnected||!root.classList.contains('visible')||root.dataset.workspaceMode!=='xy')return;
-            const restored=openXYBinding(container,key,getXY,commit,pickedNode,getAnchor());
-            if(message)restored.popup.querySelector('.clab-binding-panel-foot').textContent=message;
-        }),{once:true});
-        panel.close();
-        pickWorkflowTarget(output?'preview':'edit',root,document.getElementById('clab-backdrop'),({node,targets,isAppend})=>{
-            pickedNode=targets[0]?.nodeIdStr||String(node.id);
-            const keys=output?[pickedNode]:targets.filter(target=>target.widgetName).map(target=>`${target.nodeIdStr}||${target.widgetName}`);
-            try{update(multiple&&isAppend?[...new Set([...selected(),...keys])]:keys.slice(0,multiple?undefined:1));if(!output&&!keys.length)message=`已拾取节点 [${pickedNode}]，请选择参数。`;}
-            catch(error){message=error.message;}
-        });
-    };
+    pick.onclick=()=>pickXYBinding(container,key,getXY,commit,getAnchor(),true);
     search.oninput=render;
     popup.addEventListener('click',event=>{
         const node=event.target.closest('[data-xy-node]'),parameter=event.target.closest('[data-xy-parameter]');

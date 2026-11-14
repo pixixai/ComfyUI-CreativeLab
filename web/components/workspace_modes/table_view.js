@@ -36,7 +36,7 @@ export function renderTableGrid(wrapper,cards,rows,columns,view,parameters,save,
     for(const element of head.querySelectorAll('[data-table-column]'))if(!columns.some(column=>column.id===element.dataset.tableColumn))element.remove();
     for(const column of columns){
         let element=head.querySelector(`[data-table-column="${CSS.escape(column.id)}"]`);
-        if(!element){element=document.createElement('div');element.className='clab-table-column';element.dataset.tableColumn=column.id;element.setAttribute('role','columnheader');element.draggable=true;element.innerHTML=`<div class="clab-table-column-top"><button type="button" data-table-settings aria-haspopup="dialog"></button>${generateModuleBindingHTML(column.area)}</div><span class="clab-table-resize" data-table-resize role="separator" aria-label="调整列宽"></span>`;}
+        if(!element){element=document.createElement('div');element.className='clab-table-column';element.dataset.tableColumn=column.id;element.setAttribute('role','columnheader');element.draggable=true;element.innerHTML=`<div class="clab-table-column-top"><button type="button" data-table-settings aria-haspopup="dialog"></button>${generateModuleBindingHTML(column.area,'列头绑定摘要')}</div><span class="clab-table-resize" data-table-resize role="separator" aria-label="调整列宽"></span>`;}
         const bound=column.area.targetNodeId!=null&&column.area.targetNodeId!==''||column.area.targetNodeIds?.length>0;
         if(bound)view.configured[column.id]=true;
         element.dataset.tableIndex=column.index;element.classList.toggle('clab-table-bound',!!bound);
@@ -47,7 +47,7 @@ export function renderTableGrid(wrapper,cards,rows,columns,view,parameters,save,
         if (settings.textContent !== label) settings.textContent = label;
         settings.title = label;
         settings.setAttribute('aria-label', `列设置 · ${label}`);
-        refreshModuleBindingSummary(element,column.area);
+        refreshModuleBindingSummary(element,column.area,'列头绑定摘要');
         const next=column.index?head.querySelector(`[data-table-column="${CSS.escape(columns[column.index-1].id)}"]`).nextSibling:head.firstElementChild.nextSibling;
         if(element!==next)head.insertBefore(element,next);
     }

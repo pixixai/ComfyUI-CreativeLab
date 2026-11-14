@@ -16,12 +16,12 @@ function getBindings(area) {
     return { ids: [...new Set([...ids, ...widgets.map(w => w.split('||')[0])])], widgets: [...new Set(widgets)] };
 }
 
-function bindingSummary(area) {
+function bindingSummary(area,pickLocation='模块任意位置') {
     const { ids, widgets } = getBindings(area);
     if (area.type === 'preview') {
         const node = ids.length ? app.graph?.getNodeById(ids[0]) : null;
         const title = ids.length ? `[${ids[0]}] ${node ? node.title || node.type : '节点已失效'}` : '未绑定输出节点';
-        return { label: ids.length ? `[${ids[0]}]` : '未绑定', title: `${title}\n左键：输出绑定；模块任意位置中键（按下滚轮）：拾取节点` };
+        return { label: ids.length ? `[${ids[0]}]` : '未绑定', title: `${title}\n左键：输出绑定；${pickLocation}中键（按下滚轮）：拾取节点` };
     }
     const label = ids.length === 0 ? '未绑定' : `${ids.length} 节点 · ${widgets.length} 参数`;
     const title = ids.map(id => {
@@ -29,11 +29,11 @@ function bindingSummary(area) {
         const names = widgets.filter(w => w.startsWith(`${id}||`)).map(w => w.split('||')[1]);
         return `[${id}] ${node ? node.title || node.type : '节点已失效'}: ${names.join(', ') || '未绑定参数'}`;
     }).join('\n') || '管理节点和绑定参数';
-    return { label, title: `${title}\n左键：绑定设置；模块任意位置中键（按下滚轮）：拾取节点或参数` };
+    return { label, title: `${title}\n左键：绑定设置；${pickLocation}中键（按下滚轮）：拾取节点或参数` };
 }
 
-export function generateModuleBindingHTML(area) {
-    const { label, title } = bindingSummary(area);
+export function generateModuleBindingHTML(area,pickLocation) {
+    const { label, title } = bindingSummary(area,pickLocation);
     return `<div class="clab-module-binding${area.type === 'preview' ? ' clab-output-binding' : ''}">
         <button type="button" class="clab-module-binding-summary" title="${escapeHTML(title)}" aria-label="${area.type === 'preview' ? '管理输出绑定' : '管理节点和绑定参数'}" aria-haspopup="dialog" aria-expanded="false">
             <span class="clab-module-binding-label">${escapeHTML(label)}</span><span aria-hidden="true">▾</span>
@@ -41,10 +41,10 @@ export function generateModuleBindingHTML(area) {
     </div>`;
 }
 
-export function refreshModuleBindingSummary(areaEl, area) {
+export function refreshModuleBindingSummary(areaEl, area,pickLocation) {
     const button = areaEl.querySelector('.clab-module-binding-summary');
     if (!button) return;
-    const summary = bindingSummary(area);
+    const summary = bindingSummary(area,pickLocation);
     const label = button.querySelector('.clab-module-binding-label');
     if (label.textContent !== summary.label) label.textContent = summary.label;
     if (button.title !== summary.title) button.title = summary.title;

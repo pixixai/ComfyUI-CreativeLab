@@ -10,7 +10,8 @@ import { appendWorkspaceTasks } from './task_dom.js';
 import { xyToolbar, xyRunLabel, xyOriginLabels, xyRunAxisLabels } from './xy_settings.js';
 import { showXYMode, xyMediaRatio } from './mode_xy.js';
 import { attachXYCanvas, fitXYCanvas } from './xy_canvas.js';
-import { openXYBinding } from './xy_binding.js';
+import { openXYBinding,pickXYBinding } from './xy_binding.js';
+import { attachBindingPickGesture } from '../actions/action_binding.js';
 import { openXYValues } from './xy_values.js';
 import { closeXYPopover } from './xy_popover.js';
 import { openXYToolbarChoice, openZLayerOptions } from './xy_options.js';
@@ -87,7 +88,8 @@ export function createXYController(container,getView,save,saveView) {
             validateMatrixValues(xy,workflowParameters());
             if(!xy.outputNodeId)throw new Error('请先通过矩阵右上角的绑定摘要选择输出节点。');
             commit();const group=matrixRunCards(state.cards,xy,visibleIds,scope==='layer'?selectedInLayer(xy):selected(),scope);
-            const tasks=group.filter(card=>Object.values(taskCoordinates(card,xy)).every(value=>value>=0)).map(card=>({cardId:card.id,previewAreaIds:[matrixOutput(card,xy).id]}));
+            const base=group.filter(card=>Object.values(taskCoordinates(card,xy)).every(value=>value>=0)).map(card=>({cardId:card.id,previewAreaIds:[matrixOutput(card,xy).id]}));
+            const count=Math.max(1,Math.min(999,Number(panel.querySelector('#clab-run-batch-count')?.value)||1)),tasks=Array.from({length:count},()=>base.map(task=>({...task}))).flat();
             if(!tasks.length)throw new Error('请先选中需要运行的图像占位符。');
             if(!window.CLab?.executeTasks)throw new Error('运行服务尚未准备好。');
             document.dispatchEvent(new CustomEvent('clab_execution_start',{detail:{tasks}}));Promise.resolve(window.CLab.executeTasks(tasks)).catch(error=>notice(error.message));
@@ -119,6 +121,7 @@ export function createXYController(container,getView,save,saveView) {
         if(target.matches('[data-xy-records]')){openXYRecords(controls,getXY,recordActions);return;}
         if(target.matches('[data-xy-reset]')){fitXYCanvas(container,getXY());saveView();return;}
     };
+    attachBindingPickGesture(container,target=>active()?target.closest('[data-xy-bind]'):null,button=>pickXYBinding(container,button.dataset.xyBind,getXY,commit,button));
     container.addEventListener('click',handleClick);
     controls.addEventListener('click',handleClick);
     panel.addEventListener('click',event=>{
@@ -161,5 +164,5 @@ export function createXYController(container,getView,save,saveView) {
         const dx=revealDelta(box.left,box.right,view.left+20,view.right-20),dy=revealDelta(box.top,box.bottom,view.top+20,view.bottom-30);
         if(dx||dy){xy.panX+=dx;xy.panY+=dy;projectXYCanvas(container,xy);}
     };
-    return {render,follow,exportRecords(){ensureXYHistory(state.cards,getXY());materializeMatrixRecords(state.cards,getXY(),workflowParameters());appendWorkspaceTasks(container,state.cards);},leave(){setRunLabel('运行');runButton.title='按规则运行选中任务（局部）';cancelAnimationFrame(mediaFrame);mediaFrame=0;canvas.stop();closeXYPopover();container.querySelector('.clab-xy-overlay')?.remove();}};
+    return {render,follow,exportRecords(){ensureXYHistory(state.cards,getXY());materializeMatrixRecords(state.cards,getXY(),workflowParameters());appendWorkspaceTasks(container,state.cards);},leave(){setRunLabel('运行');runButton.title='运行所选任务；未选中时运行全部任务';cancelAnimationFrame(mediaFrame);mediaFrame=0;canvas.stop();closeXYPopover();container.querySelector('.clab-xy-overlay')?.remove();}};
 }

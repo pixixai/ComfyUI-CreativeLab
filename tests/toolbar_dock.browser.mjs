@@ -62,19 +62,19 @@ export async function runToolbarDockChecks(send, sessionId) {
         const vertical = side === 'left' || side === 'right';
         const run = await evaluate(`(()=>{
             const q=s=>document.querySelector(s),group=q('#clab-run-group'),main=q('#clab-btn-run');
-            const menu=q('#clab-run-dropdown-toggle'),count=q('#clab-run-count-control');
-            const [g,a,b,c]=[group,main,menu,count].map(e=>e.getBoundingClientRect());
+            const menu=q('#clab-run-dropdown-toggle'),count=q('#clab-run-count-control'),stop=q('#clab-btn-interrupt');
+            const [g,a,b,c,d]=[group,main,menu,count,stop].map(e=>e.getBoundingClientRect());
             const near=(x,y)=>Math.abs(x-y)<0.5;
             const vertical=${vertical};
             const flush=vertical
                 ? [a,b,c].every(r=>near(r.left,g.left)&&near(r.right,g.right))&&near(a.top,g.top)&&near(a.bottom,b.top)&&near(b.bottom,c.top)&&near(c.bottom,g.bottom)
-                : [a,b,c].every(r=>near(r.top,g.top)&&near(r.bottom,g.bottom))&&near(a.left,g.left)&&near(a.right,b.left)&&near(b.right,c.left)&&near(c.right,g.right);
+                : [a,b,c,d].every(r=>near(r.top,g.top)&&near(r.bottom,g.bottom))&&near(c.left,g.left)&&near(c.right+3,a.left)&&near(a.right,b.left)&&near(b.right+3,d.left)&&near(d.right,g.right);
             return {flush,radius:getComputedStyle(group).borderRadius,menuRadius:getComputedStyle(menu).borderRadius,
                 points:[a,b].map(r=>vertical?{x:r.left+1,y:r.top+r.height/2}:{x:r.left+r.width/2,y:r.top+1})};
         })()`);
         assert.equal(run.flush, true, side+' run controls cover the whole group');
         assert.equal(run.radius, side === 'float' ? '8px' : '6px');
-        assert.equal(run.menuRadius, '0px');
+        assert.equal(run.menuRadius, side==='float'?'0px 8px 8px 0px':'0px 6px 6px 0px');
         for (const [index, selector] of ['#clab-btn-run','#clab-run-dropdown-toggle'].entries()) {
             await mouse('mouseMoved', run.points[index]);
             await settle();
@@ -143,7 +143,7 @@ export async function runToolbarDockChecks(send, sessionId) {
         const triangle=getComputedStyle(q('#clab-import-json-btn .clab-tool-icon'),'::after');
         dock.style.setProperty('--primary-background','#0b8ce9');
         return [button,button.querySelector('.clab-tool-label'),count].every(e=>getComputedStyle(e).fontSize==='11px'&&getComputedStyle(e).lineHeight==='16px')&&
-            getComputedStyle(run).backgroundColor==='rgb(11, 140, 233)'&&run.contains(count)&&
+            getComputedStyle(q('#clab-run-btn-wrapper')).backgroundColor==='rgb(11, 140, 233)'&&run.contains(count)&&
             icon.offsetWidth===icon.offsetHeight&&getComputedStyle(icon,'::after').content==='none'&&
             triangle.width==='4px'&&triangle.clipPath.startsWith('polygon')&&getComputedStyle(button).color==='rgb(170, 170, 170)'&&
             !dock.querySelector('.clab-tool-grip,[data-toolbar-divider]')&&getComputedStyle(q('.clab-card-title-input')).fontSize==='14px'&&
@@ -172,7 +172,7 @@ export async function runToolbarDockChecks(send, sessionId) {
         const runLabel=run.querySelector('#clab-btn-run .clab-tool-label'),runRect=run.getBoundingClientRect();
         const main=run.querySelector('#clab-btn-run').getBoundingClientRect();
         const toggle=run.querySelector('#clab-run-dropdown-toggle'),menu=toggle.getBoundingClientRect();
-        const count=run.querySelector('#clab-run-count-control').getBoundingClientRect();
+        const count=run.querySelector('#clab-run-count-control').getBoundingClientRect(),stop=run.querySelector('#clab-btn-interrupt').getBoundingClientRect();
         const tool=button.getBoundingClientRect(),runStyle=getComputedStyle(run);
         const r=d.getBoundingClientRect(),p=getComputedStyle(d);
         return p.backgroundColor==='rgba(0, 0, 0, 0.4)'&&parseFloat(p.borderRadius)>Math.min(r.width,r.height)/2&&parseFloat(p.gap)>=12&&
@@ -184,11 +184,11 @@ export async function runToolbarDockChecks(send, sessionId) {
             getComputedStyle(button.querySelector('.clab-tool-label')).display==='none'&&label.textContent==='新任务'&&
             icon.getBoundingClientRect().bottom<=label.getBoundingClientRect().top&&getComputedStyle(label).fontSize==='10px'&&
             [...d.querySelectorAll('.clab-tool-button:has(> .clab-tool-icon):not(#clab-btn-run)')].filter(e=>e.offsetWidth).every(e=>e.offsetWidth===e.offsetHeight)&&
-            getComputedStyle(icon.querySelector('svg')).width==='22px'&&runStyle.backgroundColor==='rgb(11, 140, 233)'&&
+            getComputedStyle(icon.querySelector('svg')).width==='22px'&&getComputedStyle(run.querySelector('#clab-run-btn-wrapper')).backgroundColor==='rgb(11, 140, 233)'&&
             runLabel.offsetWidth>0&&runLabel.scrollWidth<=runLabel.clientWidth&&
             getComputedStyle(runLabel).fontSize==='13px'&&getComputedStyle(run.querySelector('#clab-btn-run svg')).width==='22px'&&
             getComputedStyle(toggle,'::before').content==='none'&&
-            Math.abs((runRect.top+runRect.bottom-tool.top-tool.bottom)/2)<1&&runRect.height<tool.height&&main.right<=menu.left&&menu.right<=count.left;
+            Math.abs((runRect.top+runRect.bottom-tool.top-tool.bottom)/2)<1&&runRect.height<tool.height&&count.right<=main.left&&main.right<=menu.left&&menu.right<=stop.left;
     })()`);
     assert.equal(await checkFloat(),true);
     await checkRunHighlight('float');

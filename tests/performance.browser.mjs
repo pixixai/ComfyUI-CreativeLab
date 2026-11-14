@@ -34,6 +34,9 @@ import { runXYPerformanceChecks } from './xy_performance.browser.mjs';
 import { runTableBrowserChecks } from './table.browser.mjs';
 import { runPreviewWorkspaceChecks } from './preview_workspaces.browser.mjs';
 import { runToolbarDockChecks } from './toolbar_dock.browser.mjs';
+import { runRunControlsChecks } from './run_controls.browser.mjs';
+import { runToolbarMenuChecks } from './toolbar_menus.browser.mjs';
+import { runBindingGestureChecks } from './binding_gestures.browser.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const requests = [];
@@ -183,7 +186,13 @@ try {
     for (const name of report.passed) console.log(`PASS ${name}`);
     assert.equal(report.error, undefined, report.error);
     assert.deepEqual(report.errors, []);
-    if(process.env.CLAB_BROWSER_SUITE==='history'){
+    if(process.env.CLAB_BROWSER_SUITE==='binding-gestures'){
+        await runBindingGestureChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='menus'){
+        await runToolbarMenuChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='run'){
+        await runRunControlsChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='history'){
         await send('Runtime.evaluate',{expression:`window.showWorkspaceModeDemo('xy');new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`,awaitPromise:true},sessionId);
         await runUndoBrowserChecks(send,sessionId);
         await runEditHistoryChecks(send,sessionId);

@@ -16,7 +16,7 @@ import { setupResponsiveToolbar } from "./toolbar_layout.js";
 // --- 初始化静态工具栏事件 ---
 export function setupStaticToolbarEvents(panelContainer) {
     if (!window._clabGlobalDropdownCatcher) {
-        document.addEventListener('mousedown', (e) => {
+        document.addEventListener('pointerdown', (e) => {
             ['clab-import-json-wrapper', 'clab-run-btn-wrapper'].forEach(id => {
                 const wrapper = document.getElementById(id);
                 if (wrapper && !wrapper.contains(e.target)) {

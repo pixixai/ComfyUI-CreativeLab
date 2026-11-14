@@ -4,13 +4,12 @@
  * 职责: 负责任务队列编译算法、运行按钮交互分发、以及批量循环执行逻辑
  */
 import { state } from "../ui_state.js";
-import { app } from "../../../../scripts/app.js";
 
 // 【核心任务编译器】：根据用户的严格规则，将任意选中状态编译为单卡片执行的基础队列
 export function buildTasksQueue(isRunAll = false) {
     const tasks = [];
 
-    if (isRunAll) {
+    if (isRunAll || (!state.selectedCardIds?.length && !state.selectedAreaIds?.length)) {
         state.cards.forEach(card => {
             const previewAreaIds = card.areas?.filter(a => a.type === 'preview').map(a => a.id) || [];
             if (previewAreaIds.length > 0) tasks.push({ cardId: card.id, previewAreaIds });
@@ -47,10 +46,6 @@ export function buildTasksQueue(isRunAll = false) {
         state.selectedCardIds.forEach(id => cardsToRun.add(id));
     }
 
-    if (cardsToRun.size === 0 && state.activeCardId) {
-        cardsToRun.add(state.activeCardId);
-    }
-
     cardsToRun.forEach(cardId => {
         const card = state.cards.find(c => c.id === cardId);
         if (card) {
@@ -63,6 +58,18 @@ export function buildTasksQueue(isRunAll = false) {
 }
 
 export function attachRunEvents(panelContainer) {
+    const interruptButton=panelContainer.querySelector('#clab-btn-interrupt');
+    const updateExecution=()=>{
+        const status=window.CLab?.getExecutionState?.()||{busy:false,stopping:false};
+        interruptButton.classList.toggle('running',status.busy);
+        interruptButton.disabled=!status.busy||status.stopping;
+        interruptButton.title=status.stopping?'正在打断运行…':'打断插件当前及后续所有运行批次';
+        panelContainer.querySelector('#clab-btn-run').disabled=status.stopping;
+    };
+    document.addEventListener('clab_execution_state',updateExecution);updateExecution();
+    interruptButton.onclick=()=>{
+        Promise.resolve(window.CLab?.interruptExecution?.()).catch(error=>{console.warn('[CLab] 打断失败',error);alert(error.message);});
+    };
     const runWrapper = panelContainer.querySelector("#clab-run-btn-wrapper");
     if (runWrapper) {
         const toggleBtn = runWrapper.querySelector("#clab-run-dropdown-toggle");
@@ -81,7 +88,7 @@ export function attachRunEvents(panelContainer) {
         const countInput = panelContainer.querySelector('#clab-run-batch-count');
         if (countInput) {
             let v = parseInt(countInput.value, 10);
-            return (!isNaN(v) && v > 0) ? v : 1;
+            return (!isNaN(v) && v > 0) ? Math.min(999,v) : 1;
         }
         return 1;
     };
@@ -105,11 +112,8 @@ export function attachRunEvents(panelContainer) {
         document.dispatchEvent(new CustomEvent('clab_execution_start', { detail: { tasks: finalQueue } }));
 
         if (window.CLab && window.CLab.executeTasks) {
-            window.CLab.executeTasks(finalQueue);
-        } else if (app.queuePrompt) {
-            // 降级兼容：如果 api_injector 出了问题，用原生接口连发
-            for(let i=0; i<finalQueue.length; i++) app.queuePrompt(0, 1);
-        }
+            Promise.resolve(window.CLab.executeTasks(finalQueue)).catch(error=>alert(error.message));
+        } else alert("API 拦截器尚未加载完毕，请稍后再试！");
     };
 
     panelContainer.querySelector("#clab-btn-run-all").onclick = (e) => {
@@ -133,7 +137,7 @@ export function attachRunEvents(panelContainer) {
         document.dispatchEvent(new CustomEvent('clab_execution_start', { detail: { tasks: finalQueue } }));
 
         if (window.CLab && window.CLab.executeTasks) {
-            window.CLab.executeTasks(finalQueue);
+            Promise.resolve(window.CLab.executeTasks(finalQueue)).catch(error=>alert(error.message));
         } else {
             alert("API 拦截器尚未加载完毕，请稍后再试！");
         }

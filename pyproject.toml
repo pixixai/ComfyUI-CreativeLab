@@ -1,7 +1,7 @@
 [project]
 name = "CreativeLab"
 description = "面向 ComfyUI 的多工作区批量创作与结果管理插件，提供任务卡片、参数表、XYZ 参数矩阵、节点参数绑定、多媒体预览比较与排版导出。"
-version = "1.0.1"
+version = "1.0.2"
 license = {file = "LICENSE"} 
 # classifiers = [
 #     # For OS-independent nodes (works on all operating systems)

@@ -4,14 +4,37 @@ import { pickWorkflowTarget, resolveBindingTargets } from '../actions/action_bin
 import { bindingsOf } from './task_model.js';
 import { workflowParameters, nodeName } from './parameters.js';
 import { escapeHtml as esc } from '../contextmenu/content/shared.js';
-import { openXYPopover } from './xy_popover.js';
+import { openXYPopover,closeXYPopover } from './xy_popover.js';
+
+const bindingNodeIds=area=>[...new Set([...(area.targetNodeIds||[]).map(String),...bindingsOf(area).map(key=>key.split('||')[0]),...(area.targetNodeId!=null&&area.targetNodeId!==''?[String(area.targetNodeId)]:[])])];
+
+export function pickTableBinding(container,column,changed,focused='',restorePanel=false) {
+    if(appState.isBindingMode)return;
+    const area=column.area,output=area.type==='preview',root=container.closest('#clab-panel');
+    if(restorePanel)document.addEventListener('clab_binding_finished',()=>requestAnimationFrame(()=>{
+        if(root.isConnected&&root.classList.contains('visible')&&root.dataset.workspaceMode==='table')openTableBinding(container,column,changed,focused);
+    }),{once:true});
+    closeXYPopover();
+    pickWorkflowTarget(output?'preview':'edit',root,document.getElementById('clab-backdrop'),({targets,isAppend})=>{
+        focused=targets[0]?.nodeIdStr||focused;
+        const keys=targets.filter(target=>target.widgetName).map(target=>`${target.nodeIdStr}||${target.widgetName}`),nodes=targets.map(target=>target.nodeIdStr);
+        if(output){area.targetNodeId=nodes[0]||null;area.targetNodeIds=nodes.slice(0,1);area.targetWidgets=[];}
+        else{
+            area.targetNodeIds=isAppend?[...new Set([...bindingNodeIds(area),...nodes])]:nodes;
+            area.targetWidgets=isAppend?[...new Set([...bindingsOf(area),...keys])]:keys;
+            const first=area.targetWidgets[0]?.split('||');area.targetNodeId=first?.[0]||nodes[0]||null;area.targetWidget=first?.[1]||null;
+            const parameter=workflowParameters().find(parameter=>parameter.key===area.targetWidgets[0]);if(parameter)area.dataType=parameter.type;
+        }
+        changed();
+    });
+}
 
 export function openTableBinding(container,column,changed,focused='') {
     const area=column.area,output=area.type==='preview',anchor=()=>container.querySelector(`.clab-table-column[data-table-column="${CSS.escape(column.id)}"] .clab-module-binding-summary`);
     const panel=openXYPopover(anchor,output?'输出绑定':'绑定设置',`<div class="clab-binding-columns"><section class="clab-binding-nodes"><input type="search" class="clab-binding-search" placeholder="搜索节点 ID / 名称"><div class="clab-binding-node-list"></div></section>${output?'':'<section class="clab-binding-params"></section>'}</div><div class="clab-binding-panel-foot">绑定应用到整列；已有输入和历史保留。</div>`,output?'clab-output-binding-popover':'','',container.closest('#clab-panel'));
     const popup=panel.popup,list=popup.querySelector('.clab-binding-node-list'),params=popup.querySelector('.clab-binding-params'),search=popup.querySelector('input[type=search]');
     focused=focused||area.targetNodeId||String(app.graph?._nodes.find(node=>node.type!=='CLab_SystemConfig')?.id||'');
-    const ids=()=>[...new Set([...(area.targetNodeIds||[]).map(String),...bindingsOf(area).map(key=>key.split('||')[0]),...(area.targetNodeId!=null&&area.targetNodeId!==''?[String(area.targetNodeId)]:[])])];
+    const ids=()=>bindingNodeIds(area);
     const set=(nodes,keys)=>{
         area.targetNodeIds=[...new Set(nodes)];area.targetWidgets=[...new Set(keys)];
         const first=area.targetWidgets[0]?.split('||');area.targetNodeId=output?nodes[0]||null:first?.[0]||nodes[0]||null;area.targetWidget=first?.[1]||null;
@@ -38,14 +61,6 @@ export function openTableBinding(container,column,changed,focused='') {
     });
     const nodesById=id=>app.graph?.getNodeById(id)||{id};
     const pick=document.createElement('button');pick.className='clab-binding-start-pick';pick.innerHTML='<svg width="12" height="12" viewBox="0 0 9.11 9.11" fill="currentColor" aria-hidden="true"><path d="M.37.02C.24-.04.08.03.02.17,0,.23,0,.31.02.37l1.62,3.94,1.87,4.54c.09.21.33.31.54.23.1-.04.18-.12.22-.21l1.41-3.13s.03-.04.05-.05l3.13-1.41c.21-.09.3-.34.21-.55-.04-.1-.12-.17-.22-.21L.37.02h0Z"/></svg>拾取节点';popup.querySelector('.clab-xy-popup-close').before(pick);
-    pick.onclick=()=>{
-        if(appState.isBindingMode)return;const root=container.closest('#clab-panel');
-        document.addEventListener('clab_binding_finished',()=>requestAnimationFrame(()=>{if(root.classList.contains('visible')&&root.dataset.workspaceMode==='table')openTableBinding(container,column,changed,focused);}),{once:true});panel.close();
-        pickWorkflowTarget(output?'preview':'edit',root,document.getElementById('clab-backdrop'),({targets,isAppend})=>{
-            focused=targets[0]?.nodeIdStr||focused;const keys=targets.filter(target=>target.widgetName).map(target=>`${target.nodeIdStr}||${target.widgetName}`),nodes=targets.map(target=>target.nodeIdStr);
-            if(output){area.targetNodeId=nodes[0]||null;area.targetNodeIds=nodes.slice(0,1);area.targetWidgets=[];changed();}
-            else{area.targetNodeIds=isAppend?[...new Set([...ids(),...nodes])]:nodes;area.targetWidgets=isAppend?[...new Set([...bindingsOf(area),...keys])]:keys;const first=area.targetWidgets[0]?.split('||');area.targetNodeId=first?.[0]||nodes[0]||null;area.targetWidget=first?.[1]||null;const parameter=workflowParameters().find(parameter=>parameter.key===area.targetWidgets[0]);if(parameter)area.dataType=parameter.type;changed();}
-        });
-    };
+    pick.onclick=()=>pickTableBinding(container,column,changed,focused,true);
     search.oninput=render;render();return panel;
 }

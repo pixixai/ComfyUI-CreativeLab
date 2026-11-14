@@ -16,6 +16,10 @@
     "name": "快捷键",
     "tooltip": "支持组合键，例如: C, Shift+C, Ctrl+M, Alt+X (不区分大小写)"
   },
+  "CLab_1-General_PickShortcut": {
+    "name": "节点拾取快捷键",
+    "tooltip": "面板打开且未在输入框中编辑时，为选中的模块拾取节点或参数。支持 P、Shift+P 等组合键；留空禁用。"
+  },
   "CLab_1-General_BackdropBlur": {
     "name": "启用背景毛玻璃效果",
     "tooltip": "开启后增加高级感，但在低端显卡上可能会导致面板拖动掉帧。"
