@@ -271,7 +271,10 @@ test('combined JSON retains same-name input/output fields and skips existing num
 
 test('comparison offers both drop regions before selecting media and escapes overlay labels',()=>{
     const config={layout:'side',slot:'a'},empty=comparisonHTML(null,null,config);
-    assert.match(empty,/clab-compare-stage/);assert.match(empty,/拖到 A/);assert.match(empty,/拖到 B/);
+    assert.match(empty,/clab-compare-stage/);assert.match(empty,/从左侧「来源」添加图像或视频/);
+    assert.equal((empty.match(/data-external-pick="computer"/g)||[]).length,2);
+    assert.equal((empty.match(/data-external-pick="server"/g)||[]).length,2);
+    assert.match(empty,/data-external-target="a"/);assert.match(empty,/data-external-target="b"/);
     const h=fixture();h.records[0].cardLabel='<script>bad</script>';
     const html=comparisonHTML(h.records[0],h.records[1],config);
     assert.ok(!html.includes('<script>'));assert.match(html,/&lt;script&gt;/);

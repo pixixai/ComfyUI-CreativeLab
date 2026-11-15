@@ -23,6 +23,7 @@ export function historyDestination(entry,current){
         const root=path[2];
         if(root==='view'){
             if(path[3]==='previewDetail')kinds.add('detail');
+            if(path[3]==='previewExternal')kinds.add('external');
             if(path[3]==='xy')kinds.add('xy');
             if(path[3]==='table'){
                 table=true;
@@ -37,12 +38,13 @@ export function historyDestination(entry,current){
     if(!kinds.size&&table)kinds.add('table');
     if(!kinds.size&&archive)return {...current,panel:'maintenance'};
     const supports=view=>[...kinds].every(kind=>kind==='detail'?view.surface==='preview'&&view.mode==='detail':
-        kind==='xy'?view.mode==='xy':kind==='table'?view.mode==='table':kind==='moduleAppearance'?view.surface==='workspace'&&view.mode==='cards':
+        kind==='external'?view.surface==='preview'&&['browse','compare'].includes(view.mode):kind==='xy'?view.mode==='xy':kind==='table'?view.mode==='table':kind==='moduleAppearance'?view.surface==='workspace'&&view.mode==='cards':
         kind==='content'?view.mode==='table'||view.surface==='workspace'&&view.mode==='cards':true);
     const origin=entry.context;
     if(supports(current))return {...current,...(kinds.size&&current.mode==='table'&&origin?.sheetId?{sheetId:origin.sheetId}:{})};
     if(origin)return {surface:origin.surface,mode:origin.mode,...(origin.sheetId?{sheetId:origin.sheetId}:{})};
     if(kinds.has('detail'))return {surface:'preview',mode:'detail'};
+    if(kinds.has('external'))return {surface:'preview',mode:'browse'};
     if(kinds.has('xy'))return {surface:'workspace',mode:'xy'};
     if(kinds.has('table'))return {surface:'preview',mode:'table'};
     return {surface:'workspace',mode:'cards'};

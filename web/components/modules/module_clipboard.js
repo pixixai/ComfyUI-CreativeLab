@@ -70,6 +70,7 @@ export function bindMediaClipboard() {
         const panel = document.getElementById('clab-panel');
         const clipboard = event.clipboardData;
         if (!panel?.classList.contains('visible') || event.defaultPrevented || !clipboard) return;
+        if(document.querySelector('.clab-preview-modal.visible'))return;
         const active = document.activeElement;
         if (active?.isContentEditable || active?.matches('textarea:not([readonly]),input:not([readonly]):not([type=checkbox]):not([type=range]):not([type=file])')) return;
         const html = clipboard.getData('text/html');

@@ -2,7 +2,7 @@ import { attachVideoControls, updateVideoControls } from '../../modules/media_ty
 import { formatTimeWithFrames } from '../../modules/media_types/media_utils.js';
 import { attachPreviewPan } from './preview_pan.js';
 
-export function attachPreviewVideo(player, { view = { x: 0, y: 0, zoom: 1 }, playback = {}, status, primaryPan = false, active = () => true } = {}) {
+export function attachPreviewVideo(player, { view = { x: 0, y: 0, zoom: 1 }, playback = {}, status, primaryPan = false, active = () => true,camera } = {}) {
     const videos = [...player.querySelectorAll('video')], first = videos[0];
     const transforms = [...player.querySelectorAll('.clab-preview-video-transform, .clab-compare-transform')];
     const controller = new AbortController(), { signal } = controller;
@@ -11,7 +11,7 @@ export function attachPreviewVideo(player, { view = { x: 0, y: 0, zoom: 1 }, pla
     let frame = 0, timer = 0, disposed = false, seeking = false, resume = false, buffering = false, initialized = false, playing = false, dragged = false;
     const duration = () => videos.every(video => Number.isFinite(video.duration)) ? Math.min(...videos.map(video => video.duration)) : 0;
     const update = () => updateVideoControls(player, videos);
-    const applyView = () => transforms.forEach(element => { element.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.zoom})`; });
+    const applyView = () => camera?camera.apply():transforms.forEach(element => { element.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.zoom})`; });
     applyView();
     const pause = () => { playing = false; videos.forEach(video => video.pause()); cancelAnimationFrame(frame); frame = 0; update(); };
     const setTime = value => {
@@ -65,6 +65,7 @@ export function attachPreviewVideo(player, { view = { x: 0, y: 0, zoom: 1 }, pla
         if (interactive(event.target)) { if (event.ctrlKey) event.preventDefault(); return; }
         event.preventDefault(); event.stopPropagation();
         if (event.ctrlKey) {
+            if(camera){camera.zoom(event);return;}
             const pane = event.target.closest('.clab-compare-pane') || player;
             const rect = pane.getBoundingClientRect(), oldZoom = view.zoom;
             view.zoom = Math.max(.2, Math.min(8, oldZoom * (event.deltaY < 0 ? 1.12 : .9)));
@@ -83,10 +84,11 @@ export function attachPreviewVideo(player, { view = { x: 0, y: 0, zoom: 1 }, pla
     }, { passive: false, signal });
     const releasePan = attachPreviewPan(player, (x,y) => {
         dragged = true;
+        if(camera){camera.pan(x,y);return;}
         view.x += x;
         view.y += y;
         applyView();
-    }, {primary:primaryPan, canStart:target => !interactive(target), onStart:() => { dragged = false; }});
+    }, {primary:primaryPan, canStart:target => !interactive(target)&&(!camera||camera.canPan()), onStart:() => { dragged = false; }});
     const chooseAudio = () => {
         const index = audioSelect?.value === 'b' ? 1 : audioSelect?.value === 'a' ? 0 : -1;
         videos.forEach((video, i) => { video.muted = i !== index; }); update();

@@ -1,5 +1,6 @@
 import { createPreviewWorkspaceBundle } from './preview_workspaces.js';
 import { createPreviewSourcePicker } from './preview_source_picker.js';
+import { createPreviewExternal } from './preview_external.js';
 import { createPreviewMultiGrid } from './preview_multi_grid.js';
 import { injectPreviewWorkspaceStyles } from './preview_workspace_ui.js';
 import { attachPreviewSourceRuler } from './preview_source_ruler.js';
@@ -25,6 +26,7 @@ import { injectMediaCSS } from '../../modules/module_media.js';
 import { attachPreviewVideo } from './preview_video.js';
 import { attachPreviewPan } from './preview_pan.js';
 import { comparisonHTML, attachComparison, syncComparison } from './preview_compare.js';
+import { clearComparisonSlot,comparisonViews,alignComparisonView } from './preview_compare_view.js';
 import { renderTableSettings, buildTableModel, renderTable } from './preview_table.js';
 import { exportPreviewHTML, downloadPreviewBlob } from './preview_export.js';
 import { capturePreviewLayout, renderLayoutPNG, exportPreviewLayoutHTML } from './preview_layout_export.js';
@@ -56,7 +58,7 @@ export function createPreviewModalApi({
     let historyMatrix, matrixPreview, parameterGrid, xyGrid, renderedGrid = '';
     let allSources = [], browseLayout, detailView, renderedBrowseKey = '', renderedCompareKey = '', renderedMode = '';
     let returnFocus,downloads,dataExport,previewWorkspaceId='',matrixLayoutChanged=false;
-    let bundle=null,multiGrid,sourcePicker,previewSourceIds=new Set();
+    let bundle=null,multiGrid,sourcePicker,external,previewSourceIds=new Set();
     let historyRefresh=null,closeForHistory;
     document.addEventListener('clab_before_edit_history',()=>{
         if(!previewModalStore.root?.classList.contains('visible'))return;
@@ -96,6 +98,7 @@ export function createPreviewModalApi({
     });
     const previewCards=()=>bundle?.cards||state.cards;
     const previewSources=()=>workspacePreviewSources(previewCards()).map(source=>source.card.previewWorkspace?{...source,cardLabel:`${source.card.previewWorkspace.name} · ${source.cardLabel}`}:source);
+    const selectedRecords=()=>[...collectPreviewRecords(sources),...(['browse','compare'].includes(mode)?external?.entries()||[]:[])];
     const tablePreview=()=>bundle?multiGrid:parameterGrid;
     const xyPreview=()=>bundle?multiGrid:xyGrid;
     const commitBundle=()=>{bundle?.commit();};
@@ -140,7 +143,7 @@ export function createPreviewModalApi({
         const selected=[...selectedHistoryRecords].map(remap);selectedHistoryRecords.clear();selected.forEach(key=>selectedHistoryRecords.add(key));
         const selectedSources=new Set(sources.map(source=>sourceKey(source.card,source.area)));
         allSources=previewSources();sources=allSources.filter(source=>selectedSources.has(sourceKey(source.card,source.area)));
-        previewModalStore.entries=collectPreviewRecords(sources);
+        previewModalStore.entries=selectedRecords();
         previewModalStore.activeIndex=previewModalStore.entries.findIndex(record=>record.key===remap(active));
         if(changed.length) {
             commitBundle();
@@ -203,7 +206,7 @@ export function createPreviewModalApi({
                     window.CLab?.saveState(state,{createAnchor:false});
                 }
             });
-            previewModalStore.entries = collectPreviewRecords(sources);
+            previewModalStore.entries = selectedRecords();
             previewModalStore.activeIndex = previewModalStore.entries.findIndex(item => item.key === entry.key);
         } else {
             previewModalStore.activeIndex = index;
@@ -290,8 +293,8 @@ export function createPreviewModalApi({
         attachPreviewSourceRuler(root);
         previewModalStore.root = root;
         root.addEventListener('pointerdown',event=>{
-            const owner=event.target.closest('[data-preview-grid-workspace],[data-preview-source-workspace],[data-preview-source-workspace-id],[data-detail-workspace-id]');
-            let id=owner?.dataset.previewGridWorkspace||owner?.dataset.previewSourceWorkspace||owner?.dataset.previewSourceWorkspaceId||owner?.dataset.detailWorkspaceId;
+            const owner=event.target.closest('[data-preview-grid-workspace],[data-preview-source-workspace],[data-preview-source-workspace-id],[data-detail-workspace-id],[data-external-workspace]');
+            let id=owner?.dataset.previewGridWorkspace||owner?.dataset.previewSourceWorkspace||owner?.dataset.previewSourceWorkspaceId||owner?.dataset.detailWorkspaceId||owner?.dataset.externalWorkspace;
             const card=event.target.closest('[data-detail-card],[data-detail-source],[data-card-id],[data-browse-card]');
             const cardId=card?.dataset.detailCard||card?.dataset.detailSource||card?.dataset.cardId||card?.dataset.browseCard;
             id||=previewCards().find(card=>card.id===cardId)?.previewWorkspace?.id;
@@ -299,6 +302,15 @@ export function createPreviewModalApi({
         },true);
         const tabs = root.querySelector('[data-review-workspaces]');
         sourcePicker=createPreviewSourcePicker(root,()=>previewSourceIds,setPreviewWorkspaces);
+        external=createPreviewExternal(root,{
+            workspaces:()=>state.workspaces.filter(workspace=>previewSourceIds.has(workspace.id)),label:getWorkspaceLabel,
+            records:()=>previewModalStore.entries,active:getActivePreviewEntry,slot:()=>compare.slot,assignment:slot=>compare[slot],split:()=>compare.layout==='split'?compare.view.split:.5,
+            refresh:renderPreviewModal,
+            open(key,slot){typeFilter='';renderPreviewModal();const index=previewModalStore.entries.findIndex(entry=>entry.key===key);if(index<0)return;
+                if(mode==='compare'){const target=slot||compare.slot;compare[target]=key;compare.slot=target==='a'?'b':'a';previewModalStore.activeIndex=index;renderPreviewModal();}
+                else selectPreviewEntry(index);
+            }
+        });
         root.querySelector('[data-review-maintenance]').onclick=event=>openMaintenancePanel(event.currentTarget,()=>setPreviewWorkspaces([...previewSourceIds]));
         attachWorkspaceEvents(tabs,{
             beforeChange:()=>tablePreview()?.flush(),
@@ -381,6 +393,7 @@ export function createPreviewModalApi({
         });
 
         const close = (refresh=true) => {
+            external.suspend();
             closeCoverMenu();workspaceModeMenu.close();sourcePicker.close();closeMaintenancePanel();
             root.classList.remove("visible");
             teardownPreviewEnhancers();
@@ -421,7 +434,7 @@ export function createPreviewModalApi({
             const modeButton = event.target.closest('button[data-review-mode]');
             if (modeButton) {
                 if(modeButton.disabled)return;
-                closeCoverMenu();
+                closeCoverMenu();external.suspend();
                 mode = modeButton.dataset.reviewMode;
                 if(mode==='compare'&&!['','image','video'].includes(typeFilter))typeFilter='';
                 editHistory.withoutRecording(renderPreviewModal);return;
@@ -430,6 +443,12 @@ export function createPreviewModalApi({
             if (exportButton) { void exportTable(exportButton.dataset.reviewExport); return; }
             const layout = event.target.closest('[data-compare-layout]');
             if (layout) { compare.layout = layout.dataset.compareLayout; renderPreviewModal(); return; }
+            const lock=event.target.closest('[data-compare-lock]');
+            if(lock){comparisonViews(compare);const slot=lock.dataset.compareLock;compare.locks[slot]=!compare.locks[slot];renderPreviewModal();return;}
+            const reset=event.target.closest('[data-compare-reset]');
+            if(reset){alignComparisonView(compare,reset.dataset.compareReset);renderPreviewModal();return;}
+            const remove=event.target.closest('[data-compare-remove]');
+            if(remove){clearComparisonSlot(compare,remove.dataset.compareRemove);renderPreviewModal();return;}
             const slot = event.target.closest('[data-compare-slot]');
             if (slot) { compare.slot = slot.dataset.compareSlot; renderPreviewModal(); return; }
             if (event.target.closest('[data-compare-swap]')) { [compare.a,compare.b]=[compare.b,compare.a]; renderPreviewModal(); return; }
@@ -513,12 +532,12 @@ export function createPreviewModalApi({
             if(stage&&!stage.contains(event.relatedTarget))delete stage.dataset.dropSlot;
         });
         centerEl.addEventListener('drop',event=>{
-            const stage=dropStage(event),slot=stage?.dataset.dropSlot;
-            if(!slot)return;
-            event.preventDefault();delete stage.dataset.dropSlot;
-            const key=event.dataTransfer.getData('application/x-clab-preview-record');
+            const stage=dropStage(event);if(!stage)return;
+            const key=event.dataTransfer.getData('application/x-clab-preview-record')||event.dataTransfer.getData('text/plain');
             const index=previewModalStore.entries.findIndex(entry=>entry.key===key&&['image','video'].includes(entry.type));
             if(index<0)return;
+            const rect=stage.getBoundingClientRect(),slot=stage.dataset.dropSlot||((event.clientX-rect.left)/rect.width<(compare.layout==='split'?compare.view.split:.5)?'a':'b');
+            event.preventDefault();event.stopPropagation();delete stage.dataset.dropSlot;
             compare[slot]=key;compare.slot=slot==='a'?'b':'a';previewModalStore.activeIndex=index;renderPreviewModal();
         });
         root.addEventListener('dragend',()=>{const stage=centerEl.querySelector('.clab-compare-stage');if(stage)delete stage.dataset.dropSlot;});
@@ -702,7 +721,7 @@ export function createPreviewModalApi({
 
     function setBrowseSources(nextSources) {
         const activeKey=getActivePreviewEntry()?.key;
-        sources=nextSources;previewModalStore.entries=collectPreviewRecords(sources);
+        sources=nextSources;previewModalStore.entries=selectedRecords();
         previewModalStore.activeIndex=previewModalStore.entries.findIndex(entry=>entry.key===activeKey);
         if(previewModalStore.activeIndex<0)previewModalStore.activeIndex=previewModalStore.entries.length?0:-1;
         renderPreviewModal();
@@ -719,7 +738,7 @@ export function createPreviewModalApi({
         if (!record) return;
         if (!sources.some(source=>sourceKey(source.card,source.area)===record.source)) {
             sources = allSources.filter(source=>sourceKey(source.card,source.area)===record.source || sources.includes(source));
-            previewModalStore.entries = collectPreviewRecords(sources);
+            previewModalStore.entries = selectedRecords();
         }
         previewModalStore.activeIndex = previewModalStore.entries.findIndex(entry=>entry.key===key);
         typeFilter = '';
@@ -808,6 +827,10 @@ export function createPreviewModalApi({
         const root=ensurePreviewModal(),left=root.querySelector('.clab-preview-modal-left'),center=root.querySelector('.clab-preview-modal-center'),right=root.querySelector('.clab-preview-modal-right');
         const selectedWorkspaces=state.workspaces.filter(workspace=>previewSourceIds.has(workspace.id));
         if(!previewModeAllowed(selectedWorkspaces,mode))mode='browse';
+        if(!['browse','compare'].includes(mode))external.hide();
+        const previousKey=getActivePreviewEntry()?.key;
+        previewModalStore.entries=[...previewModalStore.entries.filter(entry=>!entry.externalWorkspaceId),...(['browse','compare'].includes(mode)?external.entries():[])];
+        if(previousKey)previewModalStore.activeIndex=previewModalStore.entries.findIndex(entry=>entry.key===previousKey);
         const entries=previewModalStore.entries;
         const workspaceSheet=mode==='table'||mode==='xy'&&(bundle||matrixPreview.matrixSource==='workspace');
         root.dataset.reviewMode=mode;
@@ -821,6 +844,7 @@ export function createPreviewModalApi({
             else if(previewModalStore.activeIndex<0&&visible.length&&!state.cards.find(card=>card.id===previewModalStore.activeCardId)?.areas.find(area=>area.id===previewModalStore.activeAreaId)?.missingHistoryRun)previewModalStore.activeIndex=entries.findIndex(entry=>entry.key===visible[0].key);
             if(mode!=='xy')browseLayout.renderMedia(groups,entries,previewModalStore.activeIndex,typeFilter,mode==='compare'?compare:null);
             else browseLayout.release();
+            if(['browse','compare'].includes(mode))external.render(entries,getActivePreviewEntry()?.key,mode==='compare'?compare:null,browse.search,typeFilter);
         } else browseLayout.release();
         browseLayout.applyLayout();
         if(previewModalStore.activeIndex>=entries.length)previewModalStore.activeIndex=entries.length?0:-1;
@@ -889,6 +913,7 @@ export function createPreviewModalApi({
 
     function setPreviewWorkspaces(ids,saved) {
         const root=ensurePreviewModal();
+        external.suspend();
         teardownPreviewEnhancers();commitBundle();syncStateToActiveWorkspace();
         const workspaces=state.workspaces.filter(workspace=>ids.includes(workspace.id));
         if(!workspaces.length)return;
@@ -899,7 +924,7 @@ export function createPreviewModalApi({
         bundle=workspaces.length>1||workspaces[0].id!==state.activeWorkspaceId?createPreviewWorkspaceBundle(workspaces,getWorkspaceLabel,()=>{state.cards=getActiveWorkspace().cards;}):null;
         const cards=previewCards(),workspace=workspaces[0];
         allSources=workspacePreviewSources(cards).map(source=>source.card.previewWorkspace?{...source,cardLabel:`${source.card.previewWorkspace.name} · ${source.cardLabel}`}:source);
-        sources=allSources.filter(source=>saved?saved.sources.has(sourceKey(source.card,source.area)):sourceRecordCount(source.area));previewModalStore.entries=collectPreviewRecords(sources);previewModalStore.activeIndex=saved?previewModalStore.entries.findIndex(entry=>entry.key===saved.active):previewModalStore.entries.length?0:-1;
+        sources=allSources.filter(source=>saved?saved.sources.has(sourceKey(source.card,source.area)):sourceRecordCount(source.area));previewModalStore.entries=selectedRecords();previewModalStore.activeIndex=saved?previewModalStore.entries.findIndex(entry=>entry.key===saved.active):previewModalStore.entries.length?0:-1;
         detailView.open(cards,bundle?.detail||workspace);
         if(!bundle){parameterGrid.open(workspace);xyGrid.open(workspace.view.xy,cards);}
         compare=saved?.compare||{a:'',b:'',slot:'a',layout:'side',view:{x:0,y:0,zoom:1,split:.5}};
@@ -910,6 +935,7 @@ export function createPreviewModalApi({
 
     function openPreviewModal(card, area, preferredUrl, preferredIndex, selectedSources, opener, initialMode = 'browse') {
         const root = ensurePreviewModal();
+        external.suspend();
         returnFocus = opener;
         selectedHistoryRecords.clear();
         teardownPreviewEnhancers();commitBundle();bundle=null;
@@ -922,8 +948,8 @@ export function createPreviewModalApi({
         allSources=previewSources();
         sources=initialPreviewSources(state.cards,selectedSources||(area?[{card,area}]:[]),state.selectedCardIds,card?.id);
         browse.search='';
-        previewModalStore.entries=collectPreviewRecords(sources);
         typeFilter='';mode=initialMode;
+        previewModalStore.entries=selectedRecords();
         const workspace = getActiveWorkspace(), view = workspace.view;
         previewWorkspaceId=workspace.id;detailView.open(state.cards,workspace);
         compare={a:'',b:'',slot:'a',layout:'side',view:{x:0,y:0,zoom:1,split:.5}};

@@ -41,6 +41,8 @@ import { runBindingGestureChecks } from './binding_gestures.browser.mjs';
 import { runInputFileChecks } from './input_files.browser.mjs';
 import { runTableUploadChecks } from './table_upload.browser.mjs';
 import { runTableFileBatchChecks } from './table_file_batch.browser.mjs';
+import { runPreviewExternalChecks } from './preview_external.browser.mjs';
+import { runPreviewGalleryChecks } from './preview_gallery.browser.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const requests = [];
@@ -209,6 +211,23 @@ try {
         await runTableUploadChecks(send,sessionId);
         await runTableFileBatchChecks(send,sessionId);
         await runInputFileChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='external-images'){
+        await runPreviewExternalChecks(send,sessionId);
+        await runPreviewGalleryChecks(send,sessionId,async point=>{
+            await send('Input.setInterceptDrags',{enabled:true},sessionId);
+            try{
+                const data=new Promise((resolve,reject)=>{const timer=setTimeout(()=>{onDragIntercepted=null;reject(new Error('native external reference drag did not start'));},5000);onDragIntercepted=value=>{clearTimeout(timer);onDragIntercepted=null;resolve(value);};});
+                await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:point.x,y:point.y},sessionId);
+                await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',buttons:1,clickCount:1,x:point.x,y:point.y},sessionId);
+                for(let step=1;step<=5;step++)await send('Input.dispatchMouseEvent',{type:'mouseMoved',button:'left',buttons:1,x:point.x+step*6,y:point.y},sessionId);
+                const payload=await data;
+                for(const type of ['dragEnter','dragOver','drop'])await send('Input.dispatchDragEvent',{type,x:point.toX,y:point.toY,data:payload},sessionId);
+                return payload;
+            }finally{
+                await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',buttons:0,clickCount:1,x:point.toX,y:point.toY},sessionId);
+                await send('Input.setInterceptDrags',{enabled:false},sessionId);
+            }
+        });
     }else if(process.env.CLAB_BROWSER_SUITE==='input-files'){
         await runInputFileChecks(send,sessionId);
     }else if(process.env.CLAB_BROWSER_SUITE==='binding-gestures'){

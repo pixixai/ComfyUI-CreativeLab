@@ -33,11 +33,16 @@ export function mediaDownloadFiles(cards,records) {
         items.set(JSON.stringify([source,position,url]),{task,module,position,url});
     }
     const width=[...items.values()].reduce((max,item)=>Math.max(max,String(item.task).length,String(item.module).length,String(item.position).length),3);
+    const external=records.filter(record=>record.externalWorkspaceId).map(record=>{
+        const name=record.name.replace(/[<>:"/\\|?*\x00-\x1f]/g,'_');
+        const dot=name.lastIndexOf('.');
+        return {url:record.url,base:'reference-'+(dot<0?name:name.slice(0,dot)),extension:dot<0?'':name.slice(dot+1)};
+    });
     return [...items.values()].map(({task,module,position,url})=>{
         const parsed=new URL(url,'http://local/');
         const extension=(parsed.searchParams.get('filename')||parsed.pathname).match(/\.([a-z0-9]{1,12})$/i)?.[1]||'';
         return {url,base:[task,module,position].map(number=>String(number).padStart(width,'0')).join('-'),extension};
-    });
+    }).concat(external);
 }
 
 function unusedFilename(base,extension,names) {

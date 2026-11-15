@@ -246,11 +246,10 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     const initialStage=q('.clab-compare-stage'),firstPair=[...initialStage.querySelectorAll('img')];
     const sideRect=initialStage.getBoundingClientRect(),modeRect=q('.clab-compare-layout').getBoundingClientRect(),swapRect=q('[data-compare-swap]').getBoundingClientRect();
     assert(initialStage.contains(q('.clab-compare-layout'))&&modeRect.top>=sideRect.top&&modeRect.bottom<=sideRect.bottom+1&&Math.abs(sideRect.height-q('.clab-preview-modal-center').getBoundingClientRect().height)<2&&q('.clab-compare-layout').classList.contains('clab-review-segment')&&getComputedStyle(q('.clab-compare-layout')).backgroundColor!=='rgba(0, 0, 0, 0)'&&getComputedStyle(q('[data-compare-layout="side"]')).fontWeight==='700','comparison mode capsule is not overlaid on the full-height preview');
-    const swap=q('[data-compare-swap]'),glyph=swap.querySelector('svg').getBoundingClientRect(),hintRect=q('.clab-compare-status').getBoundingClientRect();
-    assert(glyph.width===22&&glyph.height===22&&swapRect.width>glyph.width&&swapRect.height>glyph.height&&swap.querySelector('svg').getAttribute('fill')==='none'&&swap.querySelector('circle[stroke="currentColor"]')&&swap.querySelector('path').getAttribute('fill')==='currentColor'&&!swap.querySelector('path').hasAttribute('fill-rule')&&getComputedStyle(swap).backgroundColor==='rgba(0, 0, 0, 0)'&&getComputedStyle(swap).color===getComputedStyle(q('.clab-compare-divider')).backgroundColor,'comparison swap does not use a hollow circle and solid arrows with a transparent hit area');
-    const dividerRect=q('.clab-compare-divider').getBoundingClientRect();
-    assert(Math.abs(glyph.x+glyph.width/2-dividerRect.x-dividerRect.width/2)<.6&&Math.abs(glyph.y+glyph.height/2-dividerRect.y-dividerRect.height/2)<.6,'comparison circle is not centered on the upper and lower divider segments');
-    assert(modeRect.width<145&&modeRect.height<=28&&Math.abs(sideRect.bottom-modeRect.top-modeRect.height/2-52)<2&&Math.abs(sideRect.bottom-hintRect.top-hintRect.height/2-19)<2,'comparison capsule did not shrink or exchange vertical positions with its hint');
+    const swap=q('[data-compare-swap]'),glyph=swap.querySelector('svg').getBoundingClientRect(),heading=q('.clab-compare-heading').getBoundingClientRect();
+    assert(glyph.width===18&&glyph.height===18&&swapRect.width===swapRect.height&&swapRect.width>glyph.width&&getComputedStyle(swap).borderRadius==='5px'&&!swap.querySelector('circle')&&getComputedStyle(swap).backgroundColor!=='rgba(0, 0, 0, 0)','comparison swap is not a compact rounded-square button');
+    assert(Math.abs(swapRect.x+swapRect.width/2-sideRect.x-sideRect.width/2)<1&&Math.abs(swapRect.y+swapRect.height/2-heading.y-heading.height/2)<1,'comparison swap is not aligned with the top-center titles');
+    assert(modeRect.width<145&&modeRect.height<=28&&Math.abs(sideRect.bottom-modeRect.top-modeRect.height/2-52)<2&&!q('.clab-compare-status').textContent,'comparison capsule changed position or the old gesture hint remains');
     for(const label of root.querySelectorAll('.clab-compare-label')) {
         assert(getComputedStyle(label).backgroundColor==='rgba(0, 0, 0, 0)'&&getComputedStyle(label).borderTopWidth==='0px'&&label.querySelector('.clab-compare-label-separator'),'comparison corner information still has a background frame or lacks its separator');
         const badge=label.querySelector('strong').getBoundingClientRect();assert(badge.width===badge.height&&getComputedStyle(label.querySelector('strong')).borderRadius==='3px','preview A/B badge is not a slightly rounded square');
@@ -259,7 +258,7 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     const badgeColor=slot=>getComputedStyle(q(`[data-compare-slot="${slot}"] strong`)).backgroundColor;
     const activeColor=badgeColor('a');assert(activeColor!==badgeColor('b')&&getComputedStyle(q('[data-compare-slot="a"] strong')).color==='rgb(255, 255, 255)','pending A region is not indicated by its lit number badge');
     q('[data-compare-slot="b"]').click();await delay(180);assert(badgeColor('b')===activeColor&&badgeColor('a')!==activeColor,'switching the pending region did not move the badge highlight');
-    assert(Math.abs(swapRect.x+swapRect.width/2-sideRect.x-sideRect.width/2)<2&&Math.abs(swapRect.y+swapRect.height/2-sideRect.y-sideRect.height/2)<2,'side comparison swap button is not at the divider center');
+    assert(Math.abs(swapRect.x+swapRect.width/2-sideRect.x-sideRect.width/2)<2&&swapRect.top-sideRect.top<10,'side comparison swap button is not fixed at the top center');
     q('[data-compare-slot="a"]').click();resize('sources','ArrowLeft');resize('sources','ArrowRight');
     assert(initialStage.querySelector('img')===firstPair[0],'comparison target or layout resizing rebuilt the selected media');
     q('[data-compare-layout="split"]').click();
@@ -270,7 +269,7 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     stage.dispatchEvent(new WheelEvent('wheel',{deltaY:-100,bubbles:true,cancelable:true}));
     assert([...stage.querySelectorAll('.clab-compare-transform')].every(el=>el.style.transform.includes('1.12')),'image A/B zoom is not shared');
     const zoomSwap=q('[data-compare-swap]').getBoundingClientRect(),imageBounds=stage.querySelector('.clab-compare-transform').getBoundingClientRect();
-    assert(imageBounds.width>r.width&&Math.abs(zoomSwap.x+zoomSwap.width/2-r.left-r.width*.75)<2,'zoom did not fill the viewport or moved the overlay swap button');
+    assert(imageBounds.width>r.width&&Math.abs(zoomSwap.x+zoomSwap.width/2-r.left-r.width*.5)<2&&zoomSwap.top-r.top<10,'zoom did not fill the viewport or split movement displaced the fixed swap button');
     assert(q('[data-compare-slot="a"]').getBoundingClientRect().left>=r.left&&q('[data-compare-slot="b"]').getBoundingClientRect().right<=r.right+1,'split clipping hid an A/B overlay label');
     q('[data-compare-swap]').click();assert(q('[data-compare-slot="a"]').textContent.includes('中间结果'),'swapping A/B did not swap the chosen sources');
     assert(JSON.stringify([card,other])===before,'A/B selection changed live parameters or history');

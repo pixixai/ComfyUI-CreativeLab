@@ -42,7 +42,7 @@ export function injectReviewStyles() {
         .clab-compare-pane{position:relative;min-width:0;overflow:hidden}.clab-compare-transform{position:absolute;inset:0;transform-origin:center}
         .clab-compare-transform img,.clab-compare-transform video{width:100%;height:100%;display:block;object-fit:contain;pointer-events:none}
         .clab-compare-stage.split{display:block}.clab-compare-stage.split .clab-compare-pane{position:absolute;inset:0;border:0}.clab-compare-stage.split .layer-b{clip-path:inset(0 0 0 var(--compare-split,50%))}
-        .clab-compare-divider{position:absolute;z-index:2;top:0;bottom:0;left:var(--compare-split,50%);width:1px;transform:translateX(-50%);background:var(--compare-line-color);mask-image:linear-gradient(#000 calc(50% - 11px),transparent calc(50% - 11px),transparent calc(50% + 11px),#000 calc(50% + 11px));pointer-events:none;box-shadow:none}
+        .clab-compare-divider{position:absolute;z-index:2;top:0;bottom:0;left:var(--compare-split,50%);width:1px;transform:translateX(-50%);background:var(--compare-line-color);pointer-events:none;box-shadow:none}
         .clab-compare-stage.split{--compare-line-color:#ddd}
         .clab-compare .clab-compare-label{position:absolute;z-index:4;top:8px;display:flex;align-items:center;max-width:calc(50% - 24px);min-width:0;gap:7px;padding:0;background:transparent;border:0;border-radius:0;color:#aaa;cursor:pointer;font:11px sans-serif}
         .clab-compare-label.label-a{left:8px}.clab-compare-label.label-b{right:8px;text-align:right}
@@ -50,15 +50,13 @@ export function injectReviewStyles() {
         .clab-compare-label strong{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:20px;height:20px;border-radius:3px;background:#252525b3;color:#999;font-size:11px;transition:background .15s,color .15s}
         .clab-compare-label-separator{display:block;width:1px;height:12px;flex-shrink:0;background:#8889}
         .clab-compare .clab-compare-label:hover{color:#fff}.clab-compare .clab-compare-label[aria-pressed=true] strong{background:#596973;color:#fff}
-        .clab-compare .clab-compare-swap{position:absolute;z-index:5;left:var(--compare-split,50%);top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--compare-line-color);cursor:pointer}
+        .clab-compare .clab-compare-swap{position:absolute;z-index:5;left:50%;top:7px;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:5px;background:#252525b3;color:#aaa;cursor:pointer}
         .clab-compare .clab-compare-swap{transition:color .16s}
-        .clab-compare .clab-compare-swap circle[stroke="currentColor"]{transition:stroke-width .16s}
         .clab-compare .clab-compare-swap path{color:#aaa;transition:color .16s}
-        .clab-compare .clab-compare-swap:is(:hover,:focus-visible){color:#fff;background:transparent}
+        .clab-compare .clab-compare-swap:is(:hover,:focus-visible){color:#fff;background:#3a3a3acc}
         .clab-compare .clab-compare-swap:is(:hover,:focus-visible) path{color:#fff}
-        .clab-compare .clab-compare-swap:is(:hover,:focus-visible) circle[stroke="currentColor"]{stroke-width:1.7}
-        .clab-compare-status{position:absolute;z-index:3;left:8px;right:8px;bottom:11px;pointer-events:none;color:#aaa;font:11px/1.5 sans-serif}
-        .clab-compare-status:empty{display:none}.clab-compare-stage:has(.clab-video-controls) .clab-compare-status{bottom:76px}
+        .clab-compare-status{position:absolute;z-index:3;left:8px;right:8px;bottom:76px;pointer-events:none;color:#aaa;font:11px/1.5 sans-serif}
+        .clab-compare-status:empty{display:none}.clab-compare-stage:has(.clab-video-controls) .clab-compare-status{bottom:108px}
         .clab-compare-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#888;padding:40px 10px;font:12px/2 sans-serif}
         .clab-compare-stage :is(button,input,select,strong,span,svg),.clab-compare-layout,.clab-compare-status{box-shadow:none;text-shadow:none;filter:none}
         .clab-preview-video{touch-action:none;user-select:none}
@@ -73,7 +71,7 @@ export function injectReviewStyles() {
         .clab-preview-modal-panel .clab-video-controls [data-compare-audio]{font:11px/1 sans-serif;height:24px;padding:2px 3px;border:0;background:transparent;color:#aaa}
         .clab-preview-video-status{position:absolute;left:8px;right:8px;bottom:50px;color:#c8b283;font:12px/1.5 sans-serif;pointer-events:none}
         .clab-preview-video-status:empty{display:none}
-        @media(prefers-reduced-motion:reduce){.clab-compare .clab-compare-swap,.clab-compare .clab-compare-swap path,.clab-compare .clab-compare-swap circle{transition:none}}
+        @media(prefers-reduced-motion:reduce){.clab-compare .clab-compare-swap,.clab-compare .clab-compare-swap path{transition:none}}
         .clab-compare-stage[data-drop-slot]::after{content:'放入 ' attr(data-drop-slot);position:absolute;z-index:3;top:0;bottom:0;left:0;width:var(--compare-split,50%);box-sizing:border-box;display:flex;align-items:center;justify-content:center;border:2px dashed #98bed7;background:#5c91b42b;color:#ddd;text-transform:uppercase;font:14px sans-serif;pointer-events:none}
         .clab-compare-stage[data-drop-slot=b]::after{left:var(--compare-split,50%);width:calc(100% - var(--compare-split,50%))}
         .clab-compare-parameters{border-collapse:collapse;table-layout:fixed;width:100%;font:11px/1.5 sans-serif;color:#aaa}.clab-compare-parameters th,.clab-compare-parameters td{border:1px solid #3c3c3c;padding:6px;overflow-wrap:anywhere;white-space:pre-wrap;text-align:left;font-weight:normal}
@@ -187,8 +185,8 @@ export function injectReviewStyles() {
         .clab-browse-thumb-size input[type=range]{appearance:none;flex:1;min-width:0;height:2px;background:#555;outline:none;padding:0;border:0;border-radius:2px;cursor:pointer}
         .clab-browse-thumb-size input[type=range]::-webkit-slider-thumb{appearance:none;width:8px;height:8px;border-radius:50%;background:#aaa}
         .clab-browse-thumb-size input[type=range]::-moz-range-thumb{width:8px;height:8px;border:0;border-radius:50%;background:#aaa}
-        .clab-browse-thumb-size [data-browse-columns-reset]{display:flex;align-items:center;justify-content:center;padding:2px;background:transparent;color:#999;border:0;cursor:pointer}
-        .clab-browse-thumb-size [data-browse-columns-reset]:hover{color:#fff}
+        .clab-browse-thumb-size :is([data-browse-columns-reset],[data-external-columns-reset]){display:flex;align-items:center;justify-content:center;padding:2px;background:transparent;color:#999;border:0;cursor:pointer}
+        .clab-browse-thumb-size :is([data-browse-columns-reset],[data-external-columns-reset]):hover{color:#fff}
         .clab-browse-thumb-size output{min-width:3em;color:#999;font:11px sans-serif;text-align:right}
         .clab-source-controls .clab-browse-source-actions{min-width:0}
         .clab-source-controls .clab-browse-source-actions button{flex-shrink:0}
