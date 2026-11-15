@@ -25,6 +25,7 @@ import { showBindingToast } from '../ui_utils.js';
 import { focusTableCell } from './table_editors.js';
 import { attachTableEditing } from './table_editing.js';
 import { createTableActivity } from './table_activity.js';
+import { attachTableFileActions } from './table_file_actions.js';
 
 export function createTableController(container,getView,save) {
     const panel=container.closest('#clab-panel'),active=()=>panel.dataset.workspaceMode==='table',view=()=>getView().table,wrapper=()=>container.querySelector('.clab-cards-wrapper');
@@ -64,10 +65,10 @@ export function createTableController(container,getView,save) {
         controls.style.width=`${container.clientWidth}px`;controls.style.setProperty('--table-viewport-height',`${container.clientHeight}px`);controls.style.setProperty('--clab-table-row-width',wrapper().style.getPropertyValue('--clab-table-row-width'));synchronizeModeMedia(wrapper());
         const parameters=workflowParameters();
         workspaceViewport(container).update('table',{cards:rows,count:rows.length*columns.length,
-            mount(cell,card,area){if(!cell.classList.contains('clab-table-draft-cell'))return false;renderDraftValue(cell,area,tableParameter(columns[Number(cell.dataset.tableIndex)].area,parameters));return true;},
+            mount(cell,card,area){if(!cell.classList.contains('clab-table-draft-cell'))return false;renderDraftValue(cell,area,tableParameter(columns[Number(cell.dataset.tableIndex)].area,parameters),card);return true;},
             prepared(cell){fitTableMedia(cell,tableColumnWidth(columns[Number(cell.dataset.tableIndex)],layoutView()),tableRowHeight(layoutView(),{id:cell.dataset.cardId}));},
-            mounted(cell,card,area){cell.dataset.clabTableMediaReady='';if(cell.classList.contains('clab-area'))updateTableEditor(cell,area,tableParameter(area,parameters));fitTableMedia(cell,tableColumnWidth(columns[Number(cell.dataset.tableIndex)],layoutView()),tableRowHeight(layoutView(),{id:cell.dataset.cardId}));editing.syncCell(cell);}
-        });
+            mounted(cell,card,area){cell.dataset.clabTableMediaReady='';if(cell.classList.contains('clab-area'))updateTableEditor(cell,area,tableParameter(area,parameters));fitTableMedia(cell,tableColumnWidth(columns[Number(cell.dataset.tableIndex)],layoutView()),tableRowHeight(layoutView(),{id:cell.dataset.cardId}));editing.syncCell(cell);fileActions.paint(cell);}
+        });fileActions.paint();
     };
     const commit=()=>{
         cancelAnimationFrame(frame);frame=0;pending=false;if(!sheet)return;
@@ -303,7 +304,8 @@ export function createTableController(container,getView,save) {
     panel.addEventListener('mousedown',event=>{if(active()&&event.target.closest('.clab-table-head,[data-table-row-header]'))event.stopPropagation();},true);
     panel.addEventListener('click',event=>{if(!active())return;const target=event.target.closest('#clab-global-add-card,#clab-global-add-module,#clab-btn-run,#clab-btn-run-all,#tb-table-cell-settings,#tb-reset-table-columns');if(!target)return;event.preventDefault();event.stopImmediatePropagation();try{if(target.id==='tb-table-cell-settings')openCellSettings(target);else if(target.id==='tb-reset-table-columns')resetColumns(selectedTableColumns(sheet,state.cards,new Set(state.selectedAreaIds)));else if(target.id.includes('run')){panel.querySelector('#clab-run-dropdown-menu').style.display='none';run(target.id==='clab-btn-run-all');}else add(target.id==='clab-global-add-card'?'rows':'columns');}catch(error){notice(error.message,true);}},true);
     const editing=attachTableEditing(container,{active,select:id=>selection.selectCell(id)});
-    const selection=attachTableSelection(panel,{active,group,columns:()=>columns,paint:()=>{if(sheet&&wrapper())paintTableSelection(wrapper(),rows,columns,selection.kind());},editing});
+    const fileActions=attachTableFileActions(container,{active,sheet:()=>sheet,rows:()=>rows,parameters:workflowParameters,commit,write,dirty:id=>dirty.add(id),notice});
+    const selection=attachTableSelection(panel,{active,group,columns:()=>columns,paint:()=>{if(sheet&&wrapper()){paintTableSelection(wrapper(),rows,columns,selection.kind());fileActions.paint();}},editing});
     const navigate=(row,index)=>{
         if(row<0||index<0)return;editing.end();while(sheet.rows.length<=row)addSheetRow(sheet);commit();const area=rows[row]?.areas[index];if(!area)return;
         selection.selectCell(area.id);const cell=container.querySelector(`[data-area-id="${CSS.escape(area.id)}"]`);cell?.scrollIntoView({block:'nearest',inline:'nearest'});

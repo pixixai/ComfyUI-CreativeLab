@@ -38,9 +38,13 @@ import { runToolbarDockChecks } from './toolbar_dock.browser.mjs';
 import { runRunControlsChecks } from './run_controls.browser.mjs';
 import { runToolbarMenuChecks } from './toolbar_menus.browser.mjs';
 import { runBindingGestureChecks } from './binding_gestures.browser.mjs';
+import { runInputFileChecks } from './input_files.browser.mjs';
+import { runTableUploadChecks } from './table_upload.browser.mjs';
+import { runTableFileBatchChecks } from './table_file_batch.browser.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const requests = [];
+const inputReads=[];
 let uploads = 0;
 const audioFixture = Buffer.alloc(44 + 16000 * 2);
 audioFixture.write('RIFF', 0); audioFixture.writeUInt32LE(audioFixture.length - 8, 4); audioFixture.write('WAVEfmt ', 8);
@@ -118,6 +122,20 @@ const server = http.createServer((req, res) => {
         const [width, height] = url.searchParams.get('rw')&&url.searchParams.get('rh')?[Number(url.searchParams.get('rw')),Number(url.searchParams.get('rh'))]:url.searchParams.get('type') === 'input' ? [150, 300] : [320, 180];
         const color=url.searchParams.get('filename')?.startsWith('review-')?(url.searchParams.get('filename').includes('-b')?'#566f9c':'#bb8c65'):'#456';
         res.end(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="${color}"/><circle cx="${width*.5}" cy="${height*.5}" r="${height*.28}" fill="#ddd"/></svg>`);
+    } else if (url.pathname === '/clab/input_files') {
+        const directory=url.searchParams.get('directory')||'',kind=url.searchParams.get('kind');inputReads.push({directory,kind});
+        const tree={
+            '':['refs/','empty/','slow/','input.png','other.png','sample.wav','clip.mp4','scene.glb','notes.txt',...Array.from({length:uploads},(_,i)=>`uploaded${i+1}.png`)],
+            refs:['deep/','参考图.png','notes.txt'],
+            'refs/deep':['same.png','motion.fbx'],empty:[],slow:['late.png']
+        };
+        res.setHeader('Content-Type','application/json');
+        if(!Object.hasOwn(tree,directory)){res.writeHead(404).end('{}');return;}
+        const accepts=name=>name.endsWith('/')||kind==='file'||({image:/\.(png|jpg)$/i,video:/\.mp4$/i,audio:/\.(wav|mp4)$/i,model:/\.(glb|fbx)$/i,text:/\.txt$/i})[kind]?.test(name);
+        const entries=tree[directory].filter(accepts).map(name=>({name:name.replace(/\/$/,''),path:[directory,name.replace(/\/$/,'')].filter(Boolean).join('/'),directory:name.endsWith('/')}));
+        const finish=()=>res.end(JSON.stringify({directory,kind,entries}));if(directory==='slow')setTimeout(finish,200);else finish();
+    } else if (url.pathname === '/clab/test-input-reads') {
+        res.setHeader('Content-Type','application/json');res.end(JSON.stringify(inputReads));
     } else if (url.pathname === '/upload/image' && req.method === 'POST') {
         req.resume();
         res.setHeader('Content-Type', 'application/json');
@@ -187,7 +205,13 @@ try {
     for (const name of report.passed) console.log(`PASS ${name}`);
     assert.equal(report.error, undefined, report.error);
     assert.deepEqual(report.errors, []);
-    if(process.env.CLAB_BROWSER_SUITE==='binding-gestures'){
+    if(process.env.CLAB_BROWSER_SUITE==='table-upload'){
+        await runTableUploadChecks(send,sessionId);
+        await runTableFileBatchChecks(send,sessionId);
+        await runInputFileChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='input-files'){
+        await runInputFileChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='binding-gestures'){
         await runBindingGestureChecks(send,sessionId);
     }else if(process.env.CLAB_BROWSER_SUITE==='menus'){
         await runToolbarMenuChecks(send,sessionId);

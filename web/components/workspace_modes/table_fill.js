@@ -3,6 +3,7 @@ import { parseAxisValues, parseValues, coerceValue, formatAxisOrder, toggleChoic
 import { tableParameter, tableCellValue } from './table_model.js';
 import { axisValueTabsHTML, attachAxisValueTabs } from './axis_value_order.js';
 import { availableValueChoices, valueChoicesHTML, checkValueChoices, selectAllValues, clearChoiceValues } from './value_choices.js';
+import { attachValueFiles } from './value_files.js';
 
 export function parseTableValues(text,type,format='auto') {
     if(!text.trim())return [];
@@ -22,20 +23,20 @@ export function formatTableOrder(values,type,draft) {
 export function attachTableValues(container,column,group,parameters,view,apply,save,position) {
     const parameter=tableParameter(column.area,parameters),fields=[{...parameter,choices:parameter.choices||[]}],current=group.map(card=>card.areas[column.index].value??'');
     if(!view.drafts[column.id]){
-        const filled=current.some(value=>value!==''),values=fields[0].choices.length?[...new Map(current.filter(value=>value!=='').map(value=>[JSON.stringify(value),value])).values()]:current;
+        const filled=current.some(value=>value!==''),values=fields[0].choices.length||fields[0].uploadType?[...new Map(current.filter(value=>value!=='').map(value=>[JSON.stringify(value),value])).values()]:current;
         view.drafts[column.id]={text:filled?JSON.stringify(values,null,2):'',format:filled?'json':'auto',appliedCount:filled?current.length:0};
     }
     const draft=view.drafts[column.id];
     if(!Number.isFinite(draft.appliedCount))try{draft.appliedCount=Math.min(current.length,parseTableValues(draft.text,parameter.type,draft.format).length);}catch{draft.appliedCount=0;}
-    let applied=current.slice(0,draft.appliedCount),tabs;
-    const choices=availableValueChoices(fields,applied),fixed=choices[0].length>0;
+    let applied=current.slice(0,draft.appliedCount),tabs,files;
+    const choices=availableValueChoices(fields,applied),fixed=choices[0].length>0||!!parameter.uploadType;
     const text=`<textarea data-table-values data-xy-values="column" aria-label="列取值" placeholder="${parameter.type==='number'?'20,30,40 或每行一个数值':'每行一条文本，也支持 JSON 数组'}"></textarea>`;
     container.innerHTML=axisValueTabsHTML(`${valueChoicesHTML(fields,choices,false)}${fixed?`<details class="clab-xy-value-array"><summary>编辑取值数组</summary>${text}</details>`:text}<select class="clab-table-value-format" data-table-fill-format aria-label="拆分方式"><option value="auto">自动（按参数类型）</option><option value="lines">换行</option><option value="comma">逗号 / 换行</option><option value="json">JSON 数组</option></select><p>结束编辑或按 Ctrl/Cmd＋Enter 后应用；超出时补充行。排序、移除仅调整此列取值，保留任务和生成历史。</p>`)+'<p class="clab-xy-popup-error" role="status"></p>';
     const tools=document.createElement('div');tools.className='clab-table-value-tools';tools.append(container.querySelector('.clab-table-value-format'));const choicesHead=container.querySelector('.clab-value-choice-head');if(choicesHead)tools.append(choicesHead);container.querySelector('[data-xy-value-page=input]').prepend(tools);
     const input=container.querySelector('textarea'),format=container.querySelector('select'),status=container.querySelector('[role=status]');input.value=draft.text;format.value=draft.format;
     const read=()=>parseTableValues(input.value,parameter.type,format.value).map(value=>tableCellValue(column.area,value,parameters));
     const store=()=>{draft.text=input.value;draft.format=format.value;if(window.CLab?.scheduleSave)window.CLab.scheduleSave();else save();};
-    const checks=values=>checkValueChoices(container,values,fields,choices);
+    const checks=values=>{checkValueChoices(container,values,fields,choices);files?.sync();};
     const preview=()=>{
         store();try{const values=read();checks(values);tabs?.preview(values);status.textContent='';}catch{tabs?.preview(null);}
     };
@@ -55,5 +56,6 @@ export function attachTableValues(container,column,group,parameters,view,apply,s
         try{const [,option]=choice.dataset.xyChoice.split(':').map(Number);write(toggleChoiceValue(read(),fields,0,choices[0][option],choice.checked));}catch(error){status.textContent=error.message;}
     });
     container.addEventListener('click',event=>{const button=event.target.closest('[data-xy-choice-all],[data-choice-clear]');if(button)try{write(button.matches('[data-choice-clear]')?clearChoiceValues(read(),fields,0):selectAllValues(read(),fields,0));}catch(error){status.textContent=error.message;}});
+    files=attachValueFiles(container,fields,read,write,error=>status.textContent=error.message);
     tabs=attachAxisValueTabs(container,fields,()=>applied,commit,write,position);preview();
 }

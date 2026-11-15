@@ -14,7 +14,7 @@ export function restoreTableEditors(wrapper) {
 export function updateTableEditor(cell,area,parameter) {
     const body=cell.querySelector('.clab-input-body'),textarea=body?.querySelector('textarea.clab-edit-val');if(!body)return;
     if(textarea){if(!Object.hasOwn(textarea.dataset,'tableMaxHeight')){textarea.dataset.tableMaxHeight=textarea.style.getPropertyValue('max-height');textarea.dataset.tableMaxHeightPriority=textarea.style.getPropertyPriority('max-height');}textarea.style.removeProperty('max-height');}
-    const upload=body.querySelector('.clab-upload-zone'),choices=area.type==='edit'&&parameter.type!=='boolean'&&parameter.choices?.length?parameter.choices:[];
+    const upload=body.querySelector('.clab-upload-zone'),choices=!upload&&area.type==='edit'&&parameter.type!=='boolean'&&parameter.choices?.length?parameter.choices:[];
     const numeric=!!textarea&&parameter.type==='number'&&!choices.length;
     cell.classList.toggle('clab-table-has-number',numeric);cell.classList.toggle('clab-table-has-choice',choices.length>0);
     cell.classList.toggle('clab-table-text-cell',!!textarea&&!numeric&&!choices.length||cell.dataset.editor==='text');

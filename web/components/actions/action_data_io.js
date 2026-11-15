@@ -6,6 +6,7 @@ import { hasCardWindow } from '../workspace_modes/card_window.js';
  */
 import { state, appState } from "../ui_state.js";
 import { app } from "../../../../scripts/app.js";
+import { invalidateInputFiles } from '../modules/input_file_tree.js';
 
 // 【引入微创渲染引擎与静态保存】
 import { generateSingleCardHTML, attachCardEvents } from "../comp_taskcard.js"; 
@@ -26,6 +27,7 @@ export async function uploadImageToServer(file, subfolder = '') {
     if(!resp.ok) throw new Error(resp.statusText);
     const data = await resp.json();
     if (!data.name) throw new Error(data.error || '上传失败，未返回文件名');
+    invalidateInputFiles();
     return data;
 }
 

@@ -193,7 +193,10 @@ try {
     uploadArea.autoHeight = true; surgicallyUpdateArea('upload');
     assert(zone.querySelector('.clab-upload-preview').style.aspectRatio === '150 / 300', 'enabling auto height did not restore the actual ratio');
     uploadNode.widgets[0].options.values.push('third.png'); surgicallyUpdateArea('upload');
-    assert(uploadSelect.textContent.includes('third.png'), 'server file-list changes were not patched');
+    uploadSelect.click();await delay(80);
+    assert(document.querySelector('.clab-input-files [data-input-file="third.png"]'), 'updated node file options were not available in the file tree');
+    document.querySelector('.clab-input-files .clab-xy-popup-close').click();
+    uploadRoot.dispatchEvent(new CustomEvent('clab_ensure_component',{bubbles:true}));
     passed.push('upload previews and server file lists update independently without replacing the media');
     uploadArea.value = 'other.png'; surgicallyUpdateArea('upload');
     let uploadClicks = 0;
@@ -456,7 +459,7 @@ try {
             const area={id:'native-model',type:'edit',targetNodeId:String(nodeId),targetWidget:'model_file',value,showUploadPreview:true};
             const host=document.createElement('div');host.innerHTML=generateInputHTML(area,{id:'native',areas:[area]});
             assert(host.querySelector('.clab-upload-preview-toggle') && host.querySelector('.clab-upload-preview-option').textContent.includes('查看3D'),`native ${nodeId} ${value} lost the 3D switch`);
-            assert(host.querySelectorAll('.clab-custom-select-item').length===modelOptions.length,'native COMBO options were lost');
+            assert(host.querySelector('.clab-file-select[data-file-kind="model"]') && host.querySelector('.clab-upload-filename').value===value,'native model file selection was not retained by the lazy file browser');
             if(value.endsWith('.fbx')) assert(host.querySelector('.clab-glb-viewer') && !host.querySelector('img'),'FBX was not sent to the model viewer');
             if(value==='none') assert(host.textContent.includes('尚未选择文件') && !host.querySelector('.clab-glb-viewer'),'native none selection loaded a model');
             if(value.endsWith('.glb')) {

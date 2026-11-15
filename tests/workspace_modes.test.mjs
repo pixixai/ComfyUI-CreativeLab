@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import { createWorkspaceView } from '../web/components/workspace_modes/view_state.js';
 import { taskSignature, matchingTasks, cloneTask, parameterValue, taskCoordinates } from '../web/components/workspace_modes/task_model.js';
 import { adoptMatrix, synchronizeMatrix, matrixCards, matrixCells, matrixOutput, materializeMatrixRecords, changeAxisBindings, rebindMatrixAxis } from '../web/components/workspace_modes/xy_model.js';
-import { parseValues, toggleChoiceValue, validateChoiceValues } from '../web/components/workspace_modes/value_parser.js';
+import { parseValues, toggleChoiceValue, toggleChoiceValues, validateChoiceValues } from '../web/components/workspace_modes/value_parser.js';
 import { captureTaskRecords } from '../web/components/actions/task_records.js';
 import { captureCardInputSnapshot, getMediaUploadType } from '../web/components/modules/media_types/media_utils.js';
 import { createEmptyWorkspace, buildPersistedState, hydrateStateFromPersisted, state } from '../web/components/ui_state.js';
@@ -199,6 +199,19 @@ test('axis choices preserve booleans and numbers and add explicit paired rows in
     const fields=[{key:'1||steps',type:'number',value:20},{key:'1||sampler',name:'采样器',type:'string',value:'Euler',choices:['Euler','DPM']}],rows=[[20,'Euler'],[30,'Euler']];
     assert.deepEqual(toggleChoiceValue(rows,fields,1,'DPM',true),[[20,'Euler'],[30,'Euler'],[30,'DPM']]);assert.deepEqual(rows,[[20,'Euler'],[30,'Euler']]);
     assert.deepEqual(toggleChoiceValue([[20,'Euler'],[30,'DPM']],fields,1,'Euler',false),[[30,'DPM']]);assert.deepEqual(toggleChoiceValue([],fields,1,'DPM',true),[[20,'DPM']]);
+});
+
+test('file axes accept nested paths beyond native options while other tuple choices remain strict',()=>{
+    const fields=[{key:'4||image',type:'string',uploadType:'image',choices:['root.png']},{key:'1||sampler',type:'string',choices:['Euler','DPM']}];
+    const values=[['refs/deep/new.png','Euler']];assert.deepEqual(validateChoiceValues(values,fields),values);
+    assert.throws(()=>validateChoiceValues([['refs/deep/new.png','unknown']],fields),/当前选项/);
+    assert.throws(()=>validateChoiceValues(['refs/deep/new.png'],[{...fields[0],uploadType:null}]),/当前选项/);
+});
+
+test('bulk file choices append once in order, deduplicate paths and preserve paired parameters',()=>{
+    const fields=[{value:'a.png'},{value:20}],rows=[['a.png',30]],paths=Array.from({length:1000},(_,i)=>`refs/${i}.png`);
+    const next=toggleChoiceValues(rows,fields,0,[...paths,paths[0]],true);assert.equal(next.length,1001);assert.deepEqual(rows,[['a.png',30]]);assert.deepEqual(next.at(-1),['refs/999.png',30]);
+    assert.deepEqual(toggleChoiceValues(next,fields,0,paths,false),rows);assert.equal(toggleChoiceValues(next,fields,0,paths,true),next);
 });
 
 test('workflow options match widget arrays, options.values/options.options, schema choices and boolean widgets',()=>{

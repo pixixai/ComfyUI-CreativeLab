@@ -19,6 +19,22 @@ test('background grid drafts do not allocate cards or modules until a bound inpu
     const unused=addSheetColumn(sheet);materializeTable(sheet,cards);assert.equal(cards[0].areas.length,2);assert.equal(projectTableSheet(sheet,cards)[0].areas[2].tableColumnId,unused.id);
 });
 
+test('draft upload previews persist without a task and transfer into the materialized input',()=>{
+    const cards=[],view=createWorkspaceView().table,sheet=openTableSheet(cards,view),column=addSheetColumn(sheet),row=addSheetRow(sheet);
+    bind(column,'4||image','string');row.uploadPreviews={[column.id]:true};
+    const fileParameters=[{key:'4||image',type:'string',uploadType:'image',choices:['root.png']}];
+    materializeTable(sheet,cards,fileParameters);assert.equal(cards.length,0);assert.equal(projectTableSheet(sheet,cards)[0].areas[0].showUploadPreview,true);
+    writeSheetCells(sheet,cards,0,0,[['refs/a.png']],fileParameters);materializeTable(sheet,cards,fileParameters);
+    assert.equal(cards.length,1);assert.equal(cards[0].areas[0].value,'refs/a.png');assert.equal(cards[0].areas[0].showUploadPreview,true);assert.equal(row.uploadPreviews[column.id],undefined);
+    materializeTable(sheet,cards,fileParameters);assert.equal(cards[0].areas[0].showUploadPreview,true);
+});
+
+test('resetting a file column clears preview preferences on untouched draft rows',()=>{
+    const cards=[],view=createWorkspaceView().table,sheet=openTableSheet(cards,view),column=addSheetColumn(sheet),row=addSheetRow(sheet);
+    bind(column,'4||image','string');row.uploadPreviews={[column.id]:true};resetTableColumn(sheet,cards,view,column.id);
+    assert.equal(row.uploadPreviews[column.id],undefined);assert.equal(cards.length,0);
+});
+
 test('zero and false form valid tasks; invalid pre-binding input stays a draft and cannot run',()=>{
     const cards=[],view=createWorkspaceView().table,sheet=openTableSheet(cards,view),column=addSheetColumn(sheet),output=addSheetColumn(sheet);output.type='preview';output.targetNodeId='2';
     writeSheetCells(sheet,cards,0,0,[['bad']],parameters);bind(column,'1||steps');materializeTable(sheet,cards,parameters);assert.equal(cards.length,0);assert.deepEqual(sheetRunRows(sheet,cards,parameters),[]);

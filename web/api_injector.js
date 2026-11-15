@@ -274,7 +274,7 @@ export function setupAPIInjector(app) {
                 StateManager.scheduleSyncToNode(app.graph);
             }
             
-            if (area && area.matchMedia) {
+            if (area?.type === 'preview' && area.matchMedia) {
                 if (area.width !== width || area.height !== height || area.ratio !== '自定义比例') {
                     area.ratio = '自定义比例';
                     area.width = width;

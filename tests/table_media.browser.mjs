@@ -44,7 +44,7 @@ export async function runTableMediaChecks({evaluate,click,wait}) {
     try {
         await wait();await setLayout(256,144);
         assert.deepEqual(await dimensions(),[256,256,256,256]);
-        assert.equal(await evaluate(`Array.from(document.querySelectorAll('.clab-area[data-area-id^=media-]')).every(cell=>{const outer=cell.getBoundingClientRect(),header=cell.querySelector('.clab-input-header').getBoundingClientRect(),body=cell.querySelector('.clab-input-body').getBoundingClientRect();return Math.abs((header.top+body.bottom)/2-(outer.top+outer.bottom)/2)<3;})`),true,'collapsed controls are not vertically centered');
+        assert.equal(await evaluate(`Array.from(document.querySelectorAll('.clab-area[data-area-id^=media-]')).every(cell=>{const outer=cell.getBoundingClientRect(),body=cell.querySelector('.clab-input-body').getBoundingClientRect();return Math.abs((body.top+body.bottom)/2-(outer.top+outer.bottom)/2)<3;})`),true,'collapsed controls are not vertically centered');
         await setLayout(64,48);
         await evaluate(`document.querySelectorAll('.clab-area[data-area-id^=media-] .clab-upload-preview-toggle').forEach(toggle=>toggle.click())`);await wait();
         const bounds=await evaluate(`Array.from(document.querySelectorAll('.clab-area[data-area-id^=media-]')).map(cell=>{

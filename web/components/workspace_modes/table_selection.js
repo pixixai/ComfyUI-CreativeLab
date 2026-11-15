@@ -95,6 +95,7 @@ export function attachTableSelection(panel,actions) {
         pendingHeader=null;headerPress=false;ignoreClickUntil=0;
         const row=event.target.closest('[data-table-row-header]'),header=event.target.closest('.clab-table-column[data-table-column]'),cell=event.target.closest('.clab-area,.clab-table-draft-cell');
         const plain=!event.ctrlKey&&!event.metaKey&&!event.shiftKey;
+        if(plain&&cell&&event.target.closest('.clab-upload-zone,.clab-upload-preview-option')&&(state.selectedAreaIds.includes(cell.dataset.areaId)||state.selectedCardIds.includes(cell.dataset.cardId)))return;
         if(plain&&cell&&actions.editing.contains(event.target)&&actions.editing.textTarget(event.target))return;
         actions.editing.end();
         if(row){headerPress=true;const id=row.closest('[data-table-row]').dataset.tableRow;if(plain&&state.selectedCardIds.length>1&&state.selectedCardIds.includes(id))pendingHeader=()=>selectRow(id);else selectRow(id,event);return;}

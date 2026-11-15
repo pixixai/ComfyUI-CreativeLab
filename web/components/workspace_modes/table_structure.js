@@ -28,6 +28,7 @@ export function duplicateTableRow(sheet, cards, view, index) {
     const source = sheet.rows[index];
     const row = addSheetRow(sheet, index + 1);
     row.values = structuredClone(source.values);
+    if(source.uploadPreviews)row.uploadPreviews=structuredClone(source.uploadPreviews);
     if (source.title) row.title = source.title;
     const card = cards.find(item => item.id === source.cardId);
     if (card) {
@@ -55,6 +56,7 @@ export function duplicateTableColumn(sheet, cards, view, index) {
     const cardsById = new Map(cards.map(card => [card.id, card]));
     for (const row of sheet.rows) {
         if (Object.hasOwn(row.values, source.id)) row.values[id] = structuredClone(row.values[source.id]);
+        if(Object.hasOwn(row.uploadPreviews||{},source.id))row.uploadPreviews[id]=row.uploadPreviews[source.id];
         const card = cardsById.get(row.cardId);
         const area = card?.areas.find(item => item.tableColumnId === source.id);
         if (!area) continue;
@@ -74,7 +76,7 @@ export function removeTableTracks(sheet, cards, view, axis, start, count, archiv
     for (const id of ids) updateTrackLayout(view, sheet, axis, id);
     if (axis === 'column') {
         const members = new Set(sheet.rows.map(row => row.cardId));
-        for (const row of sheet.rows) for (const id of ids) delete row.values[id];
+        for (const row of sheet.rows) for (const id of ids){delete row.values[id];if(row.uploadPreviews)delete row.uploadPreviews[id];}
         for (const card of cards) {
             if (!members.has(card.id)) continue;
             card.areas = card.areas.filter(area => !ids.has(area.tableColumnId));

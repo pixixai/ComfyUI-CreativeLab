@@ -40,7 +40,7 @@ export function resetTableColumn(sheet,cards,view,id) {
     delete view.configured[id];
     delete view.drafts[id];
     const changed=[];
-    for(const row of sheet.rows){delete row.values[id];const area=cards.find(card=>card.id===row.cardId)?.areas.find(area=>area.tableColumnId===id);if(area){copyConfig(area,column);area.value='';changed.push(area.id);}}
+    for(const row of sheet.rows){delete row.values[id];if(row.uploadPreviews)delete row.uploadPreviews[id];const area=cards.find(card=>card.id===row.cardId)?.areas.find(area=>area.tableColumnId===id);if(area){copyConfig(area,column);area.value='';changed.push(area.id);}}
     return changed;
 }
 
@@ -83,7 +83,7 @@ export function projectTableSheet(sheet,cards) {
     const actual=new Map(cards.map(card=>[card.id,card]));
     return sheet.rows.map(row=>{
         const card=actual.get(row.cardId),areas=new Map((card?.areas||[]).map(area=>[area.tableColumnId,area]));
-        return {id:row.id,title:(card ? card.title : row.title)||'',sheetRow:row,areas:sheet.columns.map(column=>areas.get(column.id)||{...column,id:draftAreaId(row,column),value:row.values[column.id]??'',tableColumnId:column.id})};
+        return {id:row.id,title:(card ? card.title : row.title)||'',sheetRow:row,areas:sheet.columns.map(column=>areas.get(column.id)||{...column,id:draftAreaId(row,column),value:row.values[column.id]??'',tableColumnId:column.id,showUploadPreview:row.uploadPreviews?.[column.id]===true})};
     });
 }
 
@@ -105,6 +105,7 @@ export function materializeTable(sheet,cards,parameters=[]) {
             let area=card.areas.find(area=>area.tableColumnId===column.id);
             if(!area&&boundColumn(column)&&valid){
                 area={id:draftAreaId(entry,column),tableColumnId:column.id,autoHeight:true,matchMedia:true,ratio:'16:9',fillMode:'显示全部',value:entry.values[column.id]??''};card.areas.push(area);changed.push(area.id);
+                if(Object.hasOwn(entry.uploadPreviews||{},column.id)){area.showUploadPreview=entry.uploadPreviews[column.id];delete entry.uploadPreviews[column.id];}
             }
             if(!area)continue;
             if(JSON.stringify(config(area))!==JSON.stringify(config(column)))changed.push(area.id);

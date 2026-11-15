@@ -1,4 +1,6 @@
 import { measureInputText } from './input_measure.js';
+import { fileSelectHTML,attachFilePickers } from './input_file_picker.js';
+import { requestInputFileAction } from './input_file_actions.js';
 ﻿/**
  * 文件: module_input.js
  * 职责: 渲染并处理输入模块 UI（文本、布尔、下拉、媒体上传等）。
@@ -15,6 +17,16 @@ import { attachMediaEvents } from "./module_media.js";
 import { onModuleRemoved } from "./module_lifecycle.js";
 import { getMediaType, isModelFile, getMediaUploadType } from './media_types/media_utils.js';
 import { renderModelViewer } from './media_types/media_model.js';
+
+const inputContexts=new WeakMap();
+const pendingUploads=new WeakMap();
+const inputRoot=element=>element.closest('.clab-area,.clab-table-draft-cell');
+function inputArea(element){
+    const root=inputRoot(element);if(!root?.isConnected)return null;
+    const draft=inputContexts.get(root);
+    if(draft)return draft.workspaceId===state.activeWorkspaceId?draft.area:null;
+    return state.cards.find(card=>card.id===root.dataset.cardId)?.areas.find(area=>area.id===root.dataset.areaId);
+}
 
 export function generateInputHTML(area, card) {
     const isAreaSelected = state.selectedAreaIds.includes(area.id);
@@ -126,11 +138,7 @@ export function generateInputHTML(area, card) {
         } else if (previewEnabled) previewHtml = '<span class="clab-upload-empty">尚未选择文件</span>';
         const previewStyle = previewType === 'image' || previewType === 'video' ? 'aspect-ratio:16/9;' : previewType === 'model' ? 'height:200px;' : '';
         const clearDisabled = area.value ? '' : 'disabled';
-        let fileSelect;
-        if (comboValues.length) {
-            const items = comboValues.map(value => `<div class="clab-custom-select-item ${area.value === value ? 'selected' : ''}" data-value="${escapeHtml(value)}">${escapeHtml(value)}</div>`).join('');
-            fileSelect = buildCustomSelect(`area-select-${area.id}`, '100%', area.value || '选择服务器已有文件…', items, false, `data-card-id="${card.id}" data-area-id="${area.id}" data-type="module-combo"`);
-        } else fileSelect = `<input class="clab-upload-filename" type="text" readonly value="${escapeHtml(area.value || '')}" placeholder="尚未选择文件" title="${escapeHtml(area.value || '')}" aria-label="已选择的文件">`;
+        const fileSelect = fileSelectHTML(area,card,uploadType);
         inputHtml = `<div class="clab-upload-zone ${area.value ? 'has-file' : ''}" data-card="${card.id}" data-area="${area.id}" data-upload-type="${uploadType}" data-auto-ratio="${autoRatio ? '1' : '0'}">
             <input type="file" class="clab-file-input" data-upload-type="${uploadType}" accept="${accept}" style="display:none;">
             <div class="clab-upload-preview" style="${previewStyle}" ${previewEnabled ? '' : 'hidden'}>${previewHtml}</div>
@@ -218,7 +226,7 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
     areaEl.dataset.cardId = card.id;
     areaEl.dataset.areaId = area.id;
     areaEl.className = nextAreaEl.className;
-    areaEl.style.cssText = nextAreaEl.style.cssText;
+    if(!areaEl.closest('[data-workspace-mode="table"]'))areaEl.style.cssText = nextAreaEl.style.cssText;
 
     const deleteBtn = areaEl.querySelector(".clab-del-area-btn");
     const nextDeleteBtn = nextAreaEl.querySelector(".clab-del-area-btn");
@@ -294,6 +302,8 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
 
         const preview = zone.querySelector('.clab-upload-preview');
         const nextPreview = nextZone.querySelector('.clab-upload-preview');
+        const previewToggle=preview.querySelector(':scope>.clab-upload-preview-option');
+        if(previewToggle)previewToggle.remove();
         const media = preview.querySelector('.clab-media-target');
         const nextMedia = nextPreview.querySelector('.clab-media-target');
         const sameMedia = media && nextMedia && media.tagName === nextMedia.tagName && media.getAttribute('src') === nextMedia.getAttribute('src');
@@ -302,6 +312,7 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
         const sameModel = model && nextModel && model.dataset.modelUrl === nextModel.dataset.modelUrl;
         const contentChanged = !sameMedia && !sameModel && preview.innerHTML !== nextPreview.innerHTML;
         if (contentChanged) preview.innerHTML = nextPreview.innerHTML;
+        if(previewToggle)(nextPreview.hidden?zone.querySelector('.clab-upload-file-row'):preview).prepend(previewToggle);
         preview.hidden = nextPreview.hidden;
         preview.style.cssText = nextPreview.style.cssText;
 
@@ -326,7 +337,9 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
         }
         const filename = zone.querySelector('.clab-upload-filename');
         const nextFilename = nextZone.querySelector('.clab-upload-filename');
-        if (filename && nextFilename) { filename.value = nextFilename.value; filename.title = nextFilename.title; }
+        if (filename && nextFilename) { if(document.activeElement!==filename)filename.value = nextFilename.value; filename.title = nextFilename.title; }
+        const fileSelect = zone.querySelector('.clab-file-select');
+        if (fileSelect) fileSelect.dataset.fileKind = nextZone.dataset.uploadType;
 
         const fileInput = zone.querySelector(".clab-file-input");
         const nextFileInput = nextZone.querySelector(".clab-file-input");
@@ -383,9 +396,13 @@ export function refreshInputAreaInPlace(areaEl, area, card) {
     return false;
 }
 
-export function attachInputEvents(container) {
+export function attachInputEvents(container,context) {
+    if(context)inputContexts.set(container,{...context,workspaceId:state.activeWorkspaceId});
+    attachFilePickers(container,context);
     attachModuleBindingEvents(container);
-    const applySurgicalUpdate = (areaId) => {
+    const applySurgicalUpdate = (areaId,element=container) => {
+        const draft=inputContexts.get(inputRoot(element));
+        if(draft){if(draft.workspaceId===state.activeWorkspaceId)draft.update();return;}
         if (window._clabSurgicallyUpdateArea) {
             window._clabSurgicallyUpdateArea(areaId);
             if (window._clabJustSave) window._clabJustSave();
@@ -397,9 +414,10 @@ export function attachInputEvents(container) {
     attachMediaEvents(container);
     container.querySelectorAll('.clab-upload-preview-toggle').forEach(input => {
         input.onchange = () => {
-            const root = input.closest('.clab-area');
-            const area = state.cards.find(card => card.id === root.dataset.cardId)?.areas.find(area => area.id === root.dataset.areaId);
-            if (area) { area.showUploadPreview = input.checked; applySurgicalUpdate(area.id); }
+            const scope=requestInputFileAction(input,'preview');
+            if(scope){scope.apply(input.checked);return;}
+            const area = inputArea(input);
+            if (area) { area.showUploadPreview = input.checked; applySurgicalUpdate(area.id,input); }
         };
     });
 
@@ -479,28 +497,29 @@ export function attachInputEvents(container) {
         zone._clabUploadType = uploadType;
 
 
-        const areaEl = zone.closest('.clab-area');
+        const areaEl = inputRoot(zone);
         const uploadBtn = areaEl ? areaEl.querySelector('.clab-upload-trigger-btn') : null;
         if (uploadBtn) {
             uploadBtn.dataset.clabEventsBound = "1";
             uploadBtn.onclick = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                pendingUploads.set(zone,requestInputFileAction(zone,'file'));
                 fileInput.click();
             };
         }
 
 
         const clearFileValue = () => {
-            const cardId = zone.dataset.card;
+            const scope=requestInputFileAction(zone,'clear');
+            if(scope){scope.apply('');return;}
             const areaId = zone.dataset.area;
-            const card = state.cards.find(c => c.id === cardId);
-            const area = card?.areas.find(a => a.id === areaId);
+            const area = inputArea(zone);
             if (!area) return;
             area.value = '';
             state.selectedAreaIds = [areaId];
             state.selectedCardIds = [];
-            applySurgicalUpdate(areaId);
+            applySurgicalUpdate(areaId,zone);
         };
 
         const clearMediaBtn = areaEl ? areaEl.querySelector('.clab-upload-clear-btn') : null;
@@ -517,6 +536,7 @@ export function attachInputEvents(container) {
 
         const handleUpload = async (file) => {
             if(!file) return;
+            const scope=pendingUploads.get(zone)||requestInputFileAction(zone,'file');pendingUploads.delete(zone);
             if (!isUploadTypeMatch(file, uploadType === 'model' ? 'file' : uploadType)) {
                 if (uploadType === 'image') alert('Only image files are supported.');
                 else if (uploadType === 'video') alert('Only video files are supported.');
@@ -524,7 +544,6 @@ export function attachInputEvents(container) {
                 return;
             }
 
-            const cardId = zone.dataset.card;
             const areaId = zone.dataset.area;
             
             zone.style.pointerEvents = 'none';
@@ -543,18 +562,18 @@ export function attachInputEvents(container) {
             try {
                 const data = await uploadImageToServer(file, uploadType === 'model' ? '3d' : '');
                 if (data.name) {
-                    const card = state.cards.find(c => c.id === cardId);
-                    const area = card?.areas.find(a => a.id === areaId);
+                    if(scope){scope.apply(data.subfolder?data.subfolder+'/'+data.name:data.name);return;}
+                    const area = inputArea(zone);
                     if (area) {
                         area.value = data.subfolder ? data.subfolder + '/' + data.name : data.name;
                         state.selectedAreaIds = [areaId];
                         state.selectedCardIds = [];
-                        applySurgicalUpdate(areaId);
+                        applySurgicalUpdate(areaId,zone);
                     }
                 }
             } catch(err) {
                 alert('本地文件上传失败: ' + err.message);
-                applySurgicalUpdate(areaId);
+                applySurgicalUpdate(areaId,zone);
             } finally {
                 zone.style.pointerEvents = '';
                 zone.querySelector('.clab-upload-status')?.remove();
@@ -572,6 +591,7 @@ export function attachInputEvents(container) {
             handleUpload(file);
             e.target.value = ''; 
         };
+        fileInput.oncancel=()=>pendingUploads.delete(zone);
 
         zone.ondragover = (e) => {
             if(e.dataTransfer.types.includes('Files')) {

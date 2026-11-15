@@ -114,24 +114,24 @@ export const tableStyles=`
     .clab-table-ratio-control input[type=range]::-moz-range-thumb{width:10px;height:10px;border:0;border-radius:50%;background:#ccc}
     .clab-table-appearance{flex-wrap:wrap}.clab-table-setting-line input[data-table-padding]{width:110px}.clab-table-column-panel [data-table-settings-error]:empty{display:none}
     .clab-table-values-editor{display:flex;flex-direction:column;gap:8px;min-height:0}.clab-table-values-editor .clab-xy-popup-error:empty{display:none}.clab-table-value-format{min-width:0;background:#202020;color:#bbb;border:1px solid #444;border-radius:3px;padding:3px 5px;font:12px sans-serif}
-    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] .clab-area:has(.clab-upload-zone){justify-content:center;padding:var(--clab-table-media-padding,0)!important}
-    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] .clab-area:has(.clab-upload-zone) > :is(.clab-input-header,.clab-input-body){
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] :is(.clab-area,.clab-table-draft-cell):has(.clab-upload-zone){justify-content:center;padding:var(--clab-table-media-padding,0)!important}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] :is(.clab-area,.clab-table-draft-cell):has(.clab-upload-zone) > :is(.clab-input-header,.clab-input-body){
         zoom:var(--clab-table-media-zoom,1);
         box-sizing:border-box;
         min-width:0;
         overflow:hidden;
     }
-    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] .clab-area:has(.clab-upload-zone) > .clab-input-header{
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] :is(.clab-area,.clab-table-draft-cell):has(.clab-upload-zone) > .clab-input-header{
         flex:none;
         justify-content:center!important;
         padding:0!important;
     }
-    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] .clab-area:has(.clab-upload-zone) > .clab-input-body{
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] :is(.clab-area,.clab-table-draft-cell):has(.clab-upload-zone) > .clab-input-body{
         align-items:stretch;
         justify-content:center;
         padding:0!important;
     }
-    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] .clab-area:has(.clab-upload-preview[hidden]) > .clab-input-body{flex:none}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] :is(.clab-area,.clab-table-draft-cell):has(.clab-upload-preview[hidden]) > .clab-input-body{flex:none}
     :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] .clab-upload-zone{
         display:flex;
         flex-direction:column;
@@ -146,5 +146,13 @@ export const tableStyles=`
         aspect-ratio:auto!important;
         margin-bottom:4px;
     }
-    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] .clab-upload-file-row{flex:none}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] .clab-upload-preview>.clab-upload-preview-option{position:absolute;top:4px;right:4px;z-index:12;margin:0;background:#191919b3;border-radius:2px}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] .clab-upload-preview>.clab-upload-empty{min-height:0;height:100%;overflow:hidden}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] .clab-upload-preview .clab-audio-wave{flex:1 1 0;min-height:0;height:auto}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] .clab-upload-file-row{display:grid;grid-template-columns:1fr 24px 24px 1fr;grid-template-rows:16px 28px 24px;grid-template-areas:"toggle toggle toggle toggle" "file file file file" ". upload clear .";gap:4px 8px;flex:none}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] .clab-upload-file-row:not(:has(.clab-upload-preview-option)){grid-template-rows:28px 24px;grid-template-areas:"file file file file" ". upload clear ."}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] .clab-upload-file-row>.clab-upload-preview-option{grid-area:toggle;justify-self:end;margin:0}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] .clab-upload-file-row>.clab-upload-select{grid-area:file;width:100%}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] .clab-upload-trigger-btn{grid-area:upload;justify-self:center}
+    :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] .clab-upload-clear-btn{grid-area:clear;justify-self:center}
 `;

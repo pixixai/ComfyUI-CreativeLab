@@ -1,4 +1,5 @@
 from aiohttp import web
+import asyncio
 import os
 import folder_paths
 import server
@@ -11,6 +12,7 @@ import sys
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from urllib.parse import parse_qs, urlparse
+from .input_files import list_input_directory
 
 try:
     from comfy.cli_args import args
@@ -64,6 +66,17 @@ nodes.NODE_DISPLAY_NAME_MAPPINGS["CLab_SaveImage"] = "💾 CLab Save Image"
 # =========================================================================
 # 2. 注册 CLab 的专属操作接口 (删除 & 整理)
 # =========================================================================
+@server.PromptServer.instance.routes.get("/clab/input_files")
+async def clab_input_files(request):
+    try:
+        result = await asyncio.to_thread(list_input_directory, folder_paths.get_input_directory(), request.query.get("directory", ""), request.query.get("kind", "file"))
+        return web.json_response(result)
+    except ValueError:
+        return web.json_response({"error": "目录或文件类型无效"}, status=400)
+    except OSError:
+        return web.json_response({"error": "目录不存在或无法读取"}, status=404)
+
+
 @server.PromptServer.instance.routes.post("/clab/delete_file")
 async def clab_delete_file(request):
     try:

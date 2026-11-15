@@ -47,11 +47,14 @@ export function applyTableLayout(wrapper,columns,view) {
 
 export function fitTableMedia(cell,width,height) {
     const zone=cell.querySelector('.clab-upload-zone');if(!zone)return;
+    const controls=zone.querySelector('.clab-upload-file-row'),toggle=cell.querySelector('.clab-upload-preview-option');
     const preview=zone.querySelector('.clab-upload-preview:not([hidden])');
+    const destination=preview||controls;if(toggle&&destination&&toggle.parentElement!==destination)destination.prepend(toggle);
     const [top,right,bottom,left]=(cell.style.getPropertyValue('--clab-table-padding').match(/\d+(?:\.\d+)?/g)||[0,0,0,0]).map(Number);
     const horizontal=Math.min(1,width/(2*(left+right))),vertical=Math.min(1,height/(2*(top+bottom)));
     cell.style.setProperty('--clab-table-media-padding',`${top*vertical}px ${right*horizontal}px ${bottom*vertical}px ${left*horizontal}px`);
-    const zoom=Math.min(1,(width-(left+right)*horizontal-2)/236,(height-(top+bottom)*vertical-2)/(preview?204:48));
+    const controlHeight=80;
+    const zoom=Math.min(1,(width-(left+right)*horizontal-2)/236,(height-(top+bottom)*vertical-2)/controlHeight);
     if(zoom>0)cell.style.setProperty('--clab-table-media-zoom',zoom);
 }
 

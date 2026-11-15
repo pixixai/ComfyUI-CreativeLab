@@ -69,18 +69,25 @@ export function formatAxisOrder(values,types,source) {
 }
 
 export function toggleChoiceValue(values,parameters,index,choice,checked) {
-    const tuple=value=>parameters.length===1?[value]:value;
-    if(!checked)return values.filter(value=>JSON.stringify(tuple(value)[index])!==JSON.stringify(choice));
-    if(values.some(value=>JSON.stringify(tuple(value)[index])===JSON.stringify(choice)))return values;
-    if(parameters.length===1)return [...values,choice];
-    const next=values.length?[...values.at(-1)]:parameters.map(parameter=>parameter.value??parameter.choices?.[0]??(parameter.type==='number'?0:parameter.type==='boolean'?false:''));
-    next[index]=choice;return [...values,next];
+    return toggleChoiceValues(values,parameters,index,[choice],checked);
+}
+
+export function toggleChoiceValues(values,parameters,index,choices,checked) {
+    const key=value=>JSON.stringify(parameters.length===1?value:value[index]),wanted=new Set(choices.map(value=>JSON.stringify(value)));
+    if(!checked)return values.filter(value=>!wanted.has(key(value)));
+    const existing=new Set(values.map(key)),next=[...values];
+    for(const choice of choices){
+        const signature=JSON.stringify(choice);if(existing.has(signature))continue;existing.add(signature);
+        if(parameters.length===1)next.push(choice);
+        else{const row=next.length?[...next.at(-1)]:parameters.map(parameter=>parameter.value??parameter.choices?.[0]??(parameter.type==='number'?0:parameter.type==='boolean'?false:''));row[index]=choice;next.push(row);}
+    }
+    return next.length===values.length?values:next;
 }
 
 export function validateChoiceValues(values,parameters) {
     for(const value of values){
         const tuple=parameters.length===1?[value]:value;
-        parameters.forEach((parameter,index)=>{if(parameter.choices?.length&&!parameter.choices.some(choice=>JSON.stringify(choice)===JSON.stringify(tuple[index])))throw new Error(`“${tuple[index]}”不在 ${parameter.name||parameter.key} 的当前选项中。`);});
+        parameters.forEach((parameter,index)=>{if(!parameter.uploadType&&parameter.choices?.length&&!parameter.choices.some(choice=>JSON.stringify(choice)===JSON.stringify(tuple[index])))throw new Error(`“${tuple[index]}”不在 ${parameter.name||parameter.key} 的当前选项中。`);});
     }
     return values;
 }

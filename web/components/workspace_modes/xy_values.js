@@ -6,6 +6,7 @@ import { workflowParameters } from './parameters.js';
 import { axisLabelControlsHTML, attachAxisLabelControls } from './axis_label_controls.js';
 import { state } from '../ui_state.js';
 import { availableValueChoices, valueChoicesHTML, checkValueChoices, selectAllValues, clearChoiceValues } from './value_choices.js';
+import { attachValueFiles } from './value_files.js';
 
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const unique=values=>[...new Map(values.map(value=>[JSON.stringify(value),value])).values()];
@@ -14,7 +15,7 @@ export function openXYValues(container,name,getXY,commit,bind,trigger,previewLab
     const axis=getXY()[name],parameters=workflowParameters();
     const fields=axis.bindings.map(key=>parameters.find(parameter=>parameter.key===key)||{key,label:`绑定已失效 · ${key}`,type:'string',choices:[]});
     const choices=availableValueChoices(fields,axis.values),groups=valueChoicesHTML(fields,choices);
-    const singleChoice=fields.length===1&&choices[0].length>0,types=fields.map(field=>field.type);
+    const singleChoice=fields.length===1&&(choices[0].length>0||!!fields[0].uploadType),types=fields.map(field=>field.type);
     const hint=fields.length===1?singleChoice?'点击名称或复选框添加、移除取值。':types[0]==='string'?'每个非空行作为一条文本，逗号保留；也支持 JSON 数组。单条文本包含换行时请使用 JSON。':'支持逗号、换行或 JSON 数组，可混用逗号和换行。':`组合顺序：${fields.map(field=>field.displayName||field.name).join(' × ')}。每行一组，参数用逗号分隔，或填写 JSON 二维数组；文本含逗号、换行时请使用 JSON。勾选选项新增一组，其余参数沿用最后一组或工作流值。`;
     const placeholder=fields.length>1?'[[512,768],[768,1024]]':types[0]==='string'?'每行一条文本，或 ["森林, 小屋","城市, 雨夜"]':'20,30,40 或每行一个数值';
     const text=`<textarea data-xy-values="${name}" aria-label="${name.toUpperCase()} 轴取值" placeholder="${esc(placeholder)}">${esc(singleChoice?JSON.stringify(axis.values):axisInputText(axis,types))}</textarea>`;
@@ -30,9 +31,10 @@ export function openXYValues(container,name,getXY,commit,bind,trigger,previewLab
     const checks=()=>{
         if(!textarea)return;
         checkValueChoices(panel.popup,read(),fields,choices);
+        files?.sync();
     };
     const clearSelection=()=>{state.selectedCardIds=[];state.selectedAreaIds=[];state.activeCardId=null;};
-    let tabs;
+    let tabs,files;
     const apply=(fit=true)=>{
         if(!textarea)return true;
         try{
@@ -64,6 +66,7 @@ export function openXYValues(container,name,getXY,commit,bind,trigger,previewLab
     textarea?.addEventListener('input',()=>{try{checks();tabs.preview(unique(validateChoiceValues(read(),fields)));}catch{tabs.preview(null);}});
     textarea?.addEventListener('keydown',event=>{if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();apply();}});
     const binding=panel.popup.querySelector('[data-xy-bind-axis]');if(binding)binding.onclick=()=>bind(name);
+    files=attachValueFiles(panel.popup,fields,read,values=>{textarea.value=JSON.stringify(values);apply();checks();},problem=>error.textContent=problem.message);
     tabs=attachAxisValueTabs(panel.popup,fields,()=>getXY()[name].values,()=>apply(),values=>{const previous=textarea.value;textarea.value=formatAxisOrder(values,types,previous);if(!apply(false))textarea.value=previous;checks();},panel.position);
     attachAxisLabelControls(panel.popup,name,getXY,previewLabels,commitLabels);
     checks();try{validateChoiceValues(axis.values,fields);}catch(problem){error.textContent=problem.message;}

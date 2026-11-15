@@ -1,11 +1,11 @@
 let active;
 export function closeXYPopover(){active?.close();}
-export function openXYPopover(getAnchor,title,body,className='',side='',boundary,point) {
+export function openXYPopover(getAnchor,title,body,className='',side='',boundary,point,onClose) {
     active?.close();
     const popup=document.createElement('div');popup.className=`clab-module-binding-popover ${className}`;popup.setAttribute('popover','auto');popup.setAttribute('role','dialog');popup.setAttribute('aria-label',title);
     popup.innerHTML=`<div class="clab-binding-panel-head"><span></span><button class="clab-xy-popup-close" title="关闭">×</button></div>${body}`;popup.querySelector('.clab-binding-panel-head>span').textContent=title;document.body.append(popup);
     const controller=new AbortController();let frame;
-    const close=()=>{controller.abort();cancelAnimationFrame(frame);getAnchor()?.setAttribute('aria-expanded','false');popup.remove();if(active?.popup===popup)active=null;};
+    const close=()=>{if(controller.signal.aborted)return;controller.abort();cancelAnimationFrame(frame);getAnchor()?.setAttribute('aria-expanded','false');popup.remove();if(active?.popup===popup)active=null;onClose?.();};
     const position=()=>{
         const anchor=getAnchor();if(!anchor?.isConnected){close();return;}
         anchor.setAttribute('aria-expanded','true');const r=anchor.getBoundingClientRect(),w=document.documentElement.clientWidth,h=document.documentElement.clientHeight,b=boundary?.getBoundingClientRect();
@@ -37,7 +37,7 @@ export function openXYPopover(getAnchor,title,body,className='',side='',boundary
     window.addEventListener('resize',schedule,{signal:controller.signal});document.addEventListener('scroll',schedule,{capture:true,signal:controller.signal});
     const observer=new ResizeObserver(schedule);observer.observe(popup);if(boundary)observer.observe(boundary);controller.signal.addEventListener('abort',()=>observer.disconnect(),{once:true});
     const anchor=getAnchor();
-    if(anchor?.closest('.clab-tool-dock'))popup.showPopover({source:anchor});
+    if(anchor?.closest('.clab-tool-dock')||anchor?.matches('.clab-file-select'))popup.showPopover({source:anchor});
     else popup.showPopover();
     position();active={popup,close,position};return active;
 }
