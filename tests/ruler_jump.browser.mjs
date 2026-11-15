@@ -17,7 +17,7 @@ export async function runRulerJumpChecks(send,sessionId){
     try{
         const result=await evaluate('rj.jump(49)');console.log('PROGRESSIVE ruler jump 1→50 '+JSON.stringify(result));assert.equal(result.timeout,undefined);
         assert.equal(result.immediate,false);assert.ok(result.handlerMs<50);assert.ok(result.positions.length>3);assert.ok(result.positions.some(left=>left>0&&left<result.positions.at(-1)));
-        assert.equal(result.preparedWhileMoving,false);assert.ok(result.positions[0]>0&&result.positions[0]<340);assert.ok(result.stages.includes('out')&&result.stages.includes('arrival'));assert.equal(result.positions.filter((left,i)=>i&&Math.abs(left-result.positions[i-1])>1000).length,1);assert.ok(result.largest<=35);assert.ok(result.count<20);
+        assert.equal(result.preparedWhileMoving,true);assert.ok(result.positions[0]>0&&result.positions[0]<340);assert.ok(result.stages.includes('out')&&result.stages.includes('arrival'));assert.equal(result.positions.filter((left,i)=>i&&Math.abs(left-result.positions[i-1])>1000).length,1);assert.ok(result.largest<=35);assert.ok(result.count<20);
         const nearby=await evaluate('rj.jump(50)');assert.ok(nearby.stages.includes('near')&&!nearby.stages.includes('out'));assert.ok(nearby.positions.every((left,i)=>!i||Math.abs(left-nearby.positions[i-1])<340));
         const repeat=await evaluate('rj.jump(0)');assert.equal(repeat.timeout,undefined);assert.ok(repeat.count<20);
         await evaluate(`rj.button(70).click()`);await wait(65);await evaluate(`rj.button(10).click()`);await wait(700);
@@ -27,7 +27,7 @@ export async function runRulerJumpChecks(send,sessionId){
         await evaluate(`rj.button(90).click()`);await wait(50);
         await evaluate(`rj.ui.state.cards.splice(90,1);rj.editHistory.withoutRecording(()=>document.dispatchEvent(new Event('clab_render_ui')));`);await wait(150);
         assert.equal(await evaluate(`!rj.container.hasAttribute('data-clab-card-jump')&&!rj.wrapper().querySelector('[data-card-id="rj-card-90"]')`),true);
-        console.log('PASS ruler motion starts without synchronous content creation, keeps controls out of animation frames and skips the distant middle section and cancels obsolete destinations or wheel-interrupted jumps');
+        console.log('PASS ruler motion starts before content work, prepares destination controls during animation, skips the distant middle and cancels obsolete or wheel-interrupted jumps');
     }finally{await evaluate(`(()=>{rj.editHistory.withoutRecording(()=>{rj.ui.state.workspaces=rj.workspaces;rj.ui.applyWorkspaceToState(rj.original);window.testApp.graph._nodes=window.testApp.graph._nodes.filter(node=>node!==rj.node);document.dispatchEvent(new Event('clab_render_ui'));});})()`);}
     return 1;
 }

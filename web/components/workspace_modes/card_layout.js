@@ -17,8 +17,8 @@ function layoutMedia(root,area){
     return area.autoHeight!==false&&area.showUploadPreview?root.querySelector('.clab-upload-preview img,.clab-upload-preview video'):null;
 }
 export function applyCardMediaSize(root,area,cache){
-    const image=layoutMedia(root,area),saved=cache.get(area);if(!image||!saved)return;
-    const url=image.getAttribute('data-clab-layout-src')||image.getAttribute('src');if(saved.url!==url)return;
+    const image=layoutMedia(root,area);if(!image)return;
+    const url=image.getAttribute('data-clab-layout-src')||image.getAttribute('src'),cached=cache.get(area),saved=cached?.url===url?cached:area.mediaSize;if(saved?.url!==url)return;
     const box=image.closest('.clab-preview-bg,.clab-upload-preview');if(!box)return;
     box.style.aspectRatio=`${saved.width} / ${saved.height}`;if(box.classList.contains('clab-upload-preview'))box.style.height='auto';
 }

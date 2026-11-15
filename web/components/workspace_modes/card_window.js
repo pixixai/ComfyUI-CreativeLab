@@ -50,13 +50,18 @@ export function cardWindow(container) {
             const roots=new Map([...wrapper.querySelectorAll(':scope>.clab-card')].map(root=>[root.dataset.cardId,root]));
             const wanted=new Set(state.cards.slice(range.start,range.end).map(card=>card.id));
             const target=navigation.destination,preload=new Set();
-            if(target){const destination=cardWindowRange(state.cards.length,target.left,container.clientWidth,size,gap,workspacePreferences.cardBuffer);for(const card of state.cards.slice(destination.start,destination.end)){wanted.add(card.id);preload.add(card.id);}}
+            if(target){
+                const destination=cardWindowRange(state.cards.length,target.left,container.clientWidth,size,gap,workspacePreferences.cardBuffer);
+                for(const card of state.cards.slice(destination.start,destination.end))wanted.add(card.id);
+                const visible=cardWindowRange(state.cards.length,target.left,container.clientWidth,size,gap,0);
+                for(const card of state.cards.slice(visible.start,visible.end))preload.add(card.id);
+            }
             for(const [id,root]of roots)if(indices.has(id)&&pinned(root))wanted.add(id);
             wrapper.style.width=range.total?`${range.total}px`:'100%';wrapper.style.flex=range.total?'none':'1';wrapper.style.margin=range.total<container.clientWidth-40?'0 auto':'0';
             const areas=new Map([...wrapper.querySelectorAll('.clab-area')].map(root=>[root.dataset.areaId,root])),created=[],selectedAreas=new Set(state.selectedAreaIds);
             for(const id of wanted){
                 const index=indices.get(id),card=state.cards[index];let root=roots.get(id);
-                const shell=!!target;
+                const shell=!!target&&!preload.has(id);
                 if(!root){root=pool.take(card);if(!root){const temp=document.createElement('div');temp.innerHTML=generateSingleCardHTML(card,index,{defer:!!target||container.hasAttribute('data-clab-progressive'),shell});root=temp.firstElementChild;}created.push([root,card]);moveModuleDOM(wrapper,root);roots.set(id,root);}
                 root.style.left=`${index*range.stride}px`;
                 const selected=state.selectedCardIds.includes(id);root.classList.toggle('selected',selected);root.classList.toggle('active',selected);
@@ -77,8 +82,8 @@ export function cardWindow(container) {
             }
             for(const [id,root]of roots)if(!wanted.has(id)){if(target){if(root.hasAttribute('data-clab-card-shell'))root.remove();}else forget(root);}
             if(created.length){attachCardEvents(wrapper);for(const [root]of created)attachAreaEvents(root);}
+            viewport.update('cards',{preload,focusCardId:target?.cardId,targetLeft:target?.left});
             if(target)return;
-            viewport.update('cards',{preload,focusCardId:target?.cardId});
             const running=new Map((window.CLab?.getRunningCardProgress?.(owner.id)||[]).map(task=>[task.cardId,task.progress]));
             for(const [root,card]of created){root.querySelector('.clab-card-body').scrollTop=scrolls.get(card)||0;const progress=running.get(card.id);if(progress!==undefined){const bar=root.querySelector('.clab-card-progress-container');bar.style.opacity='1';bar.firstElementChild.style.width=`${progress}%`;}}
             wrapper.dataset.cardWindowStart=range.start;wrapper.dataset.cardWindowEnd=range.end;

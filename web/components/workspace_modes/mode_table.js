@@ -65,6 +65,7 @@ export function createTableController(container,getView,save) {
         const parameters=workflowParameters();
         workspaceViewport(container).update('table',{cards:rows,count:rows.length*columns.length,
             mount(cell,card,area){if(!cell.classList.contains('clab-table-draft-cell'))return false;renderDraftValue(cell,area,tableParameter(columns[Number(cell.dataset.tableIndex)].area,parameters));return true;},
+            prepared(cell){fitTableMedia(cell,tableColumnWidth(columns[Number(cell.dataset.tableIndex)],layoutView()),tableRowHeight(layoutView(),{id:cell.dataset.cardId}));},
             mounted(cell,card,area){cell.dataset.clabTableMediaReady='';if(cell.classList.contains('clab-area'))updateTableEditor(cell,area,tableParameter(area,parameters));fitTableMedia(cell,tableColumnWidth(columns[Number(cell.dataset.tableIndex)],layoutView()),tableRowHeight(layoutView(),{id:cell.dataset.cardId}));editing.syncCell(cell);}
         });
     };

@@ -5,6 +5,7 @@ export function injectWorkspaceModeStyles() {
     if(document.getElementById('clab-workspace-mode-styles'))return;
     const style=document.createElement('style');style.id='clab-workspace-mode-styles';style.textContent=`
         #clab-panel [hidden]{display:none!important}
+        #clab-panel :is(.clab-area,.clab-table-draft-cell)[data-clab-presenting],#clab-panel [data-clab-presenting] *{visibility:hidden!important}
         .clab-cards-wrapper[data-clab-virtualized=cards] .clab-area:is([data-clab-virtual],[data-clab-deferred]){box-sizing:border-box;height:var(--clab-virtual-height,148px);min-height:var(--clab-virtual-height,148px);flex-shrink:0}
         .clab-cards-wrapper[data-clab-virtualized=cards] .clab-card-body{overflow-anchor:none}
         .clab-cards-wrapper[data-clab-virtualized=xy] .clab-output-area:is([data-clab-virtual],[data-clab-deferred]){height:var(--xy-media-height,320px);min-height:0}

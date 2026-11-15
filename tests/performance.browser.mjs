@@ -26,6 +26,7 @@ import { runXYArchiveChecks } from './xy_archive.browser.mjs';
 import { runContentPerformanceChecks } from './content_performance.browser.mjs';
 import { runRulerJumpChecks } from './ruler_jump.browser.mjs';
 import { runProgressiveChecks } from './progressive.browser.mjs';
+import { runPresentationChecks } from './presentation.browser.mjs';
 import { runCardCacheChecks } from './card_cache.browser.mjs';
 import { runWorkspaceFollowChecks } from './workspace_follow.browser.mjs';
 import { runCardWindowChecks } from './card_window.browser.mjs';
@@ -202,6 +203,13 @@ try {
         await runXYArchiveChecks(send,sessionId);
     }else if(process.env.CLAB_BROWSER_SUITE==='card-cache'){
         await runCardCacheChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='presentation'){
+        await runPresentationChecks(send,sessionId);
+        await runRulerJumpChecks(send,sessionId);
+        await runProgressiveChecks(send,sessionId);
+        await runCardCacheChecks(send,sessionId);
+        await runViewportChecks(send,sessionId);
+        await runCardWindowChecks(send,sessionId);
     }else if(process.env.CLAB_BROWSER_SUITE==='progressive'){
         await runProgressiveChecks(send,sessionId);
     }else if(process.env.CLAB_BROWSER_SUITE==='ruler-jump'){

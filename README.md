@@ -261,6 +261,8 @@ https://github.com/user-attachments/assets/896f42b5-838b-4f9d-a1cb-6c8999cfb38f
 
 - [🔧 局部微创更新重构记录](web/docs/局部微创更新重构记录.md)
 
+- [⚡ 性能优化技术汇总](web/docs/性能优化技术汇总.md)
+
 ## 🤙 联系方式
 
 如有问题请提交 Issue。

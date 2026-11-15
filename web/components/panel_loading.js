@@ -9,9 +9,11 @@ export function createPanelLoading(panel,{toolbar,tabs,content,refresh}){
     new MutationObserver(()=>{if(!panel.classList.contains('visible')){cancel();container.dispatchEvent(new Event('clab_panel_closed'));}}).observe(panel,{attributes:true,attributeFilter:['class']});
     return {cancel,open(){
         cancel();owner=getActiveWorkspace();container.dataset.clabProgressive='';container.dataset.clabOpening='';panel.setAttribute('aria-busy','true');
+        const retained=[...container.querySelectorAll('.clab-area:not([data-clab-deferred]):not([data-clab-virtual]):not([data-clab-layout])')];
         work.replace([toolbar,tabs,()=>{delete container.dataset.clabOpening;content();},()=>{
-            const roots=[...container.querySelectorAll('.clab-area:not([data-clab-deferred]):not([data-clab-virtual]):not([data-clab-layout])')];
-            work.replace([...roots.map(root=>()=>{if(root.isConnected&&container.contains(root))refresh(root.dataset.areaId);}),finish]);
+            // Newly mounted content already reflects current data. Only reconcile
+            // controls retained from the previous opening (including graph edits).
+            work.replace([...retained.map(root=>()=>{if(root.isConnected&&container.contains(root))refresh(root.dataset.areaId);}),finish]);
         }],{afterPaint:true});
     }};
 }

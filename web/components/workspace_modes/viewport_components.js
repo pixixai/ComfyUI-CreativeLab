@@ -29,6 +29,7 @@ export function workspaceViewport(container){
         for(const kind of ['components','media','models']){const group=[...parked.values()].filter(entry=>entry.kind===kind);for(const entry of group.slice(0,Math.max(0,group.length-cacheLimits[kind])))discard(entry);}
     };
     const park=(entry,clearSummary=true)=>{
+        delete entry.root.dataset.clabPresenting;
         if(clearSummary&&entry.root.hasAttribute('data-clab-summary')){entry.root.querySelector('.clab-virtual-summary')?.remove();delete entry.root.dataset.clabSummary;}
         if(entry.root.hasAttribute('data-clab-deferred')||entry.root.hasAttribute('data-clab-virtual'))return;
         if(entry.root.hasAttribute('data-clab-layout')){remember(entry);entry.root.replaceChildren();delete entry.root.dataset.clabLayout;entry.root.dataset.clabVirtual='';entry.root.style.setProperty('--clab-virtual-height',`${entry.height}px`);return;}
@@ -41,10 +42,18 @@ export function workspaceViewport(container){
         trimCaches();
     };
     const prepare=entry=>{
-        const root=entry.root;if(!root.hasAttribute('data-clab-deferred'))return false;
+        const root=entry.root;
+        if(root.hasAttribute('data-clab-layout')&&!sameLayout(entry.layoutKey,layoutSignature(entry.area,root.offsetWidth))){root.replaceChildren();delete root.dataset.clabLayout;root.dataset.clabDeferred='';}
+        if(entry.holder||!root.matches('[data-clab-deferred],[data-clab-virtual]')||root.classList.contains('clab-table-draft-cell'))return false;
         const temp=document.createElement('div');temp.innerHTML=deferredLayoutHTML(generateAreaHTML(entry.area,entry.card));const full=temp.firstElementChild;
         for(const name of full.classList)root.classList.add(name);for(const property of full.style)root.style.setProperty(property,full.style.getPropertyValue(property));
-        root.replaceChildren(...full.childNodes);delete root.dataset.clabDeferred;root.dataset.clabLayout='';preloadCardMediaSize(root,entry.area,imageSizes,()=>{remember(entry);schedule();});restoreTextLayout(entry);measureCardLayout(root);remember(entry);return true;
+        root.replaceChildren(...full.childNodes);delete root.dataset.clabDeferred;delete root.dataset.clabVirtual;root.dataset.clabLayout='';
+        if(mode==='cards'){
+            applyCardMediaSize(root,entry.area,imageSizes);
+            if(!container.hasAttribute('data-clab-card-jump')||!root.querySelector('video'))preloadCardMediaSize(root,entry.area,imageSizes,()=>{remember(entry);schedule();});
+            restoreTextLayout(entry);measureCardLayout(root);remember(entry);
+        }
+        config.prepared?.(root,entry.card,entry.area);entry.layoutKey=layoutSignature(entry.area,root.offsetWidth);return true;
     };
     const mount=entry=>{
         const root=entry.root;
@@ -73,19 +82,23 @@ export function workspaceViewport(container){
     };
     const pinned=entry=>entry.root.contains(document.activeElement)||entry.root.matches('.clab-dragging')||!!entry.root.querySelector('.clab-custom-select.open,.clab-history-grid,.clab-upload-status');
     const paint=()=>{
-        frame=0;if(!enabled||!panel.classList.contains('visible')||dragging||container.hasAttribute('data-clab-opening')||container.hasAttribute('data-clab-card-jump'))return;
+        frame=0;const navigating=container.hasAttribute('data-clab-card-jump');
+        if(!enabled||!panel.classList.contains('visible')||dragging||container.hasAttribute('data-clab-opening')||navigating&&!config.preload?.size)return;
+        const offset=navigating?container.scrollLeft-config.targetLeft:0;
+        const bounds=root=>{const box=root.getBoundingClientRect();return {left:box.left+offset,right:box.right+offset,top:box.top,bottom:box.bottom,width:box.width,height:box.height};};
         if(mode==='cards')for(const [body,anchor]of positions){if(!body.isConnected||!anchor.root.isConnected){positions.delete(body);continue;}const delta=anchor.root.offsetTop-anchor.offset;if(Math.abs(delta)>.5)body.scrollTop+=delta;}
         const viewport=container.getBoundingClientRect(),cardBounds=new Map(),anchors=new Map(),plan=[];
         for(const entry of entries.values()){
             const root=entry.root,card=root.closest('.clab-card,.clab-table-draft-row');if(!root.isConnected){sizes.unobserve(root);discard(entry);entries.delete(root);continue;}
             if(!wrapper.contains(root))continue;
+            if(navigating&&!config.preload.has(entry.card.id))continue;
             if(!card||card.hidden||root.hidden){plan.push([entry,'park']);continue;}
-            let box=cardBounds.get(card);if(!box){box=card.getBoundingClientRect();cardBounds.set(card,box);}
+            let box=cardBounds.get(card);if(!box){box=bounds(card);cardBounds.set(card,box);}
             const selected=mode==='xy'&&state.activeCardId===entry.card.id;
             if(pinned(entry)){plan.push([entry,'full']);continue;}
             if(mode!=='cards'&&!intersectsViewport(box,viewport)){if(!root.hasAttribute('data-clab-virtual'))entry.height=root.offsetHeight||entry.height;plan.push([entry,'park']);continue;}
-            const areaBox=mode==='xy'?box:root.getBoundingClientRect();
-            const scroller=mode==='cards'?card.querySelector('.clab-card-body'):null,body=scroller?scroller.getBoundingClientRect():viewport;
+            const areaBox=mode==='xy'?box:bounds(root);
+            const scroller=mode==='cards'?card.querySelector('.clab-card-body'):null,body=scroller?bounds(scroller):viewport;
             if(scroller&&!anchors.has(scroller)&&areaBox.bottom>body.top&&areaBox.top<body.bottom)anchors.set(scroller,{root,top:areaBox.top});
             if(!root.matches('[data-clab-virtual],[data-clab-deferred]'))entry.height=root.offsetHeight||entry.height;
             if(mode==='cards'&&!intersectsViewport(areaBox,viewport)&&areaBox.bottom>=body.top-160&&areaBox.top<=body.bottom+160){plan.push([entry,'layout']);continue;}
@@ -103,27 +116,59 @@ export function workspaceViewport(container){
             else if(action==='layout'){
                 if(entry.root.hasAttribute('data-clab-deferred'))pending.push([entry,action]);
                 else if(!entry.root.hasAttribute('data-clab-layout'))park(entry);
-            }else if(entry.root.matches('[data-clab-deferred],[data-clab-virtual],[data-clab-summary],[data-clab-layout]'))pending.push([entry,action]);
+            }else if(entry.root.matches('[data-clab-deferred],[data-clab-virtual],[data-clab-summary],[data-clab-layout],[data-clab-presenting]'))pending.push([entry,action]);
         }
         const owner=workspace,node=wrapper,currentMode=mode;
         const focus=wrapper.querySelector(`.clab-card[data-card-id="${CSS.escape(config.focusCardId||'')}"]`),focusLeft=focus?parseFloat(focus.style.left):container.scrollLeft+container.clientWidth/2;
-        const priority=(entry,action)=>(action==='full'?0:2)+(entry.area.type==='preview'?1:0);
+        const priority=(entry,action)=>(action==='full'?0:2)+(intersectsViewport(bounds(entry.root),viewport,0)?0:1);
         const distance=entry=>Math.abs((parseFloat(entry.root.closest('.clab-card')?.style.left)||0)-focusLeft);
         pending.sort(([a,actionA],[b,actionB])=>priority(a,actionA)-priority(b,actionB)||distance(a)-distance(b));
-        work.replace(pending.map(([entry,action])=>()=>{
-            if(owner!==workspace||node!==wrapper||currentMode!==mode||entries.get(entry.root)!==entry||!entry.root.isConnected||!node.contains(entry.root))return;
-            const changed=action==='layout'?prepare(entry):mount(entry);
-            if(changed){config.settled?.();schedule();}
-        }));
+        const valid=entry=>owner===workspace&&node===wrapper&&currentMode===mode&&entries.get(entry.root)===entry&&entry.root.isConnected&&node.contains(entry.root);
+        const groups=new Map(),layouts=[],players=new Set();let mediaReady=false;
+        for(const [entry,action]of pending){
+            if(action==='layout'){layouts.push(()=>{if(valid(entry))prepare(entry);});continue;}
+            const card=entry.root.closest('.clab-card,.clab-table-draft-row');
+            const key=mode==='table'&&intersectsViewport(bounds(entry.root),viewport,0)?wrapper:card;
+            if(!groups.has(key))groups.set(key,{items:[],staged:new Set()});
+            const group=groups.get(key);group.items.push(entry);group.staged.add(entry.root);entry.root.dataset.clabPresenting='';
+        }
+        const jobs=[...groups].map(([key,group])=>{
+            let index=0;
+            return ()=>{
+                if(owner!==workspace||node!==wrapper||currentMode!==mode)return;
+                if(index<group.items.length){
+                    const entry=group.items[index++];if(!valid(entry))return false;
+                    prepare(entry);
+                    // Show the complete layout first; starting players and WebGL
+                    // is separate work and never delays ordinary controls.
+                    if(entry.root.hasAttribute('data-clab-layout')&&entry.root.querySelector('video,audio,.clab-glb-viewer'))players.add(entry);
+                    else mount(entry);
+                    return false;
+                }
+                if(mode==='cards'&&key?.isConnected){
+                    const body=bounds(key.querySelector('.clab-card-body'));
+                    const extra=[...entries.values()].filter(entry=>entry.root.closest('.clab-card')===key&&valid(entry)&&!group.staged.has(entry.root)&&entry.root.matches('[data-clab-deferred],[data-clab-virtual]')&&intersectsViewport(bounds(entry.root),body)&&intersectsViewport(bounds(entry.root),viewport));
+                    if(extra.length){for(const entry of extra){group.items.push(entry);group.staged.add(entry.root);entry.root.dataset.clabPresenting='';}return false;}
+                }
+                for(const root of group.staged)delete root.dataset.clabPresenting;
+                config.settled?.();
+            };
+        });
+        jobs.push(()=>{
+            if(!navigating&&players.size&&!mediaReady){mediaReady=true;return 'yield';}
+            const entry=players.values().next().value;if(!entry)return;
+            players.delete(entry);if(!navigating&&valid(entry))mount(entry);return false;
+        },...layouts,()=>{if(pending.length)schedule();});
+        work.replace(jobs,{budgetMs:navigating?2:6});
         for(const [scroller,anchor]of anchors)if(anchor.root.isConnected){const delta=anchor.root.getBoundingClientRect().top-anchor.top;if(Math.abs(delta)>.5)scroller.scrollTop+=delta;}
         if(mode==='cards'){positions.clear();for(const [body,anchor]of anchors)if(anchor.root.isConnected)positions.set(body,{root:anchor.root,offset:anchor.root.offsetTop});}
         refreshModelVisibility(cache);
     };
     const schedule=()=>{if(enabled&&!frame&&panel.classList.contains('visible')&&!container.hasAttribute('data-clab-card-jump'))frame=requestAnimationFrame(paint);};
-    const sizes=new ResizeObserver(records=>{let changed=false;for(const {target}of records){const entry=entries.get(target);if(entry&&mode==='cards'){remember(entry);changed=true;}}if(changed)schedule();});
+    const sizes=new ResizeObserver(records=>{let changed=false;for(const {target}of records){const entry=entries.get(target);if(entry&&mode==='cards'){remember(entry);changed=true;}}if(changed&&!work.pending)schedule();});
     const update=(nextMode,options={})=>{
         mode=nextMode;config=options;if(mode!=='cards'){sizes.disconnect();positions.clear();}const next=container.querySelector('.clab-cards-wrapper'),owner=getActiveWorkspace();
-        if(next!==wrapper||owner!==workspace){work.clear();for(const entry of entries.values()){sizes.unobserve(entry.root);discard(entry);}entries.clear();positions.clear();wrapper=next;workspace=owner;}
+        if(next!==wrapper||owner!==workspace){stopWork();for(const entry of entries.values()){sizes.unobserve(entry.root);discard(entry);}entries.clear();positions.clear();wrapper=next;workspace=owner;}
         const wasVirtual=container.hasAttribute('data-clab-virtualized');enabled=!!wrapper&&(container.hasAttribute('data-clab-progressive')||container.hasAttribute('data-clab-card-jump')||virtualizeTasks(state.cards)||(options.count||0)>=160);container.toggleAttribute('data-clab-virtualized',enabled);if(!wrapper)return;
         if(enabled)wrapper.dataset.clabVirtualized=mode;
         const data=new Map((options.cards||state.cards).flatMap(card=>card.areas.map(area=>[area.id,{card,area}])));
@@ -135,7 +180,7 @@ export function workspaceViewport(container){
             if(root.hasAttribute('data-clab-deferred'))root.style.setProperty('--clab-virtual-height',`${entry.height}px`);
         }
         if(!enabled){
-            work.clear();
+            stopWork();
             let changed=false;
             for(const entry of entries.values()){
                 if(entry.root.matches('[data-clab-virtual],[data-clab-layout]')&&entry.root.isConnected&&!entry.root.hidden&&!entry.root.closest('.clab-card[hidden]'))changed=mount(entry)||changed;
@@ -147,8 +192,9 @@ export function workspaceViewport(container){
         paint();
     };
     container.addEventListener('scroll',schedule,true);container.addEventListener('clab_viewport_change',schedule);
-    container.addEventListener('clab_panel_closed',()=>{work.clear();cancelAnimationFrame(frame);frame=0;});
-    container.addEventListener('clab_navigation_start',()=>{work.clear();cancelAnimationFrame(frame);frame=0;});
+    const stopWork=()=>{work.clear();cancelAnimationFrame(frame);frame=0;for(const root of wrapper?.querySelectorAll('[data-clab-presenting]')||[])delete root.dataset.clabPresenting;};
+    container.addEventListener('clab_panel_closed',stopWork);
+    container.addEventListener('clab_navigation_start',stopWork);
     document.addEventListener('clab_cache_limits_change',()=>{trimCaches();refreshModelVisibility(cache);});
     container.addEventListener('clab_ensure_component',event=>{if(enabled){const entry=entries.get(event.target.closest('.clab-area,.clab-table-draft-cell'));if(entry&&mount(entry))config.settled?.();schedule();}},true);
     container.addEventListener('pointerdown',event=>{if(!enabled)return;const root=event.target.closest('[data-clab-deferred],[data-clab-virtual]');if(root&&!root.hasAttribute('data-clab-summary')){const entry=entries.get(root);if(entry&&mount(entry))config.settled?.();schedule();}},true);
