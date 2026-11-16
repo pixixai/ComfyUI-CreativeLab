@@ -43,8 +43,8 @@ export async function runPreviewExternalChecks(send,sessionId){
         assert.equal(await evaluate('ex.images().length===5&&ex.uploads.length===3'),true);
         console.log('PASS local multi-file drop uploads to the reference subfolder once per image; screenshot paste targets A/B and respects text editing');
 
-        await click('[data-review-mode=detail]');assert.equal(await evaluate(`ex.root().querySelector('.clab-external-dock').hidden`),true);
-        await click('[data-review-mode=table]');assert.equal(await evaluate(`ex.root().querySelector('.clab-external-dock').hidden`),true);
+        await click('[data-review-mode=detail]');assert.equal(await evaluate(`ex.root().querySelector('.clab-external-dock').hidden`),false);
+        await click('[data-review-mode=table]');assert.equal(await evaluate(`ex.root().querySelector('.clab-external-dock').hidden`),false);
         await click('[data-review-mode=browse]');
         await click('[data-external-visible]');assert.equal(await evaluate(`!ex.store.entries.some(record=>record.externalWorkspaceId)`),true);
         await click('.clab-preview-modal.visible .clab-preview-modal-close');await evaluate('ex.open()');await wait();
@@ -53,7 +53,7 @@ export async function runPreviewExternalChecks(send,sessionId){
         assert.equal(await evaluate(`ex.ui.buildPersistedState().workspaces.find(workspace=>workspace.id===ex.ws.id).view.previewExternal.images.length===5`),true);
         await evaluate(`(()=>{const thumb=ex.root().querySelector('[data-external-key]');ex.removed=thumb.dataset.externalKey;thumb.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:100,clientY:150}));document.querySelector('[data-external-remove]').click();})()`);await wait();
         assert.equal(await evaluate(`ex.images().length===4&&!ex.store.entries.some(record=>record.key===ex.removed)&&ex.ws.cards[0].areas[0].history.length===2`),true);
-        console.log('PASS references and visibility survive closing/reopening and workflow serialization; detail/table exclude them and removal only deletes a reference');
+        console.log('PASS references and visibility survive closing/reopening and workflow serialization; detail/table retain the media dock and removal only deletes a reference');
         await evaluate(`document.activeElement.blur();ex.root().dispatchEvent(new KeyboardEvent('keydown',{key:'z',code:'KeyZ',ctrlKey:true,bubbles:true}));`);await wait();
         assert.equal(await evaluate('ex.images().length===5&&ex.store.entries.some(record=>record.key===ex.removed)'),true,'undo did not restore the removed reference in the preview');
         await evaluate(`ex.root().dispatchEvent(new KeyboardEvent('keydown',{key:'z',code:'KeyZ',ctrlKey:true,shiftKey:true,bubbles:true}));`);await wait();

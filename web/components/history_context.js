@@ -32,14 +32,15 @@ export function historyDestination(entry,current){
         }else if(root==='cards'){
             const area=path.indexOf('areas');
             if(area>=0&&['ratio','width','height','fillMode','autoHeight','matchMedia'].includes(path[area+2]))kinds.add('moduleAppearance');
+            else if(path.includes('externalImports'))kinds.add('import');
             else kinds.add(path.length===5&&path[4]==='title'?'title':'content');
         }else if(root==='archivedTasks')archive=true;
     }
     if(!kinds.size&&table)kinds.add('table');
     if(!kinds.size&&archive)return {...current,panel:'maintenance'};
     const supports=view=>[...kinds].every(kind=>kind==='detail'?view.surface==='preview'&&view.mode==='detail':
-        kind==='external'?view.surface==='preview'&&['browse','compare'].includes(view.mode):kind==='xy'?view.mode==='xy':kind==='table'?view.mode==='table':kind==='moduleAppearance'?view.surface==='workspace'&&view.mode==='cards':
-        kind==='content'?view.mode==='table'||view.surface==='workspace'&&view.mode==='cards':true);
+        kind==='external'?view.surface==='preview':kind==='xy'?view.mode==='xy':kind==='table'?view.mode==='table':kind==='moduleAppearance'?view.surface==='workspace'&&view.mode==='cards':
+        kind==='import'?true:kind==='content'?view.mode==='table'||view.surface==='workspace'&&view.mode==='cards':true);
     const origin=entry.context;
     if(supports(current))return {...current,...(kinds.size&&current.mode==='table'&&origin?.sheetId?{sheetId:origin.sheetId}:{})};
     if(origin)return {surface:origin.surface,mode:origin.mode,...(origin.sheetId?{sheetId:origin.sheetId}:{})};

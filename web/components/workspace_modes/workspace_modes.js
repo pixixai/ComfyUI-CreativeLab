@@ -59,7 +59,7 @@ export function setupWorkspaceModes(panel) {
         });
     };
     const modeMenu=attachWorkspaceModeMenu(panel.querySelector('.clab-workspace-strip'),(mode,id)=>{if(id!==state.activeWorkspaceId)switchWorkspace(id);if(mode!==view().mode)changeMode(mode);});
-    panel.addEventListener('dragstart',event=>{if(view().mode!=='cards'&&event.target.closest('.clab-card,.clab-area')&&!(view().mode==='table'&&event.target.closest('[data-table-row-header],.clab-history-thumb')))event.preventDefault();},true);
+    panel.addEventListener('dragstart',event=>{if(view().mode!=='cards'&&event.target.closest('.clab-card,.clab-area')&&!event.target.closest('.clab-history-thumb')&&!(view().mode==='table'&&event.target.closest('[data-table-row-header]')))event.preventDefault();},true);
     document.addEventListener('clab_workspace_view_change',()=>{if(frame)return;frame=requestAnimationFrame(()=>{frame=0;if(panel.classList.contains('visible'))render();});});
     document.addEventListener('clab_before_edit_history',()=>{if(panel.classList.contains('visible'))table.flush();});
     controllers.set(panel,{render,changeMode,restore(){table.leave();xy.leave();currentModeKey='';editHistory.withoutRecording(render);}});

@@ -95,6 +95,10 @@ export function attachTableSelection(panel,actions) {
         pendingHeader=null;headerPress=false;ignoreClickUntil=0;
         const row=event.target.closest('[data-table-row-header]'),header=event.target.closest('.clab-table-column[data-table-column]'),cell=event.target.closest('.clab-area,.clab-table-draft-cell');
         const plain=!event.ctrlKey&&!event.metaKey&&!event.shiftKey;
+        if(cell&&event.target.closest('.clab-history-grid')){
+            if(!state.selectedAreaIds.includes(cell.dataset.areaId)&&!state.selectedCardIds.includes(cell.dataset.cardId))selectCell(cell.dataset.areaId);
+            return;
+        }
         if(plain&&cell&&event.target.closest('.clab-upload-zone,.clab-upload-preview-option')&&(state.selectedAreaIds.includes(cell.dataset.areaId)||state.selectedCardIds.includes(cell.dataset.cardId)))return;
         if(plain&&cell&&actions.editing.contains(event.target)&&actions.editing.textTarget(event.target))return;
         actions.editing.end();
@@ -123,7 +127,7 @@ export function attachTableSelection(panel,actions) {
         if(performance.now()<ignoreClickUntil){event.preventDefault();event.stopImmediatePropagation();return;}
         if(pendingHeader){const select=pendingHeader;pendingHeader=null;select();}
         if(headerPress){headerPress=false;event.preventDefault();event.stopImmediatePropagation();return;}
-        const cell=event.target.closest('.clab-area,.clab-table-draft-cell');if(cell&&(event.ctrlKey||event.metaKey||event.shiftKey)){event.preventDefault();event.stopImmediatePropagation();}
+        const cell=event.target.closest('.clab-area,.clab-table-draft-cell');if(cell&&!event.target.closest('.clab-history-grid')&&(event.ctrlKey||event.metaKey||event.shiftKey)){event.preventDefault();event.stopImmediatePropagation();}
         const row=event.target.closest('[data-table-row-header]');if(row&&event.detail===0)selectRow(row.closest('[data-table-row]').dataset.tableRow,event);
         const gridBlank = event.target.closest('#clab-cards-container') && !event.target.closest('[role=cell],.clab-table-head,.clab-card-title-bar,.clab-table-fixed-controls');
         const toolbarBlank = event.target.matches('.clab-tool-dock,.clab-toolbar-left,.clab-toolbar-right');

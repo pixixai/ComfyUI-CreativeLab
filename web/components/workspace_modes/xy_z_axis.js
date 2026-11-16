@@ -17,7 +17,7 @@ export function renderZAxis(overlay,xy,x,y,parameters) {
     const previous=new Map([...group.querySelectorAll('[data-xy-z-layer],.clab-z-more')].map(tick=>[tick.dataset.zMark,tick]));
     const labelBounds=[];
     (xy.z.display==='all'?[]:marks).forEach((index,position)=>{
-        const key=index===null?`more:${position}`:String(index),tick=previous.get(key)||document.createElement('button'),distance=extent*(position+1)/(marks.length+1);previous.delete(key);tick.dataset.zMark=key;tick.className='clab-axis-label clab-z-tick';
+        const key=index===null?`more:${position}`:String(index),tick=previous.get(key)||document.createElement('button'),distance=extent*position/marks.length;previous.delete(key);tick.dataset.zMark=key;tick.className='clab-axis-label clab-z-tick';
         if(index===null){tick.classList.add('clab-z-more');tick.dataset.xyZMore='';tick.setAttribute('aria-haspopup','menu');tick.setAttribute('aria-expanded','false');tick.textContent='…';tick.title='查看全部 Z 取值';}
         else{let text=tick.querySelector('span');if(!text){text=document.createElement('span');tick.append(text);}text.textContent=axisValueLabel(xy.z,index);tick.dataset.xyZLayer=index;tick.setAttribute('aria-pressed',String(index===current));tick.title=axisValueDescription(xy.z.values[index],xy.z.bindings.map(key=>parameters.find(parameter=>parameter.key===key)));}
         if(!tick.isConnected)group.append(tick);

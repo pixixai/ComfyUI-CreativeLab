@@ -12,6 +12,7 @@ import { generateSingleCardHTML, attachCardEvents } from "../comp_taskcard.js";
 import { restoreToolbarOverflow, refreshToolbarItems } from "../toolbar_layout.js";
 import { cellSettingsIcon, tableResetIcon } from "../workspace_modes/table_icons.js";
 import { selectedTableColumns } from "../workspace_modes/table_sheet.js";
+import { refreshXYHistoryTool } from '../workspace_modes/xy_settings.js';
 
 const toolbarMarkup=new WeakMap();
 function paintToolbar(handle,tb,html,display){
@@ -48,6 +49,7 @@ export function renderDynamicToolbar(toolbarHandleContainer) {
     const view = getActiveWorkspace()?.view;
     const mode = view?.mode;
     if (mode === 'xy') {
+        refreshXYHistoryTool(toolbarHandleContainer.closest('#clab-panel').querySelector('.clab-xy-toolbar'),selectedModules().map(item=>item.area).filter(area=>area.type==='preview'));
         paintToolbar(toolbarHandleContainer,tb,'','none');
         return;
     }

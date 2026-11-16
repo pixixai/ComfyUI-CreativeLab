@@ -59,6 +59,19 @@ export function reviewHistoryDirection(event) {
     return Number(event.key==='ArrowRight'||event.key==='ArrowDown');
 }
 
+export function restoreReviewHistory(area,saved){
+    if(!area)return null;
+    const imported=saved.historyRuns?.[saved.historyIndex]?.externalImport;
+    const index=imported?area.historyRuns?.findIndex(run=>run?.externalImport?.id===imported.id):area.history?.indexOf(saved.resultUrl);
+    return index>=0?{...area,historyIndex:index,resultUrl:area.history[index],missingHistoryRun:null}:null;
+}
+
+export function rememberExternalSelection(area,next){
+    if(!area?.externalImports?.length||!next)return false;
+    for(const key of ['historyIndex','resultUrl','missingHistoryRun','textContent','textLoadState'])area[key]=next[key];
+    return true;
+}
+
 export function stepReviewGridOutput(cell,card,area,direction) {
     let index=getSteppedHistoryIndex(area,direction);
     while (index>=0&&index<area.history.length&&!area.history[index]) index+=direction;

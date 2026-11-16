@@ -1,3 +1,4 @@
+import { outputImportIcon } from './external_import_icon.js';
 import { state } from "../../ui_state.js";
 import { ensureTextAreaState } from "./media_utils.js";
 import { onModuleRemoved } from "../module_lifecycle.js";
@@ -303,6 +304,7 @@ function bindTextShell(shell, resolveArea = findArea, refreshArea = requestAreaR
 
 export function renderText(area) {
     ensureTextAreaState(area);
+    const imported=outputImportIcon(area);
     const historyPosition = area.missingHistoryRun ? '—' : area.historyIndex >= 0 ? area.historyIndex + 1 : area.history.length;
 
     return `
@@ -319,7 +321,7 @@ export function renderText(area) {
                     <input type="checkbox" data-option="markdown" ${area.textPreviewMarkdown ? "checked" : ""}>
                     <span>预览Markdown</span>
                 </label>
-                ${area.history.length > 1 ? `<span class="clab-text-history-position" title="历史记录：${historyPosition} / ${area.history.length}；← / → 关联切换；Shift + ← / → 仅切换当前输出模块">${historyPosition} / ${area.history.length}</span>` : ''}
+                ${area.history.length > 1||imported ? `<span class="clab-text-history-position" title="历史记录：${historyPosition} / ${area.history.length}；← / → 关联切换；Shift + ← / → 仅切换当前输出模块">${imported}${area.history.length>1?`${historyPosition} / ${area.history.length}`:''}</span>` : ''}
             </div>
         </div>
     `;

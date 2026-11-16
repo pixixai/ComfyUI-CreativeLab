@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { outputImportIcon } from '../web/components/modules/media_types/external_import_icon.js';
 
 const source = readFileSync(new URL('../web/components/modules/media_types/media_text.js', import.meta.url), 'utf8');
-const { renderText } = new Function('state', 'ensureTextAreaState', 'window', source
+const { renderText } = new Function('state', 'ensureTextAreaState', 'window','outputImportIcon', source
     .replace(/^import .*;\r?\n/gm, '')
     .replace(/export function /g, 'function ') + '\nreturn { renderText };'
-)({ cards: [] }, () => {}, { location: { origin: 'https://localhost' } });
+)({ cards: [] }, () => {}, { location: { origin: 'https://localhost' } },outputImportIcon);
 
 const render = (text, markdown = false, highlight = false) => renderText({
     id: 'text', history: [], textContent: text, textLoadState: 'ready',

@@ -7,7 +7,9 @@ import { runXYLabelChecks } from './xy_labels.browser.mjs';
 export async function runXYZBrowserChecks(send,sessionId,screenshotPrefix) {
     const evaluate=async expression=>{const result=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true},sessionId);assert.equal(result.exceptionDetails,undefined,JSON.stringify(result.exceptionDetails));return result.result.value;};
     const click=async(selector,modifiers=0)=>{
-        const p=await evaluate(`(async()=>{const element=document.querySelector(${JSON.stringify(selector)});element.scrollIntoView({block:'nearest',inline:'nearest'});await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));const r=element.getBoundingClientRect(),x=Math.floor((r.left+r.right)/2),y=Math.floor((r.top+r.bottom)/2),hit=document.elementFromPoint(x,y);return{x,y,hit:element.contains(hit),target:hit?.className,rect:{left:r.left,right:r.right,top:r.top,bottom:r.bottom}};})()`);
+        const p=await evaluate(`(async()=>{const element=document.querySelector(${JSON.stringify(selector)});element.scrollIntoView({block:'nearest',inline:'nearest'});await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));const r=element.getBoundingClientRect();let x=Math.floor((r.left+r.right)/2),y=Math.floor((r.top+r.bottom)/2),hit=document.elementFromPoint(x,y);
+            if(element.matches('.axis-z')&&!element.contains(hit))for(const t of [.2,.8,.35,.65,.1,.9]){const px=r.left+r.width*t,py=r.top+r.height*t,target=document.elementFromPoint(px,py);if(element.contains(target)){x=px;y=py;hit=target;break;}}
+            return{x,y,hit:element.contains(hit),target:hit?.className,rect:{left:r.left,right:r.right,top:r.top,bottom:r.bottom}};})()`);
         if(!p.hit&&screenshotPrefix){const shot=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${screenshotPrefix}-click-miss.png`,Buffer.from(shot.data,'base64'));}assert.ok(p.hit,`native XYZ click missed ${selector}: ${JSON.stringify(p)}`);
         await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:p.x,y:p.y},sessionId);
         for(const type of ['mousePressed','mouseReleased'])await send('Input.dispatchMouseEvent',{type,x:p.x,y:p.y,button:'left',clickCount:1,modifiers},sessionId);
@@ -25,6 +27,22 @@ export async function runXYZBrowserChecks(send,sessionId,screenshotPrefix) {
     };
     const shot=async suffix=>{if(screenshotPrefix){const result=await send('Page.captureScreenshot',{format:'png'},sessionId);fs.writeFileSync(`${screenshotPrefix}-${suffix}.png`,Buffer.from(result.data,'base64'));}};
     await evaluate(`window.showXYZDemo();document.querySelector('[data-xy-reset]').click();window.nativeXYZExecute=window.CLab.executeTasks;window.CLab.executeTasks=tasks=>{window.nativeXYZQueue=tasks;};`);
+    assert.equal(await evaluate(`(async()=>{
+        const {renderZAxis}=await import('/extensions/clab/components/workspace_modes/xy_z_axis.js'),{projectXYCanvas,syncAxisLabelSettings}=await import('/extensions/clab/components/workspace_modes/xy_axes.js'),stage=document.createElement('div');
+        stage.innerHTML='<div class="clab-cards-wrapper"></div><div class="clab-xy-overlay"></div>';document.querySelector('#clab-cards-container').append(stage);
+        try{
+            const overlay=stage.querySelector('.clab-xy-overlay');
+            for(const origin of ['bottom','top'])for(const count of [1,3,10]){
+                const xy={...window.xyzModeDemo.view.xy,origin,zoom:2,panX:0,panY:0,z:{enabled:true,display:'single',current:count-1,bindings:[],values:Array.from({length:count},(_,i)=>'提示词 '+i),labelAnchor:5,labelAngle:45}};
+                syncAxisLabelSettings(overlay,xy);renderZAxis(overlay,xy,300,400,[]);projectXYCanvas(stage,xy);
+                const ticks=[...overlay.querySelectorAll('.clab-z-tick')],first=overlay.querySelector('[data-xy-z-layer="0"]'),anchor=first.xyPosition;
+                if(anchor.x!==291||anchor.y!==400||first.textContent!=='提示词 0'||!getComputedStyle(first).transform.includes('matrix('))return false;
+                if(ticks.length>1){const step=anchor.x-ticks[1].xyPosition.x;if(step<=0||ticks.some((tick,i)=>Math.abs(tick.xyPosition.x-(anchor.x-step*i))>.001||Math.abs(tick.xyPosition.y-(anchor.y-step*i))>.001))return false;}
+                if(ticks.some(tick=>!Number.isFinite(tick.getBoundingClientRect().left)))return false;
+            }
+            return true;
+        }finally{stage.remove();}
+    })()`),true,'Z values must begin at the XY origin, remain equally spaced through collapsed ranges and preserve rotated prompt labels');
     const toolbarChecks=await runXYToolbarChecks(send,sessionId,screenshotPrefix,click);
     await click('.axis-z');assert.equal(await evaluate(`document.querySelector('.clab-xy-values:popover-open')?.getAttribute('aria-label')`),'Z轴设置');assert.equal(await evaluate(`!!document.querySelector('.clab-xy-values:popover-open [data-xy-z-setting]')`),false);await click('.clab-xy-popup-close');
     await click('[data-xy-bind=z]');assert.equal(await evaluate(`!!document.querySelector('.clab-module-binding-popover:popover-open .clab-binding-start-pick')`),true);await click('.clab-xy-popup-close');

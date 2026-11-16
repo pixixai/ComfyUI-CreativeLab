@@ -18,6 +18,7 @@ export function attachWorkspaceFollow(container,xyController){
         const workspace=getActiveWorkspace();
         if(workspace.view.mode==='cards'){cardWindow(container).reveal(id);return;}
         if(workspace.view.mode==='xy'){remember();xyController.follow(id);return;}
+        container.dispatchEvent(new CustomEvent('clab_table_reveal',{detail:{cardId:id}}));
         const row=container.querySelector(`.clab-card[data-table-row="${CSS.escape(id)}"]:not([hidden])`);if(!row)return;
         const view=container.getBoundingClientRect(),box=row.getBoundingClientRect(),head=container.querySelector('.clab-table-head')?.getBoundingClientRect();
         container.scrollTop-=revealDelta(box.top,box.bottom,Math.max(view.top,head?.bottom||view.top)+4,view.bottom-8);workspaceViewport(container).schedule();

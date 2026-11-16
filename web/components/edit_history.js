@@ -1,3 +1,4 @@
+import { reconcileExternalHistory } from './modules/media_types/external_history.js';
 import { captureHistory,historyDiff,applyHistory } from './history_snapshot.js';
 import { preserveHistoryTasks } from './history_tasks.js';
 import { matrixBindings } from './workspace_modes/xy_archive.js';
@@ -22,6 +23,7 @@ function createContentHistory({limit=100,budget=16777216}={}) {
         const source=backward?undo:redo,destination=backward?redo:undo,entry=source.pop();if(!entry)return null;
         const previous=state.workspaces.map(workspace=>({workspace,cards:[...workspace.cards],matrixIds:[...(workspace.view?.xy?.taskIds||[])],bindings:workspace.view?.xy?matrixBindings(workspace.view.xy):''}));
         applyHistory(state,entry.changes,backward,origins);
+        for(const workspace of state.workspaces)for(const card of [...workspace.cards,...workspace.archivedTasks||[]])for(const area of card.areas)reconcileExternalHistory(area);
         for(const {workspace,cards,matrixIds,bindings}of previous)preserveHistoryTasks(workspace,cards,matrixIds,bindings);
         destination.push(entry);bytes+=(backward?-1:1)*entry.bytes;rebase(state);return entry.changes;
     };

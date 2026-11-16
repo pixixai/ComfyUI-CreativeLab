@@ -563,8 +563,9 @@ try {
     model.ratio='4:3'; surgicallyUpdateArea('model'); await delay(80);
     assert(areaElement('model').querySelector('canvas')===inlineCanvas, 'updating output settings replaced its 3D canvas');
     inlineCanvas.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,button:2,clientX:100,clientY:100}));
-    assert(document.querySelector('#clab-ctx-preview-mode'), 'right clicking the 3D canvas did not open its content menu');
-    document.querySelector('#clab-ctx-preview-mode').click();
+    assert(document.querySelector('#clab-ctx-remove')&&!document.querySelector('#clab-ctx-preview-mode'), 'right clicking the 3D canvas did not show its updated output menu');
+    document.querySelector('.clab-context-menu').style.display='none';
+    (await import('/extensions/clab/components/contextmenu/group_content.js')).openWorkspacePreview();
     const modal = document.querySelector('.clab-preview-modal.visible');
     assert(modal, 'GLB output did not open the existing independent preview');
     const firstModelStage = modal.querySelector('.clab-glb-viewer'); await waitForModel(firstModelStage);

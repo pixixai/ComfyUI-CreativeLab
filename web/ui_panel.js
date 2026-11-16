@@ -1,3 +1,4 @@
+import { registerWorkspaceSurface,togglePanelSurface } from './components/panel_surface.js';
 /**
  * ui_panel.js: panel composition entry.
  */
@@ -179,6 +180,7 @@ function canRefreshCardsInPlace(cardsContainer) {
 
     if(hasCardWindow(cardsContainer))return getActiveWorkspace()?.view?.mode==='cards';
     const { wrapper, cardEls } = getRenderedCardsState(cardsContainer);
+    if(wrapper&&getActiveWorkspace()?.view?.mode==='table')return true;
     if (!wrapper || cardEls.length !== state.cards.length) return false;
 
     return state.cards.every((card, index) => {
@@ -209,14 +211,15 @@ function refreshCardsInPlace(cardsContainer, areaIds = null) {
 
         const areaEls = Array.from(cardEl.querySelectorAll(".clab-area-list > .clab-area[data-area-id]"));
         areaEls.forEach((areaEl, areaIndex) => {
-            const area = card.areas?.[areaIndex];
+            const area = card.areas?.find(area=>area.id===areaEl.dataset.areaId);
             if (!area) return;
             areaEl.dataset.cardId = card.id;
             areaEl.dataset.areaId = area.id;
         });
     });
 
-    const targetAreaIds = Array.isArray(areaIds) ? new Set(areaIds) : null;
+    const mounted=getActiveWorkspace()?.view?.mode==='table'?new Set([...cardsContainer.querySelectorAll('.clab-area')].map(element=>element.dataset.areaId)):null;
+    const targetAreaIds = Array.isArray(areaIds) ? new Set(areaIds) : mounted;
     if (!targetAreaIds || targetAreaIds.size > 0) {
         state.cards.forEach((card) => {
             (card.areas || []).forEach((area) => {
@@ -355,6 +358,8 @@ export function setupUI() {
                 refresh:id=>window._clabSurgicallyUpdateArea?.(id,{notify:false})
             });
 
+            registerWorkspaceSurface({visible:()=>panelContainer.classList.contains('visible'),show:showWorkspacePanel,hide:hideWorkspacePanel});
+
             import("./components/comp_contextmenu.js").then((module) => {
                 module.setupContextMenu(panelContainer);
             }).catch((err) => {
@@ -366,24 +371,17 @@ export function setupUI() {
     }
 }
 
-export function togglePanel() {
-    if (!panelContainer) return;
-
-    const isVisible = panelContainer.classList.contains("visible");
-    if (isVisible) {
-        panelLoading?.cancel();
-        panelContainer.querySelector('#clab-cards-container').dispatchEvent(new Event('clab_panel_closed'));
-        panelContainer.classList.remove("visible");
-        if (backdropContainer) backdropContainer.classList.remove("visible");
-        state.painterMode = false;
-        state.painterSource = null;
-        window.CLab?.flushPendingSave?.();
-        return;
-    }
-
-    panelContainer.classList.add("visible");
-    if (backdropContainer) backdropContainer.classList.add("visible");
-    panelLoading.open();
+export function togglePanel() { togglePanelSurface(); }
+function hideWorkspacePanel(){
+    if(!panelContainer)return;
+    panelLoading?.cancel();
+    panelContainer.querySelector('#clab-cards-container').dispatchEvent(new Event('clab_panel_closed'));
+    panelContainer.classList.remove('visible');backdropContainer?.classList.remove('visible');
+    state.painterMode=false;state.painterSource=null;window.CLab?.flushPendingSave?.();
+}
+function showWorkspacePanel(){
+    if(!panelContainer||panelContainer.classList.contains('visible'))return;
+    panelContainer.classList.add('visible');backdropContainer?.classList.add('visible');panelLoading.open();
 }
 
 document.addEventListener("clab_render_ui", () => {

@@ -1,3 +1,8 @@
+import { runOutputMenuChecks } from './output_menu.browser.mjs';
+import { runXYHistoryToolChecks } from './xy_history_tools.browser.mjs';
+import { runTableWindowChecks } from './table_window.browser.mjs';
+import { runMediaToggleChecks } from './preview_media_toggle.browser.mjs';
+import { runExternalOutputChecks } from './preview_external_outputs.browser.mjs';
 import { runPreviewMultisourceChecks } from './preview_multisource.browser.mjs';
 import { runPreviewScopeChecks } from './preview_scope.browser.mjs';
 import { runPreviewNavigationChecks } from './preview_navigation.browser.mjs';
@@ -207,10 +212,27 @@ try {
     for (const name of report.passed) console.log(`PASS ${name}`);
     assert.equal(report.error, undefined, report.error);
     assert.deepEqual(report.errors, []);
-    if(process.env.CLAB_BROWSER_SUITE==='table-upload'){
+    if(process.env.CLAB_BROWSER_SUITE==='xy-history'){
+        await runXYHistoryToolChecks(send,sessionId);
+        await runExternalOutputChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='xy-axis'){
+        await runXYZBrowserChecks(send,sessionId,process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX);
+        await runXYGestureChecks(send,sessionId);
+        await runXYTitleChecks(send,sessionId,process.env.CLAB_WORKSPACE_SCREENSHOT_PREFIX);
+    }else if(process.env.CLAB_BROWSER_SUITE==='table-window'){
+        await runTableWindowChecks(send,sessionId);
+        await runViewportChecks(send,sessionId);
+        await runWorkspaceFollowChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='table-upload'){
         await runTableUploadChecks(send,sessionId);
         await runTableFileBatchChecks(send,sessionId);
         await runInputFileChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='output-menu'){
+        await runOutputMenuChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='media-toggle'){
+        await runMediaToggleChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='external-outputs'){
+        await runExternalOutputChecks(send,sessionId);
     }else if(process.env.CLAB_BROWSER_SUITE==='external-images'){
         await runPreviewExternalChecks(send,sessionId);
         await runPreviewGalleryChecks(send,sessionId,async point=>{
@@ -228,6 +250,7 @@ try {
                 await send('Input.setInterceptDrags',{enabled:false},sessionId);
             }
         });
+        await runExternalOutputChecks(send,sessionId);
     }else if(process.env.CLAB_BROWSER_SUITE==='input-files'){
         await runInputFileChecks(send,sessionId);
     }else if(process.env.CLAB_BROWSER_SUITE==='binding-gestures'){

@@ -1,6 +1,7 @@
 // Keep results on the live objects; content undo must not copy or rewind generated media.
 const runtime=new Set(['history','historyRuns','inputHistorySnapshots','textHistory','textHistoryStatus','textContent','textLoadState','historyIndex','resultUrl','resultKind','mediaSize','missingHistoryRun','historyRunSequence','isManageMode','selectedThumbIndices','selectedCardIds','selectedAreaIds','activeCardId','painterMode','painterSource','scrollLeft','scrollTop']);
 export function editableField(path,key) {
+    if(path.includes('externalImports')&&key==='position')return false;
     if(path.includes('value')||path.includes('values'))return true;
     if(['workspaces','cards','archivedTasks','areas'].includes(path.at(-2))&&runtime.has(key))return false;
     if(path.at(-1)==='view'&&['mode','structuredMode'].includes(key))return false;

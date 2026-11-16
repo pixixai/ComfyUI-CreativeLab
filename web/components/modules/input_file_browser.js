@@ -2,7 +2,7 @@ import { inputDirectory,inputSubtree,invalidateInputFiles,mergeInputEntries } fr
 import { ensureInputFileStyles } from './input_file_styles.js';
 
 const normalized=value=>String(value??'').replaceAll('\\','/');
-export function attachInputFileBrowser(tree,{kind,options=[],multiple=false,getSelected,onChange,onError=()=>{},onBusy=()=>{}}){
+export function attachInputFileBrowser(tree,{kind,options=[],multiple=false,getSelected,onChange,accept=()=>true,onError=()=>{},onBusy=()=>{}}){
     ensureInputFileStyles();let revision=0,keyword='',changing=false;const folders=new Map(),members=new Map();
     const alive=version=>tree.isConnected&&version===revision;
     const selected=()=>new Set(getSelected().map(normalized));
@@ -24,7 +24,7 @@ export function attachInputFileBrowser(tree,{kind,options=[],multiple=false,getS
         if(changing){sync();return;}
         const version=revision;lock(true);
         try{
-            const values=checked?await inputSubtree(kind,path,options,()=>alive(version),key):getSelected().filter(value=>normalized(value).startsWith(path?path+'/':''));
+            const values=checked?(await inputSubtree(kind,path,options,()=>alive(version),key)).filter(accept):getSelected().filter(value=>normalized(value).startsWith(path?path+'/':''));
             if(!alive(version))return;
             if(checked){members.set(path,values);for(const name of folders.keys())if(name.startsWith(path?path+'/':''))members.set(name,values.filter(value=>normalized(value).startsWith(name+'/')));}
             await choose(values,checked);
@@ -38,6 +38,7 @@ export function attachInputFileBrowser(tree,{kind,options=[],multiple=false,getS
         if(!alive(version)||!parent.isConnected)return;
         loading.remove();const entries=mergeInputEntries(directory,listed,options);if(error)note(parent,error);
         for(const entry of entries){
+            if(!entry.directory&&!accept(entry.value??entry.path))continue;
             if(entry.directory){
                 const folder=document.createElement('details');folder.className='clab-input-file-folder';folder.dataset.directory=entry.path;
                 const title=document.createElement('summary'),label=document.createElement('span'),children=document.createElement('div');label.textContent=entry.name;title.title=entry.path;children.className='clab-input-file-children';

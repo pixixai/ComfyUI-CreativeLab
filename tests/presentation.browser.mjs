@@ -11,8 +11,8 @@ export async function runPresentationChecks(send,sessionId){
             const frames=[];const tick=()=>{
                 const v=ps.container.getBoundingClientRect(),inside=b=>b.left<v.right&&b.right>v.left&&b.top<v.bottom&&b.bottom>v.top;
                 const cells=[...ps.container.querySelectorAll('.clab-area')].filter(root=>root.dataset.areaId.startsWith('ps-'+ps.ws.view.mode+'-')&&inside(root.getBoundingClientRect())&&!root.closest('[hidden]'));
-                const shown=cells.filter(root=>getComputedStyle(root).visibility==='visible'&&root.querySelector('textarea'));
-                const incomplete=cells.filter(root=>getComputedStyle(root).visibility==='visible'&&root.matches('[data-clab-deferred],[data-clab-virtual]'));
+                const shown=cells.filter(root=>getComputedStyle(root).visibility==='visible'&&root.querySelector('textarea')&&getComputedStyle(root.querySelector('textarea')).visibility==='visible');
+                const incomplete=cells.filter(root=>getComputedStyle(root).visibility==='visible'&&root.matches('[data-clab-deferred],[data-clab-virtual]')&&!root.querySelector('.clab-table-placeholder'));
                 frames.push({shown:shown.length,incomplete:incomplete.length,positions:shown.map(root=>({id:root.dataset.areaId,top:root.getBoundingClientRect().top,height:root.offsetHeight,value:root.querySelector('textarea').value}))});
                 if(frames.length<65)requestAnimationFrame(tick);else resolve(frames);
             };requestAnimationFrame(tick);

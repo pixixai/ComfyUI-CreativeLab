@@ -613,6 +613,11 @@ export function injectCSS() {
             min-height: 32px; font-family: sans-serif;
         }
         .clab-input:disabled { opacity: 0.5; cursor: not-allowed; }
+        .clab-input-body :is(.clab-edit-val,.clab-custom-select,.clab-bool-label) {
+            background: transparent; color: #bbb; font: 12px/18px sans-serif;
+        }
+        .clab-input-body .clab-custom-select { line-height: 18px !important; }
+        .clab-input-body .clab-custom-select-value { font: inherit; }
         
         .clab-capsule { 
             border-radius: 20px !important; padding-left: 12px !important; padding-right: 12px !important; 

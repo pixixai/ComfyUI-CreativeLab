@@ -2,6 +2,7 @@ export function injectReviewStyles() {
     if (document.getElementById('clab-preview-review-styles')) return;
     const style = document.createElement('style'); style.id = 'clab-preview-review-styles';
     style.textContent = `
+        .clab-preview-modal-center{position:relative}
         .clab-preview-modal-panel{color-scheme:dark}.clab-preview-modal-head{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(max-content,1fr);align-items:center;gap:8px}
         .clab-preview-modal-body{position:relative}.clab-preview-modal-left{padding-left:26px}
         .clab-source-ruler{position:absolute;left:2px;top:50%;transform:translateY(-50%);max-height:66.666%;width:40px;z-index:25;overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain}.clab-source-ruler[hidden]{display:none}.clab-source-ruler::-webkit-scrollbar{display:none}

@@ -14,13 +14,6 @@ export function ensureXYHistory(cards,xy) {
     }
 }
 
-export function updateXYHistoryLabel(element,area) {
-    let label=element.querySelector(':scope > .clab-xy-history');
-    if(!area?.history?.length){label?.remove();return;}
-    if(!label){label=document.createElement('span');label.className='clab-xy-history';element.append(label);}
-    const index=area.missingHistoryRun?-1:area.historyIndex??area.history.length-1;label.textContent=`${index<0?'—':index+1}/${area.history.length}`;label.title='历史记录 · 选中后按 ← / → 切换';
-}
-
 export function stepXYHistory(cards,xy,direction) {
     for(const card of cards){
         const area=matrixOutput(card,xy),index=getSteppedHistoryIndex(area,direction);

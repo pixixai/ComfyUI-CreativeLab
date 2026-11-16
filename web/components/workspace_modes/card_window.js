@@ -138,5 +138,6 @@ export function cardWindow(container) {
 }
 export function revealWorkspaceTarget(container,cardId,areaId){
     if(hasCardWindow(container))return cardWindow(container).reveal(cardId,areaId);
+    if(container?.closest('#clab-panel')?.dataset.workspaceMode==='table'){const detail={cardId,areaId};container.dispatchEvent(new CustomEvent('clab_table_reveal',{detail}));if(detail.element)return detail.element;}
     return container?.querySelector(areaId?`[data-area-id="${CSS.escape(areaId)}"]`:`.clab-card[data-card-id="${CSS.escape(cardId||'')}"]`);
 }

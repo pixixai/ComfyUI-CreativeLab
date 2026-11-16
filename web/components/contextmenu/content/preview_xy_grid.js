@@ -1,3 +1,4 @@
+import { state } from '../../ui_state.js';
 import { axisLabelControlsHTML, attachAxisLabelControls } from '../../workspace_modes/axis_label_controls.js';
 import { taskCoordinates } from '../../workspace_modes/task_model.js';
 import { swapMatrixAxes } from '../../workspace_modes/xy_axis_swap.js';
@@ -8,7 +9,7 @@ import { projectXYCanvas } from '../../workspace_modes/xy_axes.js';
 import { showXYMode, xyMediaRatio } from '../../workspace_modes/mode_xy.js';
 import { matrixOutput, currentZLayer, matrixCells, visibleMatrixCells } from '../../workspace_modes/xy_model.js';
 import { workflowParameters } from '../../workspace_modes/parameters.js';
-import { renderReviewArea, attachReviewGridMedia, releaseReviewGridMedia, reviewHistoryDirection, stepReviewGridOutput } from './preview_grid_media.js';
+import { renderReviewArea, attachReviewGridMedia, releaseReviewGridMedia, reviewHistoryDirection, stepReviewGridOutput, restoreReviewHistory, rememberExternalSelection } from './preview_grid_media.js';
 import { workspaceMatrixAvailable, xySourceSetting } from './preview_workspace_sheets.js';
 import { outputDownloadRecords } from './preview_downloads.js';
 import { xyTilingControls, applyXYTiling } from '../../workspace_modes/xy_tiling.js';
@@ -16,7 +17,7 @@ import { renderXYRecordTable } from './preview_xy_records.js';
 import { createPreviewXYSources, xyRecordRows } from './preview_xy_sources.js';
 import { openZLayerOptions } from '../../workspace_modes/xy_options.js';
 import { closeXYPopover } from '../../workspace_modes/xy_popover.js';
-import { updateXYHistoryLabel } from '../../workspace_modes/xy_history.js';
+import { updateXYHistoryLabel } from '../../workspace_modes/xy_history_label.js';
 
 let previewXYSequence=0;
 export function createPreviewXYGrid(center,left,right,changed,exportControls,cameraChanged=()=>{},recordsChanged=()=>{},tilesChanged=()=>{},options={}) {
@@ -178,14 +179,16 @@ export function createPreviewXYGrid(center,left,right,changed,exportControls,cam
             const direction=reviewHistoryDirection(event);
             if (!direction||!selected.size) return;
             event.preventDefault();event.stopPropagation();
-            const display=displayXY();
+            const display=displayXY();let remembered=false;
             for (const {card} of visibleMatrixCells(cards,display)) if (selected.has(card.id)) {
                 const output=outputFor(card,display);
                 const element=wrapper.querySelector('[data-card-id="'+CSS.escape(card.id)+'"] .clab-output-area');
                 if (!output||!element) continue;
                 const next=stepReviewGridOutput(element,card,output,direction);
                 if (next) histories.set(next.id,next);
+                remembered=rememberExternalSelection(matrixOutput(card,display),next)||remembered;
             }
+            if(remembered){options.save?.();window.CLab?.saveState(state);}
             render();
         });
     };
@@ -236,11 +239,22 @@ export function createPreviewXYGrid(center,left,right,changed,exportControls,cam
             sourcePanel.change('x',at.x,true);sourcePanel.change('y',at.y,true);if(xy.z.display!=='all')xy.z.current=Math.max(0,at.z||0);
             selected.clear();selected.add(card.id);activeCardId=anchorId=card.id;selectionKind='cell';render();renderSettings(currentConfig);
         },
+        externalTargets(element,selection=false){
+            const id=element?.closest('.clab-card[data-card-id]')?.dataset.cardId;
+            return visibleMatrixCells(cards,displayXY()).flatMap(({card,z})=>{
+                if(selection?!(selected.size?selected.has(card.id):selectedLayers.has(z??0)):card.id!==id)return [];
+                const area=matrixOutput(card,displayXY());return area?[{card,area,display:outputFor(card,displayXY())}]:[];
+            });
+        },
+        refreshExternal(ids){
+            for(const id of ids){histories.delete(id);const cell=wrapper?.querySelector(`.clab-output-area[data-area-id="${CSS.escape(id)}"]`)?.closest('.clab-card');if(cell){releaseReviewGridMedia(cell);cell.remove();}}
+            render();
+        },
         getViewState(){return {sources:sourcePanel.getViewState(),camera:{...camera},selected:[...selected],layers:[...selectedLayers],selectionKind,activeCardId,anchorId,histories:[...histories]};},
         restoreViewState(saved){
             sourcePanel.restoreViewState(saved.sources);camera={...saved.camera};selected.clear();for(const id of saved.selected)if(cards.some(card=>card.id===id))selected.add(id);
             selectedLayers.clear();for(const index of saved.layers)selectedLayers.add(index);selectionKind=saved.selectionKind;activeCardId=saved.activeCardId;anchorId=saved.anchorId;
-            histories.clear();for(const [id,area]of saved.histories)histories.set(id,area);cancelAnimationFrame(fitFrame);render();renderSettings(currentConfig);updateCamera();
+            histories.clear();for(const [id,savedArea]of saved.histories){const area=cards.flatMap(card=>card.areas).find(area=>area.id===id),restored=restoreReviewHistory(area,savedArea);if(restored)histories.set(id,restored);}cancelAnimationFrame(fitFrame);render();renderSettings(currentConfig);updateCamera();
         },
         applyAxisSettings,
         clearSelection(){selected.clear();selectedLayers.clear();selectionKind='';activeCardId=anchorId='';paintSelection();renderSettings(currentConfig);},

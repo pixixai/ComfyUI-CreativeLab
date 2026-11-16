@@ -120,7 +120,7 @@ export function renderCardsList(container) {
     const wrapper = createCardsWrapper(container);
 
     const windowed=panelContainer&&getActiveWorkspace()?.view?.mode==='cards';
-    if (state.cards.length > 0&&!windowed) {
+    if (state.cards.length > 0&&!windowed&&getActiveWorkspace()?.view?.mode!=='table') {
         state.cards.forEach((card, index) => {
             const temp = document.createElement('div');
             temp.innerHTML = generateSingleCardHTML(card, index);

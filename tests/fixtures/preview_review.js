@@ -1,4 +1,5 @@
 export async function checkPreviewReview({ state, passed, assert, delay }) {
+    const {openWorkspacePreview}=await import('/extensions/clab/components/contextmenu/group_content.js');
     const { previewModalStore } = await import('/extensions/clab/components/contextmenu/content/state.js');
     const { collectPreviewRecords } = await import('/extensions/clab/components/contextmenu/content/preview_records.js');
     const { buildTableModel } = await import('/extensions/clab/components/contextmenu/content/preview_table.js');
@@ -23,7 +24,7 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     const old={id:'review-old',title:'旧版图像',type:'preview',history:[a.history[0]],historyIndex:0,resultUrl:a.history[0]};
     const other={id:'review-other',title:'另一任务',areas:[old]};
     const previousSelection=[...state.selectedAreaIds];state.cards.push(card,other);state.selectedAreaIds=[a.id,b.id,old.id];
-    const open=()=>{window.CLab.showPreviewContextMenu(100,100,card.id,a.id,a.resultUrl);document.querySelector('#clab-ctx-preview-mode').click();return document.querySelector('.clab-preview-modal.visible');};
+    const open=()=>{window.CLab.showPreviewContextMenu(100,100,card.id,a.id,a.resultUrl);document.querySelector('.clab-context-menu').style.display='none';openWorkspacePreview();return document.querySelector('.clab-preview-modal.visible');};
     const root=open(),q=selector=>root.querySelector(selector);
     const resize=(side,key)=>q(`[data-browse-resize="${side}"]`).dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));
     const sourceCheck=id=>[...root.querySelectorAll('[data-browse-source]')].find(input=>JSON.parse(input.dataset.browseSource)[1]===id);
@@ -357,7 +358,7 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     const blobURL=URL.createObjectURL(new Blob(chunks,{type:'video/webm'})),videoURL=`${blobURL}#review.webm`;
     const video={id:'review-video',title:'视频结果',type:'preview',history:[videoURL,videoURL],historyRuns:[{id:'video-1'},{id:'video-2'}],historyIndex:0,resultUrl:videoURL};
     card.areas.push(video);state.selectedAreaIds=[video.id];root.querySelector('.clab-preview-modal-close').click();
-    window.CLab.showPreviewContextMenu(100,100,card.id,video.id,videoURL);document.querySelector('#clab-ctx-preview-mode').click();
+    window.CLab.showPreviewContextMenu(100,100,card.id,video.id,videoURL);document.querySelector('.clab-context-menu').style.display='none';openWorkspacePreview();
     const browseVideo=q('.clab-preview-modal-main-video');
     for(let i=0;i<60&&browseVideo.readyState<2;i++)await delay(30);
     module(video.id).scrollIntoView({block:'center'});
@@ -439,7 +440,7 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
         if(nativeVideoURL)URL.revokeObjectURL(nativeVideoURL);
         nativeVideoURL=URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));
         video.history=[`${nativeVideoURL}#review.webm`,`${nativeVideoURL}#review.webm`];video.resultUrl=video.history[0];state.selectedAreaIds=[video.id];
-        window.CLab.showPreviewContextMenu(100,100,card.id,video.id,video.resultUrl);document.querySelector('#clab-ctx-preview-mode').click();
+        window.CLab.showPreviewContextMenu(100,100,card.id,video.id,video.resultUrl);document.querySelector('.clab-context-menu').style.display='none';openWorkspacePreview();
         if(mode==='compare'){q('[data-review-mode="compare"]').click();q('.clab-preview-modal-thumb[data-index="0"]').click();q('.clab-preview-modal-thumb[data-index="1"]').click();}
         const player=q(mode==='compare'?'.clab-compare-stage':'.clab-preview-video');
         window.nativePreviewVideos=[...player.querySelectorAll('video')];

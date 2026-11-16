@@ -65,7 +65,7 @@ export async function checkWorkspaceModes({state,passed,assert,delay}) {
     };
     try{
         show();const originalCard=q('[data-card-id="mode-template"].clab-card'),originalImage=q('[data-area-id="mode-output"] img');
-        mode('table');assert(panel.dataset.workspaceMode==='table'&&q('[data-card-id="mode-unrelated"]').hidden,'table did not isolate matching task structures');
+        mode('table');assert(panel.dataset.workspaceMode==='table'&&(!q('[data-card-id="mode-unrelated"]')||q('[data-card-id="mode-unrelated"]').hidden),'table did not isolate matching task structures');
         q('.clab-table-column[data-table-index="0"] [data-table-settings]').click();popup().querySelector('[data-table-fill-format]').value='auto';popup().querySelector('[data-table-fill-format]').dispatchEvent(new Event('change'));popup().querySelector('[data-table-values]').value='20,30,40';popup().querySelector('[data-table-values]').dispatchEvent(new Event('input'));popup().querySelector('[data-table-values]').dispatchEvent(new Event('change'));popup().querySelector('.clab-xy-popup-close').click();
         assert(state.cards.length===4&&state.cards.filter(card=>card.areas.length).map(card=>card.areas[0].value).join(',')==='20,30,40','table bulk values did not fill existing tasks and append missing tasks');
         assert(q('[data-card-id="mode-template"].clab-card')===originalCard&&q('[data-area-id="mode-output"] img')===originalImage,'table bulk edits rebuilt unchanged card/media elements');
@@ -74,7 +74,7 @@ export async function checkWorkspaceModes({state,passed,assert,delay}) {
         assert(state.cards.length===5&&state.cards.at(-1).areas[0].value===50&&state.cards.at(-1).areas.find(area=>area.type==='preview').history.length===0,'table rectangular paste lost paired values or copied generated records');
         const title=q('[data-area-id="mode-steps"] .clab-area-title-input');title.value='步数';title.dispatchEvent(new Event('change',{bubbles:true}));await delay(60);
         assert(state.cards.filter(card=>card.areas.length).every(card=>card.areas[0].title==='步数')&&state.cards.filter(card=>card.areas.length).map(card=>card.areas[0].value).join(',')==='20,30,40,50','table shared title edits did not retain individual values or update the whole group');
-        mode('cards');assert(!q('[data-card-id="mode-unrelated"]').hidden&&q('[data-area-id="mode-output"] img')===originalImage,'card view did not restore different structures or preserve its media');
+        mode('cards');assert(!(!q('[data-card-id="mode-unrelated"]')||q('[data-card-id="mode-unrelated"]').hidden)&&q('[data-area-id="mode-output"] img')===originalImage,'card view did not restore different structures or preserve its media');
         passed.push('workspace card/table modes share task identities and media, paste paired rows and bulk values, and preserve heterogeneous tasks');
 
         demo=createEmptyWorkspace('独立 XY 矩阵',{cards:[]});show();mode('xy');

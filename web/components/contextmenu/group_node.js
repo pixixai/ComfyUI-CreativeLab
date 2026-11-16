@@ -69,6 +69,7 @@ export function renderNodeGroup(nodeState) {
 export function bindNodeGroup({ menuEl, nodeState, closeMenu }) {
     const toggleEl = menuEl.querySelector("#clab-ctx-toggle-node-bypass");
     if (!toggleEl) return;
+    toggleEl.textContent=nodeState.toggleNodeBypassLabel;
 
     toggleEl.onclick = () => {
         closeMenu();

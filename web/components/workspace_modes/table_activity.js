@@ -1,6 +1,6 @@
 import { createProgressOutline, sizeProgressOutline, updateProgressOutline } from './progress_outline.js';
 
-export function createTableActivity(container) {
+export function createTableActivity(container,extent) {
     const outlines = new Map(), completed = new Map();
     const remove = id => {
         outlines.get(id)?.remove();
@@ -15,23 +15,16 @@ export function createTableActivity(container) {
         if (progress === undefined) { remove(id); return; }
         if (layout || !ring?.isConnected) {
             const row = container.querySelector(`.clab-card[data-table-row="${CSS.escape(id)}"]:not([hidden])`);
-            const cells = row?.querySelectorAll('[role=cell].is-effective');
-            if (!cells?.length) { remove(id); return; }
-            const bounds = row.getBoundingClientRect();
-            let left = bounds.right, right = bounds.left;
-            for (const cell of cells) {
-                const rect = cell.getBoundingClientRect();
-                left = Math.min(left, rect.left);
-                right = Math.max(right, rect.right);
-            }
-            const width = right - left, height = bounds.height;
+            const region=row&&extent(id);
+            if (!region) { remove(id); return; }
+            const {left,width}=region,height=row.offsetHeight;
             if (width <= 0 || height <= 0) { remove(id); return; }
             if (!ring?.isConnected) {
                 ring = createProgressOutline('clab-table-progress-ring', 'clab-table-progress-path');
                 row.append(ring);
                 outlines.set(id, ring);
             }
-            ring.style.left = `${left - bounds.left}px`;
+            ring.style.left = `${left}px`;
             ring.style.width = `${width}px`;
             sizeProgressOutline(ring, width, height);
         }

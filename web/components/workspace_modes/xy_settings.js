@@ -30,6 +30,12 @@ export function xyToolbar(xy) {
         button('run-axis-options', xyRunAxisLabels[xy.runAxis], xyRunAxisLabels[xy.runAxis], '', 'menu', true),
         button('reassign', '交换轴', '交换 XYZ 轴参数', '<path d="M9 15V3m0 12 12-1M9 15l-6 7M7 5l2-2 2 2m8 7 2 2-2 2M3 19v3h3"/><g stroke-width="1.2"><path d="m18 4 3 4m0-4-3 4M3 4l2 2 2-2M5 6v3M13 19h4l-4 4h4"/></g>'),
         button('records', '附加参数', '附加记录参数', '<rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 3h6v4H9zM9 12h6m-6 4h6"/>'),
+        '<button type="button" class="clab-tool-button" data-xy-manage-history hidden aria-pressed="false" title="管理生成记录（网格视图与拖拽排序）" aria-label="管理记录"><span class="clab-tool-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span><span class="clab-tool-label">管理记录</span></button>',
         xyTilingControls(xy),
     ].join('')+'</div>';
+}
+
+export function refreshXYHistoryTool(controls,areas){
+    const button=controls?.querySelector('[data-xy-manage-history]');if(!button)return;
+    button.hidden=!areas.length;button.setAttribute('aria-pressed',String(!!areas[0]?.isManageMode));
 }

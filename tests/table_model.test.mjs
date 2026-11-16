@@ -12,6 +12,13 @@ const parameters=[{key:'1||steps',type:'number',choices:[]},{key:'1||sampler',ty
 const fixture=()=>{const source={id:'a',title:'A',areas:[{id:'steps',type:'edit',title:'步数',targetNodeId:'1',targetWidget:'steps',targetWidgets:['1||steps'],dataType:'number',value:20},{id:'out',type:'preview',targetNodeId:'2',history:['/a.png'],historyIndex:0}]},other=cloneTask(source);other.id='b';other.areas[0].value=30;other.areas[1].history=['/b.png'];const cards=[source,other],view=createWorkspaceView().table,sheet=openTableSheet(cards,view,source);return {source,other,cards,view,sheet};};
 const bind=(column,key,type='number')=>Object.assign(column,{targetNodeId:key.split('||')[0],targetWidget:key.split('||')[1],targetWidgets:[key],dataType:type});
 
+test('unchanged table synchronization preserves binding arrays and output histories',()=>{
+    const {cards,sheet}=fixture();materializeTable(sheet,cards,parameters);
+    const bindings=cards.map(card=>card.areas[0].targetWidgets),histories=cards.map(card=>card.areas[1].history);
+    for(let i=0;i<3;i++){synchronizeSheet(sheet,cards);assert.deepEqual(materializeTable(sheet,cards,parameters),[]);orderSheetTasks(sheet,cards);}
+    cards.forEach((card,i)=>{assert.equal(card.areas[0].targetWidgets,bindings[i]);assert.equal(card.areas[1].history,histories[i]);});
+});
+
 test('background grid drafts do not allocate cards or modules until a bound input contains a value',()=>{
     const cards=[],view=createWorkspaceView().table,sheet=openTableSheet(cards,view),input=addSheetColumn(sheet),output=addSheetColumn(sheet);output.type='preview';output.targetNodeId='2';addSheetRow(sheet);
     writeSheetCells(sheet,cards,0,0,[['20']],parameters);materializeTable(sheet,cards,parameters);assert.equal(cards.length,0);

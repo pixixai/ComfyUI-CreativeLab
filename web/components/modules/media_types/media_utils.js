@@ -226,6 +226,12 @@ function getSelectedHistoryIndex(area) {
     return activeIndex;
 }
 
+export function trackExternalHistory(area){
+    if(!area.externalImports)return;
+    const positions=new Map((area.historyRuns||[]).flatMap((run,index)=>run?.externalImport?[[run.externalImport.id,index]]:[]));
+    area.externalImports=area.externalImports.filter(record=>positions.has(record.id)).map(record=>({...record,position:positions.get(record.id)}));
+}
+
 export function ensureInputSnapshotState(area) {
     if (!area || typeof area !== "object") return;
     if (!Array.isArray(area.history)) area.history = [];
@@ -242,6 +248,7 @@ export function remapPreviewHistory(area, indices) {
     for (const key of ['history', 'historyRuns', 'inputHistorySnapshots', 'textHistory', 'textHistoryStatus']) {
         if (Array.isArray(area[key])) area[key] = indices.map(index => area[key][index]);
     }
+    trackExternalHistory(area);
     area.missingHistoryRun = null;
     return indices.indexOf(activeIndex);
 }
@@ -503,18 +510,18 @@ export function getMediaType(url) {
         const filename = resolved.searchParams.get("filename") || "";
         const ext = filename.split(".").pop().toLowerCase();
         if (isPreviewableModel(filename)) return 'model';
-        if (["mp4", "webm", "mov", "avi", "mkv"].includes(ext)) return "video";
-        if (["mp3", "wav", "ogg", "flac", "aac", "m4a"].includes(ext)) return "audio";
-        if (["png", "jpg", "jpeg", "webp", "gif", "bmp"].includes(ext)) return "image";
-        if (["txt", "md", "markdown", "json", "yaml", "yml", "xml", "csv", "log"].includes(ext)) return "text";
+        if (["mp4", "webm", "mov", "avi", "mkv", "m4v"].includes(ext)) return "video";
+        if (["mp3", "wav", "ogg", "flac", "aac", "m4a", "opus"].includes(ext)) return "audio";
+        if (["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg", "avif", "tif", "tiff"].includes(ext)) return "image";
+        if (["txt", "md", "markdown", "json", "yaml", "yml", "xml", "csv", "tsv", "log"].includes(ext)) return "text";
         if (filename !== "") return "file";
     } catch (_) {}
 
     if (isPreviewableModel(cleanUrl)) return 'model';
-    if (cleanUrl.match(/\.(mp4|webm|mov|avi|mkv)$/)) return "video";
-    if (cleanUrl.match(/\.(mp3|wav|ogg|flac|aac|m4a)$/)) return "audio";
-    if (cleanUrl.match(/\.(png|jpg|jpeg|webp|gif|bmp)$/)) return "image";
-    if (cleanUrl.match(/\.(txt|md|markdown|json|yaml|yml|xml|csv|log)$/)) return "text";
+    if (cleanUrl.match(/\.(mp4|webm|mov|avi|mkv|m4v)$/)) return "video";
+    if (cleanUrl.match(/\.(mp3|wav|ogg|flac|aac|m4a|opus)$/)) return "audio";
+    if (cleanUrl.match(/\.(png|jpg|jpeg|webp|gif|bmp|svg|avif|tif|tiff)$/)) return "image";
+    if (cleanUrl.match(/\.(txt|md|markdown|json|yaml|yml|xml|csv|tsv|log)$/)) return "text";
     return "file";
 }
 
@@ -698,6 +705,7 @@ export function clearPreviewHistory(area) {
     area.selectedThumbIndices = [];
     area.inputHistorySnapshots = [];
     area.historyRuns = [];
+    if (area.externalImports) area.externalImports = [];
     area.missingHistoryRun = null;
     area.textHistory = [];
     area.textHistoryStatus = [];
@@ -765,19 +773,18 @@ export function pushPreviewHistoryEntry(area, url, options = {}) {
         }
 
         const maxLimit = window._clabMaxHistory || 50;
-        while (area.history.length > maxLimit) {
-            area.history.shift();
-            area.historyRuns.shift();
-            area.inputHistorySnapshots.shift();
-            if (kind === "text") {
-                area.textHistory.shift();
-                area.textHistoryStatus.shift();
+        // Imported files are user-added records, independent of the generated-history limit.
+        while (area.history.length - (area.externalImports?.length || 0) > maxLimit) {
+            const index = area.historyRuns.findIndex(run => !run?.externalImport);
+            for (const key of ['history','historyRuns','inputHistorySnapshots','textHistory','textHistoryStatus']) {
+                if (Array.isArray(area[key])) area[key].splice(index,1);
             }
         }
     } else if (inputSnapshot && area.history.length > 0) {
         area.inputHistorySnapshots[area.history.length - 1] = deepCloneValue(inputSnapshot);
     }
 
+    trackExternalHistory(area);
     area.historyIndex = area.history.length - 1;
     area.missingHistoryRun = null;
     area.resultUrl = area.history[area.historyIndex] || "";

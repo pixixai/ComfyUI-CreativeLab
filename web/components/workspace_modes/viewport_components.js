@@ -33,6 +33,7 @@ export function workspaceViewport(container){
         if(clearSummary&&entry.root.hasAttribute('data-clab-summary')){entry.root.querySelector('.clab-virtual-summary')?.remove();delete entry.root.dataset.clabSummary;}
         if(entry.root.hasAttribute('data-clab-deferred')||entry.root.hasAttribute('data-clab-virtual'))return;
         if(entry.root.hasAttribute('data-clab-layout')){remember(entry);entry.root.replaceChildren();delete entry.root.dataset.clabLayout;entry.root.dataset.clabVirtual='';entry.root.style.setProperty('--clab-virtual-height',`${entry.height}px`);return;}
+        entry.root.querySelectorAll(':scope>.clab-table-placeholder').forEach(element=>element.remove());
         remember(entry);saved.set(entry.area,snapshot(entry));
         entry.kind=entry.root.querySelector('.clab-glb-viewer')?'models':entry.root.querySelector('video,audio')?'media':'components';
         entry.root.querySelectorAll('video,audio').forEach(media=>media.pause());
@@ -43,11 +44,12 @@ export function workspaceViewport(container){
     };
     const prepare=entry=>{
         const root=entry.root;
-        if(root.hasAttribute('data-clab-layout')&&!sameLayout(entry.layoutKey,layoutSignature(entry.area,root.offsetWidth))){root.replaceChildren();delete root.dataset.clabLayout;root.dataset.clabDeferred='';}
+        if(root.hasAttribute('data-clab-layout')&&!sameLayout(entry.layoutKey,layoutSignature(entry.area,root.offsetWidth))){root.replaceChildren();delete root.dataset.clabLayout;root.dataset.clabDeferred='';config.preview?.(root,entry.area);}
         if(entry.holder||!root.matches('[data-clab-deferred],[data-clab-virtual]')||root.classList.contains('clab-table-draft-cell'))return false;
         const temp=document.createElement('div');temp.innerHTML=deferredLayoutHTML(generateAreaHTML(entry.area,entry.card));const full=temp.firstElementChild;
         for(const name of full.classList)root.classList.add(name);for(const property of full.style)root.style.setProperty(property,full.style.getPropertyValue(property));
-        root.replaceChildren(...full.childNodes);delete root.dataset.clabDeferred;delete root.dataset.clabVirtual;root.dataset.clabLayout='';
+        const preview=root.querySelector(':scope>.clab-table-placeholder');
+        root.replaceChildren(...full.childNodes);if(preview)root.append(preview);delete root.dataset.clabDeferred;delete root.dataset.clabVirtual;root.dataset.clabLayout='';
         if(mode==='cards'){
             applyCardMediaSize(root,entry.area,imageSizes);
             if(!container.hasAttribute('data-clab-card-jump')||!root.querySelector('video'))preloadCardMediaSize(root,entry.area,imageSizes,()=>{remember(entry);schedule();});
@@ -58,6 +60,7 @@ export function workspaceViewport(container){
     const mount=entry=>{
         const root=entry.root;
         if(!root.hasAttribute('data-clab-deferred')&&!root.hasAttribute('data-clab-virtual')&&!root.hasAttribute('data-clab-summary')&&!root.hasAttribute('data-clab-layout'))return false;
+        const preview=root.querySelector(':scope>.clab-table-placeholder');
         root.querySelector('.clab-virtual-summary')?.remove();delete root.dataset.clabSummary;
         if(root.hasAttribute('data-clab-layout')){delete root.dataset.clabLayout;activateLayoutMedia(root);attachAreaEvents(root);}
         else if(entry.holder){while(entry.holder.firstChild)moveModuleDOM(root,entry.holder.firstChild);discard(entry);}
@@ -67,10 +70,16 @@ export function workspaceViewport(container){
             root.replaceChildren(...full.childNodes);attachAreaEvents(root);
         }
         delete root.dataset.clabDeferred;delete root.dataset.clabVirtual;updateAreaDOMIdentity(entry.area.id,entry.card.id);
+        if(root.hasAttribute('data-clab-presenting')){if(preview&&!root.contains(preview))root.append(preview);}else root.querySelector(':scope>.clab-table-placeholder')?.remove();
         if(mode!=='cards')root.draggable=false;
         config.mounted?.(root,entry.card,entry.area);if(mode==='cards'){applyCardMediaSize(root,entry.area,imageSizes);measureCardLayout(root);}restore(entry);remember(entry);
         if(root.hasAttribute('data-clab-pending-refresh')){delete root.dataset.clabPendingRefresh;surgicallyUpdateArea(entry.area.id,{notify:(entry.area.type==='preview')!==root.classList.contains('clab-output-area')});if(mode==='cards'){const current=root.isConnected?root:wrapper.querySelector(`[data-area-id="${CSS.escape(entry.area.id)}"]`);if(current)measureCardLayout(current);remember(entry);}if(!root.isConnected)document.dispatchEvent(new CustomEvent('clab_workspace_view_change'));}
         return true;
+    };
+    const ensure=entry=>{
+        if(!entry)return false;const changed=mount(entry);
+        if(mode==='table'){delete entry.root.dataset.clabPresenting;entry.root.querySelector(':scope>.clab-table-placeholder')?.remove();}
+        return changed;
     };
     const summary=entry=>{
         park(entry,false);const root=entry.root;root.dataset.clabVirtual='';root.dataset.clabSummary='';
@@ -94,7 +103,7 @@ export function workspaceViewport(container){
             if(navigating&&!config.preload.has(entry.card.id))continue;
             if(!card||card.hidden||root.hidden){plan.push([entry,'park']);continue;}
             let box=cardBounds.get(card);if(!box){box=bounds(card);cardBounds.set(card,box);}
-            const selected=mode==='xy'&&state.activeCardId===entry.card.id;
+            const selected=mode==='xy'&&(state.activeCardId===entry.card.id||entry.area.isManageMode);
             if(pinned(entry)){plan.push([entry,'full']);continue;}
             if(mode!=='cards'&&!intersectsViewport(box,viewport)){if(!root.hasAttribute('data-clab-virtual'))entry.height=root.offsetHeight||entry.height;plan.push([entry,'park']);continue;}
             const areaBox=mode==='xy'?box:bounds(root);
@@ -111,7 +120,7 @@ export function workspaceViewport(container){
         if(restoredModels)refreshModelVisibility(wrapper);
         const pending=[];
         for(const [entry,action]of plan){
-            if(action==='park')park(entry);
+            if(action==='park'){park(entry);config.preview?.(entry.root,entry.area);}
             else if(action==='summary')summary(entry);
             else if(action==='layout'){
                 if(entry.root.hasAttribute('data-clab-deferred'))pending.push([entry,action]);
@@ -150,7 +159,7 @@ export function workspaceViewport(container){
                     const extra=[...entries.values()].filter(entry=>entry.root.closest('.clab-card')===key&&valid(entry)&&!group.staged.has(entry.root)&&entry.root.matches('[data-clab-deferred],[data-clab-virtual]')&&intersectsViewport(bounds(entry.root),body)&&intersectsViewport(bounds(entry.root),viewport));
                     if(extra.length){for(const entry of extra){group.items.push(entry);group.staged.add(entry.root);entry.root.dataset.clabPresenting='';}return false;}
                 }
-                for(const root of group.staged)delete root.dataset.clabPresenting;
+                for(const root of group.staged){delete root.dataset.clabPresenting;root.querySelector(':scope>.clab-table-placeholder')?.remove();}
                 config.settled?.();
             };
         });
@@ -192,14 +201,14 @@ export function workspaceViewport(container){
         paint();
     };
     container.addEventListener('scroll',schedule,true);container.addEventListener('clab_viewport_change',schedule);
-    const stopWork=()=>{work.clear();cancelAnimationFrame(frame);frame=0;for(const root of wrapper?.querySelectorAll('[data-clab-presenting]')||[])delete root.dataset.clabPresenting;};
+    const stopWork=()=>{work.clear();cancelAnimationFrame(frame);frame=0;for(const root of wrapper?.querySelectorAll('[data-clab-presenting]')||[]){delete root.dataset.clabPresenting;if(!root.matches('[data-clab-deferred],[data-clab-virtual],[data-clab-layout]'))root.querySelector(':scope>.clab-table-placeholder')?.remove();}};
     container.addEventListener('clab_panel_closed',stopWork);
     container.addEventListener('clab_navigation_start',stopWork);
     document.addEventListener('clab_cache_limits_change',()=>{trimCaches();refreshModelVisibility(cache);});
-    container.addEventListener('clab_ensure_component',event=>{if(enabled){const entry=entries.get(event.target.closest('.clab-area,.clab-table-draft-cell'));if(entry&&mount(entry))config.settled?.();schedule();}},true);
-    container.addEventListener('pointerdown',event=>{if(!enabled)return;const root=event.target.closest('[data-clab-deferred],[data-clab-virtual]');if(root&&!root.hasAttribute('data-clab-summary')){const entry=entries.get(root);if(entry&&mount(entry))config.settled?.();schedule();}},true);
-    container.addEventListener('focusin',event=>{if(!enabled)return;const entry=entries.get(event.target.closest('.clab-area,.clab-table-draft-cell'));if(entry)mount(entry);schedule();},true);
+    container.addEventListener('clab_ensure_component',event=>{if(enabled){if(ensure(entries.get(event.target.closest('.clab-area,.clab-table-draft-cell'))))config.settled?.();schedule();}},true);
+    container.addEventListener('pointerdown',event=>{if(!enabled)return;const root=event.target.closest('[data-clab-deferred],[data-clab-virtual],[data-clab-layout],[data-clab-presenting]');if(root&&!root.hasAttribute('data-clab-summary')){if(ensure(entries.get(root)))config.settled?.();schedule();}},true);
+    container.addEventListener('focusin',event=>{if(!enabled)return;ensure(entries.get(event.target.closest('.clab-area,.clab-table-draft-cell')));schedule();},true);
     container.addEventListener('pointerup',schedule,true);container.addEventListener('dragstart',()=>dragging=true,true);window.addEventListener('dragend',()=>{dragging=false;schedule();},true);
     new ResizeObserver(schedule).observe(container);
-    const api={update,schedule,parkCard(card){let reusable=false;for(const root of card.querySelectorAll('.clab-area')){const entry=entries.get(root);if(!entry)continue;reusable||=!!entry.holder||!root.matches('[data-clab-deferred],[data-clab-virtual],[data-clab-layout],[data-clab-summary]');park(entry);}refreshModelVisibility(cache);return reusable;},releaseCard(card){for(const root of card.querySelectorAll('.clab-area,.clab-table-draft-cell')){const entry=entries.get(root);if(!entry)continue;if(!root.matches('[data-clab-virtual],[data-clab-deferred],[data-clab-layout]')){remember(entry);saved.set(entry.area,snapshot(entry));}else remember(entry);root.querySelectorAll('video,audio').forEach(media=>media.pause());sizes.unobserve(root);discard(entry);entries.delete(root);}},restoreCached(){if(mode!=='table')return;for(const entry of [...parked.values()]){entry.root.querySelector('.clab-virtual-summary')?.remove();while(entry.holder?.firstChild)moveModuleDOM(entry.root,entry.holder.firstChild);discard(entry);delete entry.root.dataset.clabVirtual;delete entry.root.dataset.clabSummary;}},ensure:root=>{const entry=entries.get(root);return entry&&mount(entry);}};controllers.set(container,api);return api;
+    const api={update,schedule,parkCard(card){let reusable=false;for(const root of card.querySelectorAll('.clab-area')){const entry=entries.get(root);if(!entry)continue;reusable||=!!entry.holder||!root.matches('[data-clab-deferred],[data-clab-virtual],[data-clab-layout],[data-clab-summary]');park(entry);}refreshModelVisibility(cache);return reusable;},releaseCard(card){for(const root of [card,...card.querySelectorAll('.clab-area,.clab-table-draft-cell')]){const entry=entries.get(root);if(!entry)continue;if(!root.matches('[data-clab-virtual],[data-clab-deferred],[data-clab-layout]')){remember(entry);saved.set(entry.area,snapshot(entry));}else remember(entry);root.querySelectorAll('video,audio').forEach(media=>media.pause());sizes.unobserve(root);discard(entry);entries.delete(root);}},restoreCached(){if(mode!=='table')return;for(const entry of [...parked.values()]){entry.root.querySelector('.clab-virtual-summary')?.remove();while(entry.holder?.firstChild)moveModuleDOM(entry.root,entry.holder.firstChild);discard(entry);delete entry.root.dataset.clabVirtual;delete entry.root.dataset.clabSummary;}},ensure:root=>ensure(entries.get(root))};controllers.set(container,api);return api;
 }

@@ -11,7 +11,7 @@ import { tableSelectAllIcon } from '../../workspace_modes/table_icons.js';
 import { updateTableEditor } from '../../workspace_modes/table_editors.js';
 import { workflowParameters } from '../../workspace_modes/parameters.js';
 import { escapeHtml as esc } from './shared.js';
-import { renderReviewArea, attachReviewGridMedia, releaseReviewGridMedia, reviewHistoryDirection, stepReviewGridOutput } from './preview_grid_media.js';
+import { renderReviewArea, attachReviewGridMedia, releaseReviewGridMedia, reviewHistoryDirection, stepReviewGridOutput, restoreReviewHistory, rememberExternalSelection } from './preview_grid_media.js';
 import { workspaceTableSource } from './preview_workspace_sheets.js';
 import { outputDownloadRecords } from './preview_downloads.js';
 
@@ -331,11 +331,14 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
             const direction=reviewHistoryDirection(event),outputs=direction?outputCells(true):[];
             if (outputs.length) {
                 event.preventDefault();event.stopPropagation();
+                const originals=new Map(cards.flatMap(card=>card.areas.map(area=>[area.id,area])));let remembered=false;
                 for (const {row,area} of outputs) {
                     const cell=wrapper.querySelector('[data-review-cell="'+CSS.escape(area.id)+'"]');
                     const next=stepReviewGridOutput(cell,row,area,direction);
                     if (next) histories.set(area.id,next);
+                    remembered=rememberExternalSelection(originals.get(area.id),next)||remembered;
                 }
+                if(remembered){options.save?.();window.CLab?.saveState(state);}
                 changed();return;
             }
             if (event.key==='Escape') { event.stopPropagation();choose([],null); }
@@ -368,10 +371,27 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
             if(column)choose([row.areas[column.index].id],'cell');
             wrapper.querySelector(column?`[data-review-cell="${CSS.escape(row.areas[column.index].id)}"]`:`[data-review-row="${CSS.escape(row.id)}"]`)?.scrollIntoView({block:'nearest',inline:'nearest'});
         },
+        externalTargets(element,selection=false){
+            const id=element?.closest('[data-review-cell]')?.dataset.reviewCell;
+            return outputCells(selection).flatMap(({row,area})=>{
+                if(!selection&&area.id!==id)return [];
+                const card=cards.find(card=>card.id===(row.sheetRow?.cardId||row.id)),actual=card?.areas.find(item=>item.id===area.id);
+                return actual?[{card,area:actual,display:area}]:[];
+            });
+        },
+        refreshExternal(ids){
+            for(const id of ids){
+                histories.delete(id);
+                const cell=wrapper?.querySelector(`[data-review-cell="${CSS.escape(id)}"]`),row=visibleRows.find(row=>row.areas.some(area=>area.id===id)),area=row?.areas.find(area=>area.id===id);
+                if(!cell||!area)continue;
+                const fresh=renderReviewArea(area,row);releaseReviewGridMedia(cell);cell.append(...fresh.children);attachReviewGridMedia(cell);
+            }
+            paint();changed();
+        },
         getViewState(){return {rows:[...shownRows],columns:[...shownColumns],selected:[...selected],kind,anchor,headerAnchor,histories:[...histories]};},
         restoreViewState(saved){
             shownRows=new Set(saved.rows);shownColumns=new Set(saved.columns);selected=new Set(saved.selected);kind=saved.kind;anchor=saved.anchor;headerAnchor=saved.headerAnchor;
-            histories.clear();for(const [id,area]of saved.histories)histories.set(id,area);render();mountSettings();
+            histories.clear();for(const [id,savedArea]of saved.histories){const area=cards.flatMap(card=>card.areas).find(area=>area.id===id),restored=restoreReviewHistory(area,savedArea);if(restored)histories.set(id,restored);}render();mountSettings();
         },
         applySetting(key,args){settingActions?.[key](...args);},
         clearSelection(){choose([],null);},

@@ -70,7 +70,7 @@ export function createPreviewMultiGrid(center,left,right,changed,exportControls)
                     settingsAction:(key,args)=>{for(const target of settingGroups())target.api.applySetting(key,args);bundle.commit();queueLayout();},
                 }):createPreviewXYGrid(c,l,r,queueLayout,controls,()=>{},(keys,expanded)=>{
                     Object.assign(source.projected.view.xy,{previewRecords:keys,previewRecordsExpanded:expanded});bundle.commit();
-                },layout=>{Object.assign(source.projected.view.xy.tiling,layout.tiling);source.projected.view.xy.z.display=layout.display;bundle.commit();}, {grouped:true,
+                },layout=>{Object.assign(source.projected.view.xy.tiling,layout.tiling);source.projected.view.xy.z.display=layout.display;bundle.commit();}, {grouped:true,save:()=>bundle.commit(),
                     selection:({kind,event})=>{if(muteSelection)return;if(!kind){clear();return;}activate(source.id,event);},
                     axisSetting:(name,values)=>{for(const target of settingGroups())if(target!==group)target.api.applyAxisSettings(name,values);queueLayout();},
                     cellInfo:(html,card)=>{if(!card&&currentCellOwner!==source.id)return;currentCellOwner=card?source.id:'';cellInfo.hidden=!card;cellInfo.lastElementChild.innerHTML=html;},
@@ -123,6 +123,8 @@ export function createPreviewMultiGrid(center,left,right,changed,exportControls)
             selected=saved.selected;scopes.clear();for(const id of saved.scopes)if(groups.some(group=>group.id===id))scopes.add(id);
             if(mode==='xy'){cancelAnimationFrame(fitFrame);camera={...saved.camera};paintCamera();}paintScope();queueLayout();
         },
+        externalTargets(element,selection=false){return groups.flatMap(group=>group.api.externalTargets(element,selection));},
+        refreshExternal(ids){for(const group of groups)group.api.refreshExternal(ids);queueLayout();},
         clearSelection(){clearSelection();},
         flush(){bundle?.commit();groups.forEach(group=>group.api.flush?.());},
         release(){widthObserver?.disconnect();viewport?.release();cancelAnimationFrame(frame);cancelAnimationFrame(fitFrame);groups.forEach(group=>group.api.release());groups=[];scene=null;},

@@ -2,11 +2,13 @@ import { state, appState,getActiveWorkspace } from '../ui_state.js';
 import { renderTableGrid, leaveTableGrid, editTableRowTitle, paintTableSelection } from './table_view.js';
 import { openTableColumnSettings } from './table_column_panel.js';
 import { openTableCellSettings } from './table_cell_panel.js';
-import { tableRowHeight, tableColumnWidth, resizeTableCells, applyTableLayout, tablePadding, tableSizes, fitTableMedia } from './table_layout.js';
+import { tableRowHeight, tableColumnWidth, resizeTableCells, tablePadding, tableSizes, fitTableMedia } from './table_layout.js';
 import { tableAppearance, setTableAppearance, setTableCellAppearance } from './table_appearance.js';
-import { openTableSheet, addSheetColumn, addSheetRow, synchronizeSheet, projectTableSheet, materializeTable, writeSheetCells, sheetRunRows, orderSheetTasks, resetTableColumn, selectedTableColumns } from './table_sheet.js';
+import { openTableSheet, addSheetColumn, addSheetRow, synchronizeSheet, projectTableSheet, materializeTable, writeSheetCells, sheetRunRows, orderSheetTasks, resetTableColumn, selectedTableColumns,boundColumn,effectiveTableRow } from './table_sheet.js';
 import { duplicateTableRow, duplicateTableColumn, removeTableTracks } from './table_structure.js';
-import { promoteDraftRows,renderDraftValue } from './table_drafts.js';
+import { renderDraftValue } from './table_drafts.js';
+import { tableWindow } from './table_window.js';
+import { renderTablePlaceholder } from './table_placeholder.js';
 import { workspaceViewport } from './viewport_components.js';
 import { updateTableEditor } from './table_editors.js';
 import { virtualizeTasks } from './viewport_geometry.js';
@@ -16,11 +18,9 @@ import { attachTableGestures } from './table_gestures.js';
 import { attachTableSelection, tableLayoutSelection } from './table_selection.js';
 import { workflowParameters } from './parameters.js';
 import { tableParameter, reorderTableItems, tablePasteTarget } from './table_model.js';
-import { appendWorkspaceTasks, hydrateWorkspaceAreas } from './task_dom.js';
 import { synchronizeModeMedia } from './mode_media.js';
 import { updateSelectionUI } from '../ui_selection.js';
 import { closeXYPopover } from './xy_popover.js';
-import { getAreaResultType } from '../modules/media_types/media_utils.js';
 import { showBindingToast } from '../ui_utils.js';
 import { focusTableCell } from './table_editors.js';
 import { attachTableEditing } from './table_editing.js';
@@ -29,7 +29,12 @@ import { attachTableFileActions } from './table_file_actions.js';
 
 export function createTableController(container,getView,save) {
     const panel=container.closest('#clab-panel'),active=()=>panel.dataset.workspaceMode==='table',view=()=>getView().table,wrapper=()=>container.querySelector('.clab-cards-wrapper');
-    const activity = createTableActivity(container);
+    const activity = createTableActivity(container,id=>{
+        const row=rows.find(row=>row.id===id);if(!row||!effectiveTableRow(row))return;
+        const sizes=layoutView();let offset=parseFloat(wrapper().style.getPropertyValue('--clab-table-row-width'))||44,left,right;
+        for(const column of columns){const width=tableColumnWidth(column,sizes);if(boundColumn(column.area)){left??=offset;right=offset+width;}offset+=width;}
+        if(left!==undefined)return {left,width:right-left};
+    }),windowed=tableWindow(container);
     document.addEventListener('clab_task_activity', event => {
         const {workspaceId, cardId, completed} = event.detail;
         if (active() && sheet && workspaceId === state.activeWorkspaceId) activity.refresh(workspaceId, cardId, completed);
@@ -42,10 +47,9 @@ export function createTableController(container,getView,save) {
     const layout=()=>{
         if(!sheet||!wrapper())return;rows=projectTableSheet(sheet,state.cards);
         columns=sheet.columns.map((area,index)=>({id:area.id,index,area}));
-        applyTableLayout(wrapper(),columns,layoutView());
     };
     const ensureGrid=()=>{
-        layout();const sizes=layoutView();let total=columns.reduce((sum,column)=>sum+tableColumnWidth(column,sizes),44);
+        const sizes=layoutView();let total=sheet.columns.reduce((sum,column)=>sum+tableColumnWidth(column,sizes),44);
         while(sheet.columns.length<4||total<container.clientWidth){addSheetColumn(sheet);total+=tableColumnWidth(null,sizes);}
         let height=sheet.rows.reduce((sum,row)=>sum+tableRowHeight(sizes,row),40);
         while(sheet.rows.length<4||height<container.clientHeight){const row=addSheetRow(sheet);height+=tableRowHeight(sizes,row);}
@@ -53,39 +57,45 @@ export function createTableController(container,getView,save) {
     };
     const render=requested=>{
         if(!wrapper())return;if(!sheet)sheet=openTableSheet(state.cards,view(),requested);
-        synchronizeSheet(sheet,state.cards);const changed=materializeTable(sheet,state.cards,workflowParameters());orderSheetTasks(sheet,state.cards);promoteDraftRows(wrapper(),state.cards);
-        if(changed.length){appendWorkspaceTasks(container,state.cards);for(const id of changed)window._clabSurgicallyUpdateArea?.(id);}
+        const parameters=workflowParameters();
+        synchronizeSheet(sheet,state.cards);const changed=materializeTable(sheet,state.cards,parameters);orderSheetTasks(sheet,state.cards);
+        for(const id of changed)window._clabSurgicallyUpdateArea?.(id);
         ensureGrid();selection.sync();wrapper().dataset.tableSelection=selection.kind();
+        windowed.render(rows,columns,layoutView(),(visibleRows,visibleColumns)=>paint(visibleRows,visibleColumns,parameters));
+    };
+    const paint=(visibleRows,visibleColumns,parameters)=>{
         for(const id of ready)wrapper().querySelector(`.clab-area[data-area-id="${CSS.escape(id)}"]`)?.setAttribute('data-clab-table-media-ready','');
-        const members=new Set(rows.map(row=>row.id));hydrateWorkspaceAreas(wrapper(),(card,area)=>members.has(card.id)&&(area.type!=='preview'||area.isManageMode||ready.has(area.id)||!['video','audio','model'].includes(getAreaResultType(area))));
-        renderTableGrid(wrapper(),state.cards,rows,columns,layoutView(),workflowParameters(),save,ready);editing.sync();
-        activity.refresh(state.activeWorkspaceId);
-        for(const cell of wrapper().querySelectorAll('.clab-card:not([hidden]) [data-clab-deferred],.clab-card:not([hidden]) [data-clab-pending-refresh]'))if(!observed.has(cell)){observed.add(cell);mediaObserver.observe(cell);}
+        renderTableGrid(wrapper(),state.cards,rows,columns,layoutView(),parameters,save,ready,visibleRows,visibleColumns);editing.sync();
         if(!controls?.isConnected){controls=document.createElement('div');controls.className='clab-table-fixed-controls';controls.innerHTML='<button data-table-add="columns" title="新增列（在所选项后插入）" aria-label="新增列">＋</button><button data-table-add="rows" title="新增行（在所选项后插入）" aria-label="新增行">＋</button>';wrapper().prepend(controls);}
         controls.style.width=`${container.clientWidth}px`;controls.style.setProperty('--table-viewport-height',`${container.clientHeight}px`);controls.style.setProperty('--clab-table-row-width',wrapper().style.getPropertyValue('--clab-table-row-width'));synchronizeModeMedia(wrapper());
-        const parameters=workflowParameters();
-        workspaceViewport(container).update('table',{cards:rows,count:rows.length*columns.length,
+        return ()=>{
+        activity.refresh(state.activeWorkspaceId);
+        for(const cell of wrapper().querySelectorAll('.clab-card:not([hidden]) [data-clab-deferred],.clab-card:not([hidden]) [data-clab-pending-refresh]'))if(!observed.has(cell)){observed.add(cell);mediaObserver.observe(cell);}
+        workspaceViewport(container).update('table',{cards:visibleRows,count:rows.length*columns.length,
+            preview:renderTablePlaceholder,
             mount(cell,card,area){if(!cell.classList.contains('clab-table-draft-cell'))return false;renderDraftValue(cell,area,tableParameter(columns[Number(cell.dataset.tableIndex)].area,parameters),card);return true;},
             prepared(cell){fitTableMedia(cell,tableColumnWidth(columns[Number(cell.dataset.tableIndex)],layoutView()),tableRowHeight(layoutView(),{id:cell.dataset.cardId}));},
-            mounted(cell,card,area){cell.dataset.clabTableMediaReady='';if(cell.classList.contains('clab-area'))updateTableEditor(cell,area,tableParameter(area,parameters));fitTableMedia(cell,tableColumnWidth(columns[Number(cell.dataset.tableIndex)],layoutView()),tableRowHeight(layoutView(),{id:cell.dataset.cardId}));editing.syncCell(cell);fileActions.paint(cell);}
+            mounted(cell,card,area){cell.dataset.clabTableMediaReady='';if(cell.classList.contains('clab-area'))updateTableEditor(cell,area,tableParameter(area,parameters));fitTableMedia(cell,tableColumnWidth(columns[Number(cell.dataset.tableIndex)],layoutView()),tableRowHeight(layoutView(),{id:cell.dataset.cardId}));editing.syncCell(cell);},
+            settled:()=>fileActions.paint()
         });fileActions.paint();
+        };
     };
     const commit=()=>{
         cancelAnimationFrame(frame);frame=0;pending=false;if(!sheet)return;
         const focused=document.activeElement,cell=focused?.closest('[data-area-id]'),focusId=cell?.dataset.areaId,start=focused?.selectionStart,end=focused?.selectionEnd;
-        if(!schemaChanged)synchronizeSheet(sheet,state.cards);schemaChanged=false;const changed=materializeTable(sheet,state.cards,workflowParameters());orderSheetTasks(sheet,state.cards);promoteDraftRows(wrapper(),state.cards);appendWorkspaceTasks(container,state.cards);
+        if(!schemaChanged)synchronizeSheet(sheet,state.cards);schemaChanged=false;const changed=materializeTable(sheet,state.cards,workflowParameters());orderSheetTasks(sheet,state.cards);
         for(const id of new Set([...changed,...dirty]))window._clabSurgicallyUpdateArea?.(id);dirty.clear();render();updateSelectionUI();
         if(focusId&&!focused.isConnected){const target=focusTableCell(container.querySelector(`[data-area-id="${CSS.escape(focusId)}"]`),editing.contains(focused));if(target?.setSelectionRange&&start!=null)try{target.setSelectionRange(start,end);}catch{}}
         save();
     };
-    const queue=(flush=false)=>{pending||=flush;if(frame)return;frame=requestAnimationFrame(()=>{frame=0;if(!active())return;if(pending)commit();else layout();});};
+    const queue=(flush=false)=>{pending||=flush;if(frame)return;frame=requestAnimationFrame(()=>{frame=0;if(!active())return;if(pending)commit();else render();});};
     const selectedRows=()=>state.selectedCardIds.filter(id=>rows.some(row=>row.id===id));
     const selectedColumns=index=>{const indices=selection.columnIndices();return indices.includes(index)?indices:[index];};
     const markColumn=index=>{if(columns[index])view().configured[columns[index].id]=true;};
     const resize = (key, value, ids, defer) => {
         if (!resizeTableCells(view(), sheet, key, value, ids)) return;
         if (key === 'width') for (const id of ids) view().configured[id] = true;
-        if (defer) { applyTableLayout(wrapper(), columns, layoutView()); activity.refresh(state.activeWorkspaceId); }
+        if (defer) { windowed.render(rows,columns,layoutView(),(visibleRows,visibleColumns)=>paint(visibleRows,visibleColumns,workflowParameters())); }
         else { render(); save(); }
     };
     const write=(row,index,values,expand=false)=>{writeSheetCells(sheet,state.cards,row,index,values,workflowParameters(),expand);for(const item of rows.slice(row,row+values.length))for(const area of item.areas.slice(index,index+(values[0]?.length||0)))dirty.add(area.id);};
@@ -161,7 +171,7 @@ export function createTableController(container,getView,save) {
         if(kind==='columns'){
             const selected=selection.columnIndices(),cells=columns.filter(column=>rows.some(row=>state.selectedAreaIds.includes(row.areas[column.index].id))).map(column=>column.index),indices=selected.length?selected:cells;index=indices.length?Math.max(...indices)+1:sheet.columns.length;addSheetColumn(sheet,index);
         }else{const indices=rows.map((row,index)=>state.selectedCardIds.includes(row.id)||row.areas.some(area=>state.selectedAreaIds.includes(area.id))?index:-1).filter(index=>index>=0);index=indices.length?Math.max(...indices)+1:sheet.rows.length;addSheetRow(sheet,index);}
-        commit();requestAnimationFrame(()=>{const element=kind==='columns'?container.querySelector(`.clab-table-column[data-table-index="${index}"]`):container.querySelector(`[data-table-row="${sheet.rows[index].id}"] [data-table-row-header]`);element?.scrollIntoView({block:'nearest',inline:'nearest'});});
+        commit();windowed.reveal(null,null,kind==='rows'?index:0,kind==='columns'?index:undefined);
     };
     const run=(all=false)=>{
         commit();const selected=new Set(rows.filter(row=>state.selectedCardIds.includes(row.id)||row.areas.some(area=>state.selectedAreaIds.includes(area.id))).map(row=>row.id)),base=sheetRunRows(sheet,state.cards,workflowParameters()).filter(task=>all||!selected.size||selected.has(task.cardId));
@@ -308,7 +318,7 @@ export function createTableController(container,getView,save) {
     const selection=attachTableSelection(panel,{active,group,columns:()=>columns,paint:()=>{if(sheet&&wrapper()){paintTableSelection(wrapper(),rows,columns,selection.kind());fileActions.paint();}},editing});
     const navigate=(row,index)=>{
         if(row<0||index<0)return;editing.end();while(sheet.rows.length<=row)addSheetRow(sheet);commit();const area=rows[row]?.areas[index];if(!area)return;
-        selection.selectCell(area.id);const cell=container.querySelector(`[data-area-id="${CSS.escape(area.id)}"]`);cell?.scrollIntoView({block:'nearest',inline:'nearest'});
+        selection.selectCell(area.id);const cell=windowed.reveal(null,area.id,row,index);cell?.scrollIntoView({block:'nearest',inline:'nearest'});
         focusTableCell(cell);
     };
     container.addEventListener('pointerover',event=>{if(!active())return;const index=event.target.closest('[data-table-index]')?.dataset.tableIndex;for(const header of container.querySelectorAll('.clab-table-column'))header.classList.toggle('is-column-hover',header.dataset.tableIndex===index);});
@@ -331,5 +341,5 @@ export function createTableController(container,getView,save) {
         move:(kind,ids,target,after)=>{if(reorderTableItems(kind==='column'?sheet.columns:sheet.rows,ids,target,after,kind==='column'))commit();}
     });
     const sizeObserver=new ResizeObserver(()=>{if(active()&&sheet)queue(true);});sizeObserver.observe(container);
-    return {render,flush(){if(active()&&pending)commit();},leave(){workspaceViewport(container).restoreCached();cancelAnimationFrame(frame);frame=0;pending=false;editing.restore();mediaObserver.disconnect();activity.clear();observed=new WeakSet();leaveGestures();selection.clear();settings?.close();closeXYPopover();controls?.remove();controls=null;sheet=null;rows=[];columns=[];ready.clear();dirty.clear();const node=wrapper();if(node)leaveTableGrid(node);state.selectedCardIds=state.selectedCardIds.filter(id=>state.cards.some(card=>card.id===id));state.selectedAreaIds=state.selectedAreaIds.filter(id=>state.cards.some(card=>card.areas.some(area=>area.id===id)));}};
+    return {render,flush(){if(active()&&pending)commit();},leave(){windowed.leave();workspaceViewport(container).restoreCached();cancelAnimationFrame(frame);frame=0;pending=false;editing.restore();mediaObserver.disconnect();activity.clear();observed=new WeakSet();leaveGestures();selection.clear();settings?.close();closeXYPopover();controls?.remove();controls=null;sheet=null;rows=[];columns=[];ready.clear();dirty.clear();const node=wrapper();if(node)leaveTableGrid(node);state.selectedCardIds=state.selectedCardIds.filter(id=>state.cards.some(card=>card.id===id));state.selectedAreaIds=state.selectedAreaIds.filter(id=>state.cards.some(card=>card.areas.some(area=>area.id===id)));}};
 }

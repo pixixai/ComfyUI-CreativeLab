@@ -24,7 +24,7 @@ export async function checkXYZMatrix({state,passed,assert,delay}) {
         for(const origin of ['top','bottom']){
             orientation(origin);
             const title=q('.clab-xy-layer-title'),r=title.getBoundingClientRect(),binding=q(`[data-xy-bind="${origin==='bottom'?'y':'z'}"]`).getBoundingClientRect();
-            assert(r.bottom<=binding.top-6*xy.zoom&&Math.abs(parseFloat(getComputedStyle(title).fontSize)/xy.zoom-16)<.1,'layer title is too small or overlaps its binding summary');
+            assert(r.bottom<=binding.top-6*xy.zoom&&Math.abs(parseFloat(getComputedStyle(title).fontSize)/xy.zoom-12)<.1,'layer title has the wrong font size or overlaps its binding summary');
             const button=q('[data-xy-toggle-layers]');
             assert(button.textContent==='平铺所有 Z 层'&&!q('#clab-cards-container [data-xy-toggle-layers]')&&q('[data-xy-tile-settings]'),'tiling controls were not moved into the toolbar');
         }

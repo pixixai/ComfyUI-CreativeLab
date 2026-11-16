@@ -6,6 +6,7 @@ import { cardWindow } from './card_window.js';
 import { virtualizeTasks } from './viewport_geometry.js';
 
 export function appendWorkspaceTasks(container,cards) {
+    if(container.closest('#clab-panel')&&getActiveWorkspace()?.view?.mode==='table')return;
     if(container.closest('#clab-panel')&&getActiveWorkspace()?.view?.mode==='cards'){cardWindow(container).update();return;}
     const wrapper=container.querySelector('.clab-cards-wrapper');if(!wrapper)return;
     const elements=new Map([...wrapper.querySelectorAll(':scope > .clab-card')].map(element=>[element.dataset.cardId,element]));

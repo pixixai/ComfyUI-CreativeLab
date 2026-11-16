@@ -1,37 +1,37 @@
 import { state } from '../ui_state.js';
-import { virtualizeTasks } from './viewport_geometry.js';
 import { generateSingleCardHTML, attachCardEvents } from '../comp_taskcard.js';
 import { tableParameter } from './table_model.js';
 import { escapeHtml as esc } from '../contextmenu/content/shared.js';
 import { generateInputHTML,attachInputEvents } from '../modules/module_input.js';
+import { generateAreaHTML,generateDeferredAreaHTML,attachAreaEvents } from '../comp_modulearea.js';
+import { moveModuleDOM } from '../modules/module_lifecycle.js';
 
-export function promoteDraftRows(wrapper,cards) {
-    for(const card of cards){
-        const row=wrapper.querySelector(`.clab-table-draft-row[data-card-id="${CSS.escape(card.id)}"]`);if(!row)continue;
-        row.classList.replace('clab-table-draft-row','clab-card');attachCardEvents(row);
-    }
-}
-
-export function renderDraftRows(wrapper,rows,columns,parameters,selectedAreas) {
+export function renderDraftRows(wrapper,rows,columns,parameters,selectedAreas,cards,defer) {
+    const actual=new Map(cards.map(card=>[card.id,card]));
     for(const row of wrapper.querySelectorAll('.clab-table-draft-row'))if(!rows.some(item=>item.id===row.dataset.cardId))row.remove();
     for(const row of rows){
         let element=wrapper.querySelector(`:scope>[data-card-id="${CSS.escape(row.id)}"]`);
-        if(!element){const temp=document.createElement('div');temp.innerHTML=generateSingleCardHTML({...row,areas:[]},rows.indexOf(row));element=temp.firstElementChild;element.classList.replace('clab-card','clab-table-draft-row');wrapper.append(element);}
+        if(!element){const temp=document.createElement('div');temp.innerHTML=generateSingleCardHTML({...row,areas:[]},rows.indexOf(row));element=temp.firstElementChild;if(!actual.has(row.id))element.classList.replace('clab-card','clab-table-draft-row');wrapper.append(element);attachCardEvents(element);}
+        else if(actual.has(row.id)&&element.classList.contains('clab-table-draft-row')){element.classList.replace('clab-table-draft-row','clab-card');attachCardEvents(element);}
         element.dataset.tableRow=row.id;element.hidden=false;element.draggable=false;
         const list=element.querySelector('.clab-area-list');
-        for(const cell of list.querySelectorAll('.clab-table-draft-cell')){
-            const index=columns.findIndex(column=>column.id===cell.dataset.tableColumn),area=row.areas[index];
-            if(!area||area.id!==cell.dataset.areaId||list.querySelector(`.clab-area[data-area-id="${CSS.escape(area.id)}"]`))cell.remove();
-        }
+        const wanted=new Map(columns.map(column=>[row.areas[column.index].id,column]));
+        const cells=new Map();for(const cell of [...list.children]){if(!wanted.has(cell.dataset.areaId))cell.remove();else cells.set(cell.dataset.areaId,cell);}
+        const realAreas=new Set((actual.get(row.id)?.areas||[]).map(area=>area.id));let added=false;
         for(const column of columns){
-            const area=row.areas[column.index];if(list.querySelector(`.clab-area[data-area-id="${CSS.escape(area.id)}"]`))continue;
-            let cell=list.querySelector(`.clab-table-draft-cell[data-table-column="${CSS.escape(column.id)}"]`);
+            const area=row.areas[column.index];let cell=cells.get(area.id);
+            if(realAreas.has(area.id)){
+                if(cell&&!cell.classList.contains('clab-area')){cell.remove();cell=null;}
+                if(!cell){const temp=document.createElement('div');temp.innerHTML=(defer?generateDeferredAreaHTML:generateAreaHTML)(area,actual.get(row.id));cell=temp.firstElementChild;moveModuleDOM(list,cell);added=true;}
+                Object.assign(cell.dataset,{tableColumn:column.id,tableIndex:column.index});continue;
+            }
             if(!cell){cell=document.createElement('div');cell.className='clab-table-draft-cell';cell.innerHTML='<div class="clab-input-body"></div>';list.append(cell);}
             Object.assign(cell.dataset,{areaId:area.id,cardId:row.id,tableColumn:column.id,tableIndex:column.index});cell.setAttribute('role','cell');cell.style.gridColumn=column.index+2;
             cell.classList.toggle('active',selectedAreas.has(area.id));
-            if(wrapper.closest('#clab-panel')&&(rows.length*columns.length>=160||virtualizeTasks(state.cards))&&(!cell.firstElementChild?.children.length||cell.hasAttribute('data-clab-virtual'))){cell.dataset.clabVirtual='';continue;}
+            if(defer&&(!cell.firstElementChild?.children.length||cell.hasAttribute('data-clab-virtual'))){cell.dataset.clabVirtual='';continue;}
             renderDraftValue(cell,area,tableParameter(column.area,parameters),row);
         }
+        if(added)attachAreaEvents(element);
     }
 }
 

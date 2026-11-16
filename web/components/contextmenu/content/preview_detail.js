@@ -1,3 +1,5 @@
+import { externalImportIcon } from '../../modules/media_types/external_import_icon.js';
+import { rememberExternalSelection } from './preview_grid_media.js';
 import { buildDetailCards, detailHistoryTarget, detailCardMedia, detailOutputRecords, detailInputs, detailInputGroups, setDetailInputVisible, setDetailCover, detailCoverApplied, applyDetailOutput, detailHistoryKey, detailFieldKey, detailStyle, detailFieldsHTML, setDetailStyle, DETAIL_CSS } from './preview_detail_model.js';
 import { detailMediaHTML, attachDetailMedia } from './preview_detail_media.js';
 import { attachDetailCover } from './preview_detail_cover.js';
@@ -107,14 +109,15 @@ export function createDetailView(root, downloadsChanged = ()=>{}, sessionSaved =
             }
             const element = view.element;
             if (board.children[index] !== element) moveModuleDOM(board, element, board.children[index] || null);
+            if(item.record)rememberExternalSelection(item.area,{historyIndex:item.record.index,resultUrl:item.record.url,missingHistoryRun:null,textContent:item.record.text||'',textLoadState:item.record.type==='text'?'ready':'idle'});
             const position = item.records.indexOf(item.record);
             const coverPosition=item.customCover?item.coverRecords.indexOf(item.coverRecord):-1;
             const title=element.querySelector('header strong'),coverButton=element.querySelector('[data-detail-pool="cover"]'),outputButton=element.querySelector('[data-detail-pool="output"]');
             title.textContent=item.title;title.title=item.title;
             coverButton.title=`封面记录 · ${item.customCover?item.coverArea.title||'封面模块':'未设置封面'}`;coverButton.disabled=!item.coverArea;
-            coverButton.querySelector('span').textContent=coverPosition<0?'—':`${coverPosition+1}/${item.coverRecords.length}`;
+            coverButton.querySelector('span').innerHTML=externalImportIcon(item.coverRecord?.url,item.customCover&&(item.coverRecord?.imported||item.coverRecord?.externalWorkspaceId))+(coverPosition<0?'—':`${coverPosition+1}/${item.coverRecords.length}`);
             outputButton.title=`生成记录 · ${item.area?.title||'未选择'}`;outputButton.disabled=!item.area;
-            outputButton.querySelector('span').textContent=position<0?'—':`${position+1}/${item.records.length}`;
+            outputButton.querySelector('span').innerHTML=externalImportIcon(item.record?.url,item.record?.imported||item.record?.externalWorkspaceId)+(position<0?'—':`${position+1}/${item.records.length}`);
             const key = item.record?.key || '';
             if (key !== view.key) {
                 const mediaKey=detailHistoryKey(item.id,item.area?.id);
@@ -357,6 +360,22 @@ export function createDetailView(root, downloadsChanged = ()=>{}, sessionSaved =
             if(focus.areaId)config.selectedFields=new Set([detailFieldKey(card.id,focus.areaId)]);
             syncSelection();renderSettings();sourcePanel.locate(card.id,focus.areaId);
             const view=views.get(card.id);(view?.element.querySelector(`[data-detail-field="${CSS.escape(focus.areaId||'')}"]`)||view?.element)?.scrollIntoView({block:'nearest',inline:'nearest'});
+        },
+        setExternalCover(ids){
+            for(const item of model)if(ids.has(item.area?.id)&&item.record?.type==='image')setDetailCover(config,item.card,item.area,item.record);
+            render();
+        },
+        externalTargets(element,selection=false){
+            const id=selection?config.active:element?.closest('[data-detail-card]')?.dataset.detailCard;
+            const item=model.find(item=>item.id===id);return item?.area?[{card:item.card,area:item.area}]:[];
+        },
+        refreshExternal(ids){
+            for(const card of cards)for(const area of card.areas)if(ids.has(area.id)){
+                const record=detailOutputRecords(card,area).find(record=>record.index===area.historyIndex);
+                if(record)config.histories.set(detailHistoryKey(card.id,area.id),record.key);
+                else config.histories.delete(detailHistoryKey(card.id,area.id));
+            }
+            render();
         },
         getViewState(){return {active:config.active,field:config.field,selectedFields:new Set(config.selectedFields),anchor:config.anchor,scope:config.scope,part:config.part};},
         restoreViewState(saved){Object.assign(config,saved);syncSelection();renderSettings();},

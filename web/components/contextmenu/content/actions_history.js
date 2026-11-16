@@ -1,3 +1,4 @@
+import { remapPreviewHistory } from '../../modules/media_types/media_utils.js';
 /**
  * 文件名: actions_history.js
  * 路径: web/components/contextmenu/content/actions_history.js
@@ -11,7 +12,7 @@ export function bindHistoryActions({
     removePreviewHistoryIndex,
     loadSelectedTextContent,
     clearPreviewHistory,
-    saveAndRender,
+    saveAndRender,syncTextContentWithSelection,onChanged,
 } = {}) {
     if (!menuEl) return;
 
@@ -34,9 +35,9 @@ export function bindHistoryActions({
                 }
                 if (o.area.selectedThumbIndices) o.area.selectedThumbIndices = [];
 
-                if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(o.area.id);
+                if (!onChanged && window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(o.area.id);
             });
-            if (window._clabJustSave) window._clabJustSave(); else saveAndRender();
+            if(onChanged)onChanged(selectedAreaObjs);else if (window._clabJustSave) window._clabJustSave(); else saveAndRender();
         };
     }
 
@@ -53,10 +54,24 @@ export function bindHistoryActions({
                 if (o.area.currentRecordIndex !== undefined) o.area.currentRecordIndex = 0;
                 if (o.area.selectedThumbIndices) o.area.selectedThumbIndices = [];
 
-                if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(o.area.id);
+                if (!onChanged && window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(o.area.id);
             });
-            if (window._clabJustSave) window._clabJustSave(); else saveAndRender();
+            if(onChanged)onChanged(selectedAreaObjs);else if (window._clabJustSave) window._clabJustSave(); else saveAndRender();
         };
     }
+    const externalEl=menuEl.querySelector('#clab-ctx-remove-external');
+    if(externalEl)externalEl.onclick=()=>{
+        menuEl.style.display='none';
+        for(const {area}of selectedAreaObjs||[]){
+            const indices=(area.history||[]).map((_,index)=>index).filter(index=>!area.historyRuns?.[index]?.externalImport);
+            if(indices.length===(area.history?.length||0))continue;
+            const active=remapPreviewHistory(area,indices);
+            area.historyIndex=active<0?Math.max(0,area.history.length-1):active;area.resultUrl=area.history[area.historyIndex]||'';
+            area.selectedThumbIndices=[];syncTextContentWithSelection(area);void loadSelectedTextContent(area,{refresh:false});
+            if(!onChanged&&window._clabSurgicallyUpdateArea)window._clabSurgicallyUpdateArea(area.id);
+        }
+        if(onChanged)onChanged(selectedAreaObjs);else if(window._clabJustSave)window._clabJustSave();else saveAndRender();
+    };
+
 }
 

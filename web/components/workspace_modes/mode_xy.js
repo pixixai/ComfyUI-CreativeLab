@@ -2,7 +2,7 @@ import { matrixCells, matrixOutput, visibleMatrixCells, currentZLayer } from './
 import { refreshModuleBindingSummary } from '../modules/module_binding.js';
 import { renderXYAxes, xyPosition, projectXYCanvas } from './xy_axes.js';
 import { medianMediaRatio } from './xy_layout.js';
-import { updateXYHistoryLabel } from './xy_history.js';
+import { updateXYHistoryLabel } from './xy_history_label.js';
 import { matrixLayers, zLayerTitle } from './xy_layers.js';
 import { renderZAxis } from './xy_z_axis.js';
 import { hydrateWorkspaceAreas } from './task_dom.js';
@@ -54,7 +54,6 @@ export function showXYMode(wrapper,cards,xy,parameters,{preview=false,layerViews
         const layer=layerByZ.get(item.z??layers[0].z);occupied.add(`${item.x},${item.y},${layer.z}`);element.dataset.xyLayer=layer.z;
         at(element,...position(layer,item.x,item.y),g.width);
         const output=matrixOutput(item.card,xy);
-        updateXYHistoryLabel(element,output);
         element.querySelectorAll('.clab-area').forEach(area=>{area.hidden=area.dataset.areaId!==output?.id;area.draggable=false;if(!preview&&!area.hidden)refreshModuleBindingSummary(area,output);});
     }
     const placeholders=new Map([...wrapper.querySelectorAll('.clab-xy-empty')].map(element=>[element.dataset.xyPlaceholder,element]));
@@ -66,6 +65,8 @@ export function showXYMode(wrapper,cards,xy,parameters,{preview=false,layerViews
     placeholders.forEach(element=>element.remove());
     const bounds=layers.map(layer=>{const own=layer.geometry,shape={...own,left:own.left+layer.dx,top:own.top+layer.dy};return renderXYAxes(wrapper,layer.view,shape,layer.gridWidth,shape.top+(rows-1)*own.stepY+own.height,parameters,layer.z);});
     const overlay=bounds[0].overlay,z=renderZAxis(overlay,xy,bounds[0].axisX,bounds[0].axisY,parameters);
+    overlay.querySelectorAll(':scope > .clab-xy-history').forEach(label=>{if(!wrapper.contains(label.xyCard)||label.xyCard.hidden)label.remove();});
+    for(const [id,element]of elements)if(!element.hidden)updateXYHistoryLabel(element,matrixOutput(byId.get(id).card,xy));
     bounds.forEach((axes,index)=>{
         const layer=layers[index],binding=axes.group.querySelector('[data-xy-part=y-binding]');
         let title=axes.group.querySelector('.clab-xy-layer-title');

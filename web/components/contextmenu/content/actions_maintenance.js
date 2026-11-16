@@ -15,7 +15,7 @@ export function bindMaintenanceActions({
     saveAndRender,
     loadAllTextHistory,
     probeMissingAndFallback,
-    showAutoToast,
+    showAutoToast,onChanged,
 } = {}) {
     if (!menuEl) return;
 
@@ -85,9 +85,9 @@ export function bindMaintenanceActions({
                 (selectedAreaObjs || []).forEach((o) => {
                     syncTextContentWithSelection(o.area);
                     void loadSelectedTextContent(o.area, { refresh: false });
-                    if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(o.area.id);
+                    if (!onChanged && window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(o.area.id);
                 });
-                if (window._clabJustSave) window._clabJustSave(); else saveAndRender();
+                if(onChanged)onChanged(selectedAreaObjs);else if (window._clabJustSave) window._clabJustSave(); else saveAndRender();
 
                 showAutoToast(`清理完成：已移除 ${deadItems.length} 条失效记录。`);
             }
@@ -131,7 +131,7 @@ export function bindMaintenanceActions({
                     textReloadTasks.push(loadAllTextHistory(o.area, { force: true, refresh: false }));
                 }
 
-                if (window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(o.area.id);
+                if (!onChanged && window._clabSurgicallyUpdateArea) window._clabSurgicallyUpdateArea(o.area.id);
             });
 
             if (syncCount === 0) {
@@ -142,7 +142,7 @@ export function bindMaintenanceActions({
             if (textReloadTasks.length > 0) {
                 await Promise.all(textReloadTasks);
             }
-            if (window._clabJustSave) window._clabJustSave(); else saveAndRender();
+            if(onChanged)onChanged(selectedAreaObjs);else if (window._clabJustSave) window._clabJustSave(); else saveAndRender();
             if (areaProbes.length > 0) {
                 await probeMissingAndFallback(areaProbes);
             }

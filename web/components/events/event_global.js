@@ -39,7 +39,7 @@ function matchesShortcut(e, shortcut) {
 
 export function setupGlobalEvents(panelContainer, backdropContainer, togglePanelFunc, performRenderFunc) {
     window.addEventListener('keydown', e => {
-        if (appState.isBindingMode || e.defaultPrevented || e.repeat || e.isComposing || !panelContainer?.classList.contains('visible')) return;
+        if (appState.isBindingMode || e.defaultPrevented || e.repeat || e.isComposing || document.querySelector('.clab-preview-modal.visible') || !panelContainer?.classList.contains('visible')) return;
         if (e.target?.isContentEditable || e.target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
         if (!matchesShortcut(e, window._clabPickShortcutRaw ?? 'P')) return;
         const selected = state.cards.flatMap(c => c.areas || []).filter(a => state.selectedAreaIds.includes(a.id));
@@ -182,10 +182,11 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
 
     document.addEventListener("keydown", (e) => {
         if (appState.isBindingMode) return; 
+        const isInput=!!e.target.closest?.('input,textarea,select,[contenteditable=true],.cm-editor,.monaco-editor');
+        if(!isInput&&!e.defaultPrevented&&!e.repeat&&!e.isComposing&&matchesShortcut(e,window._clabShortcutRaw||'C')){
+            e.preventDefault();e.stopImmediatePropagation();togglePanelFunc();return;
+        }
         if (document.querySelector('.clab-preview-modal.visible')) return;
-
-        const tag = e.target.tagName;
-        const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable;
         
         if (e.key === 'Escape') {
             if (state.painterMode) {
@@ -266,12 +267,7 @@ export function setupGlobalEvents(panelContainer, backdropContainer, togglePanel
 
         if (isInput) return;
         
-        // 【核心修复】：动态解析快捷键配置，执行严格的修饰键全量比对
-        if (matchesShortcut(e, window._clabShortcutRaw || 'C')) {
-            
-            e.preventDefault();
-            togglePanelFunc();
-        }
+
     });
 
     document.addEventListener("clab_update_preview", (e) => {

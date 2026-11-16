@@ -1,3 +1,4 @@
+import { externalImportIcon } from '../../modules/media_types/external_import_icon.js';
 import { escapeHtml as esc } from './shared.js';
 import { renderVideoControls } from '../../modules/media_types/media_video.js';
 import { attachPreviewVideo } from './preview_video.js';
@@ -14,7 +15,7 @@ export function comparisonHTML(a, b, config) {
         const number = `<strong>${name.toUpperCase()}</strong>`, info = `<span>${esc(label)}</span>`, separator = '<i class="clab-compare-label-separator" aria-hidden="true"></i>';
         const title=`<button class="clab-compare-label" data-compare-slot="${name}" aria-pressed="${config.slot === name}" title="${esc(label)}${record ? ` · ${esc(record.name)}` : ''}；点击设为待替换区域">${name === 'a' ? number + separator + info : info + separator + number}</button>`;
         const tools=`<span class="clab-compare-slot-tools"><button type="button" data-compare-remove="${name}" ${record?'':'disabled'} title="移除此区域的媒体，保留来源" aria-label="移除 ${name.toUpperCase()} 区媒体"><svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m5 5 10 10M15 5 5 15"/></svg></button></span>`;
-        return `<div class="clab-compare-heading label-${name}">${name==='a'?title+tools:tools+title}</div>`;
+        return `<div class="clab-compare-heading label-${name}">${name==='a'?title+externalImportIcon(record?.url,record?.imported||record?.externalWorkspaceId)+tools:tools+externalImportIcon(record?.url,record?.imported||record?.externalWorkspaceId)+title}</div>`;
     };
     const valid = a && b && a.type === b.type && ['image', 'video'].includes(a.type);
     return `<div class="clab-compare"><div class="clab-compare-stage ${valid && a.type === 'video' ? 'clab-video-player clab-video-paused' : ''} ${config.layout === 'split' ? 'split' : 'side'}">

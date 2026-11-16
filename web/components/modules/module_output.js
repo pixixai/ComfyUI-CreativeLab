@@ -1,8 +1,9 @@
+import { outputImportIcon } from './media_types/external_import_icon.js';
 /**
  * 文件名: module_output.js
  * 职责: 负责卡片内“输出模块”的 UI 渲染与交互 (网格管理、媒体预览、缩略图拖拽排序)
  */
-import { state, dragState, saveAndRender } from "../ui_state.js";
+import { state, dragState, saveAndRender,getActiveWorkspace } from "../ui_state.js";
 import { getRatioCSS, showBindingToast, hideBindingToast } from "../ui_utils.js";
 // 【完美保留】：继续使用你原本正确的媒体路由专员，绝不破坏底层架构！
 import { renderMedia, attachMediaEvents } from "./module_media.js";
@@ -94,6 +95,7 @@ export function generateOutputHTML(area, card) {
     const nodeBypassedClass = (area.runtimeNodeBypassed === true || area.runtimeNodeDisabled === true) ? "clab-node-bypassed" : "";
 
     if (area.isManageMode && area.history && area.history.length > 0) {
+        const compactHistory=['table','xy'].includes(getActiveWorkspace()?.view?.mode);
         let gridHtml = `<div class="clab-history-grid" data-card-id="${card.id}" data-area-id="${area.id}" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 10px; width: 100%; box-sizing: border-box; max-height: 400px; overflow-y: auto;">`;
         
         const selectedThumbs = area.selectedThumbIndices || [];
@@ -132,7 +134,7 @@ export function generateOutputHTML(area, card) {
             const delBtn = `<div class="clab-thumb-delete" data-card="${card.id}" data-area="${area.id}" data-index="${idx}" style="position:absolute; top:3px; right:3px; width:18px; height:18px; background:rgba(255, 255, 255, 0.6); color:#333; font-weight:bold; border-radius:50%; font-size:10px; display:none; align-items:center; justify-content:center; cursor:pointer; z-index:10; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: all 0.2s;" title="删除此记录">✖</div>`;
 
             gridHtml += `
-                <div class="clab-history-thumb" draggable="true" data-card="${card.id}" data-area="${area.id}" data-index="${idx}" style="aspect-ratio: 1/1; border: ${border}; border-radius: 4px; cursor: grab; overflow: hidden; position: relative; background: #000; transition: border-color 0.2s;">
+                <div class="clab-history-thumb" title="${area.historyRuns?.[idx]?.externalImport?'外部导入 · 无生成参数快照':'生成记录'}" draggable="true" data-card="${card.id}" data-area="${area.id}" data-index="${idx}" style="aspect-ratio: 1/1; border: ${border}; border-radius: 4px; cursor: grab; overflow: hidden; position: relative; background: #000; transition: border-color 0.2s;">
                     ${media}
                     ${overlay}
                     ${delBtn}
@@ -156,13 +158,13 @@ export function generateOutputHTML(area, card) {
             <div class="clab-area clab-output-area ${isAreaSelected ? 'active' : ''} ${nodeBypassedClass}" draggable="true" data-card-id="${card.id}" data-area-id="${area.id}" style="padding:0; position:relative; background: rgba(0,0,0,0.4); min-height: 100px;">
                 <button class="clab-del-area-btn" data-card="${card.id}" data-area="${area.id}" title="删除输出模块" style="z-index: 30;">✖</button>
                 
-                <div class="clab-output-manage-head" style="padding: 8px 8px 8px 10px; border-radius:5px 5px 0 0; font-size: 12px; font-weight: bold; color: #ccc; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; gap:6px; align-items: center; background: rgba(0,0,0,0.3);">
+                ${compactHistory?'':`<div class="clab-output-manage-head" style="padding: 8px 8px 8px 10px; border-radius:5px 5px 0 0; font-size: 12px; font-weight: bold; color: #ccc; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; gap:6px; align-items: center; background: rgba(0,0,0,0.3);">
                     <span style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">生成记录管理 (${area.history.length})</span>
                     <div style="display:flex; gap: 6px; align-items: center; flex-shrink:0;">
                         <button class="clab-manage-remove-btn" data-card="${card.id}" data-area="${area.id}" style="${btnBaseStyle} ${btnRemoveStyle}" ${hasSelection ? '' : 'disabled'} onmouseover="if(!this.disabled) { this.style.background='rgba(255,255,255,0.25)'; this.style.color='#fff'; }" onmouseout="if(!this.disabled) { this.style.background='rgba(255,255,255,0.15)'; this.style.color='#eee'; }">移除</button>
                         ${generateOutputControlsHTML(area)}
                     </div>
-                </div>
+                </div>`}
                 
                 ${gridHtml}
             </div>
@@ -187,9 +189,10 @@ export function generateOutputHTML(area, card) {
     if (area.fillMode === '拉伸') objectFit = 'fill';
 
     let historyHtml = '';
-    if (resultType !== 'text' && area.history && area.history.length > 1) {
+    const imported=outputImportIcon(area);
+    if (resultType !== 'text' && area.history && (area.history.length > 1||imported)) {
         const currIdx = area.missingHistoryRun ? '—' : area.historyIndex !== undefined ? area.historyIndex + 1 : area.history.length;
-        historyHtml = `<span class="clab-output-history-position" title="历史记录：${currIdx} / ${area.history.length}；← / → 关联切换；Shift + ← / → 仅切换当前输出模块">${currIdx} / ${area.history.length}</span>`;
+        historyHtml = `<span class="clab-output-history-position" title="历史记录：${currIdx} / ${area.history.length}；← / → 关联切换；Shift + ← / → 仅切换当前输出模块">${imported}${area.history.length>1?`${currIdx} / ${area.history.length}`:''}</span>`;
     }
 
     // 🌟 将原本庞杂的媒体判定逻辑交给专员去处理！
@@ -224,12 +227,14 @@ export function refreshOutputAreaInPlace(areaEl, area, card) {
     const grid = areaEl.querySelector('.clab-history-grid');
     const nextGrid = next.querySelector('.clab-history-grid');
     if (!!grid !== !!nextGrid) return false;
+    const head=areaEl.querySelector('.clab-output-manage-head'),nextHead=next.querySelector('.clab-output-manage-head');
+    if(!!head!==!!nextHead)return false;
     areaEl.className = next.className;
     areaEl.dataset.cardId = card.id;
     areaEl.style.cssText = next.style.cssText;
     refreshModuleBindingSummary(areaEl, area);
     const controls = areaEl.querySelector('.clab-output-controls');
-    const copy = controls.querySelector('.clab-text-copy-btn');
+    const copy = controls?.querySelector('.clab-text-copy-btn');
     const nextCopy = next.querySelector('.clab-text-copy-btn');
     if (copy && !nextCopy) copy.remove();
     else if (!copy && nextCopy) controls.prepend(nextCopy);
@@ -249,12 +254,11 @@ export function refreshOutputAreaInPlace(areaEl, area, card) {
                 else if (!selected && overlay) overlay.remove();
             });
         }
-        const heading = areaEl.querySelector('.clab-output-manage-head > span');
-        heading.textContent = next.querySelector('.clab-output-manage-head > span').textContent;
-        const remove = areaEl.querySelector('.clab-manage-remove-btn');
-        const nextRemove = next.querySelector('.clab-manage-remove-btn');
-        remove.disabled = nextRemove.disabled;
-        remove.style.cssText = nextRemove.style.cssText;
+        if(head){
+            head.querySelector('span').textContent=nextHead.querySelector('span').textContent;
+            const remove=head.querySelector('.clab-manage-remove-btn'),nextRemove=nextHead.querySelector('.clab-manage-remove-btn');
+            remove.disabled=nextRemove.disabled;remove.style.cssText=nextRemove.style.cssText;
+        }
     } else {
         const title = areaEl.querySelector('.clab-output-head input');
         const nextTitle = next.querySelector('.clab-output-head input');
@@ -292,7 +296,7 @@ export function refreshOutputAreaInPlace(areaEl, area, card) {
             const nextCounter = nextShell.querySelector('.clab-text-history-position');
             if (counter && !nextCounter) counter.remove();
             else if (!counter && nextCounter) shell.querySelector('.clab-text-toolbar').append(nextCounter);
-            else if (counter && nextCounter) { counter.textContent = nextCounter.textContent; counter.title = nextCounter.title; }
+            else if (counter && nextCounter) { counter.innerHTML = nextCounter.innerHTML; counter.title = nextCounter.title; }
         } else if (!(model && nextModel && model.dataset.modelUrl === nextModel.dataset.modelUrl) && bg.innerHTML !== nextBg.innerHTML) {
             bg.innerHTML = nextBg.innerHTML;
         }
@@ -312,7 +316,7 @@ export function refreshOutputAreaInPlace(areaEl, area, card) {
             const nextCounter = nextFooter.querySelector('.clab-output-history-position');
             if (counter && !nextCounter) counter.remove();
             else if (!counter && nextCounter) footer.append(nextCounter);
-            else if (counter && nextCounter) { counter.textContent = nextCounter.textContent; counter.title = nextCounter.title; }
+            else if (counter && nextCounter) { counter.innerHTML = nextCounter.innerHTML; counter.title = nextCounter.title; }
         }
     }
     attachOutputEvents(areaEl);

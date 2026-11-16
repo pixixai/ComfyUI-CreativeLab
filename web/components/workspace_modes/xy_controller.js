@@ -7,7 +7,7 @@ import { workflowParameters } from './parameters.js';
 import { adoptMatrix, synchronizeMatrix, matrixCards, matrixCells, matrixOutput, matrixReady, materializeMatrixRecords, visibleMatrixCells, currentZLayer } from './xy_model.js';
 import { taskCoordinates } from './task_model.js';
 import { appendWorkspaceTasks } from './task_dom.js';
-import { xyToolbar, xyRunLabel, xyOriginLabels, xyRunAxisLabels } from './xy_settings.js';
+import { xyToolbar, xyRunLabel, xyOriginLabels, xyRunAxisLabels,refreshXYHistoryTool } from './xy_settings.js';
 import { showXYMode, xyMediaRatio } from './mode_xy.js';
 import { attachXYCanvas, fitXYCanvas } from './xy_canvas.js';
 import { openXYBinding,pickXYBinding } from './xy_binding.js';
@@ -64,6 +64,7 @@ export function createXYController(container,getView,save,saveView) {
         mediaRatio=xyMediaRatio(wrapper,matrixCells(state.cards,xy),xy);
         refreshXYActivity(container,state.activeWorkspaceId);
         refreshRunLabel();
+        refreshXYHistoryTool(controls,selected().map(card=>matrixOutput(card,xy)));
         synchronizeModeMedia(wrapper);
         if(!xy.cameraReady){fitXYCanvas(container,xy);xy.cameraReady=true;saveView();}
         workspaceViewport(container).update('xy',{xy});
@@ -119,6 +120,12 @@ export function createXYController(container,getView,save,saveView) {
         if(target.matches('[data-xy-tile-settings]')){openXYTiling(controls,getXY,()=>{render();saveView();});return;}
         if(target.matches('[data-xy-reassign]')){openXYAxisPanel(controls,getXY,swap);return;}
         if(target.matches('[data-xy-records]')){openXYRecords(controls,getXY,recordActions);return;}
+        if(target.matches('[data-xy-manage-history]')){
+            const areas=selected().map(card=>matrixOutput(card,getXY()));if(!areas.length)return;
+            const enabled=!areas[0].isManageMode;
+            for(const area of areas){area.isManageMode=enabled;window._clabSurgicallyUpdateArea?.(area.id);}
+            render();updateSelectionUI();saveView();return;
+        }
         if(target.matches('[data-xy-reset]')){fitXYCanvas(container,getXY());saveView();return;}
     };
     attachBindingPickGesture(container,target=>active()?target.closest('[data-xy-bind]'):null,button=>pickXYBinding(container,button.dataset.xyBind,getXY,commit,button));

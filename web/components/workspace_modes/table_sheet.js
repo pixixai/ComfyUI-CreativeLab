@@ -5,6 +5,7 @@ let sequence=0;
 const id=kind=>`table_${kind}_${Date.now()}_${++sequence}`;
 export const columnKeys=['type','title','targetNodeId','targetWidget','targetNodeIds','targetWidgets','dataType','runtimeNodeBypassed','runtimeNodeDisabled'];
 const config=area=>Object.fromEntries(columnKeys.filter(key=>area[key]!==undefined).map(key=>[key,structuredClone(area[key])]));
+const configKey=area=>JSON.stringify(Object.fromEntries(columnKeys.filter(key=>area[key]!==undefined).map(key=>[key,area[key]])));
 const copyConfig=(target,source)=>{for(const key of columnKeys)if(source[key]===undefined)delete target[key];else target[key]=structuredClone(source[key]);};
 export const boundColumn=area=>area.type==='preview'?area.targetNodeId!==undefined&&area.targetNodeId!==null&&area.targetNodeId!=='':bindingsOf(area).length>0;
 export const hasCellValue=value=>value!==undefined&&value!==null&&value!=='';
@@ -67,16 +68,17 @@ export function openTableSheet(cards,view,source) {
 }
 
 export function synchronizeSheet(sheet,cards) {
-    const areas=[];
+    const actual=new Map(cards.map(card=>[card.id,card])),columns=new Map(sheet.columns.map(column=>[column.id,column])),keys=new Map(sheet.columns.map(column=>[column.id,configKey(column)])),changed=new Map();
     for(const row of sheet.rows){
-        const card=cards.find(card=>card.id===row.cardId);if(!card)continue;
+        const card=actual.get(row.cardId);if(!card)continue;
         const used=new Set();for(const area of card.areas){
             const key=area.tableColumnId&&!used.has(area.tableColumnId)?area.tableColumnId:area.id;used.add(key);area.tableColumnId=key;
-            areas.push(area);let column=sheet.columns.find(column=>column.id===key);
-            if(!column){column={...config(area),id:key,tableColumnId:key,value:''};sheet.columns.push(column);}
+            let column=columns.get(key);
+            if(!column){column={...config(area),id:key,tableColumnId:key,value:''};sheet.columns.push(column);columns.set(key,column);keys.set(key,configKey(column));}
+            if(!changed.has(key)&&configKey(area)!==keys.get(key))changed.set(key,area);
         }
     }
-    for(const column of sheet.columns){const changed=areas.find(area=>area.tableColumnId===column.id&&JSON.stringify(config(area))!==JSON.stringify(config(column)));if(changed)copyConfig(column,changed);}
+    for(const [key,area]of changed)copyConfig(columns.get(key),area);
 }
 
 export function projectTableSheet(sheet,cards) {
@@ -96,25 +98,26 @@ export function validSheetRow(sheet,row,parameters=[]) {
 }
 
 export function materializeTable(sheet,cards,parameters=[]) {
-    const projected=projectTableSheet(sheet,cards),active=sheet.columns.filter(boundColumn),changed=[];
+    const projected=projectTableSheet(sheet,cards),active=sheet.columns.filter(boundColumn),changed=[],actual=new Map(cards.map(card=>[card.id,card]));
+    const keys=new Map(sheet.columns.map((column,index)=>[column.id,{key:configKey(column),index}]));
     for(const row of projected){
-        const entry=row.sheetRow,valid=validSheetRow(sheet,row,parameters);let card=cards.find(card=>card.id===entry.cardId);
+        const entry=row.sheetRow,valid=validSheetRow(sheet,row,parameters);let card=actual.get(entry.cardId);
         if(!card&&valid&&active.length){card={id:entry.id,title:entry.title||'',areas:[]};cards.push(card);entry.cardId=card.id;}
         if(!card)continue;
+        const areas=new Map(card.areas.map(area=>[area.tableColumnId,area]));
         for(const column of sheet.columns){
-            let area=card.areas.find(area=>area.tableColumnId===column.id);
+            let area=areas.get(column.id);
             if(!area&&boundColumn(column)&&valid){
                 area={id:draftAreaId(entry,column),tableColumnId:column.id,autoHeight:true,matchMedia:true,ratio:'16:9',fillMode:'显示全部',value:entry.values[column.id]??''};card.areas.push(area);changed.push(area.id);
                 if(Object.hasOwn(entry.uploadPreviews||{},column.id)){area.showUploadPreview=entry.uploadPreviews[column.id];delete entry.uploadPreviews[column.id];}
             }
             if(!area)continue;
-            if(JSON.stringify(config(area))!==JSON.stringify(config(column)))changed.push(area.id);
-            copyConfig(area,column);
+            if(configKey(area)!==keys.get(column.id).key){changed.push(area.id);copyConfig(area,column);}
             if(column.type==='preview'){area.history??=[];area.historyIndex??=-1;}
             if(Object.hasOwn(entry.values,column.id)){area.value=entry.values[column.id];delete entry.values[column.id];changed.push(area.id);}
             if(valid&&column.type==='edit'&&boundColumn(column)&&hasCellValue(area.value))area.value=tableCellValue(column,area.value,parameters);
         }
-        card.areas.sort((a,b)=>sheet.columns.findIndex(column=>column.id===a.tableColumnId)-sheet.columns.findIndex(column=>column.id===b.tableColumnId));
+        card.areas.sort((a,b)=>(keys.get(a.tableColumnId)?.index??-1)-(keys.get(b.tableColumnId)?.index??-1));
     }
     return [...new Set(changed)];
 }
@@ -137,6 +140,6 @@ export function sheetRunRows(sheet,cards,parameters=[]) {
 }
 
 export function orderSheetTasks(sheet,cards) {
-    const owned=new Set(sheet.rows.map(row=>row.cardId).filter(Boolean)),ordered=sheet.rows.map(row=>cards.find(card=>card.id===row.cardId)).filter(Boolean);let index=0;
+    const actual=new Map(cards.map(card=>[card.id,card])),owned=new Set(sheet.rows.map(row=>row.cardId).filter(Boolean)),ordered=sheet.rows.map(row=>actual.get(row.cardId)).filter(Boolean);let index=0;
     for(let at=0;at<cards.length;at++)if(owned.has(cards[at].id))cards[at]=ordered[index++];
 }

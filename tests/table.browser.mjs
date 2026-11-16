@@ -126,6 +126,13 @@ export async function runTableBrowserChecks(send,sessionId,screenshotPrefix) {
     const clipboard=await runTableClipboardChecks({evaluate,click,point,type,key,send,sessionId,wait});
     const media=await runTableMediaChecks({evaluate,click,wait});
     const context=await runTableContextChecks({evaluate,click,point,send,sessionId,wait});
+    await click('#clab-panel [data-area-id="sheet-image"]');await click('#tb-manage-history');await wait();
+    assert.equal(await evaluate(`(()=>{const cell=document.querySelector('#clab-panel [data-area-id="sheet-image"]');return !!cell.querySelector('.clab-history-grid')&&!cell.querySelector('.clab-output-manage-head,.clab-manage-remove-btn,.clab-output-controls')&&!!document.querySelector('.clab-table-column .clab-module-binding-summary');})()`),true,'the table manager retained a title bar or lost column binding controls');
+    await key('Escape');await click('#clab-panel [data-area-id="sheet-image"] .clab-history-thumb[data-index="0"]');
+    assert.equal((await selected()).cells[0],'sheet-image');await click('#clab-panel [data-area-id="sheet-image"] .clab-history-thumb[data-index="0"]',2);
+    assert.deepEqual((await selected()).cells,['sheet-image']);await click('#tb-manage-history');await wait();
+    assert.equal(await evaluate(`!document.querySelector('#clab-panel [data-area-id="sheet-image"] .clab-history-grid')`),true);
+    console.log('PASS parameter-table managers omit the title bar, reselect through thumbnails and keep Ctrl record selection separate from cell selection');
     await evaluate(`(async()=>{const {state,applyWorkspaceToState}=await import('/extensions/clab/components/ui_state.js');window.CLab.executeTasks=window.sheetExecute;applyWorkspaceToState(window.sheetOriginal);state.workspaces=state.workspaces.filter(w=>w!==window.sheet&&w!==window.sheetEmpty);for(const node of window.sheetNodes)window.testApp.graph._nodes.splice(window.testApp.graph._nodes.indexOf(node),1);document.dispatchEvent(new Event('clab_render_ui'));})()`);
     return 7+gestures+navigation+clipboard+media+context;
 }

@@ -14,7 +14,7 @@ export function cloneTask(template) {
     card.areas.forEach(area=>{
         area.id=id('area');
         if(area.type!=='preview')return;
-        for(const key of ['history','historyRuns','inputHistorySnapshots','textHistory','textHistoryStatus','selectedThumbIndices'])area[key]=[];
+        for(const key of ['history','historyRuns','externalImports','inputHistorySnapshots','textHistory','textHistoryStatus','selectedThumbIndices'])area[key]=[];
         for(const key of ['resultUrl','textContent','textLoadState','resultKind','missingHistoryRun','_clabOutputState'])delete area[key];
         area.historyIndex=-1;
     });

@@ -25,6 +25,7 @@ const record=(entry={})=>{if(!paused){syncStateToActiveWorkspace();history.recor
 export const editHistory={
     record,workspaceIds,
     reset(){history.clear(state);},
+    transaction(action){paused++;try{return action();}finally{if(!--paused)record();}},
     withoutRecording(action){paused++;try{return action();}finally{if(!--paused){syncStateToActiveWorkspace();history.rebase(state,{workspaceIds:workspaceIds()});}}},
     get canUndo(){return history.canUndo;},get canRedo(){return history.canRedo;},
 };

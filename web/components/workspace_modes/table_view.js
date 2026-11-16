@@ -8,6 +8,8 @@ import { renderDraftRows } from './table_drafts.js';
 import { boundColumn, effectiveTableRow } from './table_sheet.js';
 import { tableSelectAllIcon } from './table_icons.js';
 import { updateTableEditor, restoreTableEditors } from './table_editors.js';
+import { virtualizeTasks } from './viewport_geometry.js';
+import { renderTablePlaceholder } from './table_placeholder.js';
 
 export function paintTableSelection(wrapper,rows,columns,kind) {
     wrapper.dataset.tableSelection=kind;
@@ -23,7 +25,7 @@ export function paintTableSelection(wrapper,rows,columns,kind) {
     for(const id of cards)wrapper.querySelector(`[data-table-row="${CSS.escape(id)}"] [data-table-row-header]`)?.setAttribute('aria-pressed','true');
 }
 
-export function renderTableGrid(wrapper,cards,rows,columns,view,parameters,save,ready) {
+export function renderTableGrid(wrapper,cards,rows,columns,view,parameters,save,ready,visibleRows=rows,visibleColumns=columns) {
     wrapper.setAttribute('role','table');wrapper.setAttribute('aria-label','任务参数表');
     let head=wrapper.querySelector('.clab-table-head');
     if(!head){head=document.createElement('div');head.className='clab-table-head';head.setAttribute('role','row');head.innerHTML=`<div class="clab-table-corner" role="columnheader"><button type="button" data-table-select-all>${tableSelectAllIcon}</button></div>`;wrapper.prepend(head);}
@@ -33,9 +35,11 @@ export function renderTableGrid(wrapper,cards,rows,columns,view,parameters,save,
     selectAll.setAttribute('aria-pressed', String(allSelected));
     selectAll.title = allSelected ? '取消全选' : '全选';
     selectAll.setAttribute('aria-label', selectAll.title);
-    for(const element of head.querySelectorAll('[data-table-column]'))if(!columns.some(column=>column.id===element.dataset.tableColumn))element.remove();
-    for(const column of columns){
-        let element=head.querySelector(`[data-table-column="${CSS.escape(column.id)}"]`);
+    const headers=new Map([...head.querySelectorAll('[data-table-column]')].map(element=>[element.dataset.tableColumn,element]));
+    const wanted=new Set(visibleColumns.map(column=>column.id));for(const [id,element]of headers)if(!wanted.has(id))element.remove();
+    let previous=head.firstElementChild;
+    for(const column of visibleColumns){
+        let element=headers.get(column.id);
         if(!element){element=document.createElement('div');element.className='clab-table-column';element.dataset.tableColumn=column.id;element.setAttribute('role','columnheader');element.draggable=true;element.innerHTML=`<div class="clab-table-column-top"><button type="button" data-table-settings aria-haspopup="dialog"></button>${generateModuleBindingHTML(column.area,'列头绑定摘要')}</div><span class="clab-table-resize" data-table-resize role="separator" aria-label="调整列宽"></span>`;}
         const bound=column.area.targetNodeId!=null&&column.area.targetNodeId!==''||column.area.targetNodeIds?.length>0;
         if(bound)view.configured[column.id]=true;
@@ -48,14 +52,15 @@ export function renderTableGrid(wrapper,cards,rows,columns,view,parameters,save,
         settings.title = label;
         settings.setAttribute('aria-label', `列设置 · ${label}`);
         refreshModuleBindingSummary(element,column.area,'列头绑定摘要');
-        const next=column.index?head.querySelector(`[data-table-column="${CSS.escape(columns[column.index-1].id)}"]`).nextSibling:head.firstElementChild.nextSibling;
-        if(element!==next)head.insertBefore(element,next);
+        element.style.gridColumn=column.index+2;
+        if(element!==previous.nextSibling)head.insertBefore(element,previous.nextSibling);previous=element;
     }
     const members=new Set(rows.map(row=>row.id));for(const element of wrapper.querySelectorAll(':scope>.clab-card'))element.hidden=!members.has(element.dataset.cardId);
-    renderDraftRows(wrapper,rows,columns,parameters,selectedAreas);
+    renderDraftRows(wrapper,visibleRows,visibleColumns,parameters,selectedAreas,cards,rows.length*columns.length>=160||virtualizeTasks(cards));
+    const elements=new Map([...wrapper.querySelectorAll(':scope>[data-card-id]')].map(element=>[element.dataset.cardId,element]));
     let cursor=head.nextSibling;
-    for(const row of rows){
-        const element=wrapper.querySelector(`:scope>[data-card-id="${CSS.escape(row.id)}"]`);element.dataset.tableRow=row.id;element.setAttribute('role','row');element.classList.toggle('selected',state.selectedCardIds.includes(row.id));
+    for(const row of visibleRows){
+        const element=elements.get(row.id);element.dataset.tableRow=row.id;element.setAttribute('role','row');element.classList.toggle('selected',state.selectedCardIds.includes(row.id));
         if(element!==cursor){if(element.classList.contains('clab-card'))moveModuleDOM(wrapper,element,cursor);else wrapper.insertBefore(element,cursor);}cursor=element.nextSibling;
         const title=element.querySelector('.clab-card-title-bar');title.setAttribute('role','rowheader');title.style.gridColumn='1';
         if(!title.querySelector('[data-table-row-header]'))title.insertAdjacentHTML('afterbegin','<button class="clab-table-row-header" draggable="true" data-table-row-header></button><span data-table-row-resize role="separator" aria-label="调整行高"></span>');
@@ -69,15 +74,17 @@ export function renderTableGrid(wrapper,cards,rows,columns,view,parameters,save,
         }
         const actual=new Map([...element.querySelectorAll('.clab-area')].map(cell=>[cell.dataset.areaId,cell]));
         const effective=effectiveTableRow(row);
-        for(const column of columns){
+        for(const column of visibleColumns){
             const area=row.areas[column.index],cell=actual.get(area.id)||element.querySelector(`.clab-table-draft-cell[data-table-column="${CSS.escape(column.id)}"]`);if(!cell)continue;
+            cell.classList.toggle('active',selectedAreas.has(area.id));
             cell.dataset.tableColumn=column.id;cell.dataset.tableIndex=column.index;cell.setAttribute('role','cell');cell.style.gridColumn=column.index+2;cell.draggable=false;
             styleTableCell(cell,view,row.id,column,effective);
             if(cell.classList.contains('clab-area'))updateTableEditor(cell,area,tableParameter(area,parameters));else cell.classList.toggle('clab-table-text-cell',cell.dataset.editor==='text');
             cell.toggleAttribute('data-clab-table-media-ready',ready.has(area.id));
+            renderTablePlaceholder(cell,area);
         }
     }
-    const labels=['',...rows.map(row=>row.title||String(rows.indexOf(row)+1))],key=JSON.stringify(labels);
+    const labels=['',...rows.map((row,index)=>row.title||String(index+1))],key=JSON.stringify(labels);
     if(wrapper.dataset.tableRowLabels!==key){const canvas=document.createElement('canvas').getContext('2d');canvas.font='12px sans-serif';wrapper.style.setProperty('--clab-table-row-width',`${Math.max(44,Math.ceil(Math.max(...labels.map(label=>canvas.measureText(label).width)))+18)}px`);wrapper.dataset.tableRowLabels=key;}
     applyTableLayout(wrapper,columns,view);
 }
@@ -114,7 +121,7 @@ export function editTableRowTitle(button, title, save, label = '行标题') {
 export function leaveTableGrid(wrapper) {
     restoreTableEditors(wrapper);
     for(const option of wrapper.querySelectorAll(':is(.clab-upload-file-row,.clab-upload-preview)>.clab-upload-preview-option')){const header=option.closest('.clab-area')?.querySelector('.clab-input-header');if(header)header.insertBefore(option,header.querySelector('.clab-module-binding'));}
-    wrapper.querySelectorAll('.clab-table-head,.clab-table-draft-row,.clab-table-draft-cell,[data-table-row-header],[data-table-row-resize],[data-table-row-title],.clab-table-number,.clab-table-choice').forEach(element=>element.remove());
+    wrapper.querySelectorAll('.clab-table-head,.clab-table-draft-row,.clab-table-draft-cell,.clab-table-placeholder,[data-table-row-header],[data-table-row-resize],[data-table-row-title],.clab-table-number,.clab-table-choice').forEach(element=>element.remove());
     wrapper.removeAttribute('role');wrapper.removeAttribute('aria-label');for(const key of ['--clab-table-columns','--clab-table-row-width','--clab-table-height'])wrapper.style.removeProperty(key);delete wrapper.dataset.tableRowLabels;delete wrapper.dataset.tableSelection;
     wrapper.querySelectorAll('[data-table-column],[data-table-row],[role=rowheader]').forEach(element=>{delete element.dataset.tableColumn;delete element.dataset.tableIndex;delete element.dataset.tableRow;delete element.dataset.clabTableMediaReady;element.removeAttribute('role');element.style.removeProperty('grid-column');for(const key of ['--clab-table-height','--table-horizontal','--table-vertical','--table-text','--table-media-position','--clab-table-padding','--clab-table-padding-right','--clab-table-media-padding','--clab-table-media-zoom'])element.style.removeProperty(key);element.classList.remove('clab-table-has-number','clab-table-has-choice','clab-table-text-cell','is-effective');});
     for(const card of state.cards){const element=wrapper.querySelector(`:scope>.clab-card[data-card-id="${CSS.escape(card.id)}"]`);if(element)moveModuleDOM(wrapper,element,null);}

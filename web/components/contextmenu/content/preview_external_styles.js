@@ -26,6 +26,9 @@ export function injectExternalStyles(){
     [data-external-delete]{position:absolute;top:4px;right:4px;width:20px;height:20px;border:0;border-radius:3px;background:#19191999;color:#bbb;font:16px/20px sans-serif;padding:0;opacity:0;pointer-events:none;cursor:pointer}
     .clab-external-item:hover [data-external-delete],.clab-external-item:has(:focus-visible) [data-external-delete]{opacity:1;pointer-events:auto}[data-external-delete]:hover{background:#191919;color:#fff}
     .clab-external-thumb-media{position:relative;width:100%;min-width:0}
+    .clab-external-thumb:is(.active,.selected) .clab-external-thumb-media{outline:1px solid #68a5cc;outline-offset:-1px}
+    .clab-external-thumb-media{aspect-ratio:1;display:flex;align-items:center;justify-content:center}
+    .clab-external-thumb-media :is(img,video){width:100%;height:100%;object-fit:contain;pointer-events:none}
     .clab-external-thumb-media .clab-filmstrip-assignment{top:auto;right:auto;bottom:4px;left:4px}
     .clab-external-menu{padding:4px;min-width:160px}.clab-external-menu button{display:block;width:100%;text-align:left;padding:7px 10px;border:0;background:transparent;color:#aaa;font:12px sans-serif;cursor:pointer}
     .clab-external-menu button:hover{background:#161616;color:#fff}.clab-external-picker{display:flex;flex-direction:column;gap:8px}

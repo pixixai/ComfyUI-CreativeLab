@@ -44,7 +44,7 @@ export async function checkXYPerformance() {
     const {projectXYCanvas}=await import('/extensions/clab/components/workspace_modes/xy_axes.js');projectXYCanvas(container,xy);await delay(0);
     const after=axis.getBoundingClientRect();assert(axis.style.left===left&&axisChanges===0&&Math.abs(after.left-before.left-25)<.01&&Math.abs(after.top-before.top-15)<.01,'panning changed each axis position or failed to move the complete overlay');observer.disconnect();
     const overlay=q('.clab-xy-overlay'),oldScale=xy.zoom;xy.zoom*=1.1;projectXYCanvas(container,xy);
-    assert(Math.abs(parseFloat(getComputedStyle(tick).fontSize)/xy.zoom-12)<.01&&!overlay.style.transform.includes('scale'),'zoom raster-scaled axis text instead of drawing at its display size');xy.zoom=oldScale;projectXYCanvas(container,xy);
+    assert(Math.abs(parseFloat(getComputedStyle(tick).fontSize)/xy.zoom-10)<.01&&!overlay.style.transform.includes('scale'),'zoom raster-scaled axis text instead of drawing at its display size');xy.zoom=oldScale;projectXYCanvas(container,xy);
     passed.push('pan moves the complete overlay without per-label style mutations; zoom preserves sharp text and matching coordinates');
 
     let scaleWrites=0;const layoutObserver=new MutationObserver(records=>{scaleWrites+=records.length;});layoutObserver.observe(tick,{attributes:true,attributeFilter:['style']});

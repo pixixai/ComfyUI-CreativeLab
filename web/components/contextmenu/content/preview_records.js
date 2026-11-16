@@ -3,7 +3,7 @@ import { getMediaType } from '../../modules/media_types/media_utils.js';
 export const valueKey = value => JSON.stringify(value);
 export const displayValue = value => value == null ? '未记录' : typeof value === 'object' ? JSON.stringify(value) : String(value);
 export const sourceKey = (card, area) => JSON.stringify([card.id, area.id]);
-export const previewRecordLabel = record => `${record.areaLabel} · ${record.index < 0 ? '当前结果' : `历史 ${record.index + 1}`}`;
+export const previewRecordLabel = record => `${record.areaLabel} · ${record.imported ? '外部导入 · ' : ''}${record.index < 0 ? '当前结果' : `历史 ${record.index + 1}`}`;
 
 export function buildPreviewJSON(cards,records,kind,includeHistory,allCards=cards) {
     const outputs=new Map();
@@ -60,16 +60,17 @@ export function collectPreviewRecords(sources) {
         const occurrences = new Map();
         return history.flatMap((url, index) => {
             if (!url) return [];
-            const run = area.historyRuns?.[index] || null;
-            const identity = JSON.stringify([card.id, area.id, run?.id || '', url]);
+            const imported = area.historyRuns?.[index]?.externalImport || null;
+            const run = imported ? null : area.historyRuns?.[index] || null;
+            const identity = JSON.stringify([card.id, area.id, imported?.id || run?.id || '', url]);
             const occurrence = occurrences.get(identity) || 0;
             occurrences.set(identity, occurrence + 1);
-            const snapshot = area.inputHistorySnapshots?.[index] || null;
+            const snapshot = imported ? null : area.inputHistorySnapshots?.[index] || null;
             const source = sourceKey(card, area);
             return [{ key: `${identity}:${occurrence}`, source, cardId: card.id, areaId: area.id,
                 cardLabel: cardLabel || card.title || '未命名任务', areaLabel: areaLabel || area.title || `##${card.areas.filter(a => a.type === 'preview').indexOf(area) + 1}`,
                 url, name: new URL(url, 'http://local/').searchParams.get('filename') || url.split('/').pop(), index: area.history?.length ? index : -1, run, runId: run?.id || '', snapshot, parameters: snapshotParameters(snapshot),
-                text: area.textHistory?.[index] ?? '', type: getMediaType(url) }];
+                imported, text: area.textHistory?.[index] ?? '', type: getMediaType(url) }];
         });
     });
 }

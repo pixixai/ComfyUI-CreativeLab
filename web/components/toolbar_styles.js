@@ -89,7 +89,7 @@ export const toolbarStyles = `
     .clab-tool-dock[data-dock="float"] .clab-tool-short-label:not(#clab-btn-run *, .clab-toolbar-overflow-menu *) {
         display:block; line-height:14px; font-size:10px;
     }
-    .clab-tool-dock .clab-tool-button:is(.clab-auto-height:has(input:checked),#tb-manage-history[aria-pressed="true"]) {
+    .clab-tool-dock .clab-tool-button:is(.clab-auto-height:has(input:checked),#tb-manage-history[aria-pressed="true"],[data-xy-manage-history][aria-pressed="true"]) {
         background:#ffffff20 !important; box-shadow:none;
     }
     :is(.clab-tool-dock,.clab-review-head-actions) .clab-toolbar-type {

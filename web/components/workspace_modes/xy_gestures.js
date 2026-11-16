@@ -11,8 +11,10 @@ export function attachXYGestures(container,getCamera,paint,save,scheduleSave,act
     window.addEventListener('pointerdown',event=>{
         if(!active()||!container.contains(event.target)||![0,1].includes(event.button))return;
         if(event.button===1&&bindingTarget(event.target))return;
-        if(event.button===0&&(event.target.closest('input,textarea,select,a,[contenteditable=true],.clab-glb-viewer,.clab-video-controls-interactive')||
+        if(event.button===0&&(event.target.closest('input,textarea,select,a,[contenteditable=true],.clab-glb-viewer,.clab-video-controls-interactive,.clab-history-thumb,.clab-output-manage-head')||
             event.target.closest('button')&&!event.target.closest('.clab-xy-overlay,.clab-xy-empty')))return;
+        // Canvas gestures can run before the global context-menu listener.
+        for(const menu of document.querySelectorAll('.clab-context-menu'))if(!menu.contains(event.target))menu.style.display='none';
         event.preventDefault();event.stopImmediatePropagation();
         drag={id:event.pointerId,x:event.clientX,y:event.clientY,startX:event.clientX,startY:event.clientY,button:event.button,moved:false};
         if(event.button===1){container.setPointerCapture(event.pointerId);container.classList.add('clab-xy-grabbing');}
@@ -38,13 +40,15 @@ export function attachXYGestures(container,getCamera,paint,save,scheduleSave,act
     window.addEventListener('blur',stop,{signal});
     document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();},{signal});
     for(const type of ['click','auxclick','dragstart'])window.addEventListener(type,event=>{
-        if(active()&&container.contains(event.target)&&(suppressClick||type==='dragstart'||type==='auxclick'&&event.button===1&&!bindingTarget(event.target))){
+        if(active()&&container.contains(event.target)&&(suppressClick||type==='dragstart'&&!event.target.closest('.clab-history-thumb')||type==='auxclick'&&event.button===1&&!bindingTarget(event.target))){
             event.preventDefault();event.stopImmediatePropagation();
         }
     },{capture:true,signal});
     window.addEventListener('wheel',event=>{
         if(!active()||!container.contains(event.target)||event.target.closest('.clab-xy-context'))return;
         if(event.target.closest('.clab-video-player,.clab-audio-player,.clab-glb-viewer,.clab-text-body-scroll')&&!event.ctrlKey)return;
+        const history=event.target.closest('.clab-history-grid');
+        if(history&&event.shiftKey&&!event.ctrlKey){event.preventDefault();event.stopImmediatePropagation();history.scrollTop+=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?history.clientHeight:1);return;}
         event.preventDefault();event.stopImmediatePropagation();
         const camera=getCamera(),rect=container.getBoundingClientRect(),x=event.clientX-rect.left,y=event.clientY-rect.top,old=camera.zoom;
         camera.zoom=Math.max(.025,Math.min(4,old*Math.exp(-event.deltaY*.0015)));

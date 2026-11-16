@@ -1,4 +1,5 @@
 export async function checkDetailPreview({state,videoURL,assert,delay,passed}) {
+    const {openWorkspacePreview}=await import('/extensions/clab/components/contextmenu/group_content.js');
     const root=document.querySelector('.clab-preview-modal'),q=selector=>root.querySelector(selector);
     const originalCards=[...state.cards],originalSelection=[...state.selectedAreaIds];
     const makeTask=(id,title,type,url)=>{
@@ -14,7 +15,7 @@ export async function checkDetailPreview({state,videoURL,assert,delay,passed}) {
     tasks[1].areas.push({...tasks[1].areas[2],id:'detail-video-duplicate-out',history:[videoURL],historyRuns:[{id:'duplicate'}],inputHistorySnapshots:[[{sourceAreaId:'detail-video-prompt',title:'提示词',value:'Duplicate Result'}]]});
     for(const task of tasks.slice(0,3))task.areas.push({...tasks[0].areas[2],id:`${task.id}-cover-out`,title:'封面图片',history:['/view?filename=review-a.png','/view?filename=review-b.png'],historyRuns:[{id:'cover-1'},{id:'cover-2'}],inputHistorySnapshots:task.areas[2].inputHistorySnapshots});
     state.cards.push(...tasks);state.selectedAreaIds=tasks.map(card=>card.areas[2].id);
-    q('.clab-preview-modal-close').click();window.CLab.showPreviewContextMenu(100,100,tasks[0].id,tasks[0].areas[2].id,tasks[0].areas[2].resultUrl);document.querySelector('#clab-ctx-preview-mode').click();
+    q('.clab-preview-modal-close').click();window.CLab.showPreviewContextMenu(100,100,tasks[0].id,tasks[0].areas[2].id,tasks[0].areas[2].resultUrl);document.querySelector('.clab-context-menu').style.display='none';openWorkspacePreview();
     assert([...root.querySelectorAll('.clab-review-modes button')].map(button=>button.textContent).join('|')==='浏览|比较|明细表|参数表|XY 矩阵','top-level preview mode names are wrong');
     q('[data-review-mode="detail"]').click();
     assert(q('[data-review-downloads="detail"] [data-review-download=all]')?.disabled===false,'detail preview did not offer downloads for its displayed cards');
@@ -326,5 +327,5 @@ export async function checkDetailPreview({state,videoURL,assert,delay,passed}) {
     passed.push('detail inline video, audio, Markdown and 3D interactions work independently and release their resources on mode changes');
     q('.clab-preview-modal-close').click();state.cards.splice(0,state.cards.length,...originalCards);state.selectedAreaIds=originalSelection;
     window.getDetailDemoTasks=()=>tasks;
-    window.showDetailDemo=()=>{for(const card of tasks)if(!state.cards.includes(card))state.cards.push(card);state.selectedAreaIds=tasks.map(card=>card.areas[2].id);window.CLab.showPreviewContextMenu(100,100,tasks[0].id,tasks[0].areas[2].id,tasks[0].areas[2].resultUrl);document.querySelector('#clab-ctx-preview-mode').click();q('[data-review-mode="detail"]').click();};
+    window.showDetailDemo=()=>{for(const card of tasks)if(!state.cards.includes(card))state.cards.push(card);state.selectedAreaIds=tasks.map(card=>card.areas[2].id);window.CLab.showPreviewContextMenu(100,100,tasks[0].id,tasks[0].areas[2].id,tasks[0].areas[2].resultUrl);document.querySelector('.clab-context-menu').style.display='none';openWorkspacePreview();q('[data-review-mode="detail"]').click();};
 }

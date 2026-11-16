@@ -154,7 +154,7 @@ export function generateInputHTML(area, card) {
     } else if (widgetDef && (widgetDef.type === "toggle" || typeof widgetDef.value === "boolean")) {
         let isChecked = (area.value === true || area.value === 'true');
         inputHtml = `
-            <label class="clab-bool-label" style="display:flex; align-items:center; gap:8px; color:#fff; cursor:pointer; font-size:13px; background:rgba(0,0,0,0.5); padding:8px; border-radius:4px; border:1px solid #555; width: 100%; box-sizing: border-box; margin:0;">
+            <label class="clab-bool-label" style="display:flex; align-items:center; gap:8px; cursor:pointer; padding:8px; border-radius:4px; border:1px solid #555; width: 100%; box-sizing: border-box; margin:0;">
                 <input type="checkbox" class="clab-edit-val-bool" data-card="${card.id}" data-area="${area.id}" ${isChecked ? 'checked' : ''} style="width:16px; height:16px; margin:0; cursor:pointer;"> 
                 <span>${isChecked ? 'True' : 'False'}</span>
             </label>

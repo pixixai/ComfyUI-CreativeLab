@@ -13,7 +13,7 @@ function collectSelectedAreaObjs() {
     const selectedAreaObjs = [];
     state.cards.forEach((card) => {
         card.areas?.forEach((area) => {
-            if (state.selectedAreaIds.includes(area.id)) {
+            if (state.selectedAreaIds.includes(area.id)||state.selectedCardIds.includes(card.id)) {
                 selectedAreaObjs.push({ card, area });
             }
         });
@@ -42,7 +42,7 @@ export function setupContextMenu(panelContainer) {
     };
 
     // 监听全局点击以关闭菜单
-    window.addEventListener("mousedown", closeMenuGlobally, true);
+    for(const type of ["pointerdown","mousedown","click"])window.addEventListener(type,closeMenuGlobally,true);
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape') closeMenu();
     }, true);
@@ -85,6 +85,12 @@ export function setupContextMenu(panelContainer) {
                     menuEl.append(item);
                 }
             });
+            const selectedAreaObjs=collectSelectedAreaObjs().filter(item=>item.area.type==='preview'),mainObj=selectedAreaObjs.find(item=>item.area.id===target.areaId);
+            if(mainObj){
+                menuEl.insertAdjacentHTML('beforeend','<div class="clab-context-menu-divider"></div>'+renderContentGroup(true,{node:true}));
+                const nodeState=buildNodeGroupState(selectedAreaObjs),args={menuEl,selectedAreaObjs,mainObj,nodeState,closeMenu};
+                bindContentGroup(args);bindNodeGroup(args);
+            }
             positionMenu(x, y);
         };
         panelContainer.dispatchEvent(new CustomEvent('clab_table_menu', {detail:{...target, show, point:{x,y}}}));
@@ -102,9 +108,8 @@ export function setupContextMenu(panelContainer) {
 
         // 步骤 A：先拼装所有的 HTML (千万不要在这个阶段绑定事件)
         let htmlContent = "";
-        if (typeof renderContentGroup === "function") htmlContent += renderContentGroup(showContent);
-        if (typeof renderNodeGroup === "function") htmlContent += renderNodeGroup(nodeState);
-        if (typeof renderModuleGroup === "function") htmlContent += renderModuleGroup();
+        if(showContent)htmlContent=renderContentGroup(true,{modules:panelContainer.dataset.workspaceMode!=='xy',node:true});
+        else htmlContent=renderNodeGroup(nodeState)+renderModuleGroup();
         
         // 步骤 B：一次性写入 DOM
         menuEl.innerHTML = htmlContent;

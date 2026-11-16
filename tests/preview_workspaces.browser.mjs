@@ -13,7 +13,8 @@ export async function runPreviewWorkspaceChecks(send,sessionId,screenshotPrefix)
         const cards=window.getDetailDemoTasks().slice(0,2);
         const a=createEmptyWorkspace('预览A',{id:'preview-ws-a',cards:structuredClone(cards)}),b=createEmptyWorkspace('预览B',{id:'preview-ws-b',cards:structuredClone(cards)});
         state.workspaces=[a,b];applyWorkspaceToState(a);appState.selectedWorkspaceIds=[a.id];document.dispatchEvent(new Event('clab_render_ui'));
-        window.openSavedDetail=()=>{const card=state.cards[0],area=card.areas.find(area=>area.type==='preview');window.CLab.showPreviewContextMenu(100,100,card.id,area.id,area.resultUrl);document.querySelector('#clab-ctx-preview-mode').click();document.querySelector('[data-review-mode="detail"]').click();};window.openSavedDetail();
+        const {openWorkspacePreview}=await import('/extensions/clab/components/contextmenu/group_content.js');
+        window.openSavedDetail=()=>{const card=state.cards[0],area=card.areas.find(area=>area.type==='preview');window.CLab.showPreviewContextMenu(100,100,card.id,area.id,area.resultUrl);document.querySelector('.clab-context-menu').style.display='none';openWorkspacePreview();document.querySelector('[data-review-mode="detail"]').click();};window.openSavedDetail();
     })()`);
     try {
         await evaluate(`(()=>{

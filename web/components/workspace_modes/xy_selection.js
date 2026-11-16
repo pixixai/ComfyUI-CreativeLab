@@ -8,6 +8,15 @@ export function attachXYSelection(container,getXY) {
     container.addEventListener('click',event=>{
         if(container.closest('#clab-panel').dataset.workspaceMode!=='xy'||event.button!==0)return;
         const xy=getXY();if(workspace!==xy){workspace=xy;anchor='';}
+        const managed=event.target.closest('.clab-history-grid,.clab-output-manage-head');
+        if(managed&&(event.target.closest('.clab-history-thumb')||!event.ctrlKey&&!event.metaKey&&!event.shiftKey)){
+            const card=state.cards.find(card=>card.id===event.target.closest('.clab-card')?.dataset.cardId),output=card&&matrixOutput(card,xy);
+            if(card&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey)anchor=card.id;
+            if(output&&!state.selectedAreaIds.includes(output.id)&&!state.selectedCardIds.includes(card.id)){
+                anchor=card.id;state.selectedCardIds=[];state.selectedAreaIds=[output.id];state.activeCardId=card.id;updateSelectionUI();
+            }
+            return;
+        }
         const empty=event.target.closest('.clab-xy-empty');
         if(empty){
             const placeholders=[...container.querySelectorAll('.clab-xy-empty')],cells=placeholders.map(node=>{const [x,y,z]=node.dataset.xyPlaceholder.split(',').map(Number);return {card:{id:node.dataset.xyPlaceholder},x,y,...(z===undefined?{}:{z})};});
@@ -18,12 +27,13 @@ export function attachXYSelection(container,getXY) {
         }
         const card=event.target.closest('.clab-card:not([hidden])');
         if(!card&&!event.target.closest('.clab-xy-overlay')){handleDeselectAll();container.querySelectorAll('.clab-xy-empty.is-selected').forEach(node=>node.classList.remove('is-selected'));anchor='';return;}
-        if(!card||event.target.closest('button,input,textarea,select,.clab-video-controls-interactive,.clab-glb-toolbar'))return;
+        if(!card||event.target.closest('button,input,textarea,select,.clab-video-controls-interactive,.clab-glb-toolbar,.clab-thumb-delete'))return;
         container.querySelectorAll('.clab-xy-empty.is-selected').forEach(node=>node.classList.remove('is-selected'));
         const cells=visibleMatrixCells(state.cards,xy),selected=cells.filter(cell=>state.selectedCardIds.includes(cell.card.id)||state.selectedAreaIds.includes(matrixOutput(cell.card,xy)?.id)).map(cell=>cell.card.id);
         const ids=selectXYCells(cells,selected,card.dataset.cardId,anchor,event);
         const start=cells.find(cell=>cell.card.id===anchor),target=cells.find(cell=>cell.card.id===card.dataset.cardId);if(!event.shiftKey||!start||start.z!==target?.z)anchor=card.dataset.cardId;
         state.selectedCardIds=[];state.selectedAreaIds=cells.filter(cell=>ids.includes(cell.card.id)).map(cell=>matrixOutput(cell.card,xy).id);state.activeCardId=ids.length?card.dataset.cardId:null;
         updateSelectionUI();
+        if(managed){event.preventDefault();event.stopImmediatePropagation();}
     },true);
 }

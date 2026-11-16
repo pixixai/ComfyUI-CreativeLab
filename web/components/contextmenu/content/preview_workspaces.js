@@ -31,6 +31,10 @@ function patch(target,before,after) {
     }
 }
 
+export function projectPreviewValue(value,reverse){
+    return rewrite(value,new Map([...reverse].map(([projected,original])=>[original,projected])));
+}
+
 // Preview IDs are local to this session: copied workspaces may share stored IDs.
 export function createPreviewWorkspaceBundle(workspaces,label,onCommit=()=>{}) {
     const groups=workspaces.map(workspace=>{

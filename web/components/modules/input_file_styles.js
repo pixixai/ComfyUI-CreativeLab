@@ -1,7 +1,7 @@
 export function ensureInputFileStyles(){
     if(document.getElementById('clab-input-files-style'))return;
     const style=document.createElement('style');style.id='clab-input-files-style';style.textContent=`
-    .clab-custom-select.clab-file-select{cursor:pointer;min-width:0;box-sizing:border-box;display:flex;align-items:center;gap:6px;padding:0 9px!important;height:28px;min-height:28px;font:12px/18px sans-serif;color:#aaa}
+    .clab-custom-select.clab-file-select{cursor:pointer;min-width:0;box-sizing:border-box;display:flex;align-items:center;gap:6px;padding:0 9px!important;height:28px;min-height:28px;font:12px/18px sans-serif;color:#bbb}
     .clab-file-select .clab-upload-filename{cursor:text;flex:1;min-width:0;width:0!important;text-overflow:ellipsis;padding:0!important;outline:0}
     .clab-file-select .clab-upload-filename::placeholder{font:inherit;color:inherit;opacity:.65}
     .clab-file-selection-scope{flex:none;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:10px/16px sans-serif;color:#888}
