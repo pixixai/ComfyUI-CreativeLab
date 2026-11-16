@@ -2,10 +2,10 @@ import { tableSizes } from './workspace_modes/table_layout.js';
 
 export const workspacePreferences = {
     defaultMode: 'cards',
-    cardGap: 20,
+    cardGap: 5,
     cardBuffer: 5,
-    moduleGap: 10,
-    cardPadding: 10,
+    moduleGap: 3,
+    cardPadding: 6,
     cardWidth: 320,
     columnWidth: tableSizes.width.default,
     rowHeight: tableSizes.height.default,

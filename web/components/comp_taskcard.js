@@ -93,7 +93,7 @@ export function generateSingleCardHTML(card, index, {defer=false,shell=false}={}
 
 export function createCardsWrapper(container){
     const wrapper=document.createElement('div');wrapper.className='clab-cards-wrapper';
-    wrapper.style.cssText='display:flex;gap:var(--clab-card-gap,20px);position:relative;height:100%;align-items:stretch';
+    wrapper.style.cssText='display:flex;gap:var(--clab-card-gap,5px);position:relative;height:100%;align-items:stretch';
     container.append(wrapper);return wrapper;
 }
 

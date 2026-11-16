@@ -538,8 +538,8 @@ export function injectCSS() {
         .clab-binding-panel-foot { padding:8px 10px; border-top:1px solid rgba(255,255,255,0.1); flex-shrink:0; }
 
         #clab-panel:not([data-workspace-mode=table],[data-workspace-mode=xy]) {
-            --clab-card-body-padding: var(--clab-card-padding, 10px);
-            --clab-area-list-gap: var(--clab-module-gap, 10px);
+            --clab-card-body-padding: var(--clab-card-padding, 6px);
+            --clab-area-list-gap: var(--clab-module-gap, 3px);
         }
         .clab-card-body {
             flex: 1; overflow-y: auto; overflow-y: overlay; overflow-x: hidden; 
