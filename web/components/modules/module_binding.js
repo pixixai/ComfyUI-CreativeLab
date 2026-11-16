@@ -16,7 +16,7 @@ function getBindings(area) {
     return { ids: [...new Set([...ids, ...widgets.map(w => w.split('||')[0])])], widgets: [...new Set(widgets)] };
 }
 
-function bindingSummary(area,pickLocation='模块任意位置') {
+function bindingSummary(area,pickLocation='绑定摘要上') {
     const { ids, widgets } = getBindings(area);
     if (area.type === 'preview') {
         const node = ids.length ? app.graph?.getNodeById(ids[0]) : null;
@@ -144,7 +144,7 @@ export function showBindingPanel(areaEl, trigger = areaEl.querySelector('.clab-m
     };
     const pickButton = popup.querySelector('.clab-binding-start-pick');
     const shortcut = window._clabPickShortcutRaw ?? 'P';
-    pickButton.title = `拾取节点${isOutput ? '' : '或参数'}${shortcut ? `（快捷键：${shortcut}）` : ''}；也可在模块任意位置中键单击`;
+    pickButton.title = `拾取节点${isOutput ? '' : '或参数'}${shortcut ? `（快捷键：${shortcut}）` : ''}；也可在绑定摘要上中键单击`;
     pickButton.onclick = () => startModulePick(areaEl, true, trigger, preserveValues);
     const position = () => {
         if (!trigger.isConnected) { close(); return; }
@@ -330,8 +330,8 @@ const pickDelegates=new WeakSet(),bindingDelegates=new WeakSet();
 export function attachModulePickEvents(container) {
     const root=container.closest('#clab-panel')||container;if(pickDelegates.has(root))return;pickDelegates.add(root);
     const handle=e=>{
-        if(e.button!==1||e.target.closest('.clab-glb-viewer'))return;
-        const area=e.target.closest('.clab-area');if(!area||!root.contains(area))return;
+        if(e.button!==1)return;
+        const area=e.target.closest('.clab-module-binding-summary')?.closest('.clab-area');if(!area||!root.contains(area))return;
         e.preventDefault();e.stopPropagation();if(e.type==='auxclick')startModulePick(area);
     };
     for(const type of ['pointerdown','pointerup','mousedown','mouseup','auxclick'])root.addEventListener(type,handle,true);

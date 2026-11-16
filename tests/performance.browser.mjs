@@ -1,3 +1,5 @@
+import { runTableTextSyncChecks } from './table_text_sync.browser.mjs';
+import { runTableTextChecks } from './table_text.browser.mjs';
 import { runOutputMenuChecks } from './output_menu.browser.mjs';
 import { runXYHistoryToolChecks } from './xy_history_tools.browser.mjs';
 import { runTableWindowChecks } from './table_window.browser.mjs';
@@ -198,7 +200,7 @@ try {
     const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
     const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
     await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
-    await send('Page.navigate', { url: `http://127.0.0.1:${server.address().port}/` }, sessionId);
+    await send('Page.navigate', { url: `http://127.0.0.1:${server.address().port}/${process.env.CLAB_BROWSER_SUITE==='table-text'?'?bootstrap':''}` }, sessionId);
     const result = await send('Runtime.evaluate', {
         expression: 'new Promise((resolve,reject)=>{const timer=setInterval(()=>{if(window.testResult){clearInterval(timer);resolve(window.testResult);}},50);setTimeout(()=>{clearInterval(timer);reject(new Error("browser checks timed out"));},60000);})',
         awaitPromise: true, returnByValue: true,
@@ -212,7 +214,10 @@ try {
     for (const name of report.passed) console.log(`PASS ${name}`);
     assert.equal(report.error, undefined, report.error);
     assert.deepEqual(report.errors, []);
-    if(process.env.CLAB_BROWSER_SUITE==='xy-history'){
+    if(process.env.CLAB_BROWSER_SUITE==='table-text'){
+        await runTableTextChecks(send,sessionId);
+        await runTableTextSyncChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='xy-history'){
         await runXYHistoryToolChecks(send,sessionId);
         await runExternalOutputChecks(send,sessionId);
     }else if(process.env.CLAB_BROWSER_SUITE==='xy-axis'){
@@ -761,7 +766,7 @@ try {
     await clickDetailElement('.clab-workspace-tab.active [data-mode-toggle]');await clickDetailElement('button[data-workspace-mode="xy"]');
     const restoredAxes=await send('Runtime.evaluate',{expression:`document.querySelector('#clab-panel').dataset.workspaceMode==='xy'&&JSON.stringify([window.workspaceModeDemo.view.xy.x,window.workspaceModeDemo.view.xy.y,window.workspaceModeDemo.view.xy.size])===window.nativeAxisConfig&&window.workspaceModeDemo.view.xy.zoom>window.nativeCanvasZoom`,returnByValue:true},sessionId);assert.equal(restoredAxes.result.value,true,'native footer mode switching lost axis bindings or zoom');
     console.log('PASS native XY wheel zoom and background dragging preserve generation sizes, and workspace mode switches restore the same axes and camera');
-    const crispXY=await send('Runtime.evaluate',{expression:`(async()=>{const {projectXYCanvas}=await import('/extensions/clab/components/workspace_modes/xy_axes.js');const container=document.querySelector('#clab-cards-container'),xy=window.workspaceModeDemo.view.xy,old=xy.zoom,media=container.querySelector('.clab-card:not([hidden]) .clab-preview-bg');xy.zoom=3;projectXYCanvas(container,xy);const button=container.querySelector('[data-xy-bind=x]'),font=parseFloat(getComputedStyle(button).fontSize),tick=container.querySelector('.clab-axis-label'),unscaled=!button.closest('.clab-cards-wrapper')&&new DOMMatrixReadOnly(getComputedStyle(container.querySelector('.clab-xy-overlay')).transform).a===1&&new DOMMatrixReadOnly(getComputedStyle(container.querySelector('.clab-xy-overlay')).transform).d===1;xy.zoom=old;projectXYCanvas(container,xy);const matrix=new DOMMatrixReadOnly(getComputedStyle(tick).transform);return font===36&&unscaled&&media===container.querySelector('.clab-card:not([hidden]) .clab-preview-bg')&&matrix.a===1&&matrix.d===1;})()`,awaitPromise:true,returnByValue:true},sessionId);assert.equal(crispXY.result.value,true,'zoom magnified rasterized axis text instead of repainting display-size glyphs or rebuilt the media');
+    const crispXY=await send('Runtime.evaluate',{expression:`(async()=>{const {projectXYCanvas}=await import('/extensions/clab/components/workspace_modes/xy_axes.js');const container=document.querySelector('#clab-cards-container'),xy=window.workspaceModeDemo.view.xy,old=xy.zoom,media=container.querySelector('.clab-card:not([hidden]) .clab-preview-bg');xy.zoom=3;projectXYCanvas(container,xy);const button=container.querySelector('[data-xy-bind=x]'),font=parseFloat(getComputedStyle(button).fontSize),tick=container.querySelector('.clab-axis-label'),unscaled=!button.closest('.clab-cards-wrapper')&&new DOMMatrixReadOnly(getComputedStyle(container.querySelector('.clab-xy-overlay')).transform).a===1&&new DOMMatrixReadOnly(getComputedStyle(container.querySelector('.clab-xy-overlay')).transform).d===1;xy.zoom=old;projectXYCanvas(container,xy);const matrix=new DOMMatrixReadOnly(getComputedStyle(tick).transform);return font===33&&unscaled&&media===container.querySelector('.clab-card:not([hidden]) .clab-preview-bg')&&matrix.a===1&&matrix.d===1;})()`,awaitPromise:true,returnByValue:true},sessionId);assert.equal(crispXY.result.value,true,'zoom magnified rasterized axis text instead of repainting display-size glyphs or rebuilt the media');
     console.log('PASS XY axes and binding summaries repaint at the zoomed font size outside the scaled media layer');
     await send('Runtime.evaluate',{expression:`document.querySelector('[data-xy-reset]').click();window.nativeXYIds=[...document.querySelectorAll('#clab-panel .clab-card:not([hidden])')].sort((a,b)=>a.offsetTop-b.offsetTop||a.offsetLeft-b.offsetLeft).map(card=>card.dataset.cardId);window.nativeXYExecute=window.CLab.executeTasks;window.CLab.executeTasks=tasks=>{window.nativeXYQueue=tasks;};`},sessionId);
     const xyIds=await send('Runtime.evaluate',{expression:`window.nativeXYIds`,returnByValue:true},sessionId),xyCell=index=>`.clab-card[data-card-id="${xyIds.result.value[index]}"] .clab-preview-bg`;

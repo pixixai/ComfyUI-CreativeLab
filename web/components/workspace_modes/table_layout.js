@@ -4,6 +4,7 @@ export const tableSizes = {
 };
 const dimension = (key, value) => Math.max(tableSizes[key].min, Math.min(tableSizes[key].max, Math.round(value)));
 export const tableRowHeight = (view, row) => dimension('height', view.heights?.[row?.id] || view.rowHeight || tableSizes.height.default);
+export const tableRenderedRowHeight = (view,row) => Math.max(tableRowHeight(view,row),view.textHeights?.[row?.id] || 0);
 export const tableColumnWidth = (column, view) => dimension('width', view.widths?.[column?.id] || view.columnWidth || tableSizes.width.default);
 const sides = ['top','bottom','left','right'];
 export function tablePadding(value) {
@@ -40,7 +41,7 @@ export function applyTableLayout(wrapper,columns,view) {
     wrapper.style.setProperty('--clab-table-height',`${tableRowHeight(view)}px`);
     const widths = columns.map(column => tableColumnWidth(column, view));
     wrapper.style.setProperty('--clab-table-columns',`var(--clab-table-row-width,44px) ${widths.map(width=>`${width}px`).join(' ')} var(--clab-table-add-column-width,28px)`);
-    wrapper.querySelectorAll('[data-table-row]').forEach(element=>element.style.setProperty('--clab-table-height',`${tableRowHeight(view,{id:element.dataset.tableRow})}px`));
+    wrapper.querySelectorAll('[data-table-row]').forEach(element=>element.style.setProperty('--clab-table-height',`${tableRenderedRowHeight(view,{id:element.dataset.tableRow})}px`));
     for(const cell of wrapper.querySelectorAll('[role=cell]:has(.clab-upload-zone)'))fitTableMedia(cell,widths[cell.dataset.tableIndex],tableRowHeight(view,{id:cell.dataset.cardId}));
 
 }

@@ -2,7 +2,7 @@ import { state } from '../ui_state.js';
 import { generateModuleBindingHTML, refreshModuleBindingSummary } from '../modules/module_binding.js';
 import { moveModuleDOM } from '../modules/module_lifecycle.js';
 import { tableParameter } from './table_model.js';
-import { applyTableLayout, tablePadding } from './table_layout.js';
+import { applyTableLayout, tablePadding, tableRowHeight, tableRenderedRowHeight } from './table_layout.js';
 import { tableAppearance } from './table_appearance.js';
 import { renderDraftRows } from './table_drafts.js';
 import { boundColumn, effectiveTableRow } from './table_sheet.js';
@@ -123,7 +123,7 @@ export function leaveTableGrid(wrapper) {
     for(const option of wrapper.querySelectorAll(':is(.clab-upload-file-row,.clab-upload-preview)>.clab-upload-preview-option')){const header=option.closest('.clab-area')?.querySelector('.clab-input-header');if(header)header.insertBefore(option,header.querySelector('.clab-module-binding'));}
     wrapper.querySelectorAll('.clab-table-head,.clab-table-draft-row,.clab-table-draft-cell,.clab-table-placeholder,[data-table-row-header],[data-table-row-resize],[data-table-row-title],.clab-table-number,.clab-table-choice').forEach(element=>element.remove());
     wrapper.removeAttribute('role');wrapper.removeAttribute('aria-label');for(const key of ['--clab-table-columns','--clab-table-row-width','--clab-table-height'])wrapper.style.removeProperty(key);delete wrapper.dataset.tableRowLabels;delete wrapper.dataset.tableSelection;
-    wrapper.querySelectorAll('[data-table-column],[data-table-row],[role=rowheader]').forEach(element=>{delete element.dataset.tableColumn;delete element.dataset.tableIndex;delete element.dataset.tableRow;delete element.dataset.clabTableMediaReady;element.removeAttribute('role');element.style.removeProperty('grid-column');for(const key of ['--clab-table-height','--table-horizontal','--table-vertical','--table-text','--table-media-position','--clab-table-padding','--clab-table-padding-right','--clab-table-media-padding','--clab-table-media-zoom'])element.style.removeProperty(key);element.classList.remove('clab-table-has-number','clab-table-has-choice','clab-table-text-cell','is-effective');});
+    wrapper.querySelectorAll('[data-table-column],[data-table-row],[role=rowheader]').forEach(element=>{delete element.dataset.tableColumn;delete element.dataset.tableIndex;delete element.dataset.tableRow;delete element.dataset.clabTableMediaReady;element.removeAttribute('role');element.style.removeProperty('grid-column');for(const key of ['--clab-table-height','--table-horizontal','--table-vertical','--table-text','--table-media-position','--clab-table-padding','--clab-table-padding-right','--clab-table-media-padding','--clab-table-media-zoom','--clab-table-media-height','--clab-table-media-top'])element.style.removeProperty(key);element.classList.remove('clab-table-has-number','clab-table-has-choice','clab-table-text-cell','clab-table-row-expanded','clab-table-expand-text','is-effective');});
     for(const card of state.cards){const element=wrapper.querySelector(`:scope>.clab-card[data-card-id="${CSS.escape(card.id)}"]`);if(element)moveModuleDOM(wrapper,element,null);}
 }
 
@@ -135,5 +135,10 @@ export function styleTableCell(cell,view,rowId,column,effective) {
     const padding=tablePadding(tableAppearance(view,'padding',rowId,column.id));
     cell.style.setProperty('--clab-table-padding', `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`);
     cell.style.setProperty('--clab-table-padding-right', `${padding.right}px`);
+    const base=tableRowHeight(view,{id:rowId}),height=tableRenderedRowHeight(view,{id:rowId});
+    cell.classList.toggle('clab-table-row-expanded',height>base);
+    cell.classList.toggle('clab-table-expand-text',!!tableAppearance(view,'expandText',rowId,column.id));
+    cell.style.setProperty('--clab-table-media-height',`${Math.max(0,base-padding.top-padding.bottom-2)}px`);
+    cell.style.setProperty('--clab-table-media-top',`${padding.top+(height-base)*(Math.floor(anchor/3)/2)}px`);
     cell.classList.toggle('is-effective',effective&&boundColumn(column.area));
 }

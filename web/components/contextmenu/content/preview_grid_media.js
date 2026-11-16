@@ -72,7 +72,7 @@ export function rememberExternalSelection(area,next){
     return true;
 }
 
-export function stepReviewGridOutput(cell,card,area,direction) {
+export function stepReviewGridOutput(cell,card,area,direction,onLoaded) {
     let index=getSteppedHistoryIndex(area,direction);
     while (index>=0&&index<area.history.length&&!area.history[index]) index+=direction;
     if (index<0||!area.history?.[index]||index===area.historyIndex&&!area.missingHistoryRun) return null;
@@ -89,7 +89,7 @@ export function stepReviewGridOutput(cell,card,area,direction) {
     render();
     const output=cell.firstElementChild;
     void loadSelectedTextContent(next,{refresh:false}).then(changed=>{
-        if (changed&&cell.isConnected&&cell.firstElementChild===output) render();
+        if (changed&&cell.isConnected&&cell.firstElementChild===output) { render();onLoaded?.(); }
     });
     return next;
 }

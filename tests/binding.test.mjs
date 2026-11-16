@@ -120,7 +120,7 @@ function createHarness() {
             flush();
             return e;
         },
-        moduleEvent(type, button = 1, id = 'edit', cardId = 'card', target = { closest() { return null; } }) {
+        moduleEvent(type, button = 1, id = 'edit', cardId = 'card', target = null) {
             if (!moduleElements.has(id)) moduleElements.set(id, {
                 dataset: { areaId: id, cardId }, listeners: new Map(),
                 addEventListener(eventType, fn, capture) {
@@ -131,7 +131,8 @@ function createHarness() {
             });
             const areaEl = moduleElements.get(id);
             context.attachModulePickEvents(moduleRoot);
-            const event = { type,button, target:{closest(selector){return selector==='.clab-area'?areaEl:target.closest(selector);}}, preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; } };
+            const summary={closest(selector){return selector==='.clab-area'?areaEl:null;}};
+            const event = { type,button, target:{closest(selector){return selector==='.clab-area'?areaEl:target?target.closest(selector):selector==='.clab-module-binding-summary'?summary:null;}}, preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; } };
             for (const fn of moduleRoot.listeners.get(type) || []) fn(event);
             flush();
             return event;
@@ -427,6 +428,16 @@ test('module pick handlers preserve left and right button behavior', () => {
         assert.equal(event.stopped, undefined);
     }
     assert.equal(h.appState.isBindingMode, undefined);
+});
+
+for(const id of ['edit','preview'])test(`middle clicking ${id} module outside its binding summary leaves events and bindings alone`,()=>{
+    const h=createHarness(),before=JSON.stringify([h.area,h.preview]);
+    for(const type of ['pointerdown','mousedown','pointerup','mouseup','auxclick']){
+        const event=h.moduleEvent(type,1,id,'card',{closest(){return null;}});
+        assert.equal(event.defaultPrevented,undefined);assert.equal(event.stopped,undefined);
+    }
+    assert.equal(h.appState.isBindingMode,undefined);assert.equal(h.visible.size,2);
+    assert.equal(JSON.stringify([h.area,h.preview]),before);
 });
 
 test('middle clicking an unselected module replaces the previous module selection', () => {

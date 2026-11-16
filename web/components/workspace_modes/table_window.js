@@ -1,4 +1,4 @@
-import { tableRowHeight,tableColumnWidth } from './table_layout.js';
+import { tableRenderedRowHeight,tableColumnWidth } from './table_layout.js';
 import { workspaceViewport } from './viewport_components.js';
 import { releaseModuleTree } from '../modules/module_lifecycle.js';
 import { revealDelta } from './viewport_geometry.js';
@@ -81,7 +81,7 @@ export function tableWindow(container){
         render(allRows,allColumns,view,render){
             const current=getActiveWorkspace();if(owner&&owner!==current)for(const root of wrapper()?.querySelectorAll(':scope>.clab-card,:scope>.clab-table-draft-row')||[])drop(root);owner=current;
             rows=allRows;columns=allColumns;paint=render;
-            vertical=tableTrackOffsets(rows,row=>tableRowHeight(view,row));horizontal=tableTrackOffsets(columns,column=>tableColumnWidth(column,view));
+            vertical=tableTrackOffsets(rows,row=>tableRenderedRowHeight(view,row));horizontal=tableTrackOffsets(columns,column=>tableColumnWidth(column,view));
             enabled=rows.length>=40||rows.length*columns.length>=160;update(true);
         },
         reveal,

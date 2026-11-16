@@ -44,7 +44,7 @@ export function mountTableCellSettings(body, selection, actions) {
             <label>内边距<input type="text" data-table-padding placeholder="上, 下, 左, 右" title="上、下、左、右" aria-label="内边距（上、下、左、右）"></label>
             <div class="clab-table-alignment"><span>对齐</span>${cellAlignmentHTML()}</div>
             <button type="button" data-table-layout-reset>${scope === 'table' ? '恢复全表外观' : '恢复选区外观'}</button>
-        </div><p class="clab-xy-popup-error" data-table-settings-error role="status"></p>`;
+        </div><label class="clab-table-setting-line" title="文字放不下时撑高所在行，手动行高作为下限；图片和播放器保持原尺寸"><input type="checkbox" data-table-expand-text>显示全部文字</label><p class="clab-xy-popup-error" data-table-settings-error role="status"></p>`;
     let dimension = scope === 'row' ? 'height' : 'width';
     const refreshDirection = () => {
         for (const button of body.querySelectorAll('[data-table-dimension]')) {
@@ -68,7 +68,10 @@ export function mountTableCellSettings(body, selection, actions) {
         body.querySelector('[data-table-ratio-label]').textContent = label;
     };
     const refreshAppearance = () => {
-        const {padding, alignment} = actions.appearance();
+        const {padding, alignment, expandText} = actions.appearance();
+        const expand = body.querySelector('[data-table-expand-text]');
+        expand.checked = !!expandText;
+        expand.indeterminate = expandText === null;
         const field = body.querySelector('[data-table-padding]');
         field.placeholder = padding ? '上, 下, 左, 右' : '混合';
         field.value = field.defaultValue = padding ? Object.values(padding).join(', ') : '';
@@ -129,6 +132,7 @@ export function mountTableCellSettings(body, selection, actions) {
             refreshSizes(undefined, input.dataset.tableSize);
         }
         if (input.matches('[data-table-padding]')) submitPadding(input);
+        if (input.matches('[data-table-expand-text]')) { actions.setAppearance('expandText',input.checked); refreshAppearance(); }
     });
     body.addEventListener('keydown', event => {
         const input = event.target;

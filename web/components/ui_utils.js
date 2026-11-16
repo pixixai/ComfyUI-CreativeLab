@@ -456,8 +456,8 @@ export function injectCSS() {
         }
         
         .clab-module-binding { display:flex; align-items:center; gap:3px; margin-left:auto; max-width:75%; min-width:0; flex:0 1 auto; }
-        .clab-module-binding button { display:flex; align-items:center; justify-content:center; gap:4px; height:20px; min-height:20px; padding:0 5px; border:1px solid rgba(255,255,255,0.12); border-radius:4px; background:rgba(255,255,255,0.03); color:#999; font:11px sans-serif; cursor:pointer; }
-        .clab-module-binding button:hover, .clab-module-binding button[aria-expanded="true"] { background:rgba(255,255,255,0.1); color:#ddd; }
+        .clab-module-binding button { display:flex; align-items:center; justify-content:center; gap:4px; height:20px; min-height:20px; padding:0 5px; border:0; border-radius:4px; background:transparent!important; color:#aaa; font:11px/1.5 sans-serif; cursor:pointer; }
+        .clab-module-binding button:hover, .clab-module-binding button[aria-expanded="true"] { color:#ddd; }
         .clab-module-binding-summary { min-width:0; max-width:190px; }
         .clab-module-binding-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
         .clab-output-area::before { content:""; position:absolute; top:0; right:0; width:min(100%, 180px); height:min(100%, 90px); border-radius:inherit; background:radial-gradient(ellipse at top right, rgba(0,0,0,0.22), rgba(0,0,0,0.08) 45%, transparent 80%); opacity:0; pointer-events:none; z-index:21; transition:opacity 0.15s; }
@@ -472,7 +472,7 @@ export function injectCSS() {
         .clab-output-binding { position:relative; min-width:0; max-width:100px; }
         .clab-text-copy-btn + .clab-output-settings-trigger { position:relative; }
         .clab-output-binding::before, .clab-text-copy-btn + .clab-output-settings-trigger::before { content:""; position:absolute; top:-1px; bottom:-1px; left:-1px; border-left:1px solid rgba(255,255,255,0.12); pointer-events:none; }
-        .clab-output-binding button { max-width:100px; border:0; background:transparent; color:rgba(255,255,255,0.8); transition:color 0.15s, background-color 0.15s; }
+        .clab-output-binding button { max-width:100px; border:0; background:transparent; color:#aaa; transition:color 0.15s; }
         .clab-output-controls .clab-output-settings-trigger, .clab-output-controls .clab-text-copy-btn { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:20px; height:20px; padding:0; border:0; border-radius:3px; background:transparent; color:rgba(255,255,255,0.8); cursor:pointer; transition:color 0.15s, background-color 0.15s; }
         .clab-output-controls .clab-text-copy-btn svg { width:13px; height:13px; }
         .clab-output-controls .clab-text-copy-btn:disabled { cursor:default; opacity:0.75; }
@@ -618,6 +618,19 @@ export function injectCSS() {
         }
         .clab-input-body .clab-custom-select { line-height: 18px !important; }
         .clab-input-body .clab-custom-select-value { font: inherit; }
+        #clab-panel[data-workspace-mode=cards] textarea.clab-edit-val {
+            border: 0 !important; outline: none !important; box-shadow: none !important;
+            min-height: 18px !important; padding: 0; text-align: justify; text-align-last: left;
+        }
+        #clab-panel[data-workspace-mode=cards] .clab-input-header {
+            min-height:32px; box-sizing:border-box; padding:5px 8px!important; margin-bottom:0!important;
+        }
+        #clab-panel[data-workspace-mode=cards] .clab-input-header>.clab-area-title-input { height:20px; line-height:20px; }
+        #clab-panel[data-workspace-mode=cards] .clab-input-header .clab-module-binding-summary { padding-right:0; }
+        #clab-panel[data-workspace-mode=cards] .clab-input-body { padding:0 8px 6px!important; }
+        #clab-panel[data-workspace-mode=cards] .clab-output-head .clab-area-title-input {
+            border:0!important; outline:none!important; box-shadow:none!important;
+        }
         
         .clab-capsule { 
             border-radius: 20px !important; padding-left: 12px !important; padding-right: 12px !important; 

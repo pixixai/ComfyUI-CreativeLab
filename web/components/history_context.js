@@ -27,7 +27,7 @@ export function historyDestination(entry,current){
             if(path[3]==='xy')kinds.add('xy');
             if(path[3]==='table'){
                 table=true;
-                if(['widths','heights','padding','columnWidth','rowHeight','alignments','rowAlignments','columnPaddings','rowPaddings','appearanceOrder'].includes(path[4])||['columnWidth','rowHeight','padding','alignment','cellAppearance'].includes(path.at(-1)))kinds.add('table');
+                if(['widths','heights','padding','columnWidth','rowHeight','alignments','rowAlignments','columnPaddings','rowPaddings','expandText','rowTextExpansion','columnTextExpansion','appearanceOrder'].includes(path[4])||['columnWidth','rowHeight','padding','alignment','expandText','cellAppearance'].includes(path.at(-1)))kinds.add('table');
             }
         }else if(root==='cards'){
             const area=path.indexOf('areas');

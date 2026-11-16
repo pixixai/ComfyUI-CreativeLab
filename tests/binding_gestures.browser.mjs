@@ -32,6 +32,19 @@ export async function runBindingGestureChecks(send,sessionId){
         assert.equal(colors.errorImage,'none');assert.equal(colors.errorColor,'rgb(244, 67, 54)');
         console.log('PASS task progress uses the matrix rainbow palette while workflow errors remain solid red');
 
+        for(const selector of ['[data-area-id="pick-in-0"] textarea','[data-area-id="pick-in-0"] .clab-area-title-input','[data-area-id="pick-out-0"] .clab-area-title-input','[data-area-id="pick-out-0"] .clab-preview-bg']){
+            const bindings=await evaluate(`JSON.stringify(g.table.cards)`);
+            await click(selector);await wait(40);
+            assert.equal(await evaluate(`!g.ui.appState.isBindingMode&&g.panel.classList.contains('visible')&&JSON.stringify(g.table.cards)===${JSON.stringify(bindings)}`),true,'middle click outside the summary entered picking or changed data: '+selector);
+            for(const type of ['keyDown','keyUp'])await send('Input.dispatchKeyEvent',{type,key:'Escape',code:'Escape',windowsVirtualKeyCode:27},sessionId);
+        }
+        const cardInput='[data-area-id="pick-in-0"] .clab-module-binding-summary',cardOutput='[data-area-id="pick-out-0"] .clab-module-binding-summary';
+        await pick(cardInput,952,'x');assert.deepEqual(await evaluate(`g.table.cards[0].areas[0].targetWidgets`),['952||x']);
+        await pick(cardInput,951,'x');
+        await pick(cardOutput,954);assert.equal(await evaluate(`g.table.cards[0].areas[1].targetNodeId`),'954');
+        await pick(cardOutput,953);
+        console.log('PASS task-card middle picking is restricted to input/output binding summaries; titles, input text and media keep their normal behavior');
+
         await evaluate(`(async()=>{const {setWorkspaceMode}=await import('/extensions/clab/components/workspace_modes/workspace_modes.js');setWorkspaceMode(g.panel,'table');})()`);await wait(180);
         const input='.clab-table-column[data-table-index="0"] .clab-module-binding-summary',output='.clab-table-column[data-table-index="1"] .clab-module-binding-summary';
         await pick(input,952,'x');

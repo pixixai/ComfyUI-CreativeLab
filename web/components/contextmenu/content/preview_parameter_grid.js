@@ -2,7 +2,8 @@ import { state } from '../../ui_state.js';
 import { generateModuleBindingHTML } from '../../modules/module_binding.js';
 import { editTableRowTitle, styleTableCell } from '../../workspace_modes/table_view.js';
 import { mountTableCellSettings } from '../../workspace_modes/table_cell_panel.js';
-import { tableAppearance, setTableAppearance, setTableCellAppearance } from '../../workspace_modes/table_appearance.js';
+import { tableTextLayout } from '../../workspace_modes/table_text_layout.js';
+import { tableAppearance, tableTextExpansionState, setTableAppearance, setTableCellAppearance } from '../../workspace_modes/table_appearance.js';
 import { applyTableLayout, resizeTableCells, tableColumnWidth, tableRowHeight, tablePadding, tableSizes } from '../../workspace_modes/table_layout.js';
 import { boundColumn, effectiveTableRow, openTableSheet, orderSheetTasks } from '../../workspace_modes/table_sheet.js';
 import { reorderTableItems, tableCellRange, tableParameter } from '../../workspace_modes/table_model.js';
@@ -23,10 +24,10 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
         window.CLab?.saveState?.(state);
         document.dispatchEvent(new Event('clab_workspace_view_change'));
     };
-    const layoutView = () => ({
+    const layoutView = () => tableTextLayout(visibleRows || [],visibleColumns || [],{
         ...view, sheetId: sheet.id, columnWidth: sheet.columnWidth ?? view.columnWidth, rowHeight: sheet.rowHeight ?? view.rowHeight,
-        padding: sheet.padding ?? view.padding, alignment: sheet.alignment, cellAppearance: sheet.cellAppearance,
-    });
+        padding: sheet.padding ?? view.padding, alignment: sheet.alignment, expandText:sheet.expandText ?? view.expandText, cellAppearance: sheet.cellAppearance,
+    },params,areaFor);
     const ensureSheet = () => {
         if (view.sheets.includes(sheet)) return sheet;
         sheet = openTableSheet(cards, view, template);
@@ -123,12 +124,14 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
             },
             appearance() {
                 const layout = layoutView();
-                if (!cell) return {padding:tablePadding(layout.padding),alignment:layout.alignment ?? 0};
+                const expandText = tableTextExpansionState(layout,cell?cells:visibleRows.flatMap(row=>visibleColumns.map(column=>({rowId:row.id,columnId:column.id}))));
+                if (!cell) return {padding:tablePadding(layout.padding),alignment:layout.alignment ?? 0,expandText};
                 const padding = ({rowId,columnId})=>tablePadding(tableAppearance(layout,'padding',rowId,columnId));
                 const align = ({rowId,columnId})=>tableAppearance(layout,'alignment',rowId,columnId) ?? 0;
                 const current = padding(cell);
                 return {padding:cells.every(item=>JSON.stringify(padding(item))===JSON.stringify(current))?current:null,
-                    alignment:cells.every(item=>align(item)===align(cell))?align(cell):null};
+                    alignment:cells.every(item=>align(item)===align(cell))?align(cell):null,
+                    expandText};
             },
             setAppearance(key,value) { changeAppearance(key,value); commit(); },
             reset() {
@@ -142,6 +145,7 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
                 }
                 changeAppearance('padding',tablePadding(target.scope==='table'?undefined:layout.padding));
                 changeAppearance('alignment',target.scope==='table'?null:layout.alignment ?? null);
+                changeAppearance('expandText',target.scope==='table'?true:!!layout.expandText);
                 commit();
             },
         };
@@ -180,7 +184,8 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
                 cell.setAttribute('role','cell');cell.draggable=false;cell.style.gridColumn=index+2;
                 if (!preview) {
                     updateTableEditor(cell,area,tableParameter(area,params));
-                    cell.querySelectorAll('.clab-input-body,.clab-input-header').forEach(part=>part.inert=true);
+                    cell.querySelectorAll('textarea,input:not([type=checkbox]):not([type=file])').forEach(field=>field.readOnly=true);
+                    cell.querySelectorAll('.clab-input-header,.clab-upload-file-row,select,.clab-edit-val-bool,.clab-upload-preview-toggle,input[type=file],.clab-custom-select').forEach(control=>control.inert=true);
                 }
             }
             wrapper.append(element);
@@ -206,7 +211,7 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
             const cell=event.target.closest('[data-review-cell]'),row=event.target.closest('[data-review-row-name]')?.closest('[data-review-row]'),
                 column=event.target.closest('[data-review-column]');
             if (drag?.moved || event.target.closest('[data-review-resize]')) return;
-            if (!event.target.closest('button,a')) stage.focus({preventScroll:true});
+            if (!event.target.closest('button,a,input,textarea,.clab-text-body-scroll')) stage.focus({preventScroll:true});
             if (event.target.closest('[data-review-select-all]')) {
                 const all=visibleRows.flatMap(row=>visibleColumns.map(column=>row.areas[column.index].id));
                 choose(all.length===selected.size?[]:all,'cell');
@@ -272,7 +277,7 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
                 const layout=layoutView(),size=key==='width'?tableColumnWidth({id},layout):tableRowHeight(layout,{id});
                 drag={key,ids,size,start:key==='width'?event.clientX:event.clientY,pointer:event.pointerId,moved:false};
                 stage.setPointerCapture(event.pointerId);
-            } else if (cell && !event.target.closest('button,a,video,audio')) {
+            } else if (cell && !event.target.closest('button,a,video,audio,textarea,input,.clab-text-body-scroll')) {
                 drag={id:cell.dataset.reviewCell,x:event.clientX,y:event.clientY,pointer:event.pointerId,moved:false,base:event.ctrlKey||event.metaKey?[...selected]:[]};
             }
         });
@@ -334,12 +339,12 @@ export function createPreviewParameterGrid(center, left, right, changed, exportC
                 const originals=new Map(cards.flatMap(card=>card.areas.map(area=>[area.id,area])));let remembered=false;
                 for (const {row,area} of outputs) {
                     const cell=wrapper.querySelector('[data-review-cell="'+CSS.escape(area.id)+'"]');
-                    const next=stepReviewGridOutput(cell,row,area,direction);
+                    const next=stepReviewGridOutput(cell,row,area,direction,()=>{paint();changed();});
                     if (next) histories.set(area.id,next);
                     remembered=rememberExternalSelection(originals.get(area.id),next)||remembered;
                 }
                 if(remembered){options.save?.();window.CLab?.saveState(state);}
-                changed();return;
+                paint();changed();return;
             }
             if (event.key==='Escape') { event.stopPropagation();choose([],null); }
             if ((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='a') {

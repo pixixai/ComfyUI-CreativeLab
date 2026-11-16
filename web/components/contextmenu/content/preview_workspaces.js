@@ -16,6 +16,13 @@ function rewrite(value,ids,field='') {
         return value;
     }
     if(Array.isArray(value))return value.map(entry=>rewrite(entry,ids));
+    if(field==='appearanceOrder'&&value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([key,entries])=>{
+        if(!entries||typeof entries!=='object')return [key,entries];
+        return [key,Object.fromEntries(Object.entries(entries).map(([address,order])=>{
+            const scope=address.match(/^(table|row|column):(.+)$/),id=scope&&ids.get(scope[2]);
+            return [id?`${scope[1]}:${id}`:address,order];
+        }))];
+    }));
     if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([key,entry])=>[rewrite(key,ids),rewrite(entry,ids,key)]));
     return value;
 }

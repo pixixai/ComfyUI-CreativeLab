@@ -116,6 +116,12 @@ function cleanClone(source, clone) {
         else {field.setAttribute('value',original.value);field.toggleAttribute('checked',original.checked);}
         field.tabIndex=-1;
     });
+    clone.querySelectorAll('[role=cell] textarea').forEach(field=>{
+        const text=document.createElement('div');
+        text.className='clab-table-static-text';text.textContent=field.textContent;
+        text.hidden=field.closest('.clab-table-has-number,.clab-table-has-choice')!==null;
+        field.replaceWith(text);
+    });
     clone.querySelectorAll('.selected,.active,.is-selected').forEach(node=>node.classList.remove('selected','active','is-selected'));
     clone.querySelectorAll('.clab-table-column .clab-module-binding,[data-review-resize],[data-review-select-all],.clab-xy-progress-ring').forEach(node=>node.remove());
     for(const node of clone.querySelectorAll('*')){

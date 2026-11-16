@@ -3,7 +3,8 @@ import { renderTableGrid, leaveTableGrid, editTableRowTitle, paintTableSelection
 import { openTableColumnSettings } from './table_column_panel.js';
 import { openTableCellSettings } from './table_cell_panel.js';
 import { tableRowHeight, tableColumnWidth, resizeTableCells, tablePadding, tableSizes, fitTableMedia } from './table_layout.js';
-import { tableAppearance, setTableAppearance, setTableCellAppearance } from './table_appearance.js';
+import { tableTextLayout, hasTableTextExpansion } from './table_text_layout.js';
+import { tableAppearance, tableTextExpansionState, setTableAppearance, setTableCellAppearance } from './table_appearance.js';
 import { openTableSheet, addSheetColumn, addSheetRow, synchronizeSheet, projectTableSheet, materializeTable, writeSheetCells, sheetRunRows, orderSheetTasks, resetTableColumn, selectedTableColumns,boundColumn,effectiveTableRow } from './table_sheet.js';
 import { duplicateTableRow, duplicateTableColumn, removeTableTracks } from './table_structure.js';
 import { renderDraftValue } from './table_drafts.js';
@@ -40,8 +41,11 @@ export function createTableController(container,getView,save) {
         if (active() && sheet && workspaceId === state.activeWorkspaceId) activity.refresh(workspaceId, cardId, completed);
     });
     let sheet,rows=[],columns=[],settings,controls,frame=0,pending=false,schemaChanged=false;const ready=new Set(),dirty=new Set();let observed=new WeakSet();
-    const layoutView = () => ({...view(), columnWidth:sheet.columnWidth ?? view().columnWidth, rowHeight:sheet.rowHeight ?? view().rowHeight,
-        padding:sheet.padding ?? view().padding, alignment:sheet.alignment, cellAppearance:sheet.cellAppearance});
+    const layoutView = () => {
+        const layout={...view(),columnWidth:sheet.columnWidth??view().columnWidth,rowHeight:sheet.rowHeight??view().rowHeight,
+            padding:sheet.padding??view().padding,alignment:sheet.alignment,expandText:sheet.expandText??view().expandText,cellAppearance:sheet.cellAppearance};
+        return hasTableTextExpansion(layout)?tableTextLayout(rows,columns,layout,workflowParameters()):layout;
+    };
     const notice=(message,error=false)=>showBindingToast(message,error),group=()=>rows;
     const mediaObserver=new IntersectionObserver(entries=>{if(!active()||!sheet||virtualizeTasks(state.cards)||rows.length*columns.length>=160)return;let changed=false;for(const entry of entries)if(entry.isIntersecting){ready.add(entry.target.dataset.areaId);mediaObserver.unobserve(entry.target);changed=true;}if(changed)render();},{root:container,rootMargin:'120px'});
     const layout=()=>{
@@ -64,8 +68,9 @@ export function createTableController(container,getView,save) {
         windowed.render(rows,columns,layoutView(),(visibleRows,visibleColumns)=>paint(visibleRows,visibleColumns,parameters));
     };
     const paint=(visibleRows,visibleColumns,parameters)=>{
+        const sizes=layoutView();
         for(const id of ready)wrapper().querySelector(`.clab-area[data-area-id="${CSS.escape(id)}"]`)?.setAttribute('data-clab-table-media-ready','');
-        renderTableGrid(wrapper(),state.cards,rows,columns,layoutView(),parameters,save,ready,visibleRows,visibleColumns);editing.sync();
+        renderTableGrid(wrapper(),state.cards,rows,columns,sizes,parameters,save,ready,visibleRows,visibleColumns);editing.sync();
         if(!controls?.isConnected){controls=document.createElement('div');controls.className='clab-table-fixed-controls';controls.innerHTML='<button data-table-add="columns" title="新增列（在所选项后插入）" aria-label="新增列">＋</button><button data-table-add="rows" title="新增行（在所选项后插入）" aria-label="新增行">＋</button>';wrapper().prepend(controls);}
         controls.style.width=`${container.clientWidth}px`;controls.style.setProperty('--table-viewport-height',`${container.clientHeight}px`);controls.style.setProperty('--clab-table-row-width',wrapper().style.getPropertyValue('--clab-table-row-width'));synchronizeModeMedia(wrapper());
         return ()=>{
@@ -74,8 +79,8 @@ export function createTableController(container,getView,save) {
         workspaceViewport(container).update('table',{cards:visibleRows,count:rows.length*columns.length,
             preview:renderTablePlaceholder,
             mount(cell,card,area){if(!cell.classList.contains('clab-table-draft-cell'))return false;renderDraftValue(cell,area,tableParameter(columns[Number(cell.dataset.tableIndex)].area,parameters),card);return true;},
-            prepared(cell){fitTableMedia(cell,tableColumnWidth(columns[Number(cell.dataset.tableIndex)],layoutView()),tableRowHeight(layoutView(),{id:cell.dataset.cardId}));},
-            mounted(cell,card,area){cell.dataset.clabTableMediaReady='';if(cell.classList.contains('clab-area'))updateTableEditor(cell,area,tableParameter(area,parameters));fitTableMedia(cell,tableColumnWidth(columns[Number(cell.dataset.tableIndex)],layoutView()),tableRowHeight(layoutView(),{id:cell.dataset.cardId}));editing.syncCell(cell);},
+            prepared(cell){fitTableMedia(cell,tableColumnWidth(columns[Number(cell.dataset.tableIndex)],sizes),tableRowHeight(sizes,{id:cell.dataset.cardId}));},
+            mounted(cell,card,area){cell.dataset.clabTableMediaReady='';if(cell.classList.contains('clab-area'))updateTableEditor(cell,area,tableParameter(area,parameters));fitTableMedia(cell,tableColumnWidth(columns[Number(cell.dataset.tableIndex)],sizes),tableRowHeight(sizes,{id:cell.dataset.cardId}));editing.syncCell(cell);},
             settled:()=>fileActions.paint()
         });fileActions.paint();
         };
@@ -89,6 +94,9 @@ export function createTableController(container,getView,save) {
         save();
     };
     const queue=(flush=false)=>{pending||=flush;if(frame)return;frame=requestAnimationFrame(()=>{frame=0;if(!active())return;if(pending)commit();else render();});};
+    document.addEventListener('clab_workspace_view_change',()=>{
+        if(active()&&panel.classList.contains('visible')&&sheet&&hasTableTextExpansion({...view(),expandText:sheet.expandText??view().expandText,cellAppearance:sheet.cellAppearance}))queue();
+    });
     const selectedRows=()=>state.selectedCardIds.filter(id=>rows.some(row=>row.id===id));
     const selectedColumns=index=>{const indices=selection.columnIndices();return indices.includes(index)?indices:[index];};
     const markColumn=index=>{if(columns[index])view().configured[columns[index].id]=true;};
@@ -129,7 +137,8 @@ export function createTableController(container,getView,save) {
         };
         const currentAppearance = () => {
             const layout = layoutView();
-            if (scope === 'table') return {padding:tablePadding(layout.padding), alignment:layout.alignment ?? 0};
+            const expandText = tableTextExpansionState(layout,scope==='table'?rows.flatMap(row=>columns.map(column=>({rowId:row.id,columnId:column.id}))):cells);
+            if (scope === 'table') return {padding:tablePadding(layout.padding), alignment:layout.alignment ?? 0,expandText};
             const padding = tablePadding(tableAppearance(layout, 'padding', anchor.rowId, anchor.columnId));
             const alignment = tableAppearance(layout, 'alignment', anchor.rowId, anchor.columnId) ?? 0;
             const samePadding = cells.every(({rowId,columnId}) => {
@@ -137,7 +146,7 @@ export function createTableController(container,getView,save) {
                 return Object.keys(padding).every(side => padding[side] === value[side]);
             });
             const sameAlignment = cells.every(({rowId,columnId}) => (tableAppearance(layout, 'alignment', rowId, columnId) ?? 0) === alignment);
-            return {padding:samePadding ? padding : null, alignment:sameAlignment ? alignment : null};
+            return {padding:samePadding ? padding : null, alignment:sameAlignment ? alignment : null,expandText};
         };
         settings = openTableCellSettings(() => trigger?.isConnected ? trigger : panel.querySelector('#tb-table-cell-settings'), target, {
             sizes: () => {
@@ -161,6 +170,7 @@ export function createTableController(container,getView,save) {
                 const layout = layoutView();
                 setAppearance('padding', tablePadding(scope === 'table' ? undefined : layout.padding));
                 setAppearance('alignment', scope === 'table' ? null : layout.alignment ?? null);
+                setAppearance('expandText',scope === 'table' ? true : !!layout.expandText);
                 render();
                 save();
             }
@@ -308,7 +318,7 @@ export function createTableController(container,getView,save) {
     container.addEventListener('input',event=>{
         if(!active()||!sheet)return;const input=event.target.closest('.clab-table-draft-value');
         if(input){const cell=input.closest('[data-area-id]'),index=Number(cell.dataset.tableIndex),row=rows.findIndex(row=>row.id===cell.dataset.cardId),parameter=tableParameter(columns[index].area,workflowParameters());if(input.validity?.badInput)return;const value=input.matches('[data-draft-choice]')?(input.value===''?'':parameter.choices[Number(input.value)]):input.type==='checkbox'?input.checked:input.value;try{write(row,index,[[value]]);}catch(error){notice(error.message,true);}window.CLab?.scheduleSave();}
-        if (event.target.matches('.clab-upload-preview-toggle')) queue();
+        if (event.target.matches('.clab-upload-preview-toggle') || event.target.matches('textarea.clab-edit-val,textarea.clab-table-draft-value') && event.target.closest('.clab-table-expand-text')) queue();
     });
     container.addEventListener('change',event=>{if(active()&&event.target.matches('.clab-table-draft-value'))queue(true);});
     panel.addEventListener('mousedown',event=>{if(active()&&event.target.closest('.clab-table-head,[data-table-row-header]'))event.stopPropagation();},true);

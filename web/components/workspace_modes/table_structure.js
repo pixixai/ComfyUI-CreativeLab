@@ -4,11 +4,11 @@ import { archiveTaskCards } from './task_archive.js';
 
 function updateTrackLayout(view, sheet, axis, id, copyId) {
     const table = view.table;
-    const fields = axis === 'row' ? ['heights', 'rowPaddings', 'rowAlignments']
-        : ['widths', 'columnPaddings', 'alignments', 'configured', 'drafts'];
+    const fields = axis === 'row' ? ['heights', 'rowPaddings', 'rowAlignments', 'rowTextExpansion']
+        : ['widths', 'columnPaddings', 'alignments', 'columnTextExpansion', 'configured', 'drafts'];
     const position = axis === 'row' ? 0 : 1;
     const pairs = fields.map(field => [table[field], id, copyId]);
-    for (const order of [table.appearanceOrder.padding, table.appearanceOrder.alignment]) {
+    for (const order of Object.values(table.appearanceOrder).filter(value=>value && typeof value==='object')) {
         pairs.push([order, `${axis}:${id}`, copyId && `${axis}:${copyId}`]);
     }
     for (const key of Object.keys(sheet.cellAppearance || {})) {
@@ -18,7 +18,7 @@ function updateTrackLayout(view, sheet, axis, id, copyId) {
         pairs.push([sheet.cellAppearance, key, copyId && JSON.stringify(cell)]);
     }
     for (const [map, key, next] of pairs) {
-        if (!Object.hasOwn(map, key)) continue;
+        if (!map || !Object.hasOwn(map, key)) continue;
         if (next) map[next] = structuredClone(map[key]);
         else delete map[key];
     }

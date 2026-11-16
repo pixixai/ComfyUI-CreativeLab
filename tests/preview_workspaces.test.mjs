@@ -5,8 +5,35 @@ import { collectPreviewRecords } from '../web/components/contextmenu/content/pre
 import { createWorkspaceView } from '../web/components/workspace_modes/view_state.js';
 import { detailStyle } from '../web/components/contextmenu/content/preview_detail_model.js';
 import { createEditHistory } from '../web/components/edit_history.js';
+import { tableAppearance, setTableAppearance, setTableCellAppearance } from '../web/components/workspace_modes/table_appearance.js';
 
 const workspace=id=>({id,name:id,cards:[{id:'task',title:'task',areas:[{id:'input',type:'edit',title:'提示词',value:'task',targetNodeId:'12',targetWidgets:['12||text']},{id:'out',type:'preview',history:['/view?filename=a.png'],historyIndex:0}]}],view:createWorkspaceView({xy:{taskIds:['task']},table:{widths:{out:320}}})});
+
+test('table appearance scope IDs and ordering round-trip through preview without changing literal input text',()=>{
+    const ws=workspace('appearance');ws.cards[0].areas[0].value='column:input';
+    const view=ws.view.table,sheet={id:'sheet',columns:[{id:'input',type:'edit'}],rows:[{id:'task',cardId:'task',values:{}}]};
+    view.sheets=[sheet];view.sheetId=sheet.id;
+    const values={padding:8,alignment:4,expandText:true};
+    for(const [key,value]of Object.entries(values)){
+        setTableCellAppearance(view,sheet,[{rowId:'task',columnId:'input'}],key,key==='expandText'?false:0);
+        setTableAppearance(view,sheet,'column','input',key,key==='expandText'?false:0);
+        setTableAppearance(view,sheet,'row','task',key,value);
+        setTableAppearance(view,sheet,'table',undefined,key,value);
+    }
+    const bundle=createPreviewWorkspaceBundle([ws],item=>item.name),projected=bundle.groups[0].projected;
+    const next=projected.view.table,nextSheet=next.sheets[0],row=nextSheet.rows[0].id,column=nextSheet.columns[0].id;
+    const layout=()=>({...next,...nextSheet});
+    for(const [key,value]of Object.entries(values)){
+        assert.equal(tableAppearance(layout(),key,row,column),value);
+        assert.equal(next.appearanceOrder[key][`table:${nextSheet.id}`],view.appearanceOrder[key]['table:sheet']);
+        assert.equal(next.appearanceOrder[key][`row:${row}`],view.appearanceOrder[key]['row:task']);
+        setTableAppearance(next,nextSheet,'column',column,key,key==='expandText'?false:12);
+    }
+    bundle.commit();
+    for(const key of Object.keys(values))assert.equal(tableAppearance({...ws.view.table,...ws.view.table.sheets[0]},key,'task','input'),key==='expandText'?false:12);
+    assert.equal(ws.cards[0].areas[0].value,'column:input');
+    assert.ok(!JSON.stringify(ws).includes('preview:appearance:'));
+});
 
 test('multi-workspace previews namespace duplicated task/module IDs while preserving user values and bindings',()=>{
     const a=workspace('a'),b=workspace('b'),bundle=createPreviewWorkspaceBundle([a,b],ws=>ws.name);

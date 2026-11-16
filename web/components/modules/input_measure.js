@@ -10,7 +10,7 @@ export function measureInputText(input) {
     if(!ghost){ghost=document.createElement('textarea');ghost.id='clab-ghost-textarea-measurer';ghost.tabIndex=-1;ghost.style.cssText='position:absolute;top:-9999px;left:-9999px;visibility:hidden;z-index:-1000;overflow:hidden;height:1px!important;min-height:1px!important;max-height:none!important;word-wrap:break-word;white-space:pre-wrap';document.body.append(ghost);}
     for(const name of metricStyles)ghost.style[name]=style[name];
     ghost.value=value;
-    const height=ghost.scrollHeight+(parseFloat(style.borderTopWidth)||0)+(parseFloat(style.borderBottomWidth)||0)+8;
+    const height=ghost.scrollHeight+(parseFloat(style.borderTopWidth)||0)+(parseFloat(style.borderBottomWidth)||0);
     if(key.length<=16000){metrics.set(key,height);while(metrics.size>128)metrics.delete(metrics.keys().next().value);}
     if(input.style.height!==height+'px')input.style.height=height+'px';
 }

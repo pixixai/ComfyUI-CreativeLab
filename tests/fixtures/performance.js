@@ -61,6 +61,7 @@ try {
     const { onModuleRemoved, moveModuleDOM } = await import('/extensions/clab/components/modules/module_lifecycle.js');
     await testApp.extension.setup();
     togglePanel();
+    if (location.search !== '?bootstrap') {
     document.querySelector('#clab-global-add-card').click();
     const firstCard = state.cards[0];
     const firstCardElement = document.querySelector(`.clab-card[data-card-id="${firstCard?.id}"]`);
@@ -649,6 +650,7 @@ try {
     await checkWorkspaceModes({state,passed,assert,delay});
     const {checkXYZMatrix}=await import('/xyz-checks.js');
     await checkXYZMatrix({state,passed,assert,delay});
+    }
     window.testResult = { passed, errors };
 } catch (error) {
     window.testResult = { passed, errors, error: error.stack || String(error) };

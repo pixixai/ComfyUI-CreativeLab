@@ -8,7 +8,7 @@ test('text height measurements reuse equal content/typography and invalidate cha
     globalThis.document={getElementById:()=>ghost};globalThis.getComputedStyle=input=>input.computed;
     const make=()=>({style:{resize:'none'},isConnected:true,getClientRects:()=>[{}],value:'cached height test',computed:{width:'320px',fontFamily:'sans-serif',fontSize:'12px',lineHeight:'18px',borderTopWidth:'1',borderBottomWidth:'1'}});
     try{
-        const input=make();measureInputText(input);assert.equal(reads,1);assert.equal(input.style.height,'110px');
+        const input=make();measureInputText(input);assert.equal(reads,1);assert.equal(input.style.height,'102px');
         measureInputText(input);measureInputText(make());assert.equal(reads,1);
         input.value='changed text';measureInputText(input);assert.equal(reads,2);
         input.computed.width='400px';measureInputText(input);assert.equal(reads,3);

@@ -3,14 +3,61 @@ import test from 'node:test';
 import { cloneTask } from '../web/components/workspace_modes/task_model.js';
 import { parseTableClipboard, tableCellRange, tableCellValue, reorderTableItems, tablePasteTarget } from '../web/components/workspace_modes/table_model.js';
 import { parseTableValues, formatTableOrder } from '../web/components/workspace_modes/table_fill.js';
-import { tableColumnWidth, tableRowHeight, resizeTableCells, tablePadding, parseTablePadding, tableRatios, tableRatioPosition, tablePresetSize } from '../web/components/workspace_modes/table_layout.js';
+import { tableColumnWidth, tableRowHeight, tableRenderedRowHeight, resizeTableCells, tablePadding, parseTablePadding, tableRatios, tableRatioPosition, tablePresetSize } from '../web/components/workspace_modes/table_layout.js';
 import { selectAllValues, clearChoiceValues } from '../web/components/workspace_modes/value_choices.js';
 import { createWorkspaceView } from '../web/components/workspace_modes/view_state.js';
-import { tableAppearance, setTableAppearance, setTableCellAppearance } from '../web/components/workspace_modes/table_appearance.js';
+import { tableAppearance, tableTextExpansionState, setTableAppearance, setTableCellAppearance } from '../web/components/workspace_modes/table_appearance.js';
 import { openTableSheet, addSheetColumn, addSheetRow, projectTableSheet, materializeTable, writeSheetCells, synchronizeSheet, sheetRunRows, orderSheetTasks, resetTableColumn, tableSelectionIds } from '../web/components/workspace_modes/table_sheet.js';
 const parameters=[{key:'1||steps',type:'number',choices:[]},{key:'1||sampler',type:'string',choices:['Euler','DPM']},{key:'1||enabled',type:'boolean',choices:[true,false]}];
 const fixture=()=>{const source={id:'a',title:'A',areas:[{id:'steps',type:'edit',title:'步数',targetNodeId:'1',targetWidget:'steps',targetWidgets:['1||steps'],dataType:'number',value:20},{id:'out',type:'preview',targetNodeId:'2',history:['/a.png'],historyIndex:0}]},other=cloneTask(source);other.id='b';other.areas[0].value=30;other.areas[1].history=['/b.png'];const cards=[source,other],view=createWorkspaceView().table,sheet=openTableSheet(cards,view,source);return {source,other,cards,view,sheet};};
 const bind=(column,key,type='number')=>Object.assign(column,{targetNodeId:key.split('||')[0],targetWidget:key.split('||')[1],targetWidgets:[key],dataType:type});
+
+test('text expansion persists at table, column, row and cell scope with last-setting precedence',()=>{
+    const {view,sheet}=fixture(),row=sheet.rows[0].id,column=sheet.columns[0].id;
+    const layout=()=>({...view,expandText:sheet.expandText??view.expandText,cellAppearance:sheet.cellAppearance});
+    assert.equal(view.expandText,true);
+    assert.equal(createWorkspaceView({table:{expandText:false}}).table.expandText,false);
+    setTableAppearance(view,sheet,'table',undefined,'expandText',true);
+    assert.equal(tableAppearance(layout(),'expandText',row,column),true);
+    setTableAppearance(view,sheet,'column',column,'expandText',false);
+    assert.equal(tableAppearance(layout(),'expandText',row,column),false);
+    setTableAppearance(view,sheet,'row',row,'expandText',true);
+    assert.equal(tableAppearance(layout(),'expandText',row,column),true);
+    setTableCellAppearance(view,sheet,[{rowId:row,columnId:column}],'expandText',false);
+    assert.equal(tableAppearance(layout(),'expandText',row,column),false);
+    setTableAppearance(view,sheet,'table',undefined,'expandText',true);
+    assert.equal(tableAppearance(layout(),'expandText',row,column),true);
+    const restored=createWorkspaceView(JSON.parse(JSON.stringify({table:view}))).table;
+    assert.deepEqual(restored.columnTextExpansion,view.columnTextExpansion);
+    assert.deepEqual(restored.rowTextExpansion,view.rowTextExpansion);
+    assert.deepEqual(restored.appearanceOrder,view.appearanceOrder);
+    assert.equal(restored.sheets.find(item=>item.id===sheet.id).expandText,true);
+});
+
+test('computed text heights leave manual sizes intact and do not enter saved workspace data',()=>{
+    const table=createWorkspaceView({table:{rowHeight:144,heights:{r:180}}}).table;
+    const layout={...table,textHeights:{r:4200,short:100}};
+    assert.equal(tableRowHeight(layout,{id:'r'}),180);
+    assert.equal(tableRenderedRowHeight(layout,{id:'r'}),4200);
+    assert.equal(tableRenderedRowHeight(layout,{id:'short'}),144);
+    assert.equal(createWorkspaceView({table:layout}).table.textHeights,undefined);
+    assert.deepEqual(table.heights,{r:180});
+});
+
+test('text expansion controls summarize effective cells instead of the table default',()=>{
+    const {view,sheet}=fixture();
+    const cells=sheet.rows.flatMap(row=>sheet.columns.map(column=>({rowId:row.id,columnId:column.id})));
+    const layout=()=>({...view,expandText:sheet.expandText??view.expandText,cellAppearance:sheet.cellAppearance});
+    setTableAppearance(view,sheet,'table',undefined,'expandText',false);
+    setTableCellAppearance(view,sheet,cells,'expandText',true);
+    assert.equal(tableTextExpansionState(layout(),cells),true);
+    setTableCellAppearance(view,sheet,[cells[0]],'expandText',false);
+    assert.equal(tableTextExpansionState(layout(),cells),null);
+    assert.equal(tableTextExpansionState(layout(),[cells[0]]),false);
+    setTableAppearance(view,sheet,'table',undefined,'expandText',false);
+    assert.equal(tableTextExpansionState(layout(),cells),false);
+    assert.equal(tableTextExpansionState(layout(),[]),false);
+});
 
 test('unchanged table synchronization preserves binding arrays and output histories',()=>{
     const {cards,sheet}=fixture();materializeTable(sheet,cards,parameters);

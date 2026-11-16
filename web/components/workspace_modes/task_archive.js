@@ -6,9 +6,9 @@ export function detachTaskRows(card,table) {
     const entries=[];
     for(const sheet of table?.sheets||[]){
         sheet.rows.forEach((row,index)=>{if(row.cardId===card.id){
-            const layout=Object.fromEntries(['heights','rowPaddings','rowAlignments'].filter(key=>Object.hasOwn(table[key]||{},row.id)).map(key=>[key,structuredClone(table[key][row.id])]));
+            const layout=Object.fromEntries(['heights','rowPaddings','rowAlignments','rowTextExpansion'].filter(key=>Object.hasOwn(table[key]||{},row.id)).map(key=>[key,structuredClone(table[key][row.id])]));
             const cells=Object.fromEntries(Object.entries(sheet.cellAppearance||{}).filter(([key])=>JSON.parse(key)[0]===row.id));
-            const order=Object.fromEntries(['padding','alignment'].filter(key=>Object.hasOwn(table.appearanceOrder?.[key]||{},`row:${row.id}`)).map(key=>[key,table.appearanceOrder[key][`row:${row.id}`]]));
+            const order=Object.fromEntries(['padding','alignment','expandText'].filter(key=>Object.hasOwn(table.appearanceOrder?.[key]||{},`row:${row.id}`)).map(key=>[key,table.appearanceOrder[key][`row:${row.id}`]]));
             entries.push({sheetId:sheet.id,row,index,layout,cells,order});
         }});
         sheet.rows=sheet.rows.filter(row=>row.cardId!==card.id);
