@@ -13,6 +13,9 @@ const exportCSS = `
     .clab-export-content [hidden]{display:none!important}
     .clab-export-content img{user-select:none}
     .clab-export-transparent,.clab-export-transparent :is(.clab-review-multi-grid,.clab-review-matrix-scene,.clab-review-matrix-group,.clab-review-grid,.clab-review-grid-stage,.clab-result-sheet,.clab-cards-wrapper){background:transparent!important;background-image:none!important}
+    .clab-export-transparent:is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] :is(.clab-table-head,.clab-table-corner,.clab-table-column,.clab-card,.clab-card-title-bar,.clab-table-row-header,.clab-table-draft-row,.clab-area,.clab-table-draft-cell,.clab-preview-bg),
+    .clab-export-transparent :is(#clab-panel,.clab-review-grid)[data-workspace-mode=table] :is(.clab-table-head,.clab-table-corner,.clab-table-column,.clab-card,.clab-card-title-bar,.clab-table-row-header,.clab-table-draft-row,.clab-area,.clab-table-draft-cell,.clab-preview-bg){background:transparent!important;background-image:none!important}
+    .clab-export-transparent .clab-review-table-group>.clab-review-workspace-title{background:transparent!important;background-image:none!important}
 `;
 
 export function canvasBlob(canvas) {

@@ -8,7 +8,7 @@ export async function runPreviewAvatarChecks(send,sessionId){
         const ui=await import('/extensions/clab/components/ui_state.js');ui.syncStateToActiveWorkspace();
         window.av={ui,previous:ui.getActiveWorkspace(),workspaces:[...ui.state.workspaces]};
         av.workspace=ui.createEmptyWorkspace('avatar export test',{cards:[{id:'avatar-task',title:'任务标题',areas:[
-            {id:'avatar-text',type:'edit',title:'文字',dataType:'string',value:'text'},
+            {id:'avatar-text',type:'edit',title:'文字',dataType:'string',value:'text',targetNodeId:'1',targetWidget:'text',targetWidgets:['1||text']},
             {id:'avatar-output',type:'preview',title:'输出标题',targetNodeId:'2',history:['/view?filename=first.png','/view?filename=second.png'],historyIndex:0,resultUrl:'/view?filename=first.png'}
         ]}]});
         ui.state.workspaces.push(av.workspace);ui.applyWorkspaceToState(av.workspace);ui.appState.selectedWorkspaceIds=[av.workspace.id];document.dispatchEvent(new Event('clab_render_ui'));
@@ -62,11 +62,27 @@ export async function runPreviewAvatarChecks(send,sessionId){
             const layout=await capturePreviewLayout(stage,{transparent:true}),png=await renderLayoutPNG(layout,1),normal=await renderLayoutPNG(await capturePreviewLayout(stage),1);stage.remove();
             return {detail:await pixel(detail.blob,0,0),detailOpaque:await pixel(opaque.blob,0,0),grid:await pixel(png,95,95),gridHeader:await pixel(png,10,30),gridOpaque:await pixel(normal,95,95)};
         })()`);
-        assert.equal(alpha.detail[3],0);assert.equal(alpha.detailOpaque[3],255);assert.equal(alpha.grid[3],0);assert.equal(alpha.gridOpaque[3],255);assert.equal(alpha.gridHeader[3],255);
+        assert.equal(alpha.detail[3],0);assert.equal(alpha.detailOpaque[3],255);assert.equal(alpha.grid[3],0);assert.equal(alpha.gridOpaque[3],255);assert.equal(alpha.gridHeader[3],0);
         await evaluate(`av.q('.clab-preview-modal-close').click();import('/extensions/clab/components/workspace_modes/workspace_modes.js').then(m=>m.setWorkspaceMode(document.querySelector('#clab-panel'),'table'))`);await settle();
         await evaluate(`av.open()`);await settle();
         await evaluate(`av.q('[data-review-png-transparent]').click();av.q('.clab-preview-modal-close').click();av.open()`);await settle();
         assert.equal(await evaluate(`av.q('[data-review-png-transparent]').checked&&av.workspace.view.previewExport.table`),true,'table transparent PNG preference must persist');
+        const tableAlpha=await evaluate(`(async()=>{
+            const {capturePreviewLayout,renderLayoutPNG}=await import('/extensions/clab/components/contextmenu/content/preview_layout_export.js');
+            const source=av.q('.clab-review-grid-stage'),original=getComputedStyle(source.querySelector('[data-review-cell]')).backgroundColor;
+            const layout=await capturePreviewLayout(source,{transparent:true}),normal=await capturePreviewLayout(source);
+            const host=document.createElement('div');host.style.cssText='position:fixed;left:-100000px;top:0';
+            const style=document.createElement('style');style.textContent=layout.styles;layout.outer.prepend(style);host.append(layout.outer);document.body.append(host);
+            const origin=layout.outer.getBoundingClientRect(),point=(selector,edge=false)=>{const r=layout.outer.querySelector(selector).getBoundingClientRect();return [Math.floor(r.right-origin.left-(edge?1:4)),Math.floor(r.bottom-origin.top-4)];};
+            const points=[point('[data-review-cell]'),point('.clab-table-column'),point('.clab-card-title-bar'),point('[data-review-cell]',true)];
+            const image=layout.outer.querySelector('img').getBoundingClientRect();points.push([Math.floor((image.left+image.right)/2-origin.left),Math.floor((image.top+image.bottom)/2-origin.top)]);
+            const text=layout.outer.textContent.includes('任务标题');host.remove();style.remove();
+            const sample=async blob=>{const bitmap=await createImageBitmap(blob),canvas=document.createElement('canvas');canvas.width=bitmap.width;canvas.height=bitmap.height;const ctx=canvas.getContext('2d');ctx.drawImage(bitmap,0,0);bitmap.close();return points.map(([x,y])=>ctx.getImageData(x,y,1,1).data[3]);};
+            return {transparent:await sample(await renderLayoutPNG(layout,1)),opaque:await sample(await renderLayoutPNG(normal,1)),text,unchanged:original===getComputedStyle(source.querySelector('[data-review-cell]')).backgroundColor};
+        })()`);
+        assert.deepEqual(tableAlpha.transparent.slice(0,3),[0,0,0],'table cells, column heads and row heads must export without fill');
+        assert.ok(tableAlpha.transparent[3]>0,'transparent table export lost its grid border');assert.equal(tableAlpha.transparent[4],255,'transparent table export lost its media');
+        assert.deepEqual(tableAlpha.opaque.slice(0,3),[255,255,255]);assert.equal(tableAlpha.text,true);assert.equal(tableAlpha.unchanged,true,'export changed the live table background');
         const xy=await evaluate(`(async()=>{
             av.q('.clab-preview-modal-close').click();
             const {createWorkspaceView}=await import('/extensions/clab/components/workspace_modes/view_state.js');
