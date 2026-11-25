@@ -2,6 +2,7 @@
  * ui_state.js: runtime state container and workspace helpers.
  */
 import { syncTextContentWithSelection, remapPreviewHistory } from "./modules/media_types/media_utils.js";
+import { workspaceModeLabels, workspaceModeType } from './workspace_modes/mode_policy.js';
 
 const DEFAULT_WORKSPACE_NAME = "工作区 1";
 export const WORKSPACE_SCHEMA_VERSION = 4;
@@ -83,14 +84,18 @@ function upgradeLegacyCards(cards) {
 }
 
 export function createEmptyWorkspace(name = DEFAULT_WORKSPACE_NAME, seed = {}) {
-    const workspaceName = seed.name || name;
+    const view = seed.view && typeof seed.view === 'object' ? deepClone(seed.view) : { mode: 'cards' };
+    view.creationMode = workspaceModeType(view);
+    const suppliedName = seed.name || name;
+    const autoName = typeof seed.autoName === 'boolean' ? seed.autoName : /^工作区 [1-9]\d*$/.test(suppliedName);
+    const workspaceName = autoName ? `${workspaceModeLabels[view.creationMode]}·${suppliedName.match(/\d+$/)?.[0] || 1}` : suppliedName;
     return {
         id: seed.id || makeId("workspace"),
         name: workspaceName,
-        autoName: typeof seed.autoName === 'boolean' ? seed.autoName : /^工作区 [1-9]\d*$/.test(workspaceName),
+        autoName,
         cards: Array.isArray(seed.cards) ? seed.cards : [],
         archivedTasks: Array.isArray(seed.archivedTasks) ? seed.archivedTasks : [],
-        view: seed.view && typeof seed.view === 'object' ? deepClone(seed.view) : { mode: 'cards' },
+        view,
         activeCardId: seed.activeCardId || null,
         selectedCardIds: Array.isArray(seed.selectedCardIds) ? seed.selectedCardIds : [],
         selectedAreaIds: Array.isArray(seed.selectedAreaIds) ? seed.selectedAreaIds : [],

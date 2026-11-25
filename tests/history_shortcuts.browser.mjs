@@ -16,7 +16,7 @@ export async function runHistoryShortcutChecks(send,sessionId){
         ui.syncStateToActiveWorkspace();window.shortcutHistory={ui,history,workspaces:[...ui.state.workspaces],original:ui.getActiveWorkspace()};
         const a=ui.createEmptyWorkspace('快捷键检查1',{id:'shortcut-one',view:{mode:'cards'}});ui.state.workspaces.push(a);ui.applyWorkspaceToState(a);document.dispatchEvent(new Event('clab_render_ui'));history.reset();
         document.querySelector('#clab-global-add-card').click();document.querySelector('#clab-global-add-module').click();
-        document.querySelector('#clab-workspace-add').click();shortcutHistory.second=ui.state.activeWorkspaceId;
+        document.querySelector('#clab-workspace-add').click();document.querySelector('#clab-panel [data-create-workspace=cards]').click();shortcutHistory.second=ui.state.activeWorkspaceId;
         document.querySelector('#clab-global-add-card').click();document.querySelector('#clab-global-add-module').click();hostHistory.calls=hostHistory.scheduled=0;
     })()`);await wait();
     try{

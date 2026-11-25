@@ -15,10 +15,10 @@ export const workspacePreferences = {
     xyMargin: 10,
 };
 
-export function newWorkspaceView() {
+export function newWorkspaceView(mode = workspacePreferences.defaultMode) {
     const settings = workspacePreferences;
     return {
-        mode: settings.defaultMode,
+        mode, creationMode: mode,
         table: { columnWidth: settings.columnWidth, rowHeight: settings.rowHeight, padding: settings.cellPadding },
         xy: {
             origin: settings.xyOrigin,

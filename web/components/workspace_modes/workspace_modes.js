@@ -48,7 +48,6 @@ export function setupWorkspaceModes(panel) {
     const changeMode=mode=>{
         if(!workspaceModeAllowed(view(),mode))return;
         editHistory.withoutRecording(()=>{
-        if(mode==='table'||mode==='xy')view().structuredMode=mode;
         if(view().mode==='xy'&&mode!=='xy')xy.exportRecords();
         if(mode==='table'&&view().mode!=='table'){
             const selected=state.cards.find(card=>state.selectedCardIds.includes(card.id)||card.areas.some(area=>state.selectedAreaIds.includes(area.id)));

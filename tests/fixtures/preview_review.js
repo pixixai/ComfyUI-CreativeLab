@@ -294,13 +294,14 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     passed.push('comparison shares browse controls, keeps full-size media under corner overlays and accepts thumbnail drops into either A/B region');
 
     q('[data-review-mode="xy"]').click();
-    assert(q('.clab-result-table').querySelectorAll('tbody tr').length===2,'XY matrix did not arrange sampler rows');
+    assert(q('.clab-review-grid-stage .clab-xy-overlay')&&!q('.clab-result-table'),'historical XY results did not use the shared matrix canvas');
     const change=(selector,value)=>{const el=q(selector);el.value=value;el.dispatchEvent(new Event('change',{bubbles:true}));};
+    change('[data-table-option="source"]',JSON.stringify([card.id,a.id]));
     const cfgKey=JSON.stringify(['1','cfg']);change('[data-table-option="z"]',cfgKey);
     assert(q('[data-table-option="zValue"]').options.length===2,'Z did not create parameter slices');
-    assert(q('.clab-result-table').textContent.includes('无结果'),'XY matrix did not preserve missing combinations within a Z slice');
+    assert(!!q('.clab-xy-empty'),'XY matrix did not preserve missing combinations within a Z slice');
     change('[data-table-option="zValue"]','7');
-    assert(q('.clab-result-table').querySelectorAll('.clab-result-record').length===1,'Z selection mixed other parameter slices');
+    assert(root.querySelectorAll('.clab-review-grid-stage .clab-card').length===1,'Z selection mixed other parameter slices');
     assert(JSON.stringify([card,other])===before,'table settings changed current inputs or outputs');
     passed.push('XYZ matrices use recorded parameters and keep source selections read-only');
 

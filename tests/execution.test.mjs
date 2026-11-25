@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 import { createWorkspaceView } from '../web/components/workspace_modes/view_state.js';
+import { workspaceModeLabels, workspaceModeType } from '../web/components/workspace_modes/mode_policy.js';
 import { synchronizeMatrix, matrixOutput, materializeMatrixRecords } from '../web/components/workspace_modes/xy_model.js';
 import { createEditHistory } from '../web/components/edit_history.js';
 import { prepareWorkspaceCopy } from '../web/components/workspace_copy.js';
@@ -93,7 +94,7 @@ function createHarness(options = {}) {
         },
     };
     const context = vm.createContext({
-        window, document, api, app, URL, URLSearchParams, structuredClone,createExecutionQueue,readExecutionStates,interruptExecutionPrompts,executionPreferences,
+        window, document, api, app, URL, URLSearchParams, structuredClone,workspaceModeLabels,workspaceModeType,createExecutionQueue,readExecutionStates,interruptExecutionPrompts,executionPreferences,
         console: { log() {}, warn() {}, error() {} },
         setInterval() { return 1; },
         setTimeout(fn, ms) { return ms === 50 ? setTimeout(fn, 1) : 1; },

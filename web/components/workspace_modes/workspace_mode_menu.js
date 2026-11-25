@@ -1,5 +1,5 @@
 import { state } from '../ui_state.js';
-import { workspaceModeAllowed } from './mode_policy.js';
+import { workspaceModeAllowed, workspaceModeLabels, workspaceModeType } from './mode_policy.js';
 
 export function attachWorkspaceModeMenu(strip,onSelect) {
     const menu=strip.querySelector('.clab-mode-menu'),buttons=[...menu.querySelectorAll('[data-workspace-mode]')];
@@ -11,7 +11,7 @@ export function attachWorkspaceModeMenu(strip,onSelect) {
             if(anchor===target){close();return;}close();
             const workspace=state.workspaces.find(item=>item.id===target.closest('[data-workspace-id]').dataset.workspaceId);if(!workspace)return;
             const checked=buttons.find(button=>button.dataset.workspaceMode===workspace.view?.mode)||buttons[0];
-            buttons.forEach(button=>{button.setAttribute('aria-checked',String(button===checked));button.disabled=!workspaceModeAllowed(workspace.view,button.dataset.workspaceMode);button.title=button.disabled?'参数表与 XY 矩阵不能互相转换':'';});
+            buttons.forEach(button=>{button.setAttribute('aria-checked',String(button===checked));button.disabled=!workspaceModeAllowed(workspace.view,button.dataset.workspaceMode);button.title=button.disabled?(workspaceModeType(workspace.view)==='cards'?'请先切换到任务卡片':`此工作区创建为${workspaceModeLabels[workspaceModeType(workspace.view)]}，仅支持切换到任务卡片`):'';});
             anchor=target;anchor.setAttribute('aria-expanded','true');menu.hidden=false;
             const rect=strip.getBoundingClientRect(),left=(target.getBoundingClientRect().left-rect.left)*strip.offsetWidth/rect.width;
             menu.style.left=Math.max(4,Math.min(left,strip.clientWidth-menu.offsetWidth-4))+'px';checked.focus({preventScroll:true});return;
@@ -21,7 +21,9 @@ export function attachWorkspaceModeMenu(strip,onSelect) {
             if(trigger.isConnected)trigger.focus({preventScroll:true});
         }
     });
-    document.addEventListener('pointerdown',event=>{if(anchor&&!anchor.contains(event.target)&&!menu.contains(event.target))close();},true);
+    const closeOutside=event=>{if(anchor&&!anchor.contains(event.target)&&!menu.contains(event.target))close();};
+    // XY panning can consume pointerdown before document listeners; clicks still close the menu.
+    for(const type of ['pointerdown','mousedown','click'])window.addEventListener(type,closeOutside,true);
     strip.querySelector('.clab-workspace-tabs').addEventListener('scroll',close);
     strip.addEventListener('keydown',event=>{
         if(!anchor)return;

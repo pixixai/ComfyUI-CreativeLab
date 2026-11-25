@@ -2,6 +2,38 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorkspaceView} from '../web/components/workspace_modes/view_state.js';
 import {workspaceModeAllowed,previewModeAllowed,workspacePreviewMode,previewModeOnWorkspaceChange} from '../web/components/workspace_modes/mode_policy.js';
+import {createEmptyWorkspace,normalizeWorkspace} from '../web/components/ui_state.js';
+import {newWorkspaceView} from '../web/components/workspace_preferences.js';
+
+test('card-created workspaces can revisit both structured modes through cards without changing origin or name',()=>{
+    let workspace=createEmptyWorkspace('工作区 2',{view:newWorkspaceView('cards')});
+    for(const mode of ['table','cards','xy','cards','table']){
+        assert.equal(workspaceModeAllowed(workspace.view,mode),true);
+        workspace.view.mode=mode;
+        workspace=normalizeWorkspace(JSON.parse(JSON.stringify(workspace)));
+        workspace.view=createWorkspaceView(workspace.view);
+        assert.equal(workspace.name,'任务卡片·2');assert.equal(workspace.view.creationMode,'cards');
+        assert.equal(previewModeAllowed([workspace],'table'),true);assert.equal(previewModeAllowed([workspace],'xy'),true);
+        if(mode!=='cards')assert.equal(workspaceModeAllowed(workspace.view,mode==='table'?'xy':'table'),false);
+    }
+});
+test('explicit creation modes, copies and custom names survive normalization independently of the current view',()=>{
+    for(const [mode,label]of [['table','参数表'],['xy','XY 矩阵']]){
+        const workspace=createEmptyWorkspace('工作区 3',{view:newWorkspaceView(mode)});
+        assert.equal(workspace.name,`${label}·3`);workspace.view.mode='cards';
+        const copy=normalizeWorkspace(JSON.parse(JSON.stringify(workspace)));
+        assert.equal(copy.name,workspace.name);assert.equal(copy.view.creationMode,mode);
+        assert.equal(workspaceModeAllowed(copy.view,mode==='table'?'xy':'table'),false);
+        copy.name='自定义工作区 8';copy.autoName=false;
+        assert.equal(normalizeWorkspace(copy).name,copy.name);
+    }
+});
+test('legacy structured modes retain restrictions while old automatic names become compact and custom names stay intact',()=>{
+    const legacy=normalizeWorkspace({name:'工作区 7',autoName:true,view:{mode:'cards',structuredMode:'table'}});
+    assert.equal(legacy.view.creationMode,'table');assert.equal(legacy.name,'参数表·7');
+    assert.equal(workspaceModeAllowed(legacy.view,'xy'),false);
+    assert.equal(normalizeWorkspace({name:'工作区 7',autoName:false,view:{mode:'xy'}}).name,'工作区 7');
+});
 
 for(const [mode,other]of [['table','xy'],['xy','table']])test(`${mode} workspaces keep their type through card view and persistence`,()=>{
     const view=createWorkspaceView({mode});assert.equal(workspaceModeAllowed(view,other),false);assert.equal(workspaceModeAllowed(view,'cards'),true);

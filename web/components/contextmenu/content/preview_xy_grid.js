@@ -121,7 +121,7 @@ export function createPreviewXYGrid(center,left,right,changed,exportControls,cam
         const names=xy.z.enabled?['x','y','z']:['x','y'];
         const configured=workspaceMatrixAvailable(xy);
         right.innerHTML=`<div class="clab-review-sheet-settings">
-            <section><h3>矩阵显示</h3>${options.grouped?'':xySourceSetting(config)}<div class="clab-review-xy-tiling-section">${xyTilingControls(xy,true)}</div>
+            <section><h3>矩阵显示</h3>${options.grouped?'':options.sourceSettings?.(config)??xySourceSetting(config)}<div class="clab-review-xy-tiling-section">${xyTilingControls(xy,true)}</div>
             <div class="clab-review-xy-visibility"><span>坐标轴</span><span>绑定摘要</span>${['x','y','z'].map(name=>
                 `<label class="clab-review-check"><input type="checkbox" data-review-xy-show="axes" value="${name}"${!settingsView.hiddenAxes.includes(name)?' checked':''}>显示 ${name.toUpperCase()} 轴</label>
                 <label class="clab-review-check"><input type="checkbox" data-review-xy-show="bindings" value="${name}"${!settingsView.hiddenBindings.includes(name)?' checked':''}>显示 ${name.toUpperCase()} 轴摘要</label>`).join('')}</div>
@@ -194,8 +194,8 @@ export function createPreviewXYGrid(center,left,right,changed,exportControls,cam
     };
     return {
         open(view,nextCards) {
-            xy=structuredClone(view);xy.hiddenAxes=[];xy.hiddenBindings=[];cards=nextCards;selected.clear();selectedLayers.clear();layerViews.clear();selectionKind='';histories.clear();activeCardId=anchorId='';recordRows=[];recordZoom=undefined;
-            orientation=xy.origin;parameters=workflowParameters();records=new Set((xy.previewRecords||[]).filter(key=>xy.records.some(record=>record.key===key)));
+            xy=structuredClone(view);xy.hiddenAxes??=[];xy.hiddenBindings??=[];cards=nextCards;selected.clear();selectedLayers.clear();layerViews.clear();selectionKind='';histories.clear();activeCardId=anchorId='';recordRows=[];recordZoom=undefined;
+            orientation=xy.origin;parameters=options.parameters?.()||workflowParameters();records=new Set((xy.previewRecords||[]).filter(key=>xy.records.some(record=>record.key===key)));
             camera={zoom:xy.zoom||1,panX:xy.panX||0,panY:xy.panY||0};
             sourcePanel=createPreviewXYSources(left,xy,parameters,records,options.cellInfo);
         },
@@ -231,6 +231,7 @@ export function createPreviewXYGrid(center,left,right,changed,exportControls,cam
             sourcePanel.swap(pair);renderSettings(config);render();fit();
             right.querySelector(`[data-review-xy-swap="${pair}"]`)?.focus({preventScroll:true});
         },
+        setLayer:showLayer,
         selectRange(name,all){sourcePanel.select(name,all);render();fit();},
         fit,
         revealHistory(focus){
@@ -250,12 +251,14 @@ export function createPreviewXYGrid(center,left,right,changed,exportControls,cam
             for(const id of ids){histories.delete(id);const cell=wrapper?.querySelector(`.clab-output-area[data-area-id="${CSS.escape(id)}"]`)?.closest('.clab-card');if(cell){releaseReviewGridMedia(cell);cell.remove();}}
             render();
         },
-        getViewState(){return {sources:sourcePanel.getViewState(),camera:{...camera},selected:[...selected],layers:[...selectedLayers],selectionKind,activeCardId,anchorId,histories:[...histories]};},
+        getViewState(){return {layerViews:[...layerViews].map(([z,view])=>[z,structuredClone(view)]),sources:sourcePanel.getViewState(),camera:{...camera},selected:[...selected],layers:[...selectedLayers],selectionKind,activeCardId,anchorId,histories:[...histories]};},
         restoreViewState(saved){
+            layerViews.clear();for(const [z,view]of saved.layerViews||[])layerViews.set(z,structuredClone(view));
             sourcePanel.restoreViewState(saved.sources);camera={...saved.camera};selected.clear();for(const id of saved.selected)if(cards.some(card=>card.id===id))selected.add(id);
             selectedLayers.clear();for(const index of saved.layers)selectedLayers.add(index);selectionKind=saved.selectionKind;activeCardId=saved.activeCardId;anchorId=saved.anchorId;
             histories.clear();for(const [id,savedArea]of saved.histories){const area=cards.flatMap(card=>card.areas).find(area=>area.id===id),restored=restoreReviewHistory(area,savedArea);if(restored)histories.set(id,restored);}cancelAnimationFrame(fitFrame);render();renderSettings(currentConfig);updateCamera();
         },
+        matrixView:()=>structuredClone(xy),
         applyAxisSettings,
         clearSelection(){selected.clear();selectedLayers.clear();selectionKind='';activeCardId=anchorId='';paintSelection();renderSettings(currentConfig);},
         selectWorkspace(){selected.clear();selectedLayers.clear();for(const item of visibleMatrixCells(cards,displayXY()))selectedLayers.add(item.z??0);selectionKind='workspace';activeCardId=anchorId='';paintSelection();renderSettings(currentConfig);},

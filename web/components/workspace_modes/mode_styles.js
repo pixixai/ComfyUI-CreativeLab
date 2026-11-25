@@ -22,7 +22,8 @@ export function injectWorkspaceModeStyles() {
         .clab-workspace-tab-mode{display:none}
         .clab-workspace-tab.active > [data-mode-toggle]{position:relative;width:auto;height:calc(100% - 6px);margin-right:3px;padding:0 12px 0 10px;border-radius:3px;background:#131313;white-space:nowrap;color:#bbb}
         .clab-workspace-tab.active > [data-mode-toggle]::before{position:absolute;left:0;top:25%;width:1px;height:50%;background:#ffffff30;clip-path:none}
-        .clab-workspace-tab.active > [data-mode-toggle]::after{content:"";position:absolute;right:2px;bottom:2px;width:4px;height:4px;background:currentColor;clip-path:polygon(100% 0,100% 100%,0 100%);pointer-events:none}
+        .clab-workspace-add{position:relative}
+        .clab-workspace-tab.active > [data-mode-toggle]::after,.clab-workspace-add::after{content:"";position:absolute;right:2px;bottom:2px;width:4px;height:4px;background:currentColor;clip-path:polygon(100% 0,100% 100%,0 100%);pointer-events:none}
         .clab-workspace-tab.active > [data-mode-toggle]:is(:hover,[aria-expanded=true]){background:#0e0e0e;color:#fff}
         .clab-workspace-tab.active .clab-workspace-tab-mode{display:block}
         .clab-workspace-tab > [data-mode-toggle]:hover{color:#fff}

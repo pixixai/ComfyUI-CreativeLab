@@ -1,3 +1,5 @@
+import { runHistoryMatrixChecks } from './preview_history_matrix.browser.mjs';
+import { runWorkspaceTypeChecks } from './workspace_types.browser.mjs';
 import { runPreviewAvatarChecks } from './preview_avatars.browser.mjs';
 import { runTableTextSyncChecks } from './table_text_sync.browser.mjs';
 import { runTableTextChecks } from './table_text.browser.mjs';
@@ -201,7 +203,7 @@ try {
     const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
     const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
     await send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
-    await send('Page.navigate', { url: `http://127.0.0.1:${server.address().port}/${['table-text','avatars'].includes(process.env.CLAB_BROWSER_SUITE)?'?bootstrap':''}` }, sessionId);
+    await send('Page.navigate', { url: `http://127.0.0.1:${server.address().port}/${['table-text','avatars','history-matrix','workspace-types'].includes(process.env.CLAB_BROWSER_SUITE)?'?bootstrap':''}` }, sessionId);
     const result = await send('Runtime.evaluate', {
         expression: 'new Promise((resolve,reject)=>{const timer=setInterval(()=>{if(window.testResult){clearInterval(timer);resolve(window.testResult);}},50);setTimeout(()=>{clearInterval(timer);reject(new Error("browser checks timed out"));},60000);})',
         awaitPromise: true, returnByValue: true,
@@ -215,7 +217,11 @@ try {
     for (const name of report.passed) console.log(`PASS ${name}`);
     assert.equal(report.error, undefined, report.error);
     assert.deepEqual(report.errors, []);
-    if(process.env.CLAB_BROWSER_SUITE==='avatars'){
+    if(process.env.CLAB_BROWSER_SUITE==='workspace-types'){
+        await runWorkspaceTypeChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='history-matrix'){
+        await runHistoryMatrixChecks(send,sessionId);
+    }else if(process.env.CLAB_BROWSER_SUITE==='avatars'){
         await runPreviewAvatarChecks(send,sessionId);
         await runPreviewMultisourceChecks(send,sessionId);
         await runPreviewScopeChecks(send,sessionId);

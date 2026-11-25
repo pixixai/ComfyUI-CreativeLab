@@ -352,10 +352,11 @@ export async function runToolbarDockChecks(send, sessionId) {
     await settle();
     const original = await activeId();
     await click('#clab-workspace-add');
+    await click('#clab-panel [data-create-workspace=cards]');
     const added = await activeId();
     assert.notEqual(added, original);
     const defaultName = await activeName();
-    assert.match(defaultName, /^任务卡片·工作区 \d+$/);
+    assert.match(defaultName, /^任务卡片·\d+$/);
     assert.equal(await activeMode(), '任务卡片');
     assert.equal(await evaluate(`(()=>{
         const tab=document.querySelector('.clab-workspace-tab.active'),button=tab.querySelector('[data-mode-toggle]');
@@ -368,7 +369,7 @@ export async function runToolbarDockChecks(send, sessionId) {
     await click(activeTab+' [data-mode-toggle]');
     await click('#clab-workspace-mode-menu [data-workspace-mode=table]');
     assert.equal(await evaluate("document.querySelector('#clab-panel').dataset.workspaceMode"), 'table');
-    assert.equal(await activeName(), defaultName.replace('任务卡片', '参数表'));
+    assert.equal(await activeName(), defaultName);
     assert.equal(await activeMode(), '参数表');
     const currentPanel = await evaluate(`(()=>{
         const box=document.querySelector('#clab-panel').getBoundingClientRect();
@@ -427,11 +428,13 @@ export async function runToolbarDockChecks(send, sessionId) {
     assert.equal(await menuHidden(), true);
     assert.equal(await evaluate(`document.activeElement.matches(${JSON.stringify(inactiveTrigger)})`), true);
     await click(inactiveTrigger);
+    await click('#clab-workspace-mode-menu [data-workspace-mode=cards]');
+    await click(activeTab+' [data-mode-toggle]');
     await click('#clab-workspace-mode-menu [data-workspace-mode=xy]');
     assert.equal(await activeId(), added);
     assert.equal(await evaluate("document.querySelector('#clab-panel').dataset.workspaceMode"), 'xy');
     assert.equal(await menuHidden(), true);
-    assert.equal(await activeName(), defaultName.replace('任务卡片', 'XY 矩阵'));
+    assert.equal(await activeName(), defaultName);
     assert.equal(await activeMode(), 'XY 矩阵');
     const namePoint = await center(activeTab+' .clab-workspace-tab-name');
     await mouse('mouseMoved', namePoint);
@@ -444,6 +447,8 @@ export async function runToolbarDockChecks(send, sessionId) {
     for (const type of ['keyDown','keyUp']) {
         await send('Input.dispatchKeyEvent', {type,key:'Enter',code:'Enter',windowsVirtualKeyCode:13}, sessionId);
     }
+    await click(activeTab+' [data-mode-toggle]');
+    await click('#clab-workspace-mode-menu [data-workspace-mode=cards]');
     await click(activeTab+' [data-mode-toggle]');
     await click('#clab-workspace-mode-menu [data-workspace-mode=table]');
     assert.equal(await activeName(), '工作区 9');
@@ -535,6 +540,7 @@ export async function runToolbarDockChecks(send, sessionId) {
     await click('#clab-card-width-reset');
     assert.equal(await evaluate("document.querySelector('#clab-card-width-slider').value"), '400');
     await click('#clab-workspace-add');
+    await click('#clab-panel [data-create-workspace=table]');
     const defaults = () => evaluate(`(async()=>{
         const {getActiveWorkspace}=await import('/extensions/clab/components/ui_state.js');
         const {mode,table,xy}=getActiveWorkspace().view;

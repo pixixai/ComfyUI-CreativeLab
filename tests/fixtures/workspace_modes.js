@@ -115,7 +115,7 @@ export async function checkWorkspaceModes({state,passed,assert,delay}) {
         mode('cards');
         assert(matrixCards.every(card=>card.areas[0].type==='preview'&&card.areas.find(area=>area.xyRecordKey)?.recordOnly===false&&parameterValue(card,'91||cfg')===7),'XY conversion did not put output first and materialize workflow record values as bound inputs');
         const edited=matrixCards.find(card=>card.id!==getActiveWorkspace().view.templateId);edited.areas[0].title='自由模式改名';edited.areas.reverse();document.dispatchEvent(new Event('clab_render_ui'));
-        mode('table');assert(panel.dataset.workspaceMode==='cards'&&q('[data-workspace-mode=table]').disabled,'XY type was lost through card view');q('[data-workspace-mode=xy]').click();assert(visible().length===4,'card edits silently removed a matrix member or required rebinding its axes');
+        mode('table');assert(panel.dataset.workspaceMode==='table'&&getActiveWorkspace().view.creationMode==='cards','card-created workspace was locked after visiting XY');mode('cards');mode('xy');assert(visible().length===4,'card edits silently removed a matrix member or required rebinding its axes');
         assert(getActiveWorkspace().view.xy.x.bindings[0]==='91||steps'&&getActiveWorkspace().view.xy.zoom===.6&&getActiveWorkspace().view.xy.panX===-50,'view switching lost axes or canvas position');
         assert(buildPersistedState().workspaces.find(workspace=>workspace.id===demo.id).view.xy.x.bindings[0]==='91||steps','axis bindings did not reach persisted workspace state');
         state.selectedCardIds=[];state.selectedAreaIds=[];q('#clab-btn-run').click();
@@ -126,7 +126,7 @@ export async function checkWorkspaceModes({state,passed,assert,delay}) {
         state.cards.splice(state.cards.indexOf(duplicate),1);xy.taskIds=xy.taskIds.filter(id=>id!==duplicate.id);document.dispatchEvent(new Event('clab_render_ui'));
         passed.push('standalone XY edits real binding panels and axes, creates combination cells automatically, converts records and dimensions, persists its camera and runs all/selected cells');
 
-        window.showWorkspaceModeDemo=(requested='xy')=>{show();mode(requested);window.workspaceModeDemo=demo;};
+        window.showWorkspaceModeDemo=(requested='xy')=>{show();if(requested!=='cards'&&demo.view.mode!==requested)mode('cards');mode(requested);window.workspaceModeDemo=demo;};
     }finally{
         window.testApp.canvas.graph=canvasGraph;
         window.CLab.executeTasks=execute;state.workspaces=workspaces;applyWorkspaceToState(original);document.dispatchEvent(new Event('clab_render_ui'));

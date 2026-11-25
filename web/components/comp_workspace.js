@@ -13,6 +13,8 @@ import {
 import { escapeHtml } from "./contextmenu/content/shared.js";
 import { newWorkspaceView } from "./workspace_preferences.js";
 import { prepareWorkspaceCopy } from './workspace_copy.js';
+import { workspaceModeLabels } from './workspace_modes/mode_policy.js';
+import { createWorkspaceMenu } from './workspace_create_menu.js';
 
 function workspaceStructureMatches(currentWorkspace, targetWorkspace) {
     const currentCards = currentWorkspace?.cards || [];
@@ -32,14 +34,12 @@ function collectAllAreaIds(cards) {
     return (cards || []).flatMap((card) => (card.areas || []).map((area) => area.id));
 }
 
-const modeLabels = { cards: "任务卡片", table: "参数表", xy: "XY 矩阵" };
-
 function getWorkspaceModeLabel(workspace) {
-    return modeLabels[workspace.view?.mode] || modeLabels.cards;
+    return workspaceModeLabels[workspace.view?.mode] || workspaceModeLabels.cards;
 }
 
 export function getWorkspaceLabel(workspace) {
-    return workspace.autoName ? `${getWorkspaceModeLabel(workspace)}·${workspace.name}` : workspace.name;
+    return workspace.name;
 }
 
 export function renderWorkspaceBar(container) {
@@ -104,7 +104,7 @@ export function renderWorkspaceBar(container) {
 
     container.innerHTML = `
         ${tabsHtml}
-        <button class="clab-workspace-tab clab-workspace-add" data-workspace-add id="${container.hasAttribute('data-review-workspaces')?'clab-preview-workspace-add':'clab-workspace-add'}" title="新建工作区">+</button>
+        <button type="button" class="clab-workspace-tab clab-workspace-add" data-workspace-add aria-label="新建工作区" aria-haspopup="menu" aria-expanded="false" id="${container.hasAttribute('data-review-workspaces')?'clab-preview-workspace-add':'clab-workspace-add'}" title="新建工作区">+</button>
     `;
     if(!container.hasAttribute('data-review-workspaces'))paintWorkspaceHighlights(container,selectedIds);
 }
@@ -132,9 +132,9 @@ export function switchWorkspace(workspaceId, isMultiSelect = false) {
     else saveAndRender();
 }
 
-function addWorkspace(insertAfterId = null) {
+function addWorkspace(mode, insertAfterId = null) {
     syncStateToActiveWorkspace();
-    const workspace = createEmptyWorkspace(`工作区 ${(state.workspaces || []).length + 1}`, { view: newWorkspaceView() });
+    const workspace = createEmptyWorkspace(`工作区 ${(state.workspaces || []).length + 1}`, { view: newWorkspaceView(mode) });
 
     if (insertAfterId) {
         const index = state.workspaces.findIndex(w => w.id === insertAfterId);
@@ -339,6 +339,7 @@ export function attachWorkspaceEvents(container,{beforeChange=()=>{},onChange=()
     const strip = container.closest('.clab-workspace-strip');
     const changed=()=>{renderWorkspaceBar(container);onChange();};
     const act=action=>{beforeChange();action();changed();};
+    const createMenu=createWorkspaceMenu(strip,(mode,id)=>act(()=>addWorkspace(mode,id)));
     try { document.documentElement.dataset.clabWorkspaceTabs = localStorage.getItem(workspaceBarPositionKey) === 'bottom' ? 'bottom' : 'top'; } catch {}
 
     if (!workspaceMenuEl) {
@@ -388,7 +389,7 @@ export function attachWorkspaceEvents(container,{beforeChange=()=>{},onChange=()
 
         showWorkspaceMenu(event);
 
-        workspaceMenuEl.querySelector("#clab-ctx-ws-add").onclick = () => { workspaceMenuEl.style.display = "none"; act(()=>addWorkspace(wsId)); };
+        workspaceMenuEl.querySelector("#clab-ctx-ws-add").onclick = () => { workspaceMenuEl.style.display = "none"; createMenu.open(tab,wsId); };
         workspaceMenuEl.querySelector("#clab-ctx-ws-duplicate").onclick = () => { workspaceMenuEl.style.display = "none"; act(duplicateSelectedWorkspaces); };
         workspaceMenuEl.querySelector("#clab-ctx-ws-rename").onclick = () => { workspaceMenuEl.style.display = "none"; bulkRenameWorkspaces(container,changed); };
         workspaceMenuEl.querySelector("#clab-ctx-ws-delete").onclick = () => { workspaceMenuEl.style.display = "none"; act(deleteSelectedWorkspaces); };
@@ -426,7 +427,7 @@ export function attachWorkspaceEvents(container,{beforeChange=()=>{},onChange=()
         }
 
         if (event.target.closest("[data-workspace-add]")) {
-            act(addWorkspace);
+            createMenu.open(event.target.closest('[data-workspace-add]'));
             return;
         }
     });

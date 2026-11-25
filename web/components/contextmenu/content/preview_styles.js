@@ -3,7 +3,7 @@ export function injectReviewStyles() {
     const style = document.createElement('style'); style.id = 'clab-preview-review-styles';
     style.textContent = `
         .clab-preview-modal-center{position:relative}
-        .clab-preview-modal :is(.clab-preview-modal-left,.clab-external-dock) input:is([type=checkbox],[type=radio]){appearance:none;display:grid;place-content:center;box-sizing:border-box;width:11px;height:11px;min-width:11px;min-height:11px;flex:none;margin:1px;padding:0;border:1px solid #888;border-radius:1px;background:transparent;box-shadow:none;cursor:pointer;accent-color:#bbb}
+        .clab-preview-modal :is(.clab-preview-modal-left,.clab-external-dock) input:is([type=checkbox],[type=radio]){appearance:none;display:grid;place-content:center;box-sizing:border-box;width:11px;height:11px;min-width:11px;min-height:11px;flex:none;margin:1px;padding:0;border:1px solid #484848;border-radius:1px;background:transparent;box-shadow:none;cursor:pointer;accent-color:#bbb}
         .clab-preview-modal :is(.clab-preview-modal-left,.clab-external-dock) input[type=radio]{border-radius:50%}
         .clab-preview-modal :is(.clab-preview-modal-left,.clab-external-dock) input:is([type=checkbox],[type=radio]):is(:checked,:indeterminate){background:#bbb;border-color:#bbb}
         .clab-preview-modal :is(.clab-preview-modal-left,.clab-external-dock) input[type=checkbox]:checked::after{content:'';display:block;width:3px;height:6px;box-sizing:border-box;border:solid #333;border-width:0 1.4px 1.4px 0;transform:translateY(-.5px) rotate(45deg);pointer-events:none}
@@ -88,6 +88,7 @@ export function injectReviewStyles() {
 
         .clab-preview-modal:is([data-review-mode=xy],[data-review-mode=table]) .clab-preview-modal-center{display:block;overflow:auto;min-width:0}
         .clab-review-sheet-settings{color:#aaa;font:12px/1.5 sans-serif}.clab-review-sheet-settings section{display:flex;flex-direction:column;gap:8px;padding:12px 0}
+        .clab-review-sheet-settings section[hidden]{display:none}
         .clab-review-sheet-settings section:first-child{padding-top:0}.clab-review-sheet-settings section+section{border-top:2px solid #161616}
         .clab-preview-modal-right .clab-review-downloads{display:flex;flex-direction:column;gap:8px;margin-top:10px;padding:12px 0 0;border-top:2px solid #161616;color:#aaa;font:12px/1.5 sans-serif}
         .clab-review-downloads h3{margin:0;color:#ddd;font-size:14px}.clab-review-downloads :is(.clab-review-note,.clab-review-field){margin:0}

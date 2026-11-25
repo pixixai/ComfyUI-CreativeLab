@@ -4,7 +4,7 @@ export function editableField(path,key) {
     if(path.includes('externalImports')&&key==='position')return false;
     if(path.includes('value')||path.includes('values'))return true;
     if(['workspaces','cards','archivedTasks','areas'].includes(path.at(-2))&&runtime.has(key))return false;
-    if(path.at(-1)==='view'&&['mode','structuredMode'].includes(key))return false;
+    if(path.at(-1)==='view'&&['mode','structuredMode','creationMode'].includes(key))return false;
     if(path.at(-1)==='previewDetail'&&!['styles','columns','rowWidth','covers','outputs'].includes(key))return false;
     if(path.at(-1)==='xy'&&['zoom','panX','panY','cameraReady','previewRecords','previewRecordsExpanded'].includes(key))return false;
     if(path.at(-1)==='z'&&['current','display'].includes(key))return false;
