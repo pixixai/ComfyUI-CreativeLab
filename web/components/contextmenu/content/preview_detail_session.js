@@ -21,6 +21,7 @@ export function restoreDetailSession(cards,config,saved,defaults) {
     config.inputs=new Map((saved?.inputs||[]).map(([id,fields])=>[id,new Set(fields)]));
     for(const key of ['columns','rowWidth','sourceColumns'])config[key]=saved?.[key]??defaults[key];
     config.styles=structuredClone(saved?.styles||defaults.styles);
+    config.transparentPNG=!!saved?.transparentPNG;
     config.search=saved?.search||'';config.typeFilter=saved?.typeFilter||'';
     pruneDetailSession(cards,config);
 }
@@ -28,5 +29,5 @@ export function restoreDetailSession(cards,config,saved,defaults) {
 export function serializeDetailSession(cards,config) {
     pruneDetailSession(cards,config);
     return {cardIds:cards.map(card=>card.id),tasks:[...config.tasks],outputs:[...config.outputs],covers:[...config.covers],histories:[...config.histories],media:[...config.media],inputs:[...config.inputs].map(([id,fields])=>[id,[...fields]]),
-        columns:config.columns,rowWidth:config.rowWidth,sourceColumns:config.sourceColumns,styles:structuredClone(config.styles),search:config.search,typeFilter:config.typeFilter};
+        transparentPNG:!!config.transparentPNG,columns:config.columns,rowWidth:config.rowWidth,sourceColumns:config.sourceColumns,styles:structuredClone(config.styles),search:config.search,typeFilter:config.typeFilter};
 }

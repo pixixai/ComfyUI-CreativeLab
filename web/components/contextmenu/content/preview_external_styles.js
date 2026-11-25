@@ -30,7 +30,7 @@ export function injectExternalStyles(){
     .clab-external-thumb-media{aspect-ratio:1;display:flex;align-items:center;justify-content:center}
     .clab-external-thumb-media :is(img,video){width:100%;height:100%;object-fit:contain;pointer-events:none}
     .clab-external-thumb-media .clab-filmstrip-assignment{top:auto;right:auto;bottom:4px;left:4px}
-    .clab-external-menu{padding:4px;min-width:160px}.clab-external-menu button{display:block;width:100%;text-align:left;padding:7px 10px;border:0;background:transparent;color:#aaa;font:12px sans-serif;cursor:pointer}
+    .clab-external-menu{position:fixed;inset:auto;margin:0;padding:4px;min-width:160px}.clab-external-menu button{display:block;width:100%;text-align:left;padding:7px 10px;border:0;background:transparent;color:#aaa;font:12px sans-serif;cursor:pointer}
     .clab-external-menu button:hover{background:#161616;color:#fff}.clab-external-picker{display:flex;flex-direction:column;gap:8px}
     .clab-external-picker>input{background:#191919;color:#bbb;border:1px solid #444;padding:6px;font:12px sans-serif}
     .clab-external-picker-footer{display:flex;justify-content:space-between;align-items:center;gap:8px}

@@ -1,6 +1,6 @@
 import { createSourceMedia } from './preview_source_media.js';
 import { escapeHtml as esc } from './shared.js';
-import { sourceKey } from './preview_records.js';
+import { sourceKey,previewSourceCover } from './preview_records.js';
 
 export function workspacePreviewSources(cards) {
     return cards.flatMap((card, index) => (card.areas || []).filter(area => area.type === 'preview').map((area, outputIndex) => ({
@@ -64,10 +64,8 @@ export function snapshotBrowseGroups(groups) {
     return groups.map(({id,source,label,records})=>({id,source,label,keys:records.map(record=>record.key)}));
 }
 
-export function browseGroupCover(group, covers) {
-    const pinned = group.records.find(record => record.key === covers.get(group.id));
-    if (pinned) return pinned;
-    return group.records.reduce((latest,record)=>newestFirst(record,latest)<0?record:latest,group.records[0]);
+export function browseGroupCover(group,covers=new Map()) {
+    return previewSourceCover(group.records,covers.get(group.id));
 }
 
 export function moveBrowseGroupRecords(groups, keys, targetId, beforeKey) {
@@ -212,7 +210,7 @@ export function createBrowseLayout(root, settings, callbacks) {
             if (['browse','compare'].includes(root.dataset.reviewMode)) media.setSources(cards,allSources,selectedSources);
             else renderPlainSources(cards,allSources,selectedSources);
         },
-        renderMedia:media.render,applyLayout,toggleCover:media.toggleCover,
+        renderMedia:media.render,applyLayout,closePool:media.closePool,
         handleClick(event) {
             const restore=event.target.closest('[data-browse-restore]');
             if (restore) {restorePanel(restore.dataset.browseRestore);return true;}

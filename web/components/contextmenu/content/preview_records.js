@@ -5,6 +5,14 @@ export const displayValue = value => value == null ? '未记录' : typeof value 
 export const sourceKey = (card, area) => JSON.stringify([card.id, area.id]);
 export const previewRecordLabel = record => `${record.areaLabel} · ${record.imported ? '外部导入 · ' : ''}${record.index < 0 ? '当前结果' : `历史 ${record.index + 1}`}`;
 
+export function previewSourceCover(records,pinnedKey) {
+    const pinned=records.find(record=>record.key===pinnedKey);if(pinned)return pinned;
+    return records.reduce((latest,record)=>{
+        const order=(latest.run?.order??latest.index+1)-(record.run?.order??record.index+1)||latest.index-record.index;
+        return order<0?record:latest;
+    },records[0]);
+}
+
 export function buildPreviewJSON(cards,records,kind,includeHistory,allCards=cards) {
     const outputs=new Map();
     for (const record of records) {

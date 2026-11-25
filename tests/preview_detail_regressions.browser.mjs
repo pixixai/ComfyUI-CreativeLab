@@ -34,6 +34,10 @@ export async function runPreviewDetailRegressions(send,sessionId){
         for(const mode of ['browse','compare']){
             await click(`${root} [data-review-mode=${mode}]`);await hover(`${left} .clab-source-module .clab-source-history .clab-filmstrip-thumb`);
             await check(`getComputedStyle(document.querySelector('${left} .clab-source-module [data-browse-reverse]')).opacity==='1'&&getComputedStyle(document.querySelector('${left} .clab-source-module .clab-source-module-caption small')).visibility==='hidden'`,`${mode} history hover did not expose its reverse control`);
+            await evaluate(`(()=>{const panel=document.querySelector('${left}'),buttons=[...panel.querySelectorAll('[data-browse-reverse]')],button=buttons.at(-3);button.scrollIntoView({block:'center'});window.reverseScroll={top:panel.scrollTop,key:button.dataset.browseReverse};button.click();})()`);await settle();
+            await check(`Math.abs(document.querySelector('${left}').scrollTop-reverseScroll.top)<1&&reverseScroll.top>100`,`${mode} history reversal jumped away from the current source scroll position`);
+            await evaluate(`document.querySelector('${left} [data-browse-reverse="'+CSS.escape(reverseScroll.key)+'"]').click()`);await settle();
+            await check(`Math.abs(document.querySelector('${left}').scrollTop-reverseScroll.top)<1`,`${mode} restoring history order changed source scroll position`);
         }
         await click(`${root} [data-review-mode=table]`);
         for(const selector of [`${root} .clab-review-head-actions`,`${root} [data-review-workspaces]`]){

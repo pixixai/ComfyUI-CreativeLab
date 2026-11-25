@@ -22,13 +22,13 @@ const fieldActions=`<span class="clab-detail-field-actions"><button type="button
 const caseIcon = text => icon(`<text x="12" y="17" text-anchor="middle" fill="currentColor" stroke="none" font-family="Arial,sans-serif" font-size="${text==='aa'?17:15}" font-weight="600">${text}</text>`);
 const choices = (attribute, items, value) => `<div class="clab-detail-icon-buttons">${items.map(([key,title,svg,label])=>`<button ${attribute} data-value="${key}" ${label?'class="clab-detail-labelled-option"':''} title="${title}" aria-label="${title}" aria-pressed="${key===value}">${svg}${label?`<span>${label}</span>`:''}</button>`).join('')}</div>`;
 
-export function createDetailView(root, downloadsChanged = ()=>{}, sessionSaved = ()=>{}) {
+export function createDetailView(root, downloadsChanged = ()=>{}, sessionSaved = ()=>{},moduleCovers=()=>new Map()) {
     const left = root.querySelector('.clab-preview-modal-left'), center = root.querySelector('.clab-preview-modal-center'), right = root.querySelector('.clab-preview-modal-right');
     let preferences = {};
     try { preferences = JSON.parse(localStorage.getItem(PREFERENCES) || '{}'); } catch { /* Ignore unavailable storage or an invalid saved preference. */ }
     const columns = Math.max(1, Math.min(8, Number(preferences.columns) || 3));
     const config = { columns, sourceColumns:Math.max(1,Math.min(6,Number(preferences.sourceColumns)||2)), rowWidth: Math.max(480,Math.min(2560,Number(preferences.rowWidth)||(preferences.width?Math.round((preferences.width*columns+(columns-1)*16)/10)*10:960))), styles: preferences.styles || {},
-        tasks: new Set(), outputs: new Map(), covers:new Map(), inputs: new Map(), histories: new Map(), media: new Map(), scope: 'name', part: 'row', search: '', typeFilter:'', active: '', field: '', selectedFields: new Set(), anchor: '', includeHistory: true, exportScale: 3, fieldNames: new Map() };
+        tasks: new Set(), outputs: new Map(), covers:new Map(), inputs: new Map(), histories: new Map(), media: new Map(), scope: 'name', part: 'row', search: '', typeFilter:'', active: '', field: '', selectedFields: new Set(), anchor: '', includeHistory: true, transparentPNG: false, exportScale: 3, fieldNames: new Map() };
     const defaults={columns:config.columns,rowWidth:config.rowWidth,sourceColumns:config.sourceColumns,styles:structuredClone(config.styles)};
     let workspace,sessionActive=false,sessionJSON='';
     const saveSession=()=>{
@@ -52,14 +52,14 @@ export function createDetailView(root, downloadsChanged = ()=>{}, sessionSaved =
     },true);
     const rememberHistories=()=>{for(const item of model)if(item.record)config.histories.set(detailHistoryKey(item.id,item.area.id),item.record.key);};
     const closeApplyMenu=()=>{applyMenu?.remove();applyMenu=null;left.querySelectorAll('[data-detail-output-switch]').forEach(button=>button.setAttribute('aria-expanded','false'));};
-    const apply=(title,role,source)=>{rememberHistories();applyDetailOutput(cards,config,title,role,source);closeApplyMenu();sourcePanel.sync(cards);renderBoard();renderSettings();};
+    const apply=(title,role,source)=>{rememberHistories();applyDetailOutput(cards,config,title,role,source,moduleCovers());closeApplyMenu();sourcePanel.sync(cards);renderBoard();renderSettings();};
     const pool=createDetailRecordPool(root,{
         onSelect(card,area,record,role){
             rememberHistories();
             if(role==='cover')setDetailCover(config,card,area,record);
             else{config.outputs.set(card.id,area.id);config.histories.set(detailHistoryKey(card.id,area.id),record.key);config.active=card.id;}
             sourcePanel.sync(cards);renderBoard();renderSettings();
-        },onApply:apply,coverApplied:(title,source)=>detailCoverApplied(cards,config,title,source),
+        },onApply:apply,coverApplied:(title,source)=>detailCoverApplied(cards,config,title,source,moduleCovers()),
     });
     left.addEventListener('scroll',closeApplyMenu);
     document.addEventListener('keydown',event=>{
@@ -159,6 +159,7 @@ export function createDetailView(root, downloadsChanged = ()=>{}, sessionSaved =
             <div class="clab-review-field"><span>数据布局</span><div class="clab-detail-layout-controls">${choices('data-detail-row="layout"',[['inline','行内：Key：Value',icon('<rect x="4" y="7" width="6" height="10" rx="1"/><path d="M14 8h6M14 12h6M14 16h6"/>'),'行内'],['block','块级：Key / Value 分段',icon('<rect x="4" y="4" width="8" height="6" rx="1"/><path d="M4 15h16M4 20h16"/>'),'块级']],style.row.layout)}<label class="clab-review-field clab-detail-block-gap" title="块级布局中 Key 与 Value 之间的间距（px）">间距<input type="number" min="0" max="128" step="1" data-detail-row="blockGap" aria-label="Key 与 Value 间距" value="${blockGap}" ${block?'':'disabled'}></label></div></div>
             <button data-detail-reset>恢复该范围的默认样式</button></section>` : ''}
             <section class="clab-detail-settings-group"><div class="clab-detail-settings-title" title="导出当前预览中显示的全部卡片，通过左侧来源勾选控制范围。PNG 按当前布局生成一张完整图片，使用当前媒体画面；HTML 支持离线查看。">导出</div><label class="clab-review-field"><span>放大倍数</span><input type="number" min="1" max="10" step="1" data-detail-setting="exportScale" value="${config.exportScale}"></label>
+            <label class="clab-review-check"><input type="checkbox" data-detail-setting="transparentPNG" ${config.transparentPNG?'checked':''}>透明画布背景</label>
             <div class="clab-detail-export-buttons"><button data-detail-export="copy" ${exporting||!model.length ? 'disabled' : ''}>复制 PNG</button><button data-detail-export="png" ${exporting||!model.length ? 'disabled' : ''}>下载 PNG</button></div>
             <label class="clab-review-check"><input type="checkbox" data-detail-setting="includeHistory" ${config.includeHistory ? 'checked' : ''}>HTML包含全部生成记录</label>
             <button data-detail-export="html" ${exporting ? 'disabled' : ''}>打包 HTML</button></section>`;
@@ -241,8 +242,8 @@ export function createDetailView(root, downloadsChanged = ()=>{}, sessionSaved =
             const wasOpen=target.getAttribute('aria-expanded')==='true';closeApplyMenu();if(wasOpen)return;
             applyMenu=document.createElement('div');applyMenu.className='clab-detail-apply-menu';applyMenu.setAttribute('role','menu');applyMenu.dataset.title=target.dataset.detailOutputSwitch;
             applyMenu.dataset.cardId=target.closest('[data-detail-source]').dataset.detailSource;applyMenu.dataset.areaId=target.closest('.clab-detail-source-option').querySelector('[data-detail-output]').value;
-            const covered=detailCoverApplied(cards,config,target.dataset.detailOutputSwitch,applyMenu.dataset);
-            applyMenu.innerHTML=`<button role="menuitem" data-detail-apply-role="output" title="作用于当前勾选的任务">将同名模块设为内容</button><button role="menuitem" data-detail-apply-role="${covered?'clear-cover':'cover'}">${covered?'取消同名模块封面':'使用同名模块图片作封面'}</button>`;
+            const covered=detailCoverApplied(cards,config,target.dataset.detailOutputSwitch,applyMenu.dataset,moduleCovers());
+            applyMenu.innerHTML=`<button role="menuitem" data-detail-apply-role="output" title="作用于当前勾选的任务">将同名模块设为内容</button><button role="menuitem" data-detail-apply-role="${covered?'clear-cover':'cover'}">${covered?'取消同名模块封面':'将同名模块封面设为任务封面'}</button>`;
             root.append(applyMenu);const rect=target.getBoundingClientRect();applyMenu.style.left=`${Math.max(8,Math.min(window.innerWidth-applyMenu.offsetWidth-8,rect.right))}px`;applyMenu.style.top=`${Math.max(8,Math.min(window.innerHeight-applyMenu.offsetHeight-8,rect.bottom))}px`;target.setAttribute('aria-expanded','true');applyMenu.firstElementChild.focus({preventScroll:true});return;
         }
         if(target.matches('[data-detail-apply-role]')){apply(applyMenu.dataset.title,target.dataset.detailApplyRole,{cardId:applyMenu.dataset.cardId,areaId:applyMenu.dataset.areaId});return;}
@@ -257,6 +258,7 @@ export function createDetailView(root, downloadsChanged = ()=>{}, sessionSaved =
             sourcePanel.sync(cards);renderBoard();renderSettings();return;
         }
         if(target.matches('[data-detail-source-pool]')){
+            event.preventDefault();
             const card=cards.find(card=>card.id===target.dataset.cardId),item={card,...detailCardMedia(card,config)};
             closeApplyMenu();views.get(card.id)?.cover.pause();pool.open(item,target.dataset.detailSourcePool,target);return;
         }
@@ -327,7 +329,7 @@ export function createDetailView(root, downloadsChanged = ()=>{}, sessionSaved =
             sourcePanel.sync(cards);renderBoard();renderSettings();return;
         } else if (target.matches('[data-detail-setting]')) {
             const key=target.dataset.detailSetting;
-            if(key==='includeHistory')config.includeHistory=target.checked;
+            if(key==='includeHistory'||key==='transparentPNG')config[key]=target.checked;
             else if(key==='scope')config.scope=target.value;
             else {const limits={rowWidth:[480,2560,960],columns:[1,8,3],exportScale:[1,10,3]},[min,max,fallback]=limits[key];config[key]=Math.max(min,Math.min(max,Math.round(Number(target.value)||fallback)));}
             save();

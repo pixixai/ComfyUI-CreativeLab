@@ -211,28 +211,23 @@ test('preview grouping keeps source order and internal sorting never transfers h
     assert.deepEqual(sourceBrowseGroups(collectPreviewRecords(h.sources),'custom',custom).map(group=>group.source),groups.map(group=>group.source));
 });
 
-test('filmstrip covers default to the newest module record and fall back after filtering a pinned cover',()=>{
-    const h=fixture(),[group]=groupBrowseRecords(h.records,'source');
-    const [first,,latest]=group.records, covers=new Map();
-    assert.equal(browseGroupCover(group,covers),latest);
-    covers.set(group.id,first.key);
-    assert.equal(browseGroupCover(group,covers),first);
-    assert.equal(browseGroupCover({...group,records:group.records.slice(1)},covers),latest);
-    const [rank]=groupBrowseRecords(h.records,'newest');
-    assert.equal(browseGroupCover(rank,covers),rank.records[0]);
-    assert.equal(browseGroupCover({id:'mixed',records:[h.records[3],latest,first]},new Map()),latest);
+test('preview covers default to newest history, accept an independent pin and fall back when it is removed',()=>{
+    const h=fixture(),[group]=groupBrowseRecords(h.records,'source'),covers=new Map();
+    assert.equal(browseGroupCover(group,covers),group.records[2]);
+    covers.set(group.id,group.records[0].key);
+    h.a.historyIndex=1;
+    assert.equal(browseGroupCover(group,covers),group.records[0]);
+    assert.equal(browseGroupCover({...group,records:group.records.slice(1)},covers),group.records[2]);
+    covers.delete(group.id);assert.equal(browseGroupCover(group,covers),group.records[2]);
 });
 
-test('filmstrip downloads use group covers by default and expand only groups containing selected records',()=>{
-    const h=fixture(),groups=groupBrowseRecords(h.records,'source');
-    const [a,b,c,d]=h.records,covers=new Map([[groups[0].id,b.key]]),keys=new Set([a.key]);
-    const records=(selected,history)=>filmstripDownloadRecords(groups,covers,keys,selected,history);
-    assert.deepEqual(records(false,false),[b,d]);
-    assert.deepEqual(records(true,false),[a]);
-    assert.deepEqual(records(true,true),[a,b,c]);
-    assert.deepEqual(records(false,true),[a,b,c,d]);
-    keys.clear();
-    assert.deepEqual(records(true,true),[]);
+test('filmstrip downloads use independent preview covers and expand only groups containing selected records',()=>{
+    const h=fixture(),records=h.records,groups=groupBrowseRecords(records,'source');
+    const [a,b,c,d]=records,keys=new Set([a.key]),covers=new Map([[groups[0].id,b.key]]);
+    const download=(selected,history)=>filmstripDownloadRecords(groups,covers,keys,selected,history);
+    assert.deepEqual(download(false,false),[b,d]);assert.deepEqual(download(true,false),[a]);
+    assert.deepEqual(download(true,true),[a,b,c]);assert.deepEqual(download(false,true),[a,b,c,d]);
+    keys.clear();assert.deepEqual(download(true,true),[]);
 });
 
 test('media export preserves actual history positions, including duplicate URLs and sparse histories',()=>{

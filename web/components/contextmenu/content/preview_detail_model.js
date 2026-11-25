@@ -1,4 +1,4 @@
-import { collectPreviewRecords, displayValue } from './preview_records.js';
+import { collectPreviewRecords, displayValue,previewSourceCover,sourceKey } from './preview_records.js';
 import { escapeHtml as esc } from './shared.js';
 
 export const detailFieldKey = (cardId, fieldId) => JSON.stringify([cardId, fieldId]);
@@ -58,20 +58,24 @@ export function setDetailCover(config,card,area,record=detailOutputRecords(card,
     config.covers.set(card.id,{areaId:area.id,recordKey:record.key});return true;
 }
 
-export function detailCoverApplied(cards,config,title,source) {
+function detailModuleCover(card,area,covers) {
+    return previewSourceCover(detailOutputRecords(card,area),covers.get(`source:${sourceKey(card,area)}`));
+}
+
+export function detailCoverApplied(cards,config,title,source,moduleCovers=new Map()) {
     let count=0;
     for(const card of cards)if(config.tasks.has(card.id)){
         const outputs=(card.areas||[]).filter(area=>area.type==='preview');
         const matches=outputs.filter((area,index)=>(area.title||`##${index+1}`)===title);
         const selected=config.covers.get(card.id)?.areaId,area=matches.find(area=>card.id===source?.cardId&&area.id===source.areaId)||matches.find(area=>area.id===selected)||matches[0];
-        if(!area||!detailOutputRecords(card,area).some(record=>record.type==='image'||record.key===config.covers.get(card.id)?.recordKey))continue;
-        if(area.id!==selected||!detailOutputRecords(card,area).some(record=>record.key===config.covers.get(card.id)?.recordKey))return false;
+        const cover=area&&detailModuleCover(card,area,moduleCovers);if(!cover)continue;
+        if(area.id!==selected||config.covers.get(card.id)?.recordKey!==cover.key)return false;
         count++;
     }
     return count>0;
 }
 
-export function applyDetailOutput(cards,config,title,role,source) {
+export function applyDetailOutput(cards,config,title,role,source,moduleCovers=new Map()) {
     for(const card of cards)if(config.tasks.has(card.id)){
         const outputs=(card.areas||[]).filter(area=>area.type==='preview');
         const matches=outputs.filter((area,index)=>(area.title||`##${index+1}`)===title);
@@ -79,9 +83,7 @@ export function applyDetailOutput(cards,config,title,role,source) {
         if(role==='clear-cover'){if(matches.some(area=>area.id===selected))config.covers.delete(card.id);continue;}
         const area=matches.find(area=>card.id===source?.cardId&&area.id===source.areaId)||matches.find(area=>area.id===selected)||matches[0];if(!area)continue;
         if(role==='cover'){
-            const existing=config.covers.get(card.id),records=detailOutputRecords(card,area);
-            if(card.id===source?.cardId&&existing?.areaId===area.id&&records.some(record=>record.key===existing.recordKey))continue;
-            const image=records.findLast(record=>record.type==='image');if(image)setDetailCover(config,card,area,image);
+            const cover=detailModuleCover(card,area,moduleCovers);if(cover)setDetailCover(config,card,area,cover);
         }
         else {
             config.outputs.set(card.id,area.id);

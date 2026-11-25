@@ -1,13 +1,14 @@
 import { groupPreviewSources } from './preview_workspace_ui.js';
 import { escapeHtml as esc } from './shared.js';
 import { collectPreviewRecords, sourceKey } from './preview_records.js';
-import { browseGroupCover, sourceBrowseGroups } from './preview_browse.js';
-import { detailCoverIcon } from './preview_detail_pool.js';
+import { browseGroupCover,sourceBrowseGroups } from './preview_browse.js';
+import { detailCoverIcon,createDetailRecordPool } from './preview_detail_pool.js';
 import { createSourceRatios } from './preview_source_ratios.js';
 import { sourceMediaHTML,sourceMediaTypes,createSourceMediaObserver } from './preview_source_media_html.js';
 
-export function createSourceMedia(left,settings,{onReorder}) {
+export function createSourceMedia(left,settings,{onReorder,onCover}) {
     let cards=[],sources=[],sourceRecords=[],checked=new Set(),groups=[],entries=[],activeKey='',comparison=null,filter='';
+    let coverRecords=new Map();
     let signature='',selected=new Set(),anchor='',dragged=[],hoverPoint,drop,suppressClick=false;
     const closedTasks=new Set();
     const ratios=createSourceRatios(left),media=createSourceMediaObserver(left);
@@ -15,7 +16,8 @@ export function createSourceMedia(left,settings,{onReorder}) {
     const recordFor=element=>entries[Number(element?.dataset.index)];
     const enabled=group=>checked.has(group.source);
     const activeGroup=()=>groups.find(group=>group.records.some(record=>record.key===activeKey));
-    const cover=group=>group.records.length?browseGroupCover(group,settings.session.covers):null;
+    const cover=group=>coverRecords.get(group.source);
+    const pool=createDetailRecordPool(left.closest('.clab-preview-modal'),{onSelect:(card,area,record)=>onCover(record.key,false)});
 
     function header() {
         if (left.querySelector('.clab-source-controls [data-browse-search]')) return;
@@ -47,7 +49,7 @@ export function createSourceMedia(left,settings,{onReorder}) {
             const coverKey=currentCover?.key||'';
             if (button.dataset.coverKey!==coverKey) {
                 button.dataset.coverKey=coverKey;button.innerHTML=sourceMediaHTML(currentCover);
-                button.title=currentCover?`封面 · ${currentCover.name}`:'暂无记录';
+                button.title=currentCover?`封面 · ${currentCover.name}，点击选择封面记录`:'暂无记录';
                 coverChanged=true;
             }
             const index=entries.findIndex(record=>record.key===coverKey);
@@ -62,7 +64,7 @@ export function createSourceMedia(left,settings,{onReorder}) {
                 const thumb=item.querySelector('[data-index]'),record=recordFor(thumb),mark=item.querySelector('[data-filmstrip-cover]');
                 const isCover=record?.key===coverKey;
                 mark.setAttribute('aria-pressed',String(isCover));
-                mark.title=isCover?'恢复最新记录为封面':'设为封面';mark.setAttribute('aria-label',mark.title);
+                mark.title=settings.session.covers.get(group.id)===record?.key?'取消指定封面':'设为封面';mark.setAttribute('aria-label',mark.title);
                 thumb.classList.toggle('active',record?.key===activeKey);thumb.classList.toggle('selected',selected.has(record?.key));
                 const slots=comparison?['a','b'].filter(slot=>comparison[slot]===record?.key):[],badge=thumb.querySelector('.clab-filmstrip-assignment');
                 badge.innerHTML=slots.map(slot=>`<span>${slot.toUpperCase()}</span>`).join('');badge.hidden=!slots.length;
@@ -73,14 +75,6 @@ export function createSourceMedia(left,settings,{onReorder}) {
         const count=groups.filter(enabled).reduce((sum,group)=>sum+group.records.length,0);
         status.textContent=`${checked.size} 个模块 · ${count} 条记录${selected.size>1?` · 已选 ${selected.size} 条`:''}${comparison?` · 待替换 ${comparison.slot.toUpperCase()}`:''}`;
         status.title=status.textContent;
-    }
-
-    function toggleCover(key) {
-        const group=groups.find(item=>item.records.some(record=>record.key===key));
-        if (!group) return;
-        if (cover(group)?.key===key) settings.session.covers.delete(group.id);
-        else settings.session.covers.set(group.id,key);
-        paint();
     }
 
     function render(nextGroups,nextEntries,nextActiveIndex,typeFilter,nextComparison=null) {
@@ -108,8 +102,10 @@ export function createSourceMedia(left,settings,{onReorder}) {
         left.querySelector('[data-browse-columns-label]').textContent=`${settings.thumbColumns} 列`;
         const indices=new Map(entries.map((record,index)=>[record.key,index]));
         const state=JSON.stringify([settings.sort,full.map(group=>group.id),settings.search,comparison?'compare':'browse',cards.map(card=>[card.id,card.title]),sources.map(source=>[source.area.id,source.areaLabel]),[...checked],groups.map(group=>[group.id,group.records.map(record=>[record.key,indices.get(record.key)])])]);
+        let scroll;
         if (state!==signature) {
-            const scroll=left.scrollTop,query=settings.search.trim().toLowerCase();
+            scroll=left.scrollTop;
+            const query=settings.search.trim().toLowerCase();
             left.querySelectorAll('[data-browse-card]').forEach(task=>{if(task.open)closedTasks.delete(task.dataset.browseCard);else closedTasks.add(task.dataset.browseCard);});
             const tree=left.querySelector('.clab-source-media-tree');
             tree.innerHTML=cards.map(card=>{
@@ -123,7 +119,7 @@ export function createSourceMedia(left,settings,{onReorder}) {
                     ${matches.map(source=>{
                         const key=sourceKey(card,source.area),group=groups.find(item=>item.source===key),on=checked.has(key),count=source.area.history?.filter(Boolean).length||(source.area.resultUrl?1:0);
                         const displayedCount=settings.sort==='custom'?group.records.length:count;
-                        return `<section class="clab-source-module${on?'':' is-unchecked'}" data-filmstrip-section="${esc(group.id)}">
+                        return `<section class="clab-source-module${on?' is-expanded':' is-unchecked'}" data-filmstrip-section="${esc(group.id)}">
                             <label class="clab-source-module-check"><input type="checkbox" data-browse-source="${esc(key)}" ${on?'checked':''} ${count?'':'disabled'} aria-label="选择输出模块 ${esc(source.areaLabel)}"></label>
                             <div class="clab-source-cover-frame"><button type="button" draggable="true" class="clab-preview-modal-thumb clab-source-cover" data-index="-1" disabled></button>
                                 <div class="clab-source-module-caption"><span title="${esc(source.areaLabel)}">${esc(source.areaLabel)}</span><small>${displayedCount} 条</small></div>
@@ -137,7 +133,7 @@ export function createSourceMedia(left,settings,{onReorder}) {
                 const on=available.filter(source=>checked.has(sourceKey(source.card,source.area))).length;
                 input.indeterminate=on>0&&on<available.length;
             }
-            signature=state;left.scrollTop=scroll;observeMedia();
+            signature=state;observeMedia();
             const histories=new Map();
             for(const record of sourceRecords) {
                 if(!histories.has(record.source))histories.set(record.source,[]);
@@ -150,6 +146,7 @@ export function createSourceMedia(left,settings,{onReorder}) {
         }
         paint();
         left.style.setProperty('--browse-controls-height',`${left.querySelector('.clab-source-controls').offsetHeight}px`);
+        if(scroll!==undefined)left.scrollTop=scroll;
         if (previous!==activeKey) {
             const thumb=left.querySelector('.clab-filmstrip-thumb.active');
             if (thumb?.closest('.is-expanded')&&thumb.closest('[data-browse-card]')?.open) thumb.scrollIntoView({block:'nearest'});
@@ -164,8 +161,18 @@ export function createSourceMedia(left,settings,{onReorder}) {
             rootVariable();return true;
         }
         const mark=event.target.closest('[data-filmstrip-cover]');
-        if (mark) {toggleCover(entries[Number(mark.dataset.filmstripCover)]?.key);return true;}
-        const thumb=event.target.closest('.clab-filmstrip-thumb,.clab-source-cover')||event.target.closest('.clab-source-cover-frame')?.querySelector('.clab-source-cover');
+        if(mark){const record=entries[Number(mark.dataset.filmstripCover)];if(record)onCover(record.key,true);return true;}
+        const avatar=event.target.closest('.clab-source-cover');
+        if(avatar){
+            const group=groups.find(item=>item.id===groupId(avatar)),source=sources.find(item=>sourceKey(item.card,item.area)===group?.source);
+            if(source)pool.open({...source,record:cover(group)},'module-cover',avatar);
+            return true;
+        }
+        if(event.target.closest('.clab-source-module-caption>span')){
+            const input=event.target.closest('.clab-source-module').querySelector('[data-browse-source]');
+            input.click();return true;
+        }
+        const thumb=event.target.closest('.clab-filmstrip-thumb');
         if (!thumb) return false;
         const record=recordFor(thumb);if(!record)return true;
         const records=groups.filter(enabled).flatMap(group=>group.records),key=record.key;
@@ -221,14 +228,18 @@ export function createSourceMedia(left,settings,{onReorder}) {
         setSources(nextCards,nextSources,selectedSources) {
             cards=nextCards;
             if (sources!==nextSources) sourceRecords=collectPreviewRecords(nextSources);
+            const histories=new Map();
+            for(const record of sourceRecords){if(!histories.has(record.source))histories.set(record.source,[]);histories.get(record.source).push(record);}
+            coverRecords=new Map([...histories].map(([source,records])=>[source,browseGroupCover({id:`source:${source}`,records},settings.session.covers)]));
             sources=nextSources;checked=new Set(selectedSources.map(source=>sourceKey(source.card,source.area)));header();
         },
-        render,handleClick,toggleCover,
+        render,handleClick,closePool:pool.close,
         release() {
+            pool.close(false);
             ratios.release();
             media.release();
             cards=[];sources=[];sourceRecords=[];groups=[];entries=[];activeKey='';signature='';anchor='';
-            selected.clear();dragged=[];hoverPoint=null;drop=null;suppressClick=false;
+            coverRecords.clear();selected.clear();dragged=[];hoverPoint=null;drop=null;suppressClick=false;
         },
     };
 }

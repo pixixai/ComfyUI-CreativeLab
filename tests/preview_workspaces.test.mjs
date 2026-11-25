@@ -9,6 +9,18 @@ import { tableAppearance, setTableAppearance, setTableCellAppearance } from '../
 
 const workspace=id=>({id,name:id,cards:[{id:'task',title:'task',areas:[{id:'input',type:'edit',title:'提示词',value:'task',targetNodeId:'12',targetWidgets:['12||text']},{id:'out',type:'preview',history:['/view?filename=a.png'],historyIndex:0}]}],view:createWorkspaceView({xy:{taskIds:['task']},table:{widths:{out:320}}})});
 
+test('independent browse covers round-trip through multi-workspace projection with original source and record IDs',()=>{
+    const a=workspace('cover-a'),b=workspace('cover-b');
+    const card=a.cards[0],record=collectPreviewRecords([{card,area:card.areas[1]}])[0];
+    a.view.previewBrowse={covers:[[JSON.stringify([card.id,card.areas[1].id]),record.key]]};
+    const bundle=createPreviewWorkspaceBundle([a,b],ws=>ws.name),projected=bundle.groups[0].projected;
+    const source=JSON.stringify([projected.cards[0].id,projected.cards[0].areas[1].id]);
+    assert.equal(projected.view.previewBrowse.covers[0][0],source);
+    assert.equal(projected.view.previewBrowse.covers[0][1],collectPreviewRecords([{card:projected.cards[0],area:projected.cards[0].areas[1]}])[0].key);
+    bundle.commit();assert.deepEqual(a.view.previewBrowse.covers,[[JSON.stringify(['task','out']),record.key]]);
+    assert.equal(b.view.previewBrowse,undefined);
+});
+
 test('table appearance scope IDs and ordering round-trip through preview without changing literal input text',()=>{
     const ws=workspace('appearance');ws.cards[0].areas[0].value='column:input';
     const view=ws.view.table,sheet={id:'sheet',columns:[{id:'input',type:'edit'}],rows:[{id:'task',cardId:'task',values:{}}]};

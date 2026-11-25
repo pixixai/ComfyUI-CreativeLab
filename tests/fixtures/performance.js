@@ -577,7 +577,7 @@ try {
     modal.querySelector('[data-browse-restore="parameters"]').click();
     assert(firstModelStage.querySelector('canvas')===browseCanvas,'resizing browse parameters replaced the 3D canvas');
     const {previewModalStore: modelPreviewStore}=await import('/extensions/clab/components/contextmenu/content/state.js');
-    modal.querySelector('.clab-preview-modal-thumb[data-index="1"]').click();
+    modal.querySelector('.clab-filmstrip-thumb[data-index="1"]').click();
     const secondModelStage = modal.querySelector('.clab-glb-viewer'); await waitForModel(secondModelStage);
     assert(secondModelStage !== firstModelStage && secondModelStage.dataset.modelUrl.includes('other.glb') && model.historyIndex === 1 && !firstModelStage.querySelector('canvas'), `GLB history did not switch its model or release the previous renderer: ${secondModelStage.dataset.modelUrl}, index ${model.historyIndex}, same ${secondModelStage===firstModelStage}, retained ${!!firstModelStage.querySelector('canvas')}, active ${modelPreviewStore.activeIndex}, entries ${JSON.stringify(modelPreviewStore.entries.map(e=>({i:e.index,u:e.url,run:e.runId,a:e.areaId})))}`);
     modal.querySelector('.clab-preview-modal-close').click(); await delay(50);

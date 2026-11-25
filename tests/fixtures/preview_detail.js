@@ -121,9 +121,9 @@ export async function checkDetailPreview({state,videoURL,assert,delay,passed}) {
     openPool('detail-image','cover');document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));assert(!q('.clab-detail-pool-popover')&&root.classList.contains('visible'),'Escape closed the preview instead of just its record pool');
     q('[data-detail-task="detail-audio"]').click();
     coverButton('detail-image','detail-image-cover-out').click();outputEye('封面图片').click();
-    assert([...root.querySelectorAll('[data-detail-apply-role]')].map(button=>button.textContent).join('|')==='将同名模块设为内容|使用同名模块图片作封面','batch menu labels did not distinguish content and cover images');
+    assert([...root.querySelectorAll('[data-detail-apply-role]')].map(button=>button.textContent).join('|')==='将同名模块设为内容|将同名模块封面设为任务封面','batch menu labels did not distinguish content and cover images');
     q('[data-detail-apply-role="cover"]').click();
-    assert(coverButton('detail-image','detail-image-cover-out').getAttribute('aria-pressed')==='true'&&coverButton('detail-video','detail-video-cover-out',1).getAttribute('aria-pressed')==='true'&&coverButton('detail-audio','detail-audio-cover-out',1).getAttribute('aria-pressed')==='false'&&card('detail-image').querySelector('.clab-preview-video video')===coverVideo,'batch covers lost the source pin, failed to choose other tasks latest images or changed unchecked tasks/content');
+    assert(coverButton('detail-image','detail-image-cover-out',1).getAttribute('aria-pressed')==='true'&&coverButton('detail-video','detail-video-cover-out',1).getAttribute('aria-pressed')==='true'&&coverButton('detail-audio','detail-audio-cover-out',1).getAttribute('aria-pressed')==='false'&&card('detail-image').querySelector('.clab-preview-video video')===coverVideo,'batch covers did not use each module cover or changed unchecked tasks/content');
     outputEye('封面图片').click();assert(q('[data-detail-apply-role="clear-cover"]').textContent==='取消同名模块封面','applied covers did not offer cancellation');q('[data-detail-apply-role="clear-cover"]').click();
     assert(!q('[data-detail-cover][aria-pressed="true"]')&&card('detail-image').querySelector('.clab-preview-video video')===coverVideo,'batch cover cancellation changed content or retained pins');
     applyOutput('封面图片','cover');openPool('detail-image','cover');

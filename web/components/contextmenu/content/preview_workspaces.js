@@ -77,7 +77,7 @@ export function createPreviewWorkspaceBundle(workspaces,label,onCommit=()=>{}) {
             for(const group of groups){
                 const ids=new Set(group.projected.cards.map(card=>card.id)),previous=group.projected.view.previewDetail||{};
                 const next={...previous},prefix=stylePrefix(group);
-                for(const key of ['columns','rowWidth','sourceColumns','search','typeFilter'])if(JSON.stringify(all[key])!==JSON.stringify(detailBaseline[key]))next[key]=all[key];
+                for(const key of ['columns','rowWidth','sourceColumns','search','typeFilter','transparentPNG'])if(JSON.stringify(all[key])!==JSON.stringify(detailBaseline[key]))next[key]=all[key];
                 next.styles=Object.fromEntries(Object.entries(all.styles||{}).flatMap(([key,value])=>key.startsWith(prefix)?[[key.slice(prefix.length),value]]:(()=>{try{return ids.has(JSON.parse(key)[0])?[[key,value]]:[];}catch{return [];}})()));
                 for(const [key,rule]of Object.entries(all.styles||{}))if(key==='all'||key.startsWith('name:')){
                     const own=next.styles[key]||{};next.styles[key]=Object.fromEntries(['row','key','value'].map(part=>[part,{...own[part],...rule[part]}]));

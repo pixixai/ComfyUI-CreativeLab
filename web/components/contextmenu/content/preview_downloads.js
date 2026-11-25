@@ -6,7 +6,7 @@ export function filmstripDownloadRecords(groups,covers,keys,selected,includeHist
         const active=group.records.filter(record=>keys.has(record.key));
         if (selected && !active.length) return [];
         if (includeHistory) return group.records;
-        return selected ? active : [browseGroupCover(group,covers)];
+        return selected ? active : [browseGroupCover(group,covers)].filter(Boolean);
     });
 }
 
@@ -87,8 +87,8 @@ async function downloadFiles(files,directory,archiveName) {
 }
 
 const captions={
-    browse:['含组内全部记录','下载各组封面，或当前正在预览的记录。'],
-    compare:['含组内全部记录','下载各组封面，或当前 A/B 两侧的记录。'],
+    browse:['含组内全部记录','下载各模块封面，或当前正在预览的记录。'],
+    compare:['含组内全部记录','下载各模块封面，或当前 A/B 两侧的记录。'],
     detail:['含所有生成记录','下载显示中的内容媒体，或当前选中卡片的内容媒体。'],
     table:['含所有生成记录','下载可见输出的当前记录，或所选行、列、单元格中的输出。'],
     xy:['含所有生成记录','下载可见矩阵的当前记录，或选中格子的记录。'],

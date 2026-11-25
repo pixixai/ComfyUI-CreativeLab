@@ -12,6 +12,7 @@ const exportCSS = `
     .clab-export-content .clab-review-grid .clab-table-column-top{visibility:visible!important;opacity:1!important}
     .clab-export-content [hidden]{display:none!important}
     .clab-export-content img{user-select:none}
+    .clab-export-transparent,.clab-export-transparent :is(.clab-review-multi-grid,.clab-review-matrix-scene,.clab-review-matrix-group,.clab-review-grid,.clab-review-grid-stage,.clab-result-sheet,.clab-cards-wrapper){background:transparent!important;background-image:none!important}
 `;
 
 export function canvasBlob(canvas) {
@@ -170,7 +171,7 @@ export async function capturePreviewLayout(source, options = {}) {
     const media=snapshotMedia(source);
     const stage=source.cloneNode(true),outer=document.createElement('div'),viewport=document.createElement('div'),host=document.createElement('div');
     const styles=styleIds.map(id=>document.getElementById(id)?.textContent||'').join('\n')+exportCSS;
-    outer.className='clab-export-content'+(mode?' clab-review-grid':'');
+    outer.className='clab-export-content'+(mode?' clab-review-grid':'')+(options.transparent?' clab-export-transparent':'');
     if(mode)outer.dataset.workspaceMode=mode;
     outer.style.cssText='position:relative;overflow:hidden;background:#181818;color:#bbb;font:12px sans-serif;color-scheme:dark';
     viewport.style.cssText='position:absolute;left:0;top:0';

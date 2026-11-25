@@ -58,7 +58,9 @@ export async function exportDetailPNG(board, config) {
         clone.style.setProperty('--detail-columns',config.columns);clone.style.setProperty('--detail-row-width',`${config.rowWidth}px`);clone.style.width=`${width}px`;
         await Promise.all([...clone.querySelectorAll('img')].map(image=>image.decode()));
         const height=Math.ceil(clone.getBoundingClientRect().height);
-        const wrapper=document.createElement('div');wrapper.style.cssText=`width:${width}px;height:${height}px;background:#171717`;wrapper.append(style.cloneNode(true),clone.cloneNode(true));
+        const wrapper=document.createElement('div');wrapper.style.cssText=`width:${width}px;height:${height}px;background:${config.transparentPNG?'transparent':'#171717'}`;
+        if(config.transparentPNG)clone.style.background='transparent';
+        wrapper.append(style.cloneNode(true),clone.cloneNode(true));
         return {name:'明细表.png',blob:await renderPreviewPNG(new XMLSerializer().serializeToString(wrapper),width,height,scale)};
     } finally {host.remove();}
 }

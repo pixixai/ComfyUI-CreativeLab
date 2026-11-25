@@ -227,15 +227,23 @@ test('batch actions select the clicked duplicate output in the source task while
 });
 
 
-test('batch covers preserve the originating pinned image, use latest images elsewhere and skip sources without images',()=>{
+test('batch task covers copy each matching module cover, override previous task covers and preserve content and workspace records',()=>{
     const h=fixture();h.a.title='封面';h.b.title='内容';
-    const other={id:'other',areas:[{...h.a,id:'other-images',history:['/view?filename=old.png','/view?filename=new.png','/view?filename=last.mp4'],historyRuns:[{id:'old'},{id:'new'},{id:'video'}]}]},video={id:'video',areas:[{id:'video-out',type:'preview',title:'封面',history:['/view?filename=only.mp4']}]};
-    h.config.tasks=new Set(['task','other','video']);const first=buildDetailCards([h.card],h.config)[0].records[0];setDetailCover(h.config,h.card,h.a,first);setDetailCover(h.config,video,video.areas[0]);
-    const before=JSON.stringify([h.card,other,video]),videoCover=h.config.covers.get('video');
-    applyDetailOutput([h.card,other,video],h.config,'封面','cover',{cardId:'task',areaId:'a'});
-    assert.equal(h.config.covers.get('task').recordKey,first.key);assert.equal(buildDetailCards([other],h.config)[0].coverRecord.runId,'new');assert.equal(h.config.covers.get('video'),videoCover);assert.equal(JSON.stringify([h.card,other,video]),before);
+    const other={id:'other',areas:[{...h.a,id:'other-images',history:['/view?filename=old.png','/view?filename=new.png','/view?filename=last.mp4'],historyRuns:[{id:'old'},{id:'new'},{id:'video'}]}]},video={id:'video',areas:[{id:'video-out',type:'preview',title:'封面',history:['/view?filename=only.mp4']}]},excluded={id:'excluded',areas:[{...h.a,id:'excluded-out'}]};
+    h.config.tasks=new Set(['task','other','video']);
+    const own=buildDetailCards([h.card],h.config)[0].records,peer=buildDetailCards([other],h.config)[0].records;
+    setDetailCover(h.config,h.card,h.a,own[0]);setDetailCover(h.config,other,other.areas[0],peer[1]);
+    const covers=new Map([['source:'+detailHistoryKey('task','a'),own[1].key],['source:'+detailHistoryKey('other','other-images'),peer[0].key]]);
+    const cards=[h.card,other,video,excluded],before=JSON.stringify(cards),content=buildDetailCards(cards,h.config).map(item=>item.record.key);
+    assert.equal(detailCoverApplied(cards,h.config,'封面',undefined,covers),false);
+    applyDetailOutput(cards,h.config,'封面','cover',{cardId:'task',areaId:'a'},covers);
+    assert.equal(h.config.covers.get('task').recordKey,own[1].key);assert.equal(h.config.covers.get('other').recordKey,peer[0].key);
+    assert.equal(buildDetailCards([video],h.config)[0].coverRecord.type,'video');assert.equal(h.config.covers.has('excluded'),false);
+    assert.equal(detailCoverApplied(cards,h.config,'封面',undefined,covers),true);
+    covers.set('source:'+detailHistoryKey('other','other-images'),peer[1].key);
+    assert.equal(detailCoverApplied(cards,h.config,'封面',undefined,covers),false);assert.equal(h.config.covers.get('other').recordKey,peer[0].key);
+    assert.deepEqual(buildDetailCards(cards,h.config).map(item=>item.record.key),content);assert.equal(JSON.stringify(cards),before);
 });
-
 
 test('detail history navigation steps within a group and crosses either boundary to the adjacent first record, skipping empty outputs',()=>{
     const card={id:'task'},area=id=>({id}),records=(...keys)=>keys.map(key=>({key}));

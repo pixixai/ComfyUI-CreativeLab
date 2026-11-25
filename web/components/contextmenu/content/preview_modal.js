@@ -128,20 +128,41 @@ export function createPreviewModalApi({
         return previewModalStore.entries[previewModalStore.activeIndex] || null;
     }
 
+    function loadBrowseCovers(){
+        const owners=bundle?bundle.groups.map(group=>group.projected):[getActiveWorkspace()];
+        browse.session.covers=new Map(owners.flatMap(owner=>{
+            const saved=owner.view.previewBrowse?.covers||[];if(!saved.length)return [];
+            const ids=new Set(saved.map(([source])=>source));
+            const records=collectPreviewRecords(workspacePreviewSources(owner.cards).filter(source=>ids.has(sourceKey(source.card,source.area)))),valid=new Map(records.map(record=>[record.key,record.source]));
+            const covers=saved.filter(([source,key])=>valid.get(key)===source);
+            if(owner.view.previewBrowse)owner.view.previewBrowse={covers};
+            return covers.map(([source,key])=>[`source:${source}`,key]);
+        }));
+    }
+    function saveBrowseCovers(){
+        const owners=bundle?bundle.groups.map(group=>group.projected):[getActiveWorkspace()];
+        const valid=new Set(collectPreviewRecords(allSources).map(record=>record.key));
+        for(const owner of owners){
+            const ids=new Set(workspacePreviewSources(owner.cards).map(source=>`source:${sourceKey(source.card,source.area)}`));
+            owner.view.previewBrowse={covers:[...browse.session.covers].filter(([id,key])=>ids.has(id)&&valid.has(key)).map(([id,key])=>[id.slice(7),key])};
+        }
+        commitBundle();editHistory.withoutRecording(()=>window.CLab?.saveState(state,{createAnchor:false}));
+    }
+    function setBrowseCover(key,toggle=false){
+        const record=collectPreviewRecords(allSources).find(record=>record.key===key);if(!record)return;
+        const id=`source:${record.source}`;
+        if(toggle&&browse.session.covers.get(id)===key)browse.session.covers.delete(id);
+        else browse.session.covers.set(id,key);
+        saveBrowseCovers();renderPreviewModal();
+    }
+
     function commitHistoryOrder(groups,source='') {
         const active=getActivePreviewEntry()?.key;
-        const covers=new Map(groups.map(group=>[group.id,browseGroupCover(group,browse.session.covers)?.key]));
         const {changed,keys}=reorderSourceHistories(source?allSources.filter(item=>sourceKey(item.card,item.area)===source):allSources,groups);
         const remap=key=>keys.get(key)||key;
         browse.session.customGroups=snapshotBrowseGroups(groups).map(group=>({...group,keys:group.keys.map(remap)}));
         browse.sort='custom';
-        const pinned=new Map([...browse.session.covers].map(([id,key])=>[id,remap(key)]));
-        browse.session.covers=pinned;
-        const after=sourceBrowseGroups(collectPreviewRecords(allSources),'custom',browse.session.customGroups);
-        for(const group of after) {
-            const previous=covers.get(group.id);
-            if(previous&&browseGroupCover(group,pinned)?.key!==remap(previous))pinned.set(group.id,remap(previous));
-        }
+        browse.session.covers=new Map([...browse.session.covers].map(([id,key])=>[id,remap(key)]));
         for(const [id,key] of browse.session.positions)browse.session.positions.set(id,remap(key));
         compare.a=remap(compare.a);compare.b=remap(compare.b);
         const selected=[...selectedHistoryRecords].map(remap);selectedHistoryRecords.clear();selected.forEach(key=>selectedHistoryRecords.add(key));
@@ -150,6 +171,7 @@ export function createPreviewModalApi({
         previewModalStore.entries=selectedRecords();
         previewModalStore.activeIndex=previewModalStore.entries.findIndex(record=>record.key===remap(active));
         if(changed.length) {
+            saveBrowseCovers();
             commitBundle();
             if(window._clabSurgicallyUpdateArea)changed.forEach(id=>window._clabSurgicallyUpdateArea(id));
             else saveAndRender();
@@ -242,8 +264,8 @@ export function createPreviewModalApi({
     function openFilmstripGroup(group, linked = true) {
         if (!group) return;
         const entry = group.records.find(record=>record.key===browse.session.positions.get(group.id)) ||
-            browseGroupCover(group,browse.session.covers);
-        const index = previewModalStore.entries.findIndex(record=>record.key===entry.key);
+            browseGroupCover(group,browse.session.covers)||group.records[0];
+        const index = previewModalStore.entries.findIndex(record=>record.key===entry?.key);
         if (mode==='compare') {
             previewModalStore.activeIndex = index;
             renderPreviewModal();
@@ -345,6 +367,7 @@ export function createPreviewModalApi({
             openPreviewModal(undefined,undefined,undefined,undefined,workspacePreviewSources(state.cards),returnFocus,next==='cards'?'browse':next);
         });
         browseLayout=createBrowseLayout(root,browse,{
+            onCover:setBrowseCover,
             onReorder({keys,targetId,beforeKey}) {
                 const groups = sourceBrowseGroups(collectPreviewRecords(allSources),browse.sort,browse.session.customGroups);
                 const target=allSources.find(source=>`source:${sourceKey(source.card,source.area)}`===targetId);
@@ -358,32 +381,21 @@ export function createPreviewModalApi({
                 renderPreviewModal();
             },
         });
-        const coverMenu = document.createElement('div');
-        coverMenu.className = 'clab-filmstrip-cover-menu';
-        coverMenu.setAttribute('popover','auto');
-        coverMenu.innerHTML = '<button type="button" class="clab-context-menu-item" data-review-cover>设为封面</button>';
-        root.append(coverMenu);
-        const closeCoverMenu = () => {
-            if (coverMenu.matches(':popover-open')) coverMenu.hidePopover();
-        };
+        const coverMenu=document.createElement('div');coverMenu.className='clab-filmstrip-cover-menu';coverMenu.setAttribute('popover','auto');
+        coverMenu.innerHTML='<button type="button" data-review-cover>设为封面</button>';root.append(coverMenu);
+        const closeCoverMenu=()=>{if(coverMenu.matches(':popover-open'))coverMenu.hidePopover();};
         root.querySelector('.clab-preview-modal-center').addEventListener('contextmenu',event=>{
-            const record = getActivePreviewEntry();
-            if (mode!=='browse' || !record || event.target.closest('button,a,input,textarea,select,[contenteditable=true]')) return;
-            const group = filteredGroups().find(group=>group.records.some(item=>item.key===record.key));
-            if (!group) return;
-            event.preventDefault();
-            event.stopPropagation();
-            const item = coverMenu.firstElementChild;
-            item.textContent = browse.session.covers.get(group.id)===record.key ? '取消设为封面' : '设为封面';
-            item.onclick = () => { browseLayout.toggleCover(record.key); closeCoverMenu(); };
-            if (!coverMenu.matches(':popover-open')) coverMenu.showPopover();
-            coverMenu.style.left = `${Math.max(4,Math.min(event.clientX,innerWidth-coverMenu.offsetWidth-4))}px`;
-            coverMenu.style.top = `${Math.max(4,Math.min(event.clientY,innerHeight-coverMenu.offsetHeight-4))}px`;
+            const record=getActivePreviewEntry();
+            if(mode!=='browse'||!record||record.externalWorkspaceId||event.target.closest('button,a,input,textarea,select,[contenteditable=true]'))return;
+            event.preventDefault();event.stopPropagation();
+            coverMenu.firstElementChild.onclick=()=>{setBrowseCover(record.key);closeCoverMenu();};
+            if(!coverMenu.matches(':popover-open'))coverMenu.showPopover();
+            coverMenu.style.left=`${Math.max(4,Math.min(event.clientX,innerWidth-coverMenu.offsetWidth-4))}px`;
+            coverMenu.style.top=`${Math.max(4,Math.min(event.clientY,innerHeight-coverMenu.offsetHeight-4))}px`;
         });
-
         downloads = createPreviewDownloads(root,getDownloadRecords,()=>previewCards());
         dataExport = createPreviewDataExport(root,getDownloadRecords,()=>previewCards(),getJSONCards);
-        detailView = createDetailView(root,refreshSidebarExports,()=>{if(bundle){bundle.saveDetail();commitBundle();}});
+        detailView = createDetailView(root,refreshSidebarExports,()=>{if(bundle){bundle.saveDetail();commitBundle();}},()=>browse.session.covers);
         const panes = ['center','left','right'].map(side=>root.querySelector('.clab-preview-modal-'+side));
         const sheetChanged=()=>{updateSheetExportButtons(root);refreshSidebarExports();};
         parameterGrid = createPreviewParameterGrid(...panes,sheetChanged,sheetExportControls(true));
@@ -410,7 +422,7 @@ export function createPreviewModalApi({
             if(refresh){shortcutSession=null;rememberPanelSurface('workspace');}
             root.querySelectorAll('video,audio').forEach(media=>media.pause());
             external.suspend();
-            closeCoverMenu();workspaceModeMenu.close();sourcePicker.close();closeMaintenancePanel();
+            closeCoverMenu();browseLayout.closePool();workspaceModeMenu.close();sourcePicker.close();closeMaintenancePanel();
             root.classList.remove("visible");
             teardownPreviewEnhancers();
             browseLayout.release();
@@ -451,7 +463,7 @@ export function createPreviewModalApi({
             const modeButton = event.target.closest('button[data-review-mode]');
             if (modeButton) {
                 if(modeButton.disabled)return;
-                closeCoverMenu();external.suspend();
+                closeCoverMenu();browseLayout.closePool();external.suspend();
                 mode = modeButton.dataset.reviewMode;
                 if(mode==='compare'&&!['','image','video'].includes(typeFilter))typeFilter='';
                 editHistory.withoutRecording(renderPreviewModal);return;
@@ -492,6 +504,12 @@ export function createPreviewModalApi({
         });
         root.addEventListener('change',event=>{
             const target=event.target;
+            if (target.matches('[data-review-png-transparent]')) {
+                const workspace=getActiveWorkspace();
+                workspace.view.previewExport={...workspace.view.previewExport,[mode]:target.checked};
+                editHistory.withoutRecording(()=>window.CLab?.saveState(state,{createAnchor:false}));
+                return;
+            }
             if (target.matches('[data-review-png-scale]')) {
                 sheetScales[mode]=Math.max(1,Math.min(10,Number(target.value)||3));
                 target.value=sheetScales[mode];
@@ -580,7 +598,8 @@ export function createPreviewModalApi({
 
             if (event.key === "Escape") {
                 event.preventDefault();
-                if (coverMenu.matches(':popover-open')) { closeCoverMenu(); return; }
+                if(coverMenu.matches(':popover-open')){closeCoverMenu();return;}
+
                 close();
                 return;
             }
@@ -730,7 +749,7 @@ export function createPreviewModalApi({
         if (mode==='detail') return detailView.jsonCards();
         if (renderedGrid==='table') return tablePreview().jsonCards();
         if (renderedGrid==='xy') return xyPreview().jsonCards();
-        const records=getDownloadRecords(false,false);
+        const records=getDownloadRecords(false,true);
         const visible=new Set(records.map(record=>JSON.stringify([record.cardId,record.areaId])));
         return previewCards().filter(card=>records.some(record=>record.cardId===card.id)).map(card=>({...card,
             areas:card.areas.filter(area=>area.type==='edit'||visible.has(JSON.stringify([card.id,area.id])))}));
@@ -809,7 +828,7 @@ export function createPreviewModalApi({
                 downloadPreviewBlob(archive,`${name}-HTML.zip`);
             } else {
                 if(kind==='copy'&&(!navigator.clipboard?.write||!window.ClipboardItem))throw new Error('当前浏览器无法复制图片，可使用下载 PNG');
-                const png=capturePreviewLayout(source).then(layout=>renderLayoutPNG(layout,scale));
+                const png=capturePreviewLayout(source,{transparent:!!getActiveWorkspace().view.previewExport?.[mode]}).then(layout=>renderLayoutPNG(layout,scale));
                 if(kind==='copy')await navigator.clipboard.write([new ClipboardItem({'image/png':png})]);
                 else downloadPreviewBlob(await png,`${name}.png`);
             }
@@ -822,6 +841,7 @@ export function createPreviewModalApi({
         const disabled = exporting || !hasExportData();
         root.querySelectorAll('[data-review-export]').forEach(button=>button.disabled=disabled);
         root.querySelectorAll('[data-review-png-scale]').forEach(scale=>scale.value=sheetScales[mode]);
+        root.querySelectorAll('[data-review-png-transparent]').forEach(input=>input.checked=!!getActiveWorkspace().view.previewExport?.[mode]);
     }
 
     function hasExportData() {
@@ -832,6 +852,7 @@ export function createPreviewModalApi({
 
     function sheetExportControls(workbook) {
         return `<section><h3 title="按当前预览的版式导出；PNG 可调整放大倍数，HTML 可离线查看。">导出</h3><label class="clab-review-field clab-review-png-scale">PNG 放大倍数<input type="number" min="1" max="10" step="1" data-review-png-scale value="3"></label>
+        <label class="clab-review-check"><input type="checkbox" data-review-png-transparent>透明画布背景</label>
         <div class="clab-review-export clab-review-layout-export">
             <button type="button" data-review-export="copy">复制 PNG</button>
             <button type="button" data-review-export="png">下载 PNG</button>
@@ -940,6 +961,7 @@ export function createPreviewModalApi({
         previewModalStore.root.dataset.historyWorkspaceIds=JSON.stringify([...previewSourceIds]);
         if(!previewSourceIds.has(root.dataset.editWorkspaceId))root.dataset.editWorkspaceId=previewSourceIds.has(state.activeWorkspaceId)?state.activeWorkspaceId:workspaces[0].id;
         bundle=workspaces.length>1||workspaces[0].id!==state.activeWorkspaceId?createPreviewWorkspaceBundle(workspaces,getWorkspaceLabel,()=>{state.cards=getActiveWorkspace().cards;}):null;
+        loadBrowseCovers();
         const cards=previewCards(),workspace=workspaces[0];
         allSources=workspacePreviewSources(cards).map(source=>source.card.previewWorkspace?{...source,cardLabel:`${source.card.previewWorkspace.name} · ${source.cardLabel}`}:source);
         sources=allSources.filter(source=>saved?saved.sources.has(sourceKey(source.card,source.area)):sourceRecordCount(source.area));previewModalStore.entries=selectedRecords();previewModalStore.activeIndex=saved?previewModalStore.entries.findIndex(entry=>entry.key===saved.active):previewModalStore.entries.length?0:-1;
@@ -973,7 +995,7 @@ export function createPreviewModalApi({
         previewWorkspaceId=workspace.id;detailView.open(state.cards,workspace);
         compare={a:'',b:'',slot:'a',layout:'side',view:{x:0,y:0,zoom:1,split:.5}};
         if (!filmstripSessions.has(workspace.id)) filmstripSessions.set(workspace.id,{covers:new Map(),positions:new Map(),customGroups:[]});
-        browse.session = filmstripSessions.get(workspace.id);
+        browse.session = filmstripSessions.get(workspace.id);loadBrowseCovers();
         parameterGrid.open(workspace);
         xyGrid.open(view.xy,state.cards);
         historyMatrix={width:200,textLimit:200,x:'',y:'',z:'',zValue:'',source:'',filters:{}};

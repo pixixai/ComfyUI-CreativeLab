@@ -43,12 +43,12 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     for(const [area,ratio] of [[a,1],[b,1.5],[old,1]]) {
         const cover=module(area.id).querySelector('.clab-source-cover'),thumb=module(area.id).querySelector('.clab-filmstrip-item');
         const aspect=element=>{const [width,height=1]=getComputedStyle(element).aspectRatio.split('/').map(Number);return width/height;};
-        assert(aspect(cover)===ratio&&aspect(thumb)===ratio,`cover and thumbnails do not share their source median ratio clamped to square: ${area.id}, ${aspect(cover)}, ${aspect(thumb)}`);
+        assert(aspect(cover)===1&&aspect(thumb)===ratio,`cover and thumbnails do not share their source median ratio clamped to square: ${area.id}, ${aspect(cover)}, ${aspect(thumb)}`);
     }
     const frame=module(a.id).querySelector('.clab-source-cover-frame').getBoundingClientRect(),caption=module(a.id).querySelector('.clab-source-module-caption');
     const nameBounds=caption.querySelector('span').getBoundingClientRect(),countBounds=caption.querySelector('small').getBoundingClientRect(),checkBounds=sourceCheck(a.id).getBoundingClientRect();
     const reverseBounds=reverseOf(a).getBoundingClientRect();
-    assert(nameBounds.left===frame.left+6&&Math.abs((nameBounds.top+nameBounds.bottom-countBounds.top-countBounds.bottom)/2)<.1&&countBounds.left>=nameBounds.right+4&&countBounds.right===reverseBounds.right&&countBounds.bottom===reverseBounds.bottom&&reverseBounds.right===frame.right-4&&reverseBounds.bottom===frame.bottom-4&&checkBounds.right<frame.left,'module title is not bottom-left or count does not share the bottom-right history button slot');
+    assert(nameBounds.left>=frame.left+39&&Math.abs((nameBounds.top+nameBounds.bottom-countBounds.top-countBounds.bottom)/2)<.1&&countBounds.right===reverseBounds.right&&reverseBounds.right===frame.right&&checkBounds.right<frame.left,'avatar row title, count and reverse slot are misaligned');
     const captionName=caption.querySelector('span'),shortName=captionName.textContent;
     captionName.textContent='很长的输出模块名称'.repeat(20);
     assert(captionName.scrollWidth>captionName.clientWidth&&getComputedStyle(captionName).textOverflow==='ellipsis'&&captionName.getBoundingClientRect().right<caption.querySelector('small').getBoundingClientRect().left,'long module names did not truncate while retaining the count and history button slot');
@@ -57,7 +57,7 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     const foldBounds=module(a.id).closest('[data-browse-card]').querySelector('[data-browse-fold]').getBoundingClientRect();
     const railX=taskBounds.left+parseFloat(railStyle.left)+.5;
     const taskCheck=module(a.id).closest('[data-browse-card]').querySelector('[data-browse-card-check]').getBoundingClientRect(),taskName=module(a.id).closest('[data-browse-card]').querySelector('[data-browse-card-name]').getBoundingClientRect();
-    assert(railStyle.borderLeftStyle==='dashed'&&Math.abs(railX-(foldBounds.left+foldBounds.width/2))<1&&checkBounds.left>railX&&Math.abs(checkBounds.left-taskCheck.left)<1&&Math.abs(frame.left-taskName.left)<1&&Math.abs(checkBounds.top-frame.top)<1,'task rail, module checkbox or cover alignment is incorrect');
+    assert(railStyle.borderLeftStyle==='dashed'&&Math.abs(railX-(foldBounds.left+foldBounds.width/2))<1&&checkBounds.left>railX&&Math.abs(checkBounds.left-taskCheck.left)<1&&Math.abs(frame.left-taskName.left)<1&&Math.abs((checkBounds.top+checkBounds.bottom-frame.top-frame.bottom)/2)<1,'task rail, module checkbox or cover alignment is incorrect');
     assert(q('.clab-browse-source-actions').getBoundingClientRect().top>=q('.clab-browse-thumb-size').getBoundingClientRect().bottom,'source selection actions are not below the thumbnail column slider');
     const actions=q('.clab-browse-source-actions'),status=q('.clab-browse-status'),sourceWidth=root.style.getPropertyValue('--browse-source-width');
     assert(status.parentElement===actions&&getComputedStyle(status).textAlign==='right'&&q('[data-review-type]').closest('.clab-source-search')===q('[data-browse-search]').parentElement,'source count or type filter is not in its shared row');
@@ -106,15 +106,11 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     assert(q('.clab-preview-modal-center').getBoundingClientRect().width<centerWidth,'resizing the unified sources panel did not resize the center');
     q('[data-browse-resize=sources]').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true,cancelable:true}));
     assert(q('.clab-preview-modal-main-image')===image&&JSON.stringify([card,other])===original,'source layout and sorting rebuilt the central preview or changed tasks');
-    q('[data-filmstrip-cover="1"]').click();
-    assert(module(a.id).querySelector('.clab-source-cover').dataset.index==='1'&&module(a.id).querySelectorAll('.clab-filmstrip-thumb').length===4&&q('[data-filmstrip-cover="1"]').getAttribute('aria-pressed')==='true','setting a cover removed its original history record');
-    const mark=q('[data-filmstrip-cover="1"]'),markStyle=getComputedStyle(mark);
-    assert(markStyle.opacity==='1'&&parseFloat(markStyle.left)<8&&parseFloat(markStyle.top)<8,'selected cover icon is not always lit at the upper-left');
-    mark.click();
-    image.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:450,clientY:220}));
-    q('[data-review-cover]').click();
-    assert(module(a.id).querySelector('.clab-source-cover').dataset.index==='0','preview context menu did not set the same source cover');
-    q('[data-filmstrip-cover="0"]').click();
+    module(a.id).querySelector('.clab-source-cover').click();
+    assert(q('.clab-detail-pool-popover')&&q('[data-detail-pool-record="3"]').getAttribute('aria-pressed')==='true','module avatar did not open the current-record pool');
+    q('[data-detail-pool-record="1"]').click();
+    assert(a.historyIndex===0&&current.value===inputValue&&q('.clab-detail-pool-popover')&&module(a.id).querySelector('.clab-source-cover').dataset.index==='1','pool did not update actual current history or closed after selection');
+    q('[data-detail-pool-record="3"]').click();q('[data-detail-pool-close]').click();
     const drag=async(from,to,before=false)=>{
         const dataTransfer=new DataTransfer();
         from.dispatchEvent(new DragEvent('dragstart',{bubbles:true,cancelable:true,dataTransfer}));
@@ -140,15 +136,16 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     assert(JSON.stringify(a.history)===JSON.stringify(history)&&taskOrder()===fixedOrder,'restoring record order changed the task order');
     q('.clab-filmstrip-thumb[data-index="1"]').click();assert(a.historyIndex===1&&current.value===30,'history selection did not restore its owning module snapshot');
     module(a.id).querySelector('.clab-source-module-caption>span').click();
-    assert(a.historyIndex===3&&sourceCheck(a.id).checked,'clicking the overlaid module title did not open the cover independently of the checkbox');
+    assert(a.historyIndex===1&&!sourceCheck(a.id).checked,'module title should toggle its source checkbox without changing current history');
+    sourceCheck(a.id).click();
     q('.clab-filmstrip-thumb[data-index="1"]').click();
     task().querySelector('[data-browse-fold]').click();
     q('.clab-filmstrip-thumb[data-index="2"]').click();
     assert(!task().open,'selecting another record reopened a manually collapsed task');
     task().querySelector('[data-browse-fold]').click();
     q('.clab-filmstrip-thumb[data-index="1"]').click();
-    passed.push('unified source/media tree retains task and module checks, latest covers, independent expansion, search, local history sorting and resizable sides');
-    passed.push('detail-style cover icons stay lit at the upper-left, preserve the original record and share the central preview context action');
+    passed.push('unified source/media tree retains task and module checks, preview cover avatars, independent expansion, search, local history sorting and resizable sides');
+    passed.push('module avatars open independent cover pools without changing workspace selection');
     passed.push('left-panel cross-module dragging expands its target and preserves custom membership without modifying task histories');
 
     const selectedDownload=()=>q('[data-review-download=selected]');
@@ -199,7 +196,7 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
         q('[data-review-download-history]').click();
         format.value='zip';format.dispatchEvent(new Event('change',{bubbles:true}));
     } finally { window.showDirectoryPicker=picker; }
-    passed.push('source/media tree downloads pinned covers as one ZIP and saves module histories to one directory without overwriting');
+    passed.push('source/media tree downloads pinned preview covers as one ZIP and saves module histories to one directory without overwriting');
 
     assert(q('[data-review-download-format]').parentElement.childNodes[0]===q('[data-review-download-format]'),'save-format control still has a visible title');
     const downloadHistory=q('[data-review-download-history]').parentElement,jsonHistory=q('[data-review-json-history]').parentElement;
@@ -234,13 +231,13 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
         q('[data-review-json-history]').click();
         q('[data-review-json-kind][value=all]').click();
     } finally {window.fetch=exportFetch;navigator.clipboard.writeText=writeJSON;}
-    passed.push('sidebar organization copies the visible covers or full groups and JSON controls export only their chosen module types and histories');
+    passed.push('sidebar organization copies the visible preview covers or full groups and JSON controls export only their chosen module types and histories');
 
     const before=JSON.stringify([card,other]);
     q('[data-review-mode="compare"]').click();
     assert(q('.clab-source-media-tree')&&!q('.clab-browse-footer')&&q('.clab-compare-stage'),'comparison did not use the merged source/media tree or has no empty drop regions');
     assert(selectedDownload().disabled&&q('[data-review-download=all]').disabled===false,'empty comparison should allow downloading covers only');
-    q('.clab-preview-modal-thumb[data-index="0"]').click();q('.clab-preview-modal-thumb[data-index="4"]').click();
+    q('.clab-filmstrip-thumb[data-index="0"]').click();q('.clab-filmstrip-thumb[data-index="4"]').click();
     assert(!selectedDownload().disabled,'comparison did not enable downloads after choosing A/B');
     assert(q('.clab-compare-stage.side') && q('.clab-compare-stage').querySelectorAll('img').length===2,'image A/B slots did not accept different output modules');
     assert(!q('.clab-compare-slots')&&q('.label-a').textContent.startsWith('A')&&q('.label-b').textContent.endsWith('B'),'A/B information is not in the overlay corner labels');
@@ -395,7 +392,7 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     detachedVideoMenu.querySelector('[data-spd="1.5"]').click();assert(browseVideo.playbackRate===1.5,'browse speed menu did not change playback rate');
     browsePlayer.querySelector('.clab-more-toggle').click();
     passed.push('browse reuses module video controls, click/Space playback, wheel seeking and pointer-anchored Ctrl+wheel zoom');
-    q('[data-review-mode="compare"]').click();q('.clab-preview-modal-thumb[data-index="0"]').click();q('.clab-preview-modal-thumb[data-index="1"]').click();
+    q('[data-review-mode="compare"]').click();q('.clab-filmstrip-thumb[data-index="0"]').click();q('.clab-filmstrip-thumb[data-index="1"]').click();
     const prepareVideos=async()=>{
         const medias=[...root.querySelectorAll('.clab-compare-stage video')];
         for(const [index,media] of medias.entries()) {for(let i=0;i<60&&media.readyState<2;i++)await delay(30);assert(media.readyState>=2,'comparison fixture video did not decode');Object.defineProperty(media,'duration',{value:index?1:1.3});media.dispatchEvent(new Event('loadedmetadata'));}
@@ -441,7 +438,7 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
         nativeVideoURL=URL.createObjectURL(new Blob(chunks,{type:'video/webm'}));
         video.history=[`${nativeVideoURL}#review.webm`,`${nativeVideoURL}#review.webm`];video.resultUrl=video.history[0];state.selectedAreaIds=[video.id];
         window.CLab.showPreviewContextMenu(100,100,card.id,video.id,video.resultUrl);document.querySelector('.clab-context-menu').style.display='none';openWorkspacePreview();
-        if(mode==='compare'){q('[data-review-mode="compare"]').click();q('.clab-preview-modal-thumb[data-index="0"]').click();q('.clab-preview-modal-thumb[data-index="1"]').click();}
+        if(mode==='compare'){q('[data-review-mode="compare"]').click();q('.clab-filmstrip-thumb[data-index="0"]').click();q('.clab-filmstrip-thumb[data-index="1"]').click();}
         const player=q(mode==='compare'?'.clab-compare-stage':'.clab-preview-video');
         window.nativePreviewVideos=[...player.querySelectorAll('video')];
         for(const media of window.nativePreviewVideos){for(let i=0;i<60&&media.readyState<2;i++)await delay(30);Object.defineProperty(media,'duration',{value:1.3});media.dispatchEvent(new Event('loadedmetadata'));media.currentTime=.25;}
@@ -452,7 +449,7 @@ export async function checkPreviewReview({ state, passed, assert, delay }) {
     window.showReviewDemo=layout=>{
         if(!state.cards.includes(card))state.cards.push(card,other);
         state.selectedAreaIds=[a.id,b.id,old.id];open();
-        if(layout==='compare'){q('[data-review-mode="compare"]').click();q('.clab-preview-modal-thumb[data-index="0"]').click();q('.clab-preview-modal-thumb[data-index="4"]').click();q('[data-compare-layout="split"]').click();}
+        if(layout==='compare'){q('[data-review-mode="compare"]').click();q('.clab-filmstrip-thumb[data-index="0"]').click();q('.clab-filmstrip-thumb[data-index="4"]').click();q('[data-compare-layout="split"]').click();}
         else if(layout==='detail'){q('[data-review-mode="detail"]').click();}else if(layout!=='browse'){q('[data-review-mode="xy"]').click();}
     };
     window.exportReviewDemoPNG=async()=>{
