@@ -27,10 +27,6 @@ app.registerExtension({
             if ((event.ctrlKey || event.metaKey) && ['z', 'y'].includes(event.key.toLowerCase())) StateManager.flushPendingSave(app.graph);
         }, true);
 
-        // =========================================================================
-        // 【修改点】：使用 V3 新版原生组件库，为 CLab 创建独立的按钮组
-        // =========================================================================
-        
         const clabBtn = document.createElement("button");
         clabBtn.className = "comfyui-button";
         
@@ -57,35 +53,20 @@ app.registerExtension({
 
         clabBtn.onclick = () => togglePanel();
 
-        try {
-            // 新样式：引入并为 CLab 单独创建一个原生按钮组 (ButtonGroup)
-            const { ComfyButtonGroup } = await import("../../scripts/ui/components/buttonGroup.js");
-            const clabGroup = new ComfyButtonGroup(clabBtn);
-            
-            // 【修改点】：去除了左右两侧的外边距
-            clabGroup.element.style.margin = "0";
-
-            if (app.menu && app.menu.settingsGroup && app.menu.settingsGroup.element) {
-                // 像 Manager 一样，插入到右侧设置组的前面
-                app.menu.settingsGroup.element.before(clabGroup.element);
-            } else {
-                // 如果没有 settingsGroup，直接追加到菜单末尾
-                const oldMenu = document.querySelector(".comfy-menu");
-                if (oldMenu) oldMenu.appendChild(clabGroup.element);
-            }
-        } catch (exception) {
-            console.log('[CLab] ComfyUI 版本较旧，使用后备按钮模式。');
-            // 后备：旧版原生按钮包裹
-            // 【修改点】：去除了旧版包裹层的外边距
-            const clabBtnWrapper = document.createElement("div");
-            clabBtnWrapper.style.cssText = "display: flex; align-items: center; margin: 0;";
-            clabBtnWrapper.appendChild(clabBtn);
-            
-            const oldMenu = document.querySelector(".comfy-menu");
-            if (oldMenu) {
-                oldMenu.appendChild(clabBtnWrapper);
-            }
+        const ComfyButtonGroup = window.comfyAPI?.buttonGroup?.ComfyButtonGroup;
+        let clabGroup;
+        if (typeof ComfyButtonGroup === "function") {
+            clabGroup = new ComfyButtonGroup(clabBtn).element;
+        } else {
+            clabGroup = document.createElement("div");
+            clabGroup.style.cssText = "display: flex; align-items: center;";
+            clabGroup.appendChild(clabBtn);
         }
+        clabGroup.style.margin = "0";
+
+        const settingsGroup = app.menu?.settingsGroup?.element;
+        if (settingsGroup) settingsGroup.before(clabGroup);
+        else document.querySelector(".comfy-menu")?.appendChild(clabGroup);
 
         // 监听图谱清空事件（切换工作流、新建工作流时触发）
         const originalClear = app.graph.clear;
