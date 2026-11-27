@@ -27,9 +27,10 @@ test('history source and typed parameter filters exclude missing snapshots witho
     assert.equal(model.cards.length,0);assert.equal(model.xy.x.values.length,0);assert.equal(h.config.x,'');
 });
 test('projection retains matrix appearance and camera while deriving bindings and coordinates from history',()=>{
-    const h=fixture(),model=projectHistoryMatrix(h.records,h.sources,h.config,{origin:'top',zoom:.6,panX:12,panY:34,cameraReady:true,x:{gap:20,labelAngle:45},z:{display:'all'}});
+    const h=fixture(),model=projectHistoryMatrix(h.records,h.sources,h.config,{origin:'top',zoom:.6,panX:12,panY:34,cameraReady:true,x:{gap:20,labelAngle:45},z:{display:'all'},hiddenBindings:['output'],hideHistoryLabels:true});
     assert.equal(model.xy.origin,'top');assert.equal(model.xy.x.gap,20);assert.equal(model.xy.x.labelAngle,45);assert.equal(model.xy.z.display,'all');
     assert.deepEqual([model.xy.zoom,model.xy.panX,model.xy.panY],[.6,12,34]);assert.deepEqual(model.xy.x.bindings,['1||steps']);
+    assert.deepEqual(model.xy.hiddenBindings,['output']);assert.equal(model.xy.hideHistoryLabels,true);
 });
 
 test('long prompt coordinates stay intact without being duplicated into unsafe HTML element identities',()=>{

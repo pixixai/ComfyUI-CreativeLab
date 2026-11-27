@@ -129,10 +129,12 @@ export function injectReviewStyles() {
         :is(.clab-review-grid-stage,.clab-xy-layer-axes)[data-hidden-axes~="z"] :is([data-xy-edit-values=z],.clab-z-tick),
         :is(.clab-review-grid-stage,.clab-xy-layer-axes)[data-hidden-bindings~="x"] [data-xy-part=x-binding],
         :is(.clab-review-grid-stage,.clab-xy-layer-axes)[data-hidden-bindings~="y"] [data-xy-part=y-binding],
+        .clab-xy-layer-axes[data-hidden-bindings~="output"] [data-xy-part=output-binding],
         :is(.clab-review-grid-stage,.clab-xy-layer-axes)[data-hidden-bindings~="z"] .clab-xy-z-binding{visibility:hidden;pointer-events:none}
         .clab-review-xy-tiling-section{display:flex;flex-direction:column;gap:8px;margin:2px 0;padding:8px 0;border-top:1px solid #ffffff0d;border-bottom:1px solid #ffffff0d}
         .clab-xy-tiling-inline[hidden]{display:none!important}.clab-review-sheet-settings .clab-xy-tiling-inline .clab-xy-tiling-fields{padding:4px 0 9px}
         .clab-review-xy-visibility{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 8px}
+        .clab-review-xy-extra-visibility{margin:4px 0}
         .clab-review-xy-options{display:flex;gap:6px;flex-wrap:wrap}
         .clab-review-xy-options>button{color:#aaa;background:#282828;border:1px solid #444;border-radius:4px;padding:4px 7px;cursor:pointer}
         .clab-review-xy-options>button:hover:not(:disabled){color:#eee}

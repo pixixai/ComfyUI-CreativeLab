@@ -19,6 +19,7 @@ export function projectHistoryMatrix(records,sources,config,previous={}) {
     const values=name=>[...new Map(eligible.map(record=>{const value=record.parameters.get(config[name]).value;return [valueKey(value),value];})).values()];
     const xy=createWorkspaceView({xy:previous}).xy;
     xy.hiddenAxes=[...(previous.hiddenAxes||[])];xy.hiddenBindings=[...(previous.hiddenBindings||[])];
+    xy.hideHistoryLabels=!!previous.hideHistoryLabels;
     for(const name of ['x','y','z']){
         xy[name].bindings=config[name]?[binding(config[name])]:[];
         xy[name].values=config[name]?values(name):[];

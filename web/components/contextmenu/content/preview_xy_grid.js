@@ -104,6 +104,8 @@ export function createPreviewXYGrid(center,left,right,changed,exportControls,cam
         for (const cell of wrapper.querySelectorAll(':scope > .clab-card')) {
             const history=histories.get(cell.querySelector('.clab-output-area')?.dataset.areaId);
             if (history) updateXYHistoryLabel(cell,history);
+            const label=cell.querySelector(':scope > .clab-xy-history');
+            if(label){label.hidden=!!(layerViews.get(Number(cell.dataset.xyLayer))||xy).hideHistoryLabels;if(label.hidden&&label.xyDisplay)label.xyDisplay.hidden=true;}
         }
         paintSelection();
         stage.dataset.hiddenAxes=xy.hiddenAxes.includes('z')?'z':'';
@@ -125,6 +127,9 @@ export function createPreviewXYGrid(center,left,right,changed,exportControls,cam
             <div class="clab-review-xy-visibility"><span>坐标轴</span><span>绑定摘要</span>${['x','y','z'].map(name=>
                 `<label class="clab-review-check"><input type="checkbox" data-review-xy-show="axes" value="${name}"${!settingsView.hiddenAxes.includes(name)?' checked':''}>显示 ${name.toUpperCase()} 轴</label>
                 <label class="clab-review-check"><input type="checkbox" data-review-xy-show="bindings" value="${name}"${!settingsView.hiddenBindings.includes(name)?' checked':''}>显示 ${name.toUpperCase()} 轴摘要</label>`).join('')}</div>
+            <div class="clab-review-xy-visibility clab-review-xy-extra-visibility">
+                <label class="clab-review-check"><input type="checkbox" data-review-xy-history-labels${!settingsView.hideHistoryLabels?' checked':''}>显示历史记录标签</label>
+                <label class="clab-review-check"><input type="checkbox" data-review-xy-show="bindings" value="output"${!settingsView.hiddenBindings.includes('output')?' checked':''}>显示输出摘要</label></div>
             <div class="clab-review-xy-options" role="group" aria-label="轴向">${[['bottom','Y 轴向上'],['top','Y 轴向下']].map(([value,label])=>
                 `<label class="clab-review-check"><input type="radio" name="clab-review-xy-orientation-${instance}" data-review-xy-orientation value="${value}"${value===settingsView.origin?' checked':''}>${label}</label>`).join('')}</div>
             <div class="clab-review-xy-options" role="group" aria-label="交换坐标轴">${['xy','xz','yz'].map(pair=>
@@ -212,6 +217,8 @@ export function createPreviewXYGrid(center,left,right,changed,exportControls,cam
             if(input.matches('[data-review-xy-show]')) {
                 const key=input.dataset.reviewXyShow==='axes'?'hiddenAxes':'hiddenBindings';
                 updateTargets(view=>{view[key]=input.checked?view[key].filter(name=>name!==input.value):[...new Set([...view[key],input.value])];},input.value==='z');
+            } else if(input.matches('[data-review-xy-history-labels]')) {
+                updateTargets(view=>view.hideHistoryLabels=!input.checked);
             } else if(input.matches('[data-review-xy-orientation]')) {
                 updateTargets(view=>view.origin=input.value);renderSettings(config);
                 right.querySelector('[data-review-xy-orientation]:checked')?.focus({preventScroll:true});
@@ -251,8 +258,9 @@ export function createPreviewXYGrid(center,left,right,changed,exportControls,cam
             for(const id of ids){histories.delete(id);const cell=wrapper?.querySelector(`.clab-output-area[data-area-id="${CSS.escape(id)}"]`)?.closest('.clab-card');if(cell){releaseReviewGridMedia(cell);cell.remove();}}
             render();
         },
-        getViewState(){return {layerViews:[...layerViews].map(([z,view])=>[z,structuredClone(view)]),sources:sourcePanel.getViewState(),camera:{...camera},selected:[...selected],layers:[...selectedLayers],selectionKind,activeCardId,anchorId,histories:[...histories]};},
+        getViewState(){return {visibility:{hiddenAxes:[...xy.hiddenAxes],hiddenBindings:[...xy.hiddenBindings],hideHistoryLabels:!!xy.hideHistoryLabels},layerViews:[...layerViews].map(([z,view])=>[z,structuredClone(view)]),sources:sourcePanel.getViewState(),camera:{...camera},selected:[...selected],layers:[...selectedLayers],selectionKind,activeCardId,anchorId,histories:[...histories]};},
         restoreViewState(saved){
+            if(saved.visibility)Object.assign(xy,structuredClone(saved.visibility));
             layerViews.clear();for(const [z,view]of saved.layerViews||[])layerViews.set(z,structuredClone(view));
             sourcePanel.restoreViewState(saved.sources);camera={...saved.camera};selected.clear();for(const id of saved.selected)if(cards.some(card=>card.id===id))selected.add(id);
             selectedLayers.clear();for(const index of saved.layers)selectedLayers.add(index);selectionKind=saved.selectionKind;activeCardId=saved.activeCardId;anchorId=saved.anchorId;
